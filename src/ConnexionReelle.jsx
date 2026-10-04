@@ -75,6 +75,42 @@ export default function ConnexionReelle() {
   const [code, setCode] = useState("");
   const [employeIdentifie, setEmployeIdentifie] = useState(null);
 
+  const [equipe, setEquipe] = useState(null);
+  const [afficherAjout, setAfficherAjout] = useState(false);
+  const [nouveauNom, setNouveauNom] = useState("");
+  const [nouveauPoste, setNouveauPoste] = useState("");
+  const [nouveauRole, setNouveauRole] = useState("cuisinier");
+  const [nouveauCode, setNouveauCode] = useState("");
+  const [enregistrement, setEnregistrement] = useState(false);
+  const [erreurEquipe, setErreurEquipe] = useState("");
+
+  async function chargerEquipe(jeton) {
+    try {
+      const data = await appelerEmployes(jeton, "lister", {});
+      setEquipe(data.employes || []);
+    } catch (e2) {
+      setErreurEquipe("Impossible de charger l'équipe : " + e2.message);
+    }
+  }
+
+  async function ajouterMembreEquipe(e) {
+    e.preventDefault();
+    if (!/^[0-9]{4}$/.test(nouveauCode)) {
+      setErreurEquipe("Le code doit comporter exactement 4 chiffres.");
+      return;
+    }
+    setEnregistrement(true); setErreurEquipe("");
+    try {
+      await appelerEmployes(session.token, "creer", { nom: nouveauNom, poste: nouveauPoste, role: nouveauRole, code: nouveauCode });
+      setNouveauNom(""); setNouveauPoste(""); setNouveauCode(""); setAfficherAjout(false);
+      await chargerEquipe(session.token);
+    } catch (e2) {
+      setErreurEquipe("Impossible d'ajouter cet employé : " + e2.message);
+    } finally {
+      setEnregistrement(false);
+    }
+  }
+
   async function seConnecterEtablissement(e) {
     e.preventDefault();
     setEnCours(true); setErreur("");
@@ -102,6 +138,7 @@ export default function ConnexionReelle() {
       const data = await appelerEmployes(session.token, "verifier", { code });
       setEmployeIdentifie(data.employe);
       setEtape("connecte");
+      chargerEquipe(session.token);
     } catch (e2) {
       setErreur("Code incorrect, ou pas encore attribué.");
       setCode("");
@@ -113,6 +150,7 @@ export default function ConnexionReelle() {
   async function seDeconnecter() {
     try { await supabasePublic.auth.signOut(); } catch (e) { /* pas grave */ }
     setSession(null); setEmployeIdentifie(null); setCode(""); setErreur("");
+    setEquipe(null); setAfficherAjout(false); setErreurEquipe("");
     setEtape("etablissement");
   }
 
@@ -135,6 +173,64 @@ export default function ConnexionReelle() {
               Se déconnecter
             </button>
           </Carte>
+
+          <div className="mt-4">
+            <Carte>
+              <p className="text-sm font-semibold text-[var(--ink)] mb-3">Équipe de l'établissement</p>
+
+              {equipe === null && <p className="text-xs text-[var(--steel)]">Chargement…</p>}
+
+              {equipe !== null && (
+                <ul className="mb-3">
+                  {equipe.length === 0 && <li className="text-xs text-[var(--steel)]">Aucun employé pour l'instant.</li>}
+                  {equipe.map((e) => (
+                    <li key={e.id} className="text-sm text-[var(--ink)] flex justify-between py-1 border-b border-[var(--line)] last:border-0">
+                      <span>{e.nom}</span>
+                      <span className="text-[var(--steel)] text-xs">{e.role}{e.poste ? ` — ${e.poste}` : ""}</span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+
+              {erreurEquipe && <p className="text-xs mb-2" style={{ color: "var(--warn)" }}>{erreurEquipe}</p>}
+
+              {!afficherAjout && (
+                <button onClick={() => setAfficherAjout(true)} className="text-sm text-[var(--accent)] font-medium">
+                  + Ajouter un employé
+                </button>
+              )}
+
+              {afficherAjout && (
+                <form onSubmit={ajouterMembreEquipe} className="mt-2 space-y-2">
+                  <input className={inputCls} placeholder="Nom" value={nouveauNom} onChange={(e) => setNouveauNom(e.target.value)} required />
+                  <input className={inputCls} placeholder="Poste (ex. Chaud, Froid...)" value={nouveauPoste} onChange={(e) => setNouveauPoste(e.target.value)} />
+                  <input className={inputCls} placeholder="Rôle (ex. cuisinier, chef...)" value={nouveauRole} onChange={(e) => setNouveauRole(e.target.value)} />
+                  <input
+                    className={inputCls}
+                    placeholder="Code à 4 chiffres"
+                    inputMode="numeric"
+                    maxLength={4}
+                    value={nouveauCode}
+                    onChange={(e) => setNouveauCode(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                    required
+                  />
+                  <div className="flex gap-2">
+                    <button
+                      type="submit"
+                      disabled={enregistrement}
+                      className="flex-1 rounded-md px-3 py-2 text-sm font-semibold text-white"
+                      style={{ backgroundColor: "var(--accent)", opacity: enregistrement ? 0.6 : 1 }}
+                    >
+                      Enregistrer
+                    </button>
+                    <button type="button" onClick={() => setAfficherAjout(false)} className="text-sm text-[var(--steel)] px-2">
+                      Annuler
+                    </button>
+                  </div>
+                </form>
+              )}
+            </Carte>
+          </div>
         </div>
       </div>
     );
