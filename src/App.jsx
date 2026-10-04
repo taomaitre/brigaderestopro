@@ -1,0 +1,13689 @@
+import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+/* ======================================================================================
+   CONFIGURATION — clé API IA (Anthropic / Claude)
+   ======================================================================================
+   Cette clé ne doit JAMAIS être définie ici, ni via une variable d'environnement Vite
+   (VITE_...) : tout ce qui commence par VITE_ est inclus en clair dans le code envoyé au
+   navigateur, donc visible par quiconque ouvre le code source de la page — exactement le
+   risque que ce commentaire signalait déjà dans l'ancienne version "artifact" de ce fichier.
+   Tant que l'app tournait en démo privée sur Claude/Netlify, ce risque était jugé acceptable
+   ponctuellement. Maintenant que le code part sur un vrai dépôt en vue d'un hébergement
+   public sur o2switch, la clé doit vivre uniquement côté serveur (un petit backend/API route
+   qui appelle Anthropic ou Gemini et que l'app interroge sans jamais voir la clé). Tant que
+   ce backend n'existe pas, IA_ACTIVEE reste à false et les fonctions IA restent désactivées.
+   ====================================================================================== */
+const ANTHROPIC_API_KEY = ""; // ne pas remplir ici — voir commentaire ci-dessus
+
+// Interrupteur des fonctions IA (lecture de photo, commande vocale/texte) — RÉSERVÉ à toi
+// (l'éditeur du logiciel), jamais au client/restaurant : c'est ce qui distingue l'offre
+// d'abonnement "sans IA" (pas chère) de l'offre "avec IA" (plus chère). Le client donne son
+// accord pour passer sur l'offre IA, mais c'est toi qui actives réellement l'interrupteur, en
+// changeant cette valeur ici (true/false) — aucun bouton pour ça n'existe dans l'application
+// elle-même, ni pour le Chef ni pour le Directeur du restaurant. Une fois l'architecture
+// multi-établissements et le site d'administration séparé construits sur o2switch, ce réglage
+// deviendra un vrai interrupteur par client dans TON panneau d'administration à toi (le rôle
+// "constructeur"), invisible et inaccessible depuis l'application de chaque restaurant.
+const IA_ACTIVEE = true;
+
+/* ---------- icônes (style lucide, recréées en local, sans dépendance externe) ---------- */
+const { createElement: h } = React;
+function makeIcon(children) {
+  return function Icon({ size = 24, className = "", style, color = "currentColor", ...rest }) {
+    return h(
+      "svg",
+      {
+        xmlns: "http://www.w3.org/2000/svg",
+        width: size,
+        height: size,
+        viewBox: "0 0 24 24",
+        fill: "none",
+        stroke: color,
+        strokeWidth: 2,
+        strokeLinecap: "round",
+        strokeLinejoin: "round",
+        className,
+        style,
+        ...rest,
+      },
+      children.map((c, i) => h(c.tag, { key: i, ...c.props }))
+    );
+  };
+}
+const P = (d) => ({ tag: "path", props: { d } });
+const C = (cx, cy, r) => ({ tag: "circle", props: { cx, cy, r } });
+const L = (x1, y1, x2, y2) => ({ tag: "line", props: { x1, y1, x2, y2 } });
+const RC = (x, y, w, ht, rx) => ({ tag: "rect", props: { x, y, width: w, height: ht, rx: rx || 0 } });
+
+const ChefHat = makeIcon([P("M6 13.87A4 4 0 0 1 7.41 6a5.11 5.11 0 0 1 1.05-1.54 5 5 0 0 1 7.08 0A5.11 5.11 0 0 1 16.59 6 4 4 0 0 1 18 13.87V21H6Z"), L(6, 17, 18, 17)]);
+const Thermometer = makeIcon([P("M14 4v10.54a4 4 0 1 1-4 0V4a2 2 0 0 1 4 0Z")]);
+const Package = makeIcon([P("m7.5 4.27 9 5.15"), P("M21 8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16Z"), P("m3.3 7 8.7 5 8.7-5"), L(12, 22, 12, 12)]);
+const CalendarDays = makeIcon([RC(3, 4, 18, 18, 2), L(16, 2, 16, 6), L(8, 2, 8, 6), L(3, 10, 21, 10), L(8, 14, 8, 14), L(12, 14, 12, 14), L(16, 14, 16, 14), L(8, 18, 8, 18), L(12, 18, 12, 18)]);
+const Users = makeIcon([P("M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"), C(9, 7, 4), P("M22 21v-2a4 4 0 0 0-3-3.87"), P("M16 3.13a4 4 0 0 1 0 7.75")]);
+const AlertTriangle = makeIcon([P("m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z"), L(12, 9, 12, 13), P("M12 17h.01")]);
+const Plus = makeIcon([L(12, 5, 12, 19), L(5, 12, 19, 12)]);
+const Trash2 = makeIcon([P("M3 6h18"), P("M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6"), P("M8 6V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"), L(10, 11, 10, 17), L(14, 11, 14, 17)]);
+const CheckCircle2 = makeIcon([C(12, 12, 10), P("m9 12 2 2 4-4")]);
+const Circle = makeIcon([C(12, 12, 10)]);
+const X = makeIcon([L(18, 6, 6, 18), L(6, 6, 18, 18)]);
+const Snowflake = makeIcon([L(12, 2, 12, 22), L(2, 12, 22, 12), L(4.9, 4.9, 19.1, 19.1), L(4.9, 19.1, 19.1, 4.9)]);
+const Flame = makeIcon([P("M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z")]);
+const TrendingDown = makeIcon([P("m22 17-8.5-8.5-5 5L2 7"), P("M16 17h6v-6")]);
+const PhoneCall = makeIcon([P("M13 2a9 9 0 0 1 9 9"), P("M13 6a5 5 0 0 1 5 5"), P("M21.6 16.5c.3.9-.1 1.9-.9 2.3l-1.1.6a2 2 0 0 1-2.1-.2c-1.6-1.2-3-2.6-4.2-4.2a2 2 0 0 1-.2-2.1l.6-1.1c.4-.8 1.4-1.2 2.3-.9")]);
+const Clock = makeIcon([C(12, 12, 10), P("M12 6v6l4 2")]);
+const ClipboardList = makeIcon([RC(8, 2, 8, 4, 1), P("M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"), L(9, 12, 15, 12), L(9, 16, 15, 16), L(9, 20, 13, 20)]);
+const ArrowLeft = makeIcon([L(19, 12, 5, 12), P("m12 19-7-7 7-7")]);
+const Activity = makeIcon([P("M22 12h-4l-3 9L9 3l-3 9H2")]);
+const ListChecks = makeIcon([P("m3 7 3 3 3-3"), L(9, 8, 9, 8), L(13, 6, 21, 6), P("m3 17 3 3 3-3"), L(13, 18, 21, 18)]);
+const ChevronLeft = makeIcon([P("m15 18-6-6 6-6")]);
+const ChevronRight = makeIcon([P("m9 18 6-6-6-6")]);
+const ChevronDown = makeIcon([P("m6 9 6 6 6-6")]);
+const ChevronUp = makeIcon([P("m18 15-6-6-6 6")]);
+const Soup = makeIcon([P("M12 21a9 9 0 0 0 9-9H3a9 9 0 0 0 9 9Z"), P("M7 21h10"), P("M19.5 12 22 6"), P("M16.25 3c.27.1.8.53.75 1.36-.06.83-.93 1.2-1 2.02-.05.63.37.94.75 1.62"), P("M11.25 3c.27.1.8.53.75 1.36-.06.83-.93 1.2-1 2.02-.05.63.37.94.75 1.62"), P("M6.25 3c.27.1.8.53.75 1.36-.06.83-.93 1.2-1 2.02-.05.63.37.94.75 1.62")]);
+const Droplets = makeIcon([P("M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"), P("M12.56 6.6A18 18 0 0 1 17 15.4c0 3.31-2.69 6-6 6a5.98 5.98 0 0 1-4.06-1.6")]);
+const UtensilsCrossed = makeIcon([P("m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8"), P("M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7"), P("m2.1 21.8 6.4-6.3")]);
+const Home = makeIcon([P("m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"), P("M9 22V12h6v10")]);
+const ShoppingCart = makeIcon([C(8, 21, 1), C(19, 21, 1), P("M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12")]);
+const Truck = makeIcon([RC(1, 3, 15, 13), P("M16 8h4l3 3v5h-7V8Z"), C(5.5, 18.5, 2.5), C(18.5, 18.5, 2.5)]);
+const ClipboardCheck = makeIcon([RC(8, 2, 8, 4, 1), P("M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"), P("m9 14 2 2 4-4")]);
+const Printer = makeIcon([P("M6 9V2h12v7"), P("M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"), RC(6, 14, 12, 8)]);
+const BookOpen = makeIcon([P("M12 7v14"), P("M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z")]);
+const Camera = makeIcon([P("M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"), C(12, 13, 3)]);
+const Mail = makeIcon([RC(2, 4, 20, 16, 2), P("m22 6-8.97 6.7a2 2 0 0 1-2.06 0L2 6")]);
+const Loader2 = makeIcon([P("M21 12a9 9 0 1 1-6.219-8.56")]);
+const XCircle = makeIcon([C(12, 12, 10), L(15, 9, 9, 15), L(9, 9, 15, 15)]);
+const Mic = makeIcon([RC(9, 2, 6, 11, 3), P("M19 10v2a7 7 0 0 1-14 0v-2"), L(12, 19, 12, 22)]);
+const Sparkles = makeIcon([P("m12 3-1.9 4.9L5 9.8l4.9 1.9L12 16.6l1.9-4.9 4.9-1.9-4.9-1.9z"), P("M5 3v4"), P("M19 17v4"), P("M3 5h4"), P("M17 19h4")]);
+const MapPin = makeIcon([P("M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"), C(12, 10, 3)]);
+
+// (useState/useEffect/useLayoutEffect/useCallback importés en haut du fichier)
+
+/* ---------- Stockage partagé (Supabase) avec repli automatique sur localStorage ---------- */
+/* Remplacez les deux valeurs ci-dessous par celles de votre projet Supabase (Project Settings > API). */
+const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL || "";
+const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY || "";
+const SUPABASE_TABLE = "kv_store";
+
+window.storage = window.storage || (() => {
+  const configure = Boolean(SUPABASE_URL) && Boolean(SUPABASE_ANON_KEY);
+
+  // Compteur global de lectures/écritures en cours, utilisé par l'écran d'ouverture pour savoir
+  // quand toutes les données de démarrage sont arrivées (et donc quand il peut laisser voir
+  // l'application, plutôt que de se fermer après un délai fixe qui pourrait tomber trop tôt).
+  let compteurRequetesStockage = 0;
+  window.macuisineChargement = { compterEnCours: () => compteurRequetesStockage };
+  const suiviChargement = (impl) => {
+    const enveloppe = {};
+    for (const nomMethode of Object.keys(impl)) {
+      enveloppe[nomMethode] = async (...args) => {
+        compteurRequetesStockage++;
+        try { return await impl[nomMethode](...args); }
+        finally { compteurRequetesStockage--; }
+      };
+    }
+    return enveloppe;
+  };
+
+  if (!configure) {
+    // Pas encore configuré : on garde l'ancien comportement (stockage local au navigateur, non partagé).
+    const PREFIX = "macuisine_preview:";
+
+    // Même sans Supabase, certains environnements de prévisualisation (le webview intégré à
+    // l'appli Claude, par exemple) font passer localStorage par un pont limité en nombre de
+    // messages par seconde. Au démarrage, l'appli lit/écrit beaucoup de clés d'un coup (données
+    // d'exemple, tâches, préparations, etc.) : sans régulation, cette rafale dépasse la limite
+    // et affiche « Message rate limit exceeded ». On sérialise donc ici aussi les appels, avec
+    // un petit espacement, exactement comme pour le mode Supabase plus bas.
+    const PACE_MS_PREVIEW = 130;
+    let filDAttentePreview = Promise.resolve();
+    const auRythmePreview = (tache) => {
+      const resultat = filDAttentePreview.then(() => tache());
+      filDAttentePreview = resultat.catch(() => {}).then(() => new Promise((r) => setTimeout(r, PACE_MS_PREVIEW)));
+      return resultat;
+    };
+
+    return suiviChargement({
+      async get(key) {
+        return auRythmePreview(async () => {
+          try {
+            const raw = localStorage.getItem(PREFIX + key);
+            if (raw === null) return null;
+            return { key, value: raw };
+          } catch (e) { return null; }
+        });
+      },
+      async set(key, value) {
+        return auRythmePreview(async () => {
+          try { localStorage.setItem(PREFIX + key, value); return { key, value }; }
+          catch (e) { return null; }
+        });
+      },
+      async delete(key) {
+        return auRythmePreview(async () => {
+          try { localStorage.removeItem(PREFIX + key); return { key, deleted: true }; }
+          catch (e) { return null; }
+        });
+      },
+      async list(prefix) {
+        return auRythmePreview(async () => {
+          try {
+            const keys = Object.keys(localStorage).filter(k => k.startsWith(PREFIX + (prefix || ""))).map(k => k.slice(PREFIX.length));
+            return { keys };
+          } catch (e) { return null; }
+        });
+      },
+    });
+  }
+
+  // Configuré : toutes les données passent par Supabase (base partagée entre tous les appareils).
+  const sb = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+  // --- Régulateur de cadence ---------------------------------------------------------------
+  // L'application a beaucoup de champs qui lisent chacun le stockage au chargement de la page :
+  // sans régulation, ça envoie une rafale de requêtes quasi simultanées qui peut déclencher une
+  // limite de débit (« rate limit »). On sérialise donc tous les appels avec un petit espacement
+  // entre chaque, pour lisser la charge sans bloquer l'application (tout finit par s'exécuter).
+  const PACE_MS = 140;
+  let filDAttenteRequetes = Promise.resolve();
+  const auRythme = (tache) => {
+    const resultat = filDAttenteRequetes.then(() => tache());
+    filDAttenteRequetes = resultat.catch(() => {}).then(() => new Promise((r) => setTimeout(r, PACE_MS)));
+    return resultat;
+  };
+
+  // --- File d'attente hors connexion -----------------------------------------------------
+  // Si l'envoi vers Supabase échoue (pas de réseau), la donnée est gardée temporairement sur
+  // CET appareil (localStorage), et rien de plus : dès que la connexion revient, elle est
+  // envoyée puis effacée automatiquement d'ici — aucune donnée de l'établissement n'est
+  // conservée sur l'appareil plus longtemps que nécessaire pour l'envoyer.
+  const QUEUE_KEY = "macuisine_hors_ligne_attente";
+  const lireFile = () => {
+    try { return JSON.parse(localStorage.getItem(QUEUE_KEY) || "{}"); } catch (e) { return {}; }
+  };
+  const ecrireFile = (file) => {
+    try { localStorage.setItem(QUEUE_KEY, JSON.stringify(file)); } catch (e) { /* stockage plein ou indisponible */ }
+  };
+  const retirerDeLaFile = (key) => {
+    const file = lireFile();
+    if (file[key] !== undefined) { delete file[key]; ecrireFile(file); }
+  };
+
+  const envoyerUneEntree = (key, valeurBrute) => auRythme(async () => {
+    const parsed = JSON.parse(valeurBrute);
+    const { error } = await sb.from(SUPABASE_TABLE).upsert({ key, value: parsed, updated_at: new Date().toISOString() });
+    if (error) throw error;
+    return true;
+  }).catch(() => false);
+
+  let videEnCours = false;
+  const viderLaFile = async () => {
+    if (videEnCours) return;
+    videEnCours = true;
+    try {
+      const file = lireFile();
+      for (const key of Object.keys(file)) {
+        let ok = false;
+        try { ok = await envoyerUneEntree(key, file[key]); } catch (e) { ok = false; }
+        if (ok) retirerDeLaFile(key); // envoyé avec succès : effacé immédiatement de cet appareil
+        else break; // toujours hors connexion (ou erreur) : on retentera au prochain passage
+      }
+    } finally {
+      videEnCours = false;
+    }
+  };
+
+  window.macuisineHorsLigne = {
+    compterEnAttente: () => Object.keys(lireFile()).length,
+    forcerEnvoi: viderLaFile,
+  };
+
+  try {
+    window.addEventListener("online", viderLaFile);
+    setInterval(viderLaFile, 60000); // filet de sécurité si l'évènement "online" ne se déclenche pas
+    // On laisse d'abord les nombreuses lectures de démarrage de la page se dérouler (au rythme
+    // régulé ci-dessus) avant de tenter de renvoyer une éventuelle file en attente, pour ne pas
+    // ajouter une rafale de requêtes supplémentaire dès l'ouverture de l'appli.
+    setTimeout(viderLaFile, 8000);
+  } catch (e) { /* pas de window (ne devrait pas arriver ici) */ }
+
+  return suiviChargement({
+    async get(key) {
+      // une saisie pas encore envoyée est la version la plus fraîche connue sur cet appareil
+      const file = lireFile();
+      if (file[key] !== undefined) return { key, value: file[key] };
+      try {
+        return await auRythme(async () => {
+          const { data, error } = await sb.from(SUPABASE_TABLE).select("value").eq("key", key).maybeSingle();
+          if (error || !data) return null;
+          return { key, value: JSON.stringify(data.value) };
+        });
+      } catch (e) { return null; }
+    },
+    async set(key, value) {
+      let ok = false;
+      try { ok = await envoyerUneEntree(key, value); } catch (e) { ok = false; }
+      if (ok) {
+        retirerDeLaFile(key); // au cas où une version plus ancienne attendait encore d'être envoyée
+        return { key, value };
+      }
+      // Pas de réseau (ou erreur momentanée) : on garde la donnée en attente, sur cet appareil
+      // uniquement, jusqu'à l'envoi réel — jamais conservée plus longtemps que nécessaire.
+      const file = lireFile();
+      file[key] = value;
+      ecrireFile(file);
+      return { key, value };
+    },
+    async delete(key) {
+      retirerDeLaFile(key);
+      try {
+        return await auRythme(async () => {
+          const { error } = await sb.from(SUPABASE_TABLE).delete().eq("key", key);
+          if (error) return null;
+          return { key, deleted: true };
+        });
+      } catch (e) { return null; }
+    },
+    async list(prefix) {
+      try {
+        return await auRythme(async () => {
+          let q = sb.from(SUPABASE_TABLE).select("key");
+          if (prefix) q = q.like("key", prefix + "%");
+          const { data, error } = await q;
+          if (error) return null;
+          return { keys: (data || []).map((r) => r.key) };
+        });
+      } catch (e) { return null; }
+    },
+  });
+})();
+
+/* ---------- alerte sonore (bips forts pour les alertes HACCP importantes) ---------- */
+// Les navigateurs bloquent le son tant qu'il n'y a pas eu d'interaction humaine : on prépare
+// donc le "haut-parleur" dès le premier tap/clic sur l'appli (mot de passe, menu, etc.), pour
+// que les bips puissent ensuite se déclencher tout seuls quand un minuteur arrive à échéance.
+let audioCtxAlerte = null;
+function obtenirAudioCtxAlerte() {
+  try {
+    if (!audioCtxAlerte) {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      audioCtxAlerte = new AC();
+    }
+    if (audioCtxAlerte.state === "suspended") audioCtxAlerte.resume().catch(() => {});
+    return audioCtxAlerte;
+  } catch (e) { return null; }
+}
+if (typeof window !== "undefined") {
+  const debloquerAudioAlerte = () => {
+    obtenirAudioCtxAlerte();
+    window.removeEventListener("pointerdown", debloquerAudioAlerte);
+    window.removeEventListener("keydown", debloquerAudioAlerte);
+  };
+  window.addEventListener("pointerdown", debloquerAudioAlerte, { once: true });
+  window.addEventListener("keydown", debloquerAudioAlerte, { once: true });
+}
+// Trois bips clairs, aigus et forts (pour bien percer le bruit d'une cuisine en service).
+function jouerBipAlerte() {
+  const ctx = obtenirAudioCtxAlerte();
+  if (!ctx) return;
+  try {
+    const depart = ctx.currentTime;
+    [0, 0.35, 0.7].forEach((decalage) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = "square";
+      osc.frequency.value = 1046.5; // note aiguë (Do6), porte bien même avec du bruit ambiant
+      gain.gain.setValueAtTime(0, depart + decalage);
+      gain.gain.linearRampToValueAtTime(0.9, depart + decalage + 0.02);
+      gain.gain.linearRampToValueAtTime(0, depart + decalage + 0.28);
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.start(depart + decalage);
+      osc.stop(depart + decalage + 0.3);
+    });
+  } catch (e) { /* audio indisponible sur cet appareil */ }
+}
+// Une rafale de plusieurs bips d'affilée (espacés de `delaiMs`), pour les alertes qui doivent
+// s'intensifier à l'approche d'une échéance (voir AlerteBanniere / escaladeDebutTs).
+function jouerRafaleBips(nombre, delaiMs = 350) {
+  for (let i = 0; i < nombre; i++) {
+    setTimeout(() => {
+      jouerBipAlerte();
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try { navigator.vibrate(100); } catch (e) { /* non disponible sur cet appareil */ }
+      }
+    }, i * delaiMs);
+  }
+}
+
+/* ---------- constantes ---------- */
+
+const NAV = [
+  { id: "taches", label: "Planning", icon: ListChecks },
+  { id: "stock", label: "Stock", icon: Package },
+  { id: "reception", label: "Réception des marchandises", icon: Truck },
+  { id: "etiquettes", label: "DLC et étiquettes", icon: Printer },
+  { id: "tracabilite", label: "Traçabilité", icon: Camera },
+  { id: "haccpTemp", label: "Température frigo & congélateur", icon: Thermometer },
+  { id: "haccpRefroid", label: "Refroidissement rapide", icon: Snowflake },
+  { id: "haccpHuile", label: "Contrôle des huiles de friture", icon: Droplets },
+  { id: "haccpChaud", label: "Gestion du maintien au chaud", icon: Soup },
+  { id: "haccpCuisson", label: "Gestion des cuissons", icon: Flame },
+  { id: "fiches", label: "Fiches techniques", icon: BookOpen },
+  { id: "controle", label: "Contrôle & Gestion", icon: ClipboardCheck, chefOnly: true },
+];
+
+const TUILE_COULEURS = {
+  taches: { fond: "linear-gradient(160deg, #2F6B4F 0%, #1F4D38 100%)", ombre: "rgba(31,77,56,0.35)" },
+  stock: { fond: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)", ombre: "rgba(217,105,26,0.35)" },
+  reception: { fond: "linear-gradient(160deg, #2E86D6 0%, #1B5FA8 100%)", ombre: "rgba(27,95,168,0.35)" },
+  etiquettes: { fond: "linear-gradient(160deg, #9B5FD9 0%, #6E36AE 100%)", ombre: "rgba(110,54,174,0.35)" },
+  tracabilite: { fond: "linear-gradient(160deg, #3C4653 0%, #1E242D 100%)", ombre: "rgba(30,36,45,0.35)" },
+  haccpTemp: { fond: "linear-gradient(160deg, #2E86D6 0%, #1B5FA8 100%)", ombre: "rgba(27,95,168,0.35)" },
+  haccpRefroid: { fond: "linear-gradient(160deg, #4FC3F7 0%, #1E88C7 100%)", ombre: "rgba(30,136,199,0.35)" },
+  haccpHuile: { fond: "linear-gradient(160deg, #D9A017 0%, #A6790E 100%)", ombre: "rgba(166,121,14,0.35)" },
+  haccpChaud: { fond: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)", ombre: "rgba(217,105,26,0.35)" },
+  haccpCuisson: { fond: "linear-gradient(160deg, #F0653B 0%, #C1432D 100%)", ombre: "rgba(193,67,45,0.35)" },
+  fiches: { fond: "linear-gradient(160deg, #C1893C 0%, #8C5E22 100%)", ombre: "rgba(140,94,34,0.35)" },
+  controle: { fond: "linear-gradient(160deg, #5C6B7A 0%, #3C4653 100%)", ombre: "rgba(60,70,83,0.35)" },
+  comptes: { fond: "linear-gradient(160deg, #64748B 0%, #334155 100%)", ombre: "rgba(51,65,85,0.35)" },
+  default: { fond: "linear-gradient(160deg, #6B7280 0%, #4B5563 100%)", ombre: "rgba(75,85,99,0.35)" },
+};
+
+// Couleurs des deux sous-tuiles à l'intérieur de l'icône "Fiches techniques"
+// (Préparation culinaire / Créer une fiche technique). Le PMS (nettoyage) a été déplacé dans
+// Contrôle & Gestion → Gestion, où il est plus à sa place (voir SOUS_TUILES_CONTROLE_TOUTES).
+const FICHES_TUILES = [
+  { id: "preparation", label: "Préparation culinaire", icon: BookOpen, couleur: { fond: "linear-gradient(160deg, #C1893C 0%, #8C5E22 100%)", ombre: "rgba(140,94,34,0.35)" } },
+];
+
+// Ordre d'affichage voulu pour la grille de tuiles de la page d'accueil (2 colonnes) :
+// Planning / DLC et étiquettes, Traçabilité / Réception des marchandises,
+// Stock / Température, Refroidissement rapide / Huile de friture,
+// Maintien au chaud / Cuisson, Fiches techniques / Contrôle.
+const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccpTemp", "haccpRefroid", "haccpHuile", "haccpChaud", "haccpCuisson", "fiches", "controle"];
+
+const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+
+const SEUILS = {
+  chaud: { min: 63, label: "≥ 63°C" },
+};
+
+const todayISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+const uid = () => Math.random().toString(36).slice(2, 10);
+const initials = (nom) => (nom || "?").slice(0, 2).toUpperCase();
+
+/* ---------- code personnel (téléphones individuels) : réglages propres à CET appareil ---------- */
+// Ces réglages ne concernent que l'appareil physique sur lequel l'appli tourne (jamais partagés
+// entre appareils) : d'où un simple localStorage, indépendant de window.storage (Supabase).
+const CLE_TYPE_APPAREIL = "mc_type_appareil"; // "tablette" | "telephone"
+const CLE_CODE_VALIDE_JUSQUA = "mc_code_valide_jusqua"; // ISO
+const CLE_CODE_EMPLOYE_ID = "mc_code_employe_id";
+
+function lireTypeAppareil() {
+  try { return localStorage.getItem(CLE_TYPE_APPAREIL); } catch (e) { return null; }
+}
+function ecrireTypeAppareil(type) {
+  try { localStorage.setItem(CLE_TYPE_APPAREIL, type); } catch (e) { /* stockage indisponible */ }
+}
+function effacerTypeAppareil() {
+  try { localStorage.removeItem(CLE_TYPE_APPAREIL); } catch (e) { /* stockage indisponible */ }
+}
+
+// Le code, une fois entré, reste valable jusqu'au lendemain 9h — peu importe l'heure à laquelle
+// il a été saisi (9h du matin, 13h ou 23h) : toujours redemandé au prochain passage de 9h, jamais
+// avant. Ça évite de retaper son code plusieurs fois dans la même journée tout en forçant une
+// nouvelle vérification chaque matin.
+function prochaineEcheance9h() {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  d.setHours(9, 0, 0, 0);
+  return d.toISOString();
+}
+function sessionCodeValide() {
+  try {
+    const jusqua = localStorage.getItem(CLE_CODE_VALIDE_JUSQUA);
+    const employeId = localStorage.getItem(CLE_CODE_EMPLOYE_ID);
+    if (!jusqua || !employeId) return null;
+    if (new Date(jusqua).getTime() <= Date.now()) return null;
+    return employeId;
+  } catch (e) { return null; }
+}
+function enregistrerSessionCode(employeId) {
+  try {
+    localStorage.setItem(CLE_CODE_VALIDE_JUSQUA, prochaineEcheance9h());
+    localStorage.setItem(CLE_CODE_EMPLOYE_ID, employeId);
+  } catch (e) { /* stockage indisponible */ }
+}
+function effacerSessionCode() {
+  try {
+    localStorage.removeItem(CLE_CODE_VALIDE_JUSQUA);
+    localStorage.removeItem(CLE_CODE_EMPLOYE_ID);
+  } catch (e) { /* stockage indisponible */ }
+}
+
+// Seuils vérifiés (arrêté du 21/12/2009) : frigo général 0-4°C, viande 0-2°C, congélateurs ≤ -18°C.
+// Saladette et pâtons : pratique courante, à ajuster si besoin — modifiable directement dans l'appli.
+const DEFAULT_EQUIPEMENTS_FROID = [
+  { id: uid(), nom: "Frigo pâtons pizza", type: "frigo", min: 5, max: 8 },
+  { id: uid(), nom: "Frigo viande", type: "frigo", min: 0, max: 2 },
+  { id: uid(), nom: "Saladette poste pizza", type: "frigo", min: 3, max: 5 },
+  { id: uid(), nom: "Frigo poste pizza", type: "frigo", min: 0, max: 4 },
+  { id: uid(), nom: "Frigo poste chaud", type: "frigo", min: 0, max: 4 },
+  { id: uid(), nom: "Frigo poste froid", type: "frigo", min: 0, max: 4 },
+  { id: uid(), nom: "Congélateur cuisine", type: "congelateur", min: null, max: -18 },
+  { id: uid(), nom: "Congélateur à glaces", type: "congelateur", min: null, max: -18 },
+  { id: uid(), nom: "Congélateur haut 1", type: "congelateur", min: null, max: -18 },
+  { id: uid(), nom: "Congélateur haut 2", type: "congelateur", min: null, max: -18 },
+  { id: uid(), nom: "Congélateur frites", type: "congelateur", min: null, max: -18 },
+  { id: uid(), nom: "Congélateur personnel", type: "congelateur", min: null, max: -18 },
+];
+const MARGE_ANOMALIE_FROID = 3;
+const MOTIFS_ANOMALIE_FROID = ["Porte restée ouverte", "Panne de matériel", "Autre"];
+
+// Présélections proposées à l'ajout d'un appareil : on choisit d'abord Froid positif/négatif,
+// puis le type précis d'appareil, ce qui pré-remplit la norme de température à respecter —
+// toujours modifiable ensuite si l'appareil réel du restaurant a un réglage différent.
+const PRESETS_EQUIPEMENT_FROID = {
+  positif: [
+    { label: "Frigo viande", min: 0, max: 2 },
+    { label: "Frigo poisson", min: 0, max: 2 },
+    { label: "Frigo produits laitiers / œufs", min: 0, max: 4 },
+    { label: "Frigo légumes", min: 4, max: 8 },
+    { label: "Saladette", min: 3, max: 5 },
+    { label: "Chambre froide positive", min: 0, max: 4 },
+    { label: "Frigo pâtisserie / desserts", min: 0, max: 4 },
+    { label: "Autre (froid positif)", min: 0, max: 4 },
+  ],
+  negatif: [
+    { label: "Congélateur", min: null, max: -18 },
+    { label: "Chambre froide négative", min: null, max: -18 },
+    { label: "Armoire de surgélation", min: null, max: -18 },
+    { label: "Autre (froid négatif)", min: null, max: -18 },
+  ],
+};
+
+function equipementConforme(eq, valeur) {
+  const v = parseFloat(valeur);
+  if (Number.isNaN(v)) return null;
+  if (eq.type === "congelateur") return v <= eq.max;
+  return v >= eq.min && v <= eq.max;
+}
+
+function equipementEcartAnomalie(eq, valeur) {
+  const v = parseFloat(valeur);
+  if (Number.isNaN(v)) return false;
+  if (eq.type === "congelateur") return v > eq.max + MARGE_ANOMALIE_FROID;
+  return v > eq.max + MARGE_ANOMALIE_FROID || v < eq.min - MARGE_ANOMALIE_FROID;
+}
+
+const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const addDays = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + n); return toISO(d); };
+const subMonths = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d.setMonth(d.getMonth() - n); return toISO(d); };
+const startOfWeek = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return toISO(d); };
+const startOfMonth = (dateStr) => dateStr.slice(0, 7) + "-01";
+const daysInMonth = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
+const NOMS_MOIS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+const fmtLong = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); return `${JOURS[(d.getDay() + 6) % 7].toLowerCase()} ${d.getDate()} ${NOMS_MOIS[d.getMonth()]}`; };
+const fmtShort = (dateStr) => new Date(dateStr + "T00:00:00").toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
+const fmtMonthYear = (dateStr) => { const s = new Date(dateStr + "T00:00:00").toLocaleDateString("fr-FR", { month: "long", year: "numeric" }); return s.charAt(0).toUpperCase() + s.slice(1); };
+
+const DEFAULT_EMPLOYEES = [
+  { id: "loic", nom: "Loïc", poste: "Poste Pizza", estChef: true },
+  { id: "yusuf", nom: "Yusuf", poste: "Poste Chaud" },
+  { id: "terence", nom: "Terence", poste: "Poste Froid" },
+  { id: "mathieu", nom: "Mathieu", poste: "Poste Chaud" },
+];
+
+const SERVICES = ["Midi", "Soir"];
+const HORAIRES_STANDARD = {
+  Lundi: [],
+  Mardi: [{ service: "Midi", debut: "09:30", fin: "14:30" }, { service: "Soir", debut: "18:00", fin: "20:30" }],
+  Mercredi: [{ service: "Midi", debut: "09:30", fin: "14:30" }, { service: "Soir", debut: "18:00", fin: "20:30" }],
+  Jeudi: [{ service: "Midi", debut: "09:30", fin: "14:30" }, { service: "Soir", debut: "18:00", fin: "20:30" }],
+  Vendredi: [{ service: "Midi", debut: "09:30", fin: "14:30" }, { service: "Soir", debut: "18:00", fin: "23:30" }],
+  Samedi: [{ service: "Midi", debut: "09:30", fin: "14:30" }, { service: "Soir", debut: "18:00", fin: "23:30" }],
+  Dimanche: [{ service: "Midi", debut: "09:30", fin: "14:30" }, { service: "Soir", debut: "18:00", fin: "20:30" }],
+};
+
+// Durées de conservation (DLC) volontairement approximatives — à ajuster produit par produit dans HACCP → DLC.
+// Catalogue de stock initial, transcrit de la fiche prix matières (Sysco & autres).
+// Quantités en stock et quantités cibles laissées à 0 — à renseigner. Lot et DLC vides — remplis via Réception.
+function stockItem(reference, nom, unite, categorie, fournisseur = "Sysco", conditionnement = "", prixUnitaire = "", referenceVerifiee = true, note = "", poidsParPiece = "") {
+  // poidsParPiece : calculé à partir du conditionnement quand la fiche donne à la fois un nombre de pièces
+  // et un poids total ou unitaire (ex. "2,75 kg / 50 pc" -> 55 g/pc) — sert à convertir un nombre de pièces
+  // utilisées en poids à retirer du stock. Laissé vide quand le conditionnement ne le permet pas de façon fiable.
+  return { id: uid(), reference, nom, categorie, fournisseur, unite, quantite: 0, cible: 0, lot: "", dlc: "", conditionnement, prixUnitaire, referenceVerifiee, note, poidsParPiece };
+}
+const DEFAULT_STOCK = [
+  // Charcuterie
+  stockItem("42295", "Jambon blanc", "kg", "Charcuterie", "Sysco", "1 x 800 g", "7,96 €/kg", true, "0,40 €/tranche"),
+  stockItem("48484", "Jambon cru", "kg", "Charcuterie", "Sysco", "conditionnement illisible sur la fiche (\"1 x & kg\")", "15,86 €/kg", false, "0,32 €/tranche indiqué. À la commande, prendre la version à tranches plus épaisses (poids légèrement plus élevé) — conditionnement exact à confirmer au prochain BL"),
+  stockItem("40670", "Rosette", "kg", "Charcuterie", "Sysco", "1 x 500 g", "11,13 €/kg", true, "0,11 €/tranche"),
+  stockItem("44032", "Chorizo", "kg", "Charcuterie", "Sysco", "1 x 500 g", "10,20 €/kg", true, "0,135 €/tranche"),
+  stockItem("48217", "Lardons allumettes", "kg", "Charcuterie", "Sysco", "1 x 1 kg", "10,38 €/kg", true, ""),
+  // Frais, laitier, fromages
+  stockItem("43473", "Levure boulangère", "kg", "Frais / Laitier / Fromages", "Sysco", "24 x 42 g", "6,04 €/kg", true, "", "42 g/pc (colis de 24)"),
+  stockItem("81617", "Œuf", "pc", "Frais / Laitier / Fromages", "Sysco", "90 pièces", "0,33 €/pc", true, ""),
+  stockItem("80001", "Lait", "l", "Frais / Laitier / Fromages", "Sysco", "6 x 1 L", "0,98 €/L", true, ""),
+  stockItem("81231", "Crème liquide 30%", "l", "Frais / Laitier / Fromages", "Sysco", "6 x 1 L", "3,40 €/L", true, ""),
+  stockItem("81118", "Crème sucrée pressurisée", "l", "Frais / Laitier / Fromages", "Sysco", "≈700 ml (bombe) à 6,92 €", "9,89 €/L", false, "⚠ Corrigé : c'est ce produit qui était noté « chantilly » dans l'ancien stock — ce n'est PAS de la vraie chantilly (crème fouettée), mais de la crème sucrée pressurisée en bombe. Référence et nom à revérifier avec le premier bon de livraison."),
+  stockItem("80014", "Beurre micro-pain 10 g", "pc", "Frais / Laitier / Fromages", "Sysco", "100 x 10 g", "0,11 €/pc", true, "", "10 g/pc (colis de 100)"),
+  stockItem("81708", "Préparation Tiramisu", "l", "Frais / Laitier / Fromages", "Sysco", "1 x 6 L", "5,89 €/L", true, ""),
+  stockItem("81679", "Préparation mousse au chocolat", "l", "Frais / Laitier / Fromages", "Sysco", "1 x 6 L", "10,90 €/L", true, ""),
+  stockItem("81237", "Préparation crème brûlée", "l", "Frais / Laitier / Fromages", "Sysco", "1 x 6 L", "5,10 €/L", true, ""),
+  stockItem("81782", "Feta", "kg", "Frais / Laitier / Fromages", "Sysco", "1 x 900 g", "19,35 €/kg", true, ""),
+  stockItem("81672", "Burratina 50 g", "pc", "Frais / Laitier / Fromages", "Sysco", "10 x 50 g", "0,94 €/pc", true, "", "50 g/pc (colis de 10)"),
+  stockItem("81815", "Mozzarella Cantadora", "kg", "Frais / Laitier / Fromages", "Sysco", "boîte 2,5 kg", "7,89 €/kg", true, ""),
+  stockItem("80035", "Fourme d'Ambert", "kg", "Frais / Laitier / Fromages", "Sysco", "≈2,2 kg", "12,21 €/kg", true, ""),
+  stockItem("80187", "Gorgonzola", "kg", "Frais / Laitier / Fromages", "Sysco", "≈1,5 kg", "14,37 €/kg", true, ""),
+  stockItem("81770", "Reblochon", "kg", "Frais / Laitier / Fromages", "Sysco", "450/550 g (1 x 6 pc)", "12,78 €/kg", true, ""),
+  stockItem("81137", "Parmesan copeaux", "kg", "Frais / Laitier / Fromages", "Sysco", "500 g", "21,60 €/kg", true, "10,80 € la boîte de 500 g"),
+  stockItem("80298", "Emmental", "kg", "Frais / Laitier / Fromages", "Sysco", "≈4 kg", "10,43 €/kg", true, ""),
+  stockItem("80300", "Comté AOP", "kg", "Frais / Laitier / Fromages", "Sysco", "≈3,5 kg", "16,39 €/kg", true, ""),
+  stockItem("81954", "Tome de Savoie", "kg", "Frais / Laitier / Fromages", "Sysco", "1,5 kg", "11,98 €/kg", true, ""),
+  stockItem("80408", "Crotin de chèvre 60 g", "pc", "Frais / Laitier / Fromages", "Sysco", "voir détail des deux lignes ci-dessous", "voir détail", false, "La fiche source contient deux lignes pour la MÊME référence Sysco 80408 : (1) « 15 x 60 g » à 1,15 €/pièce, et (2) « 1 x 15 pc » à 0,57 €/pièce. Même référence + même conditionnement total (15 pièces de 60 g) mais prix à la pièce du simple au double : ça ressemble à une erreur de saisie sur la fiche plutôt qu'à deux produits différents. À confirmer avec le prochain bon de livraison.", "60 g/pc (15 pc pour 900 g, d'après la fiche)"),
+  stockItem("82960", "Saint-Marcellin 80 g", "pc", "Frais / Laitier / Fromages", "Sysco", "18 x 80 g (ou 1 x 18 pc)", "1,13 €/pc", true, "", "80 g/pc (colis de 18)"),
+  stockItem("80043", "Chèvre buchette", "pc", "Frais / Laitier / Fromages", "Sysco", "pièce 180 g", "2,15 €/pc", true, "", "180 g/pc (indiqué sur la fiche)"),
+  stockItem("82998", "Cheddar tranché", "kg", "Frais / Laitier / Fromages", "Sysco", "88 tr. / 1,08 kg", "9,05 €/kg", true, "0,10 €/tranche"),
+  stockItem("41928", "Sauce cheddar", "kg", "Frais / Laitier / Fromages", "Sysco", "8 x 500 g", "7,96 €/kg", true, "", "500 g/pc (colis de 8)"),
+  // Traiteur / friture
+  stockItem("05311", "Accras de morue", "kg", "Traiteur / Friture", "Sysco", "4 x 1 kg", "4,96 €/kg", true, "0,10 €/pc"),
+  stockItem("70031", "Stick mozza", "kg", "Traiteur / Friture", "Sysco", "1 x 1 kg", "15,73 €/kg", true, "0,41 €/pc"),
+  stockItem("70015", "Oignon ring's", "kg", "Traiteur / Friture", "Sysco", "6 x 1 kg", "4,05 €/kg", true, "0,61 €/pc"),
+  stockItem("78290", "Beignet de calamar", "kg", "Traiteur / Friture", "Sysco", "1 kg", "3,49 €/kg", true, "0,07 €/pc"),
+  stockItem("39176", "Samoussas bœuf", "kg", "Traiteur / Friture", "Sysco", "2,750 kg / 50 pc", "12,55 €/kg", true, "0,68 €/pc", "55 g/pc (2,750 kg ÷ 50 pc)"),
+  stockItem("75291", "Samoussas légumes au curry", "kg", "Traiteur / Friture", "Sysco", "2,750 kg / 50 pc", "8,55 €/kg", true, "0,51 €/pc", "55 g/pc (2,750 kg ÷ 50 pc)"),
+  stockItem("61046", "Nuggets de poulet", "kg", "Traiteur / Friture", "Sysco", "2 x 2,5 kg", "8,69 €/kg", true, "0,17 €/pc"),
+  stockItem("75862", "Falafels", "kg", "Traiteur / Friture", "Sysco", "2 x 5 kg", "10,17 €/kg", true, "0,20 €/pc"),
+  stockItem("72170", "Crevettes Torpedo", "kg", "Traiteur / Friture", "Sysco", "1 kg", "19,33 €/kg", true, "0,35 €/pc"),
+  stockItem("74582", "Bouchée camembert pané", "kg", "Traiteur / Friture", "Sysco", "1 kg", "10,64 €/kg", true, "0,213 €/pc"),
+  // Surgelés
+  stockItem("77139", "Frites", "kg", "Surgelés", "Sysco", "4 x 2,5 kg", "1,87 €/kg", true, ""),
+  stockItem("61286", "Bacon crispy", "kg", "Surgelés", "Sysco", "1 kg", "16,39 €/kg", true, ""),
+  stockItem("70102", "Tenders de poulet panés", "kg", "Surgelés", "Sysco", "5 x 1 kg", "9,58 €/kg", true, ""),
+  stockItem("71746", "Rösti", "kg", "Surgelés", "Sysco", "sachet 2,5 kg", "2,30 €/kg", true, "0,23 €/pc"),
+  stockItem("77953", "Tranchette poulet rôti halal", "kg", "Surgelés", "Sysco", "2 x 2,5 kg", "11,37 €/kg", true, ""),
+  stockItem("75509", "Ravioles", "kg", "Surgelés", "Sysco", "1 kg", "10,20 €/kg", true, ""),
+  stockItem("79774", "Steak 100% végétal", "kg", "Surgelés", "Sysco", "1 x 20 pc / pièce 110 g", "28,41 €/kg (1,42 €/pc)", true, "", "110 g/pc (indiqué sur la fiche)"),
+  stockItem("71592", "Fish 'n chips", "kg", "Surgelés", "Sysco", "5 kg / pièce 180 g", "8,65 €/kg (1,04 €/pc)", true, "", "180 g/pc (indiqué sur la fiche)"),
+  stockItem("61305", "Pain burger bun's brioché", "pc", "Surgelés", "Sysco", "15 x 3 / 77 g", "0,35 €/pc", true, ""),
+  stockItem("76970", "Pâte à lasagne", "kg", "Surgelés", "Sysco", "1 x 5 x 2 kg / pièce 200 g", "7,05 €/kg (1,41 €/pc)", true, "", "200 g/pc (indiqué sur la fiche)"),
+  stockItem("74208", "Fondant au chocolat", "pc", "Surgelés", "Sysco", "36 x 90 g", "0,86 €/pc", true, "", "90 g/pc (colis de 36)"),
+  stockItem("73904", "Mini moelleux au chocolat", "pc", "Surgelés", "Sysco", "45 x 30 g", "0,78 €/pc", true, "", "30 g/pc (colis de 45)"),
+  stockItem("76019", "Gaufres", "pc", "Surgelés", "Sysco", "4 x 6 x 80 g", "0,54 €/pc", true, ""),
+  stockItem("60208", "Brioche perdue", "pc", "Surgelés", "Sysco", "34 x 85 g", "0,82 €/pc", true, "", "85 g/pc (colis de 34)"),
+  stockItem("77032", "Glace vanille", "pc", "Surgelés", "Sysco", "1,3 kg (1 boule = 60 g)", "14,81 €", true, ""),
+  stockItem("77042", "Glace chocolat", "pc", "Surgelés", "Sysco", "1,3 kg", "14,81 €", true, ""),
+  stockItem("77041", "Glace café", "pc", "Surgelés", "Sysco", "1,3 kg", "14,81 €", true, ""),
+  stockItem("77278", "Glace marron", "pc", "Surgelés", "Sysco", "1,3 kg", "14,81 €", true, ""),
+  stockItem("71073", "Glace pâte à tartiner", "pc", "Surgelés", "Sysco", "1,6 kg", "21,63 €", true, ""),
+  stockItem("77035", "Glace fraise", "pc", "Surgelés", "Sysco", "1,3 kg", "14,81 €", true, ""),
+  stockItem("77067", "Glace cassis", "pc", "Surgelés", "Sysco", "1,3 kg", "14,81 €", true, ""),
+  stockItem("77061", "Glace citron", "pc", "Surgelés", "Sysco", "1,3 kg", "14,50 €", true, ""),
+  stockItem("71349", "Glace passion", "pc", "Surgelés", "Sysco", "1,3 kg", "14,81 €", true, ""),
+  stockItem("77039", "Glace pistache", "pc", "Surgelés", "Sysco", "1,3 kg", "14,81 €", true, ""),
+  stockItem("77043", "Glace noix de coco", "pc", "Surgelés", "Sysco", "1,3 kg", "14,81 €", true, ""),
+  // Sauces
+  stockItem("19588", "Sauce BBQ", "kg", "Sauces", "Sysco", "970 g", "4,85 €/kg", true, ""),
+  stockItem("18394", "Sauce burger", "kg", "Sauces", "Sysco", "1 litre", "4,54 €/kg", true, ""),
+  stockItem("19595", "Sauce César", "kg", "Sauces", "Sysco", "750 ml", "6,12 €/kg", true, ""),
+  stockItem("17593", "Sauce tartare", "kg", "Sauces", "Sysco", "2,65 kg (11,19 € la boîte)", "4,22 €/kg", true, ""),
+  // Fruits & légumes (hors Sysco)
+  stockItem("", "Salade", "kg", "Fruits & Légumes", "Promocash", "environ 250 g/pièce, perte comprise", "3,93 €/kg", true, ""),
+  stockItem("", "Poivrons", "kg", "Fruits & Légumes", "Promocash", "", "13,71 €/kg", true, ""),
+  stockItem("", "Champignons", "kg", "Fruits & Légumes", "Promocash", "", "2,86 €/kg", true, ""),
+  stockItem("", "Pomme de terre", "kg", "Fruits & Légumes", "Promocash", "", "2,50 €/kg", true, ""),
+  stockItem("", "Oignons rouges", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  stockItem("", "Roquette", "kg", "Fruits & Légumes", "Promocash", "", "13,71 €/kg", true, ""),
+  stockItem("", "Tomate cerise", "kg", "Fruits & Légumes", "Promocash", "", "7,14 €/kg", true, ""),
+  stockItem("", "Échalotes", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  stockItem("", "Ail", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  stockItem("", "Carottes", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  stockItem("", "Courgettes", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  stockItem("", "Haricots verts", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  stockItem("", "Citron jaune", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  stockItem("", "Citron vert", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  stockItem("", "Menthe", "kg", "Fruits & Légumes", "Promocash", "", "prix à renseigner", true, ""),
+  // Viandes / volaille
+  stockItem("41879", "Merguez", "kg", "Viandes / Volaille", "Sysco", "1 kg", "11,85 €/kg", true, ""),
+  stockItem("41214", "Steak haché VBF", "kg", "Viandes / Volaille", "Sysco", "pièce, ou 8 x 150 g (1,2 kg)", "2,42 €/pc (16,09 €/kg)", true, ""),
+  stockItem("41579", "Bœuf haché", "kg", "Viandes / Volaille", "Sysco", "1 x 1,5 kg", "16,55 €/kg", true, ""),
+  stockItem("47431", "Bavette", "kg", "Viandes / Volaille", "Sysco", "1 x 900 g (5 pc de 180 g)", "23,70 €/kg", true, ""),
+  stockItem("", "Rumsteck", "kg", "Viandes / Volaille", "Sysco", "introuvable chez Sysco — à portionner soi-même à partir d'une pièce entière", "-", false, ""),
+  stockItem("42223", "Suprême de poulet", "kg", "Viandes / Volaille", "Sysco", "1 x 4 pc (≈220 g/pc)", "11,44 €/kg (2,52 €/pc)", true, "", "220 g/pc (indiqué sur la fiche)"),
+  // Épicerie / sauces / huiles
+  stockItem("13853", "Olives noires", "kg", "Épicerie / Huiles", "Sysco", "conserve 5/1", "5,42 €/kg", true, ""),
+  stockItem("17054", "Cornichons", "kg", "Épicerie / Huiles", "Sysco", "conserve 5/1", "5,81 €/kg", true, ""),
+  stockItem("19029", "Purée de tomate Rodolphi", "kg", "Épicerie / Huiles", "Sysco", "4,05 kg (7,74 €)", "1,91 €/kg", true, ""),
+  stockItem("16204", "Concentré de tomate", "kg", "Épicerie / Huiles", "Sysco", "400 g (2,86 €)", "7,15 €/kg", true, ""),
+  stockItem("19385", "Pesto", "kg", "Épicerie / Huiles", "Sysco", "470 g", "15,72 €/kg", true, ""),
+  stockItem("19210", "Noix", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "14,62 €/kg", true, ""),
+  stockItem("18530", "Oignons frits croustillants", "kg", "Épicerie / Huiles", "Sysco", "500 g (3,49 €)", "6,98 €/kg", true, ""),
+  stockItem("19286", "Origan", "kg", "Épicerie / Huiles", "Sysco", "100 g (3,14 €)", "31,40 €/kg", true, ""),
+  stockItem("19324", "Huile de friture", "l", "Épicerie / Huiles", "Sysco", "2 x 7,5 L", "3,14 €/L", true, ""),
+  stockItem("18538", "Huile d'olive", "l", "Épicerie / Huiles", "Sysco", "5 L", "6,59 €/L", true, ""),
+  stockItem("11657", "Huile de tournesol", "l", "Épicerie / Huiles", "Sysco", "5 L", "2,83 €/L", true, ""),
+  stockItem("18501", "Vinaigre rouge", "l", "Épicerie / Huiles", "Sysco", "1,5 L", "1,03 €/L", true, ""),
+  stockItem("14548", "Moutarde", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "3,20 €/kg", true, ""),
+  stockItem("16697", "Riz long grain étuvé", "kg", "Épicerie / Huiles", "Sysco", "5 kg", "2,13 €/kg", true, ""),
+  stockItem("19354", "Thym", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "13,00 €/kg", true, ""),
+  stockItem("19635", "Laurier", "kg", "Épicerie / Huiles", "Sysco", "40 g (4,57 €)", "114,25 €/kg", true, ""),
+  stockItem("16660", "Persil", "kg", "Épicerie / Huiles", "Sysco", "500 g (8,53 €)", "17,06 €/kg", true, ""),
+  stockItem("16325", "Sel fin", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "0,95 €/kg", true, ""),
+  stockItem("16659", "Poivre gris moulu", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "23,35 €/kg", true, ""),
+  stockItem("14573", "Poivre blanc moulu", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "30,97 €/kg", true, ""),
+  stockItem("16300", "Poivre noir grains", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "20,66 €/kg", true, ""),
+  stockItem("14577", "Noix de muscade", "kg", "Épicerie / Huiles", "Sysco", "450 g (18,86 €)", "41,91 €/kg", true, ""),
+  stockItem("19241", "Fond de veau", "kg", "Épicerie / Huiles", "Sysco", "750 g (12,11 €)", "16,15 €/kg", true, ""),
+  stockItem("17599", "Préparation béchamel", "kg", "Épicerie / Huiles", "Sysco", "1,2 kg", "15,14 €/kg", true, ""),
+  stockItem("16059", "Croûtons", "kg", "Épicerie / Huiles", "Sysco", "500 g (4,03 €)", "8,06 €/kg", true, ""),
+  stockItem("19531", "Farine pizza verte", "kg", "Épicerie / Huiles", "Sysco", "10 kg", "1,49 €/kg", true, ""),
+  stockItem("16927", "Farine pizza marron", "kg", "Épicerie / Huiles", "Sysco", "10 kg", "1,59 €/kg", true, ""),
+  stockItem("18253", "Semoule de blé Spolvero", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "2,76 €/kg", true, ""),
+  stockItem("18366", "Maïzena", "kg", "Épicerie / Huiles", "Sysco", "700 g (7,21 €)", "10,30 €/kg", true, ""),
+  stockItem("18462", "Sucre semoule", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "2,23 €/kg", true, ""),
+  stockItem("18463", "Sucre glace", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "4,03 €/kg", true, ""),
+  stockItem("14939", "Sucre brun de canne", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "6,86 €/kg", true, ""),
+  stockItem("10049", "Cacao en poudre", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "12,95 €/kg", true, ""),
+  stockItem("18605", "Spéculoos", "pc", "Épicerie / Huiles", "Sysco", "2 kg", "0,09 €/pc", true, ""),
+  stockItem("10064", "Crème de spéculoos", "kg", "Épicerie / Huiles", "Sysco", "1,6 kg (15,70 €)", "9,82 €/kg", true, ""),
+  stockItem("17125", "Brisure de spéculoos", "kg", "Épicerie / Huiles", "Sysco", "750 g (10,15 €)", "13,53 €/kg", true, ""),
+  stockItem("14808", "Crème de marron", "pc", "Épicerie / Huiles", "Sysco", "conserve 4/4", "8,18 €/pc", true, ""),
+  stockItem("14188", "Miel", "kg", "Épicerie / Huiles", "Sysco", "1 kg", "9,14 €/kg", true, ""),
+  stockItem("18572", "Nutella", "kg", "Épicerie / Huiles", "Sysco", "3 kg x2 (23,82 €)", "7,97 €/kg", true, ""),
+  stockItem("10032", "Schocobon", "kg", "Épicerie / Huiles", "Sysco", "2 kg (29,99 €)", "15,00 €/kg", true, ""),
+  stockItem("14930", "Coulis chocolat", "pc", "Épicerie / Huiles", "Sysco", "1,1 kg", "8,01 €/pc", true, ""),
+  stockItem("17902", "Coulis café", "pc", "Épicerie / Huiles", "Sysco", "1 kg", "8,69 €/pc", true, ""),
+  stockItem("14931", "Coulis caramel beurre salé", "pc", "Épicerie / Huiles", "Sysco", "1,1 kg", "6,49 €/pc", true, ""),
+  stockItem("", "Sauce moutarde à l'ancienne", "kg", "Épicerie / Huiles", "Sysco", "introuvable sur la fiche fournisseur", "13,71 €/kg (indiqué mais réf. absente)", false, ""),
+];
+
+// DLC corrigées d'après votre fiche "Durées de conservation — cuisine" (Games Factory Salaise, affichage HACCP).
+// Pour les fourchettes (ex. J+3–J+5), la valeur la plus prudente (la plus courte) a été retenue par défaut.
+// Fiches techniques transcrites depuis le classeur cuisine (FT-01 à FT-11). FT-12 (récapitulatif/mémo) non repris tel quel :
+// son contenu (barèmes, réflexes quotidiens) est déjà couvert par les fiches individuelles ci-dessous.
+const FICHES_TECHNIQUES = JSON.parse(document.getElementById("fiches-data-json").textContent);
+
+
+const DEFAULT_PRODUITS = [
+  // Poste Chaud — Sauces
+  { id: uid(), nom: "Sauce burger", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Sauce BBQ", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Sauce vigneronne", poste: "Poste Chaud", dlcJours: 2 },
+  { id: uid(), nom: "Sauce au poivre", poste: "Poste Chaud", dlcJours: 2 },
+  { id: uid(), nom: "Sauce champignons au parmesan", poste: "Poste Chaud", dlcJours: 2, ficheNom: "SAUCE CHAMPIGNONS & PARMESAN" },
+  { id: uid(), nom: "Sauce bolognaise", poste: "Poste Chaud", dlcJours: 2 },
+  { id: uid(), nom: "Sauce béchamel", poste: "Poste Chaud", dlcJours: 2 },
+  { id: uid(), nom: "Lasagne", poste: "Poste Chaud", dlcJours: 1, ficheNom: "LASAGNE – MONTAGE & ENVOI" },
+  // Poste Chaud — Pains & bases
+  { id: uid(), nom: "Pain burger", poste: "Poste Chaud", dlcJours: 3 },
+  // Poste Chaud — Fromages
+  { id: uid(), nom: "Reblochon (portionné)", poste: "Poste Chaud", dlcJours: 3 },
+  { id: uid(), nom: "Cheddar tranché", poste: "Poste Chaud", dlcJours: 7 },
+  { id: uid(), nom: "Fourme d'Ambert (portionnée)", poste: "Poste Chaud", dlcJours: 3 },
+  { id: uid(), nom: "Saint-Marcellin (portionné, poste chaud)", poste: "Poste Chaud", dlcJours: 3 },
+  // Poste Chaud — Viandes
+  { id: uid(), nom: "Steak haché frais", poste: "Poste Chaud", dlcJours: 0 },
+  { id: uid(), nom: "Bacon crispy", poste: "Poste Chaud", dlcJours: 3 },
+  { id: uid(), nom: "Suprême de poulet", poste: "Poste Chaud", dlcJours: 1 },
+  // Poste Chaud — divers déjà en place
+  { id: uid(), nom: "Œufs (recharge)", poste: "Poste Chaud", dlcJours: 0, dlcSource: "reception" },
+  { id: uid(), nom: "Roquette", poste: "Poste Chaud", dlcJours: 1 },
+  { id: uid(), nom: "Oignons (émincés)", poste: "Poste Chaud", dlcJours: 1 },
+
+  // Poste Pizza
+  { id: uid(), nom: "Sauce tomate", poste: "Poste Pizza", dlcJours: 3 },
+  { id: uid(), nom: "Pâte à pizza / pâtons", poste: "Poste Pizza", dlcJours: 2 },
+  { id: uid(), nom: "Sauce bolognaise", poste: "Poste Pizza", dlcJours: 2 },
+  { id: uid(), nom: "Miel", poste: "Poste Pizza", dlcJours: 30 },
+  { id: uid(), nom: "Burratina 50g", poste: "Poste Pizza", dlcJours: 3 },
+  { id: uid(), nom: "Pesto", poste: "Poste Pizza", dlcJours: 4 },
+  { id: uid(), nom: "Cornichons rondelles", poste: "Poste Pizza", dlcJours: 1 },
+  { id: uid(), nom: "Jambon cru", poste: "Poste Pizza", dlcJours: 5 },
+  { id: uid(), nom: "Roquette", poste: "Poste Pizza", dlcJours: 1 },
+  { id: uid(), nom: "Parmesan copeaux", poste: "Poste Pizza", dlcJours: 10 },
+  { id: uid(), nom: "Merguez", poste: "Poste Pizza", dlcJours: 1 },
+  { id: uid(), nom: "Sauce cheddar", poste: "Poste Pizza", dlcJours: 2 },
+  { id: uid(), nom: "Sauce parmesan", poste: "Poste Pizza", dlcJours: 2 },
+  { id: uid(), nom: "Chorizo", poste: "Poste Pizza", dlcJours: 7 },
+  { id: uid(), nom: "Poivrons grillés", poste: "Poste Pizza", dlcJours: 2 },
+  { id: uid(), nom: "Oignons rouges", poste: "Poste Pizza", dlcJours: 1 },
+  { id: uid(), nom: "Mozzarella", poste: "Poste Pizza", dlcJours: 2 },
+  { id: uid(), nom: "Jambon blanc", poste: "Poste Pizza", dlcJours: 3 },
+  { id: uid(), nom: "Champignons", poste: "Poste Pizza", dlcJours: 1 },
+  { id: uid(), nom: "Lardons", poste: "Poste Pizza", dlcJours: 3 },
+  { id: uid(), nom: "Poulet rôti", poste: "Poste Pizza", dlcJours: 1 },
+  { id: uid(), nom: "Pomme de terre", poste: "Poste Pizza", dlcJours: 1 },
+  { id: uid(), nom: "Olives", poste: "Poste Pizza", dlcJours: 9 },
+  { id: uid(), nom: "Carottes légume vapeur", poste: "Poste Pizza", dlcJours: 2, ficheNom: "LÉGUMES VAPEUR" },
+  { id: uid(), nom: "Courgettes légume vapeur", poste: "Poste Pizza", dlcJours: 2, ficheNom: "LÉGUMES VAPEUR" },
+  { id: uid(), nom: "Haricots verts légume vapeur", poste: "Poste Pizza", dlcJours: 2, ficheNom: "LÉGUMES VAPEUR" },
+  { id: uid(), nom: "Champignons entiers légume vapeur", poste: "Poste Pizza", dlcJours: 2, ficheNom: "LÉGUMES VAPEUR" },
+  { id: uid(), nom: "Pommes de terre légume vapeur", poste: "Poste Pizza", dlcJours: 2, ficheNom: "LÉGUMES VAPEUR" },
+  { id: uid(), nom: "Pain pâte à pizza — à préparer et cuire avant le service midi", poste: "Poste Pizza", dlcJours: 1, ficheNom: "PÂTE À PIZZA – PÂTONS" },
+
+  // Poste Froid — Sauces & condiments
+  { id: uid(), nom: "Sauce vinaigrette", poste: "Poste Froid", dlcJours: 3, ficheNom: "SAUCE VINAIGRETTE MOUTARDE FORTE" },
+  { id: uid(), nom: "Sauce César", poste: "Poste Froid", dlcJours: 0 },
+  { id: uid(), nom: "Cornichon (bocal ouvert)", poste: "Poste Froid", dlcJours: 5 },
+  { id: uid(), nom: "Beurre micro pain (10g)", poste: "Poste Froid", dlcJours: 7 },
+  // Poste Froid — Pains
+  // Poste Froid — Charcuterie
+  { id: uid(), nom: "Jambon cru", poste: "Poste Froid", dlcJours: 5 },
+  { id: uid(), nom: "Rosette", poste: "Poste Froid", dlcJours: 7 },
+  { id: uid(), nom: "Chorizo", poste: "Poste Froid", dlcJours: 7 },
+  { id: uid(), nom: "Jambon blanc", poste: "Poste Froid", dlcJours: 3 },
+  // Poste Froid — Fromages
+  { id: uid(), nom: "Saint-Marcellin (portionné, poste froid)", poste: "Poste Froid", dlcJours: 3 },
+  { id: uid(), nom: "Crottin de chèvre", poste: "Poste Froid", dlcJours: 3 },
+  { id: uid(), nom: "Comté", poste: "Poste Froid", dlcJours: 10 },
+  { id: uid(), nom: "Tome de Savoie", poste: "Poste Froid", dlcJours: 10 },
+  { id: uid(), nom: "Emmental", poste: "Poste Froid", dlcJours: 10 },
+  // Poste Froid — Légumes & salade
+  { id: uid(), nom: "Salade", poste: "Poste Froid", dlcJours: 1 },
+  { id: uid(), nom: "Tomate cerise", poste: "Poste Froid", dlcJours: 1 },
+  { id: uid(), nom: "Oignons rouges", poste: "Poste Froid", dlcJours: 1 },
+  // Poste Froid — Desserts
+  { id: uid(), nom: "Crème brûlée", poste: "Poste Froid", dlcJours: 3, ficheNom: "CRÈME BRÛLÉE À LA VANILLE" },
+  { id: uid(), nom: "Tiramisu au spéculoos", poste: "Poste Froid", dlcJours: 3 },
+  { id: uid(), nom: "Mousse au chocolat", poste: "Poste Froid", dlcJours: 3, ficheNom: "MOUSSE AU CHOCOLAT NOIR ET LAIT (AVEC GÉLATINE)" },
+  { id: uid(), nom: "Gaufres (ouvertes)", poste: "Poste Froid", dlcJours: 15 },
+  { id: uid(), nom: "Pain perdu (ouvert)", poste: "Poste Froid", dlcJours: 15 },
+  // Poste Froid — Garnitures & finitions desserts
+  { id: uid(), nom: "Crème spéculoos", poste: "Poste Froid", dlcJours: 3 },
+  { id: uid(), nom: "Brisure de spéculoos", poste: "Poste Froid", dlcJours: 0, dlcSource: "reception" },
+  { id: uid(), nom: "Biscuit spéculoos", poste: "Poste Froid", dlcJours: 0, dlcSource: "reception" },
+  { id: uid(), nom: "Chantilly", poste: "Poste Froid", dlcJours: 1 },
+  { id: uid(), nom: "Coulis de chocolat", poste: "Poste Froid", dlcJours: 30 },
+  { id: uid(), nom: "Coulis caramel", poste: "Poste Froid", dlcJours: 30 },
+  { id: uid(), nom: "Sucre glace", poste: "Poste Froid", dlcJours: 0, dlcSource: "reception" },
+  { id: uid(), nom: "Cassonade de sucre brun", poste: "Poste Froid", dlcJours: 0, dlcSource: "reception" },
+  { id: uid(), nom: "Cacao en poudre", poste: "Poste Froid", dlcJours: 0, dlcSource: "reception" },
+
+  // Surgelés ouverts, mis à disposition dans le congélateur de la cuisine — 15 jours après ouverture
+  { id: uid(), nom: "Accras de morue (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Stick mozza (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Oignon ring's (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Beignet de calamar (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Samoussas bœuf (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Nuggets de poulet (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Falafels (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Crevettes Torpedo (ouvertes)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Bouchée camembert pané (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Rösti (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Ravioles (ouvertes)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Frites surgelées (ouvertes)", poste: "Poste Chaud", dlcJours: 15 },
+  { id: uid(), nom: "Tenders de poulet panés (ouverts)", poste: "Poste Chaud", dlcJours: 15 },
+];
+
+const DEFAULT_TASKS_POSTE_CHAUD = [
+  { id: uid(), titre: "Nettoyage friteuse", heure: "10:00", duree: 15, categorie: "Nettoyage", assignedTo: "poste:chaud", recurrence: "Quotidienne", jour: "Lundi", date: null, declencheChangementHuile: true, completions: {} },
+  { id: uid(), titre: "Four Atoll Speed / Mery Chef — nettoyage complet", heure: "10:20", duree: 15, categorie: "Nettoyage", assignedTo: "poste:chaud", recurrence: "Hebdomadaire", jour: "Jeudi", date: null, completions: {} },
+  { id: uid(), titre: "Préparation culinaire", heure: "10:20", duree: 70, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Préparation culinaire", heure: "10:00", duree: 90, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Préparation culinaire", heure: "10:00", duree: 90, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Repas du personnel", heure: "11:30", duree: 30, categorie: "Préparation", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Service", heure: "12:00", duree: 90, categorie: "Service", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Préparation culinaire", heure: "18:00", duree: 30, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Préparation culinaire", heure: "18:00", duree: 30, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Préparation culinaire", heure: "18:00", duree: 30, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Repas du personnel", heure: "18:30", duree: 30, categorie: "Préparation", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Service", heure: "19:00", duree: 150, categorie: "Service", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Mardi", date: null, completions: {} },
+  { id: uid(), titre: "Service", heure: "19:00", duree: 150, categorie: "Service", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Mercredi", date: null, completions: {} },
+  { id: uid(), titre: "Service", heure: "19:00", duree: 150, categorie: "Service", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Jeudi", date: null, completions: {} },
+  { id: uid(), titre: "Service", heure: "19:00", duree: 150, categorie: "Service", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Dimanche", date: null, completions: {} },
+  { id: uid(), titre: "Service", heure: "19:00", duree: 180, categorie: "Service", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Vendredi", date: null, completions: {} },
+  { id: uid(), titre: "Service", heure: "19:00", duree: 180, categorie: "Service", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Samedi", date: null, completions: {} },
+  { id: uid(), titre: "Nettoyage", heure: "13:30", duree: 30, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle obligatoire", heure: "14:05", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  // Contrôle et vérification par poste — fin de service midi
+  { id: uid(), titre: "Contrôle et vérification", heure: "14:05", duree: 15, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "14:05", duree: 15, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "14:05", duree: 15, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Quotidienne", jour: "Lundi", date: null, completions: {} },
+  // Contrôle et vérification par poste — fin de service soir semaine
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Hebdomadaire", jour: "Mardi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Hebdomadaire", jour: "Mardi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Hebdomadaire", jour: "Mardi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Hebdomadaire", jour: "Mercredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Hebdomadaire", jour: "Mercredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Hebdomadaire", jour: "Mercredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Hebdomadaire", jour: "Jeudi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Hebdomadaire", jour: "Jeudi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Hebdomadaire", jour: "Jeudi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Hebdomadaire", jour: "Dimanche", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Hebdomadaire", jour: "Dimanche", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Hebdomadaire", jour: "Dimanche", date: null, completions: {} },
+  // Vendredi et samedi
+  { id: uid(), titre: "Contrôle et vérification", heure: "22:05", duree: 15, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Hebdomadaire", jour: "Vendredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "22:05", duree: 15, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Hebdomadaire", jour: "Vendredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "22:05", duree: 15, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Hebdomadaire", jour: "Vendredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "22:05", duree: 15, categorie: "Préparation", assignedTo: "poste:chaud", recurrence: "Hebdomadaire", jour: "Samedi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "22:05", duree: 15, categorie: "Préparation", assignedTo: "poste:pizza", recurrence: "Hebdomadaire", jour: "Samedi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle et vérification", heure: "22:05", duree: 15, categorie: "Préparation", assignedTo: "poste:froid", recurrence: "Hebdomadaire", jour: "Samedi", date: null, completions: {} },
+  // Contrôle obligatoire après chaque service du soir
+  { id: uid(), titre: "Contrôle obligatoire", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Mardi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle obligatoire", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Mercredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle obligatoire", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Jeudi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle obligatoire", heure: "21:35", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Dimanche", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle obligatoire", heure: "22:05", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Vendredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle obligatoire", heure: "22:05", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Samedi", date: null, completions: {} },
+  { id: uid(), titre: "Nettoyage", heure: "21:30", duree: 60, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Mardi", date: null, declencheHuile: true, completions: {} },
+  { id: uid(), titre: "Nettoyage", heure: "21:30", duree: 60, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Mercredi", date: null, declencheHuile: true, completions: {} },
+  { id: uid(), titre: "Nettoyage", heure: "21:30", duree: 60, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Jeudi", date: null, declencheHuile: true, completions: {} },
+  { id: uid(), titre: "Nettoyage", heure: "21:30", duree: 60, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Dimanche", date: null, declencheHuile: true, completions: {} },
+  { id: uid(), titre: "Nettoyage", heure: "22:00", duree: 60, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Vendredi", date: null, declencheHuile: true, completions: {} },
+  { id: uid(), titre: "Nettoyage", heure: "22:00", duree: 60, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Hebdomadaire", jour: "Samedi", date: null, declencheHuile: true, completions: {} },
+  // Contrôle — Loïc uniquement, en fin de service (reportée sur Yusuf ses jours de repos, voir tasksFor)
+  { id: uid(), titre: "Contrôle", heure: "22:30", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Mardi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle", heure: "22:30", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Mercredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle", heure: "22:30", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Jeudi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle", heure: "22:30", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Dimanche", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle", heure: "23:30", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Vendredi", date: null, completions: {} },
+  { id: uid(), titre: "Contrôle", heure: "23:30", duree: 15, categorie: "Préparation", assignedTo: "loic", recurrence: "Hebdomadaire", jour: "Samedi", date: null, completions: {} },
+];
+
+function taskAppliesTo(task, employee) {
+  if (!employee) return false;
+  if (task.assignedTo === "tous") return true;
+  if (task.assignedTo === employee.id) return true;
+  if (task.assignedTo?.startsWith("poste:")) {
+    const mot = task.assignedTo.slice(6);
+    return new RegExp(mot, "i").test(employee.poste || "");
+  }
+  return false;
+}
+
+
+function isTempOk(type, valeur) {
+  const v = parseFloat(valeur);
+  if (Number.isNaN(v)) return true;
+  if (type === "chaud") return v >= SEUILS.chaud.min;
+  if (type === "frigo") return v <= 4; // anciens relevés, conservés pour compatibilité historique
+  if (type === "congelateur") return v <= -18;
+  return true;
+}
+
+/* ---------- stockage persistant ---------- */
+
+function useStored(key, initial) {
+  const [value, setValue] = useState(initial);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const res = await window.storage.get(key, false);
+        if (!cancelled && res) setValue(JSON.parse(res.value));
+      } catch (e) {
+        /* rien en stock encore, on garde la valeur initiale */
+      } finally {
+        if (!cancelled) setLoaded(true);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [key]);
+
+  const persist = useCallback(async (next) => {
+    setValue(next);
+    try {
+      await window.storage.set(key, JSON.stringify(next), false);
+    } catch (e) {
+      console.error("Échec sauvegarde", key, e);
+    }
+  }, [key]);
+
+  return [value, persist, loaded];
+}
+
+/* ---------- éléments d'UI partagés ---------- */
+
+function Card({ children, className = "" }) {
+  return (
+    <div className={`bg-white border border-[var(--line)] rounded-xl p-5 ${className}`}>
+      {children}
+    </div>
+  );
+}
+
+function AlerteBanniere({ label, children, warn = true, onClick, onArreterAlarme, escaladeDebutTs }) {
+  // Une non-conformité doit se remarquer même quand on n'a pas les yeux rivés sur l'écran
+  // (mains occupées, service en cours, bruit en cuisine) : un bip sonore fort + une vibration
+  // à l'apparition, répétés régulièrement tant que l'alerte reste affichée (donc non traitée),
+  // en plus de la couleur à l'écran, pour les alertes vraiment importantes.
+  const [confirmationOuverte, setConfirmationOuverte] = useState(false);
+  useEffect(() => {
+    if (!warn || escaladeDebutTs) return; // l'escalade (ci-dessous) gère son propre rythme
+    const alerter = () => {
+      jouerBipAlerte();
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try { navigator.vibrate([80, 40, 80]); } catch (e) { /* non disponible sur cet appareil */ }
+      }
+    };
+    alerter();
+    const id = setInterval(alerter, 45000); // rappel toutes les 45s tant que l'alerte est là
+    return () => clearInterval(id);
+  }, [warn, escaladeDebutTs]);
+  // Alerte "10 minutes avant l'échéance" (fin de refroidissement / maintien au chaud / cuisson) :
+  // pour laisser le temps de finir ce qu'on a commencé, ça monte en intensité au fil du temps
+  // plutôt que de sonner à fond tout de suite — 5 bips toutes les 2 min, puis toutes les minutes
+  // à partir de la 6e minute, puis en continu pendant la dernière minute avant l'échéance.
+  useEffect(() => {
+    if (!warn || !escaladeDebutTs) return;
+    let dernierBloc = -1;
+    let dernierBipContinu = 0;
+    const tick = () => {
+      const t = (Date.now() - escaladeDebutTs) / 1000;
+      if (t < 0) return;
+      if (t < 360) {
+        const bloc = Math.floor(t / 120);
+        if (bloc !== dernierBloc && t - bloc * 120 < 1.5) { dernierBloc = bloc; jouerRafaleBips(5); }
+      } else if (t < 540) {
+        const bloc = Math.floor(t / 60);
+        if (bloc !== dernierBloc && t - bloc * 60 < 1.5) { dernierBloc = bloc; jouerRafaleBips(5); }
+      } else {
+        if (t - dernierBipContinu >= 1.2) {
+          dernierBipContinu = t;
+          jouerBipAlerte();
+          if (typeof navigator !== "undefined" && navigator.vibrate) {
+            try { navigator.vibrate(120); } catch (e) { /* non disponible sur cet appareil */ }
+          }
+        }
+      }
+    };
+    tick();
+    const id = setInterval(tick, 1000);
+    return () => clearInterval(id);
+  }, [warn, escaladeDebutTs]);
+  return (
+    <div className="mb-4">
+      <Card className={warn ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)] bg-[var(--bg)]"}>
+        <button onClick={onClick} className="w-full text-left flex items-start gap-3">
+          <AlertTriangle size={24} className={warn ? "text-[var(--warn)] shrink-0 mt-0.5" : "text-[var(--steel)] shrink-0 mt-0.5"} />
+          <div>
+            <span className="text-xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded" style={{ backgroundColor: warn ? "#C1432D" : "#657069", color: "#ffffff" }}>{label}</span>
+            <p className="text-base text-[var(--ink)] font-semibold mt-1 leading-snug">{children}</p>
+          </div>
+        </button>
+        {warn && onArreterAlarme && (
+          <button
+            onClick={(e) => { e.stopPropagation(); setConfirmationOuverte(true); }}
+            className="mt-3 w-full text-center text-sm font-semibold py-2 rounded-lg border border-[var(--warn)] text-[var(--warn)] bg-white"
+          >
+            Arrêter l'alarme
+          </button>
+        )}
+      </Card>
+      {confirmationOuverte && (
+        <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10000, backgroundColor: "rgba(20,10,10,0.6)" }}>
+          <Card className="w-full max-w-sm">
+            <p className="text-sm text-[var(--ink)] font-medium mb-4">Voulez-vous valider cette action et arrêter l'alarme ?</p>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setConfirmationOuverte(false)}>Non</Button>
+              <Button variant="danger" onClick={() => { setConfirmationOuverte(false); onArreterAlarme(); if (onClick) onClick(); }}>Oui</Button>
+            </div>
+          </Card>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Fenêtre d'alerte bloquante — passe au-dessus de tout le reste de l'application (n'importe
+// quel écran, n'importe quel onglet) et y reste, avec bip + vibration répétés, tant que chaque
+// élément listé n'a pas été validé et corrigé. `porteeGlobale` = visible par tout le monde
+// (RappelConso) ; sinon elle n'est affichée qu'à la personne concernée (alerte d'action).
+function AlerteBloquante({ titre, sousTitre, items, renderItem, zIndex = 9999 }) {
+  useEffect(() => {
+    const alerter = () => {
+      jouerBipAlerte();
+      if (typeof navigator !== "undefined" && navigator.vibrate) {
+        try { navigator.vibrate([150, 80, 150, 80, 250]); } catch (e) { /* non disponible sur cet appareil */ }
+      }
+    };
+    alerter();
+    const id = setInterval(alerter, 20000); // rappel toutes les 20s tant que la fenêtre reste ouverte
+    return () => clearInterval(id);
+  }, []);
+  if (!items || items.length === 0) return null;
+  return (
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex, backgroundColor: "rgba(20,10,10,0.78)" }}>
+      <div className="w-full max-w-lg rounded-2xl shadow-2xl overflow-hidden bg-white" style={{ border: "4px solid #c0392b" }}>
+        <div className="px-5 py-4 flex items-start gap-3" style={{ backgroundColor: "#c0392b" }}>
+          <AlertTriangle size={26} color="#ffffff" className="shrink-0 mt-0.5" />
+          <div>
+            <div className="text-white font-bold text-base uppercase tracking-wide leading-tight">{titre}</div>
+            {sousTitre && <p className="text-white/90 text-xs mt-1">{sousTitre}</p>}
+          </div>
+        </div>
+        <div className="p-5 max-h-[65vh] overflow-y-auto space-y-4">
+          {items.map(renderItem)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function HorlogeCompacte() {
+  const [maintenant, setMaintenant] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setMaintenant(new Date()), 30000);
+    return () => clearInterval(id);
+  }, []);
+  const h = String(maintenant.getHours()).padStart(2, "0");
+  const m = String(maintenant.getMinutes()).padStart(2, "0");
+  return (
+    <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)] flex items-center justify-center px-2.5 h-full shrink-0">
+      <span className="text-sm font-semibold tracking-tight text-[var(--ink)] tabular-nums leading-none">{h}:{m}</span>
+    </div>
+  );
+}
+
+function Horloge() {
+  const [maintenant, setMaintenant] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setMaintenant(new Date()), 1000);
+    return () => clearInterval(id);
+  }, []);
+  const h = String(maintenant.getHours()).padStart(2, "0");
+  const m = String(maintenant.getMinutes()).padStart(2, "0");
+  const s = String(maintenant.getSeconds()).padStart(2, "0");
+  return (
+    <div className="rounded-xl border border-[var(--line)] bg-white flex flex-col items-center justify-center px-5" style={{ minHeight: 58, minWidth: 110 }}>
+      <div className="text-2xl font-semibold tracking-tight text-[var(--ink)] tabular-nums leading-none">{h}:{m}</div>
+      <div className="text-xs text-[var(--steel)] mt-1 tabular-nums">{s} s</div>
+    </div>
+  );
+}
+
+function IndicateurHorsLigne() {
+  const [enAttente, setEnAttente] = useState(0);
+  const [enLigne, setEnLigne] = useState(typeof navigator === "undefined" ? true : navigator.onLine);
+
+  useEffect(() => {
+    const maj = () => {
+      setEnLigne(typeof navigator === "undefined" ? true : navigator.onLine);
+      setEnAttente(window.macuisineHorsLigne ? window.macuisineHorsLigne.compterEnAttente() : 0);
+    };
+    maj();
+    const id = setInterval(maj, 4000);
+    window.addEventListener("online", maj);
+    window.addEventListener("offline", maj);
+    return () => { clearInterval(id); window.removeEventListener("online", maj); window.removeEventListener("offline", maj); };
+  }, []);
+
+  if (enAttente === 0 && enLigne) return null;
+
+  return (
+    <div className="mb-4 px-3 py-2.5 rounded-lg text-xs font-medium flex items-center gap-2" style={{ backgroundColor: enLigne ? "#FDF6E3" : "#FDECEC", color: enLigne ? "#8a6d1a" : "#c0392b" }}>
+      <span>{enLigne ? "🔄" : "📴"}</span>
+      <span>
+        {enLigne
+          ? `Connexion rétablie — envoi de ${enAttente} élément${enAttente > 1 ? "s" : ""} en attente...`
+          : enAttente > 0
+            ? `Hors connexion — ${enAttente} élément${enAttente > 1 ? "s" : ""} en attente d'envoi. Vos saisies (photos, relevés, cellule...) sont gardées sur cet appareil et seront envoyées automatiquement dès le retour du réseau, puis effacées d'ici.`
+            : "Hors connexion — vos saisies restent sur cet appareil jusqu'au retour du réseau."}
+      </span>
+    </div>
+  );
+}
+
+function SectionHeader({ title, subtitle, action }) {
+  return (
+    <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
+      <div>
+        <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">{title}</h2>
+        {subtitle && <p className="text-sm text-[var(--steel)] mt-1">{subtitle}</p>}
+      </div>
+      {action}
+    </div>
+  );
+}
+
+function Button({ children, onClick, variant = "primary", type = "button", className = "", disabled = false, style }) {
+  const styles = {
+    primary: "bg-[var(--accent)] text-white hover:bg-[#255a42]",
+    ghost: "bg-transparent text-[var(--ink)] hover:bg-[var(--bg)] border border-[var(--line)]",
+    danger: "bg-transparent text-[var(--warn)] hover:bg-[var(--warn-soft)]",
+  };
+  const styleAssure = variant === "primary" ? { backgroundColor: "#2F6B4F", color: "#ffffff", ...style } : style;
+  return (
+    <button
+      type={type}
+      onClick={onClick}
+      disabled={disabled}
+      style={styleAssure}
+      className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${styles[variant]} ${className}`}
+    >
+      {children}
+    </button>
+  );
+}
+
+// Fenêtre de confirmation avant une suppression définitive — question claire, sans ambiguïté,
+// affichée par-dessus tout le reste tant qu'on n'a pas répondu.
+function ModalConfirmerSuppression({ libelle, onConfirmer, onAnnuler }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onAnnuler}>
+      <div className="bg-white rounded-xl max-w-sm w-full p-5" onClick={(e) => e.stopPropagation()}>
+        <div className="flex items-start gap-3 mb-4">
+          <div className="shrink-0 w-10 h-10 rounded-full flex items-center justify-center" style={{ backgroundColor: "#FBE8E3" }}>
+            <Trash2 size={18} style={{ color: "#C1432D" }} />
+          </div>
+          <div>
+            <h2 className="font-bold text-[var(--ink)]">Voulez-vous vraiment supprimer{libelle ? " ceci" : ""} ?</h2>
+            {libelle && <p className="text-sm text-[var(--steel)] mt-1">« {libelle} » sera définitivement supprimé.</p>}
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button onClick={onAnnuler} className="flex-1 min-h-[44px] rounded-lg border border-[var(--line)] text-[var(--ink)] font-medium text-sm">Annuler</button>
+          <button onClick={onConfirmer} className="flex-1 min-h-[44px] rounded-lg text-white font-medium text-sm" style={{ backgroundColor: "#C1432D" }}>Oui, supprimer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Bouton de suppression à confirmation : évite qu'un tap accidentel (mains occupées, tablette
+// bousculée) supprime définitivement une donnée. Le tap ouvre une fenêtre qui demande clairement
+// "Voulez-vous vraiment supprimer ?" — rien n'est supprimé tant qu'on n'a pas répondu "Oui".
+function BoutonSupprimer({ onConfirm, size = 15, titre = "Supprimer", className = "", libelle }) {
+  const [demandeOuverte, setDemandeOuverte] = useState(false);
+
+  return (
+    <>
+      <button
+        onClick={(e) => { e.stopPropagation(); setDemandeOuverte(true); }}
+        className={`text-[var(--steel)] hover:text-[var(--warn)] min-h-[36px] min-w-[36px] inline-flex items-center justify-center ${className}`}
+        title={titre}
+      >
+        <Trash2 size={size} />
+      </button>
+      {demandeOuverte && (
+        <ModalConfirmerSuppression
+          libelle={libelle}
+          onAnnuler={() => setDemandeOuverte(false)}
+          onConfirmer={() => { setDemandeOuverte(false); onConfirm(); }}
+        />
+      )}
+    </>
+  );
+}
+
+function Field({ label, children }) {
+  return (
+    <label className="flex flex-col gap-1 text-sm">
+      <span className="text-[var(--steel)] font-medium">{label}</span>
+      {children}
+    </label>
+  );
+}
+
+const inputCls =
+  "border border-[var(--line)] rounded-lg px-3 py-2.5 min-h-[44px] text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)] bg-white";
+
+function Avatar({ nom, size = 40, tone = "accent" }) {
+  const bg = tone === "gold" ? "var(--gold-soft)" : "var(--accent-soft)";
+  const fg = tone === "gold" ? "var(--gold)" : "var(--accent)";
+  return (
+    <div
+      className="rounded-full flex items-center justify-center font-semibold shrink-0"
+      style={{ width: size, height: size, backgroundColor: bg, color: fg, fontSize: size * 0.38 }}
+    >
+      {initials(nom)}
+    </div>
+  );
+}
+
+const MODULE_ICON = { HACCP: Thermometer, Stock: Package, "Réservations": CalendarDays, Planning: ClipboardList, "Équipe": Users };
+
+/* ---------- module Tableau de bord ---------- */
+
+function Dashboard({ employees, activityLog, shifts, tempLogs, stock, reservations, setTab, goToEmployee }) {
+  const today = todayISO();
+  const jourIdx = (new Date().getDay() + 6) % 7;
+  const alertesTemp = tempLogs.filter((l) => l.date === today && !isTempOk(l.type, l.valeur));
+  const stockBas = stock.filter((s) => Number(s.quantite) < Number(s.cible));
+  const resasAujourdhui = reservations.filter((r) => r.date === today);
+  const personnesAujourdhui = resasAujourdhui.reduce((s, r) => s + Number(r.personnes || 0), 0);
+  const equipeAujourdhui = shifts.filter((s) => s.jour === JOURS[jourIdx]);
+
+  const stats = [
+    { label: "Alertes température", value: alertesTemp.length, icon: Thermometer, tone: alertesTemp.length ? "warn" : "ok", tab: "haccpTemp" },
+    { label: "Articles sous le seuil", value: stockBas.length, icon: TrendingDown, tone: stockBas.length ? "warn" : "ok", tab: "stock" },
+    { label: "Réservations aujourd'hui", value: `${resasAujourdhui.length} · ${personnesAujourdhui} pers.`, icon: CalendarDays, tone: "gold", tab: "reservations" },
+    { label: "Personnel en poste", value: equipeAujourdhui.length, icon: Users, tone: "gold", tab: "planning" },
+  ];
+
+  return (
+    <div>
+      <SectionHeader title="Tableau de bord" subtitle={`Aujourd'hui, ${new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`} />
+
+      <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">Votre équipe</h3>
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {employees.map((emp) => {
+          const creneauJour = shifts.find((s) => s.employeeId === emp.id && s.jour === JOURS[jourIdx]);
+          const actionsAujourdhui = activityLog.filter((a) => a.employeeId === emp.id && a.date === today).length;
+          return (
+            <button key={emp.id} onClick={() => goToEmployee(emp.id)} className="text-left">
+              <Card className="h-full hover:border-[var(--accent)]/50 transition-colors">
+                <div className="flex items-center gap-3 mb-3">
+                  <Avatar nom={emp.nom} />
+                  <div className="min-w-0">
+                    <div className="font-semibold text-[var(--ink)] truncate">{emp.nom}</div>
+                    <div className="text-xs text-[var(--steel)] truncate">{emp.poste}</div>
+                  </div>
+                </div>
+                <div className="flex items-center justify-between text-xs">
+                  <span className={creneauJour ? "text-[var(--ink)] font-medium" : "text-[var(--steel)]"}>
+                    {creneauJour ? `${creneauJour.debut}–${creneauJour.fin}` : "Repos"}
+                  </span>
+                  <span className="text-[var(--steel)]">{actionsAujourdhui} action{actionsAujourdhui !== 1 ? "s" : ""}</span>
+                </div>
+              </Card>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4 mb-8">
+        {stats.map((s) => (
+          <button key={s.label} onClick={() => setTab(s.tab)} className="text-left">
+            <Card className="hover:border-[var(--accent)]/50 transition-colors h-full">
+              <div className="flex items-center justify-between mb-3">
+                <s.icon size={20} className={s.tone === "warn" ? "text-[var(--warn)]" : s.tone === "gold" ? "text-[var(--gold)]" : "text-[var(--accent)]"} />
+                {s.tone === "warn" && <AlertTriangle size={16} className="text-[var(--warn)]" />}
+              </div>
+              <div className="text-2xl font-semibold text-[var(--ink)]">{s.value}</div>
+              <div className="text-xs text-[var(--steel)] mt-1">{s.label}</div>
+            </Card>
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Relevés à surveiller</h3>
+          {alertesTemp.length === 0 ? (
+            <p className="text-sm text-[var(--steel)]">Aucune anomalie de température relevée aujourd'hui.</p>
+          ) : (
+            <ul className="space-y-2">
+              {alertesTemp.map((l) => (
+                <li key={l.id} className="flex items-center gap-2 text-sm text-[var(--warn)]">
+                  <AlertTriangle size={15} />
+                  {l.emplacement} — {l.valeur}°C à {l.heure}
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Stock à commander</h3>
+          {stockBas.length === 0 ? (
+            <p className="text-sm text-[var(--steel)]">Tous les articles sont au-dessus du seuil minimum.</p>
+          ) : (
+            <ul className="space-y-2">
+              {stockBas.map((s) => (
+                <li key={s.id} className="flex items-center justify-between text-sm">
+                  <span className="text-[var(--ink)]">{s.nom}</span>
+                  <span className="text-[var(--warn)] font-medium">{s.quantite} {s.unite} restant</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- module Équipe ---------- */
+
+function ActivityRow({ entry, employees, showWho = true }) {
+  const emp = employees.find((e) => e.id === entry.employeeId);
+  const Icon = MODULE_ICON[entry.module] || Activity;
+  return (
+    <div className="flex items-start gap-3 py-2.5 text-sm">
+      <div className="mt-0.5 w-7 h-7 rounded-md bg-[var(--bg)] flex items-center justify-center shrink-0">
+        <Icon size={14} className="text-[var(--steel)]" />
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="text-[var(--ink)]">
+          {showWho && <span className="font-medium">{emp ? emp.nom : "Inconnu"}</span>}
+          {showWho && " — "}
+          {entry.action}
+        </div>
+        {entry.detail && <div className="text-xs text-[var(--steel)] truncate">{entry.detail}</div>}
+      </div>
+      <div className="text-xs text-[var(--steel)] whitespace-nowrap">{entry.date} · {entry.heure}</div>
+    </div>
+  );
+}
+
+function EmployeeDetail({ employee, employees, shifts, activityLog, tasks, toggleTask, currentUserId, onBack }) {
+  const today = todayISO();
+  const mesActions = activityLog.filter((a) => a.employeeId === employee.id).sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure));
+  const actionsAujourdhui = mesActions.filter((a) => a.date === today).length;
+  const mesCreneaux = shifts.filter((s) => s.employeeId === employee.id);
+  const mesTaches = tasks.filter((t) => taskAppliesTo(t, employee) && isTaskActive(t, today));
+  const heuresSemaine = mesCreneaux.reduce((sum, s) => {
+    if (!s.debut || !s.fin) return sum;
+    const [h1, m1] = s.debut.split(":").map(Number);
+    const [h2, m2] = s.fin.split(":").map(Number);
+    return sum + (h2 * 60 + m2 - (h1 * 60 + m1)) / 60;
+  }, 0);
+
+  return (
+    <div>
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
+        <ArrowLeft size={15} /> Retour à l'équipe
+      </button>
+
+      <div className="flex items-center gap-4 mb-6">
+        <Avatar nom={employee.nom} size={56} />
+        <div>
+          <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">{employee.nom}</h2>
+          <p className="text-sm text-[var(--steel)]">{employee.poste}</p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-4 mb-6">
+        <Card><div className="text-2xl font-semibold text-[var(--ink)]">{heuresSemaine.toFixed(1)}h</div><div className="text-xs text-[var(--steel)] mt-1">Cette semaine</div></Card>
+        <Card><div className="text-2xl font-semibold text-[var(--ink)]">{actionsAujourdhui}</div><div className="text-xs text-[var(--steel)] mt-1">Actions aujourd'hui</div></Card>
+        <Card><div className="text-2xl font-semibold text-[var(--ink)]">{mesActions.length}</div><div className="text-xs text-[var(--steel)] mt-1">Actions enregistrées</div></Card>
+      </div>
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Semaine de travail</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Horaires Skello, saisis manuellement ici en attendant une synchronisation.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
+          {JOURS.map((jour) => {
+            const s = mesCreneaux.find((c) => c.jour === jour);
+            return (
+              <div key={jour} className={`rounded-lg border p-2.5 text-center ${s ? "border-[var(--gold)]/30 bg-[var(--gold-soft)]" : "border-[var(--line)]"}`}>
+                <div className="text-xs text-[var(--steel)] mb-1">{jour.slice(0, 3)}</div>
+                <div className="text-xs font-medium text-[var(--ink)]">{s ? `${s.debut}–${s.fin}` : "—"}</div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Planning du jour</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Préparation, service, nettoyage, commande, réception — cochez pour {employee.nom} si besoin.</p>
+        {mesTaches.length === 0 ? (
+          <p className="text-sm text-[var(--steel)]">Aucune tâche pour {employee.nom} aujourd'hui.</p>
+        ) : (
+          <ul className="space-y-2.5">
+            {sortByHeure(mesTaches).map((t) => (
+              <TaskItem key={t.id} task={t} employeeId={employee.id} date={today} actorId={currentUserId} onToggle={toggleTask} showAssignee={false} employees={employees} />
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-2">Activité récente</h3>
+        {mesActions.length === 0 ? (
+          <p className="text-sm text-[var(--steel)]">Aucune action enregistrée pour {employee.nom}.</p>
+        ) : (
+          <div className="divide-y divide-[var(--line)]">
+            {mesActions.slice(0, 60).map((a) => <ActivityRow key={a.id} entry={a} employees={employees} showWho={false} />)}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function Equipe({ employees, shifts, activityLog, tasks, toggleTask, currentUserId, selectedEmployeeId, setSelectedEmployeeId }) {
+  const [filtre, setFiltre] = useState("tous");
+
+  if (selectedEmployeeId) {
+    const emp = employees.find((e) => e.id === selectedEmployeeId);
+    if (emp) {
+      return <EmployeeDetail employee={emp} employees={employees} shifts={shifts} activityLog={activityLog} tasks={tasks} toggleTask={toggleTask} currentUserId={currentUserId} onBack={() => setSelectedEmployeeId(null)} />;
+    }
+  }
+
+  const journal = activityLog
+    .filter((a) => filtre === "tous" || a.employeeId === filtre)
+    .sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure));
+
+  return (
+    <div>
+      <SectionHeader title="Équipe" subtitle="Chaque membre, ce qu'il a fait, et quand" />
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+        {employees.map((emp) => (
+          <button key={emp.id} onClick={() => setSelectedEmployeeId(emp.id)} className="text-left">
+            <Card className="h-full hover:border-[var(--accent)]/50 transition-colors">
+              <div className="flex items-center gap-3">
+                <Avatar nom={emp.nom} />
+                <div className="min-w-0">
+                  <div className="font-semibold text-[var(--ink)] truncate">{emp.nom}</div>
+                  <div className="text-xs text-[var(--steel)] truncate">{emp.poste}</div>
+                </div>
+              </div>
+            </Card>
+          </button>
+        ))}
+      </div>
+
+      <Card>
+        <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
+          <h3 className="font-semibold text-[var(--ink)]">Journal d'activité</h3>
+          <select className={inputCls} value={filtre} onChange={(e) => setFiltre(e.target.value)}>
+            <option value="tous">Tout le monde</option>
+            {employees.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+          </select>
+        </div>
+        {journal.length === 0 ? (
+          <p className="text-sm text-[var(--steel)]">Aucune activité enregistrée pour le moment.</p>
+        ) : (
+          <div className="divide-y divide-[var(--line)]">
+            {journal.slice(0, 100).map((a) => <ActivityRow key={a.id} entry={a} employees={employees} />)}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- module Contrôle (vue chef) ---------- */
+
+function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFournisseurs = {}, onEnregistrerEmail }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const emailConnu = (emailsFournisseurs || {})[notif.fournisseur] || "";
+  const [editionEmail, setEditionEmail] = useState(false);
+  const [emailSaisi, setEmailSaisi] = useState(emailConnu);
+  const mailtoHref = `mailto:${encodeURIComponent(emailConnu)}?subject=${encodeURIComponent(notif.sujet)}&body=${encodeURIComponent(notif.corps)}`;
+  return (
+    <Card className={notif.envoyee ? "opacity-60" : "border-[var(--warn)]/40"}>
+      <div className="flex items-center justify-between mb-2">
+        <div>
+          <div className="font-medium text-[var(--ink)] text-sm">{notif.fournisseur || "Fournisseur non renseigné"}</div>
+          <div className="text-xs text-[var(--steel)]">{notif.date} à {notif.heure} · réceptionné par {who(notif.employeeId) || "—"} · {notif.nonConformes.length} article(s) à retourner{notif.receptionId ? ` · bon n° ${notif.receptionId.slice(0, 8)}` : ""}</div>
+        </div>
+        {notif.envoyee ? (
+          <span className="text-xs bg-[var(--accent-soft)] text-[var(--accent)] px-2 py-0.5 rounded-full">Envoyé</span>
+        ) : (
+          <span className="text-xs bg-[var(--warn-soft)] text-[var(--warn)] px-2 py-0.5 rounded-full">À envoyer</span>
+        )}
+      </div>
+
+      <div className="mb-3">
+        {!editionEmail ? (
+          <div className="flex items-center gap-2 text-xs">
+            <span className="text-[var(--steel)]">Destinataire :</span>
+            <span className="text-[var(--ink)] font-medium">{emailConnu || "non renseigné"}</span>
+            <button onClick={() => { setEmailSaisi(emailConnu); setEditionEmail(true); }} className="text-[var(--accent)] font-medium">{emailConnu ? "Modifier" : "Ajouter l'e-mail du fournisseur"}</button>
+          </div>
+        ) : (
+          <div className="flex items-center gap-2">
+            <input type="email" className={`${inputCls} flex-1`} placeholder="contact@fournisseur.fr" value={emailSaisi} onChange={(e) => setEmailSaisi(e.target.value)} />
+            <Button variant="ghost" onClick={() => { onEnregistrerEmail && onEnregistrerEmail(notif.fournisseur, emailSaisi.trim()); setEditionEmail(false); }}>Enregistrer</Button>
+          </div>
+        )}
+      </div>
+
+      <div className="bg-[var(--bg)] rounded-lg p-3 text-xs text-[var(--ink)] whitespace-pre-wrap mb-3">{notif.corps}</div>
+      <div className="flex flex-wrap gap-2 mb-3">
+        {(notif.photosBon && notif.photosBon.length > 0 ? notif.photosBon : notif.photoBon ? [notif.photoBon] : []).map((p, i) => (
+          <img key={i} src={p} alt="Bon de livraison" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />
+        ))}
+        {notif.nonConformes.filter((p) => p.photoNC).map((p, i) => <img key={i} src={p.photoNC} alt={p.nom} className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />)}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        <a href={mailtoHref}><Button variant="ghost"><Mail size={16} /> Ouvrir dans l'appli mail</Button></a>
+        {!notif.envoyee && <Button onClick={() => onMarquerEnvoyee(notif.id)}>Marquer comme envoyé</Button>}
+      </div>
+    </Card>
+  );
+}
+
+// Checklist de contrôle de fin de journée, partagée entre "Gestion et contrôle" → tuile
+// Planning (chef) et le bouton Contrôle du Planning de chaque employé — même contenu, même état,
+// pour que le chef et l'employé du lendemain voient exactement la même chose. Volontairement une
+// belle liste par catégorie (pas un tableau de planning) : DLC à jeter par poste, nettoyage de fin
+// de service cuisine + plonge, autres tâches du jour (hors repas du personnel/service, déjà couverts
+// ailleurs), matériel propre et éteint. Oui/Non par ligne ; Non permet d'ajouter une note reprise par
+// le mécanisme remarquesChef existant, donc l'employé concerné la retrouve le lendemain matin.
+function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning }) {
+  const today = todayISO();
+  const [statutsParJour, setStatutsParJour] = useStored("controle-planning-statuts", {});
+  const [notesParJour, setNotesParJour] = useStored("controle-planning-notes", {});
+  const [noteEnCours, setNoteEnCours] = useState(null); // { key, label, assignedTo, note }
+
+  const statuts = statutsParJour[today] || {};
+  const notesEnvoyees = notesParJour[today] || {};
+  const setStatut = (key, val) => setStatutsParJour({ ...statutsParJour, [today]: { ...statuts, [key]: val } });
+
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const groupeLabel = (assignedTo) => {
+    if (!assignedTo || assignedTo === "tous") return "Équipe";
+    if (assignedTo.startsWith("poste:")) return `Poste ${assignedTo.slice(6, 7).toUpperCase()}${assignedTo.slice(7)}`;
+    return who(assignedTo) || "Équipe";
+  };
+
+  // 1. DLC à jeter par poste — préparations maison arrivées à DLC + marchandises reçues.
+  const nomProduitPrep = (p) => produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || "Produit";
+  const prepsAJeter = preparations.filter((p) => !p.jete && p.dlcDate && p.dlcDate <= today);
+  const stockAJeter = stock.filter((s) => s.dlc && s.dlc <= today && Number(s.quantite) > 0);
+  const itemsDlc = [
+    ...prepsAJeter.map((p) => {
+      const produit = produits.find((pr) => pr.id === p.produitId);
+      return {
+        key: `dlc-prep-${p.id}`, groupe: produit?.poste || "Autres préparations",
+        label: `${nomProduitPrep(p)} — ${p.quantite} (préparé le ${p.date}${who(p.employeeId) ? ` par ${who(p.employeeId)}` : ""})`,
+        assignedTo: produit?.poste ? clePoste(produit.poste) : "tous",
+      };
+    }),
+    ...stockAJeter.map((s) => ({
+      key: `dlc-stock-${s.id}`, groupe: "Marchandises reçues",
+      label: `${s.nom} — ${s.quantite} ${s.unite} (lot ${s.lot || "—"})`, assignedTo: "tous",
+    })),
+  ];
+
+  // 2. Nettoyage en fin de service — cuisine (par poste) et plonge. On mélange le quotidien
+  // (toujours affiché) avec l'hebdomadaire et le mensuel, mais UNIQUEMENT ce qui tombe le jour
+  // du contrôle — en réutilisant la vraie liste `cleaning` (établie par Loïc, avec le vrai
+  // protocole par tâche) et la même fonction `tacheDueAujourdhuiOuEnRetard` que le reste de
+  // l'appli, plutôt qu'une liste de nettoyage inventée séparément. Logique partagée avec la vue
+  // Nettoyage de l'employé — voir construireItemsNettoyageDuJour.
+  const itemsNettoyage = construireItemsNettoyageDuJour(cleaning, today);
+
+  // 3. Autres tâches du jour — hors nettoyage (catégorie 2 ci-dessus), service et repas du personnel.
+  const TITRES_EXCLUS = /repas du personnel|contr[oô]le/i;
+  const itemsAutres = tasks
+    .filter((t) => isTaskActive(t, today) && t.categorie !== "Nettoyage" && t.categorie !== "Service" && !TITRES_EXCLUS.test(t.titre || ""))
+    .map((t) => {
+      const dejaFait = !!(t.completions?.[today] && Object.keys(t.completions[today]).length > 0);
+      return {
+        key: `tache-${t.id}`, groupe: groupeLabel(t.assignedTo),
+        label: `${t.titre}${t.heure ? ` (${t.heure})` : ""}${dejaFait ? " — déjà coché fait par l'équipe" : " — pas encore coché fait"}`,
+        assignedTo: t.assignedTo || "tous",
+      };
+    });
+
+  // 4. Matériel propre et éteint — appareils par poste + chambres froides/cellule.
+  const itemsMateriel = [
+    ...Object.entries(APPAREILS_A_VERIFIER).flatMap(([poste, liste]) =>
+      liste.map((nom) => ({ key: `mat-${poste}-${nom}`, groupe: poste, label: `${nom} — propre et éteint`, assignedTo: clePoste(poste) }))
+    ),
+    ...equipementsFroid.map((eq) => ({ key: `mat-froid-${eq.id}`, groupe: "Chambres froides & cellule", label: `${eq.nom} — porte fermée, propre`, assignedTo: "tous" })),
+  ];
+
+  const CATEGORIES = [
+    { titre: "DLC à jeter par poste", items: itemsDlc },
+    { titre: "Nettoyage en fin de service — cuisine et plonge", items: itemsNettoyage },
+    { titre: "Autres tâches du jour", items: itemsAutres },
+    { titre: "Matériel propre et éteint", items: itemsMateriel },
+  ];
+
+  const tousItems = CATEGORIES.flatMap((c) => c.items);
+  const valides = tousItems.filter((it) => statuts[it.key] === "ok").length;
+  const nonValides = tousItems.filter((it) => statuts[it.key] === "ko").length;
+  const restants = tousItems.length - valides - nonValides;
+
+  const employesPourAssignedTo = (assignedTo) => {
+    if (!assignedTo || assignedTo === "tous") return employees.filter((e) => e.id !== currentUserId);
+    if (assignedTo.startsWith("poste:")) return employees.filter((e) => clePoste(e.poste) === assignedTo && e.id !== currentUserId);
+    return employees.filter((e) => e.id === assignedTo);
+  };
+
+  const envoyerNote = () => {
+    if (!noteEnCours || !noteEnCours.note.trim()) return;
+    const cibles = employesPourAssignedTo(noteEnCours.assignedTo);
+    if (cibles.length > 0) {
+      const nouvelles = cibles.map((emp) => ({
+        id: uid(), taskId: noteEnCours.key, empId: emp.id, empNom: emp.nom, taskTitre: noteEnCours.label,
+        note: noteEnCours.note, photo: null, date: today, heure: new Date().toTimeString().slice(0, 5),
+        chefId: currentUserId, vue: false,
+      }));
+      setRemarquesChef([...nouvelles, ...(remarquesChef || [])]);
+    }
+    setNotesParJour({ ...notesParJour, [today]: { ...notesEnvoyees, [noteEnCours.key]: noteEnCours.note } });
+    if (logActivity) logActivity("Contrôle", "Remarque envoyée depuis le contrôle planning", noteEnCours.label);
+    setNoteEnCours(null);
+  };
+
+  return (
+    <div className="space-y-6">
+      <p className="text-xs text-[var(--steel)]">{valides} ✓ validé(s) · {nonValides} ✗ non validé(s) · {restants} restant(s) — un point non validé peut recevoir une note ; l'employé concerné la retrouvera demain matin.</p>
+
+      {CATEGORIES.map((cat) => (
+        <Card key={cat.titre}>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{cat.titre}</h3>
+          {cat.items.length === 0 ? (
+            <p className="text-sm text-[var(--steel)]">Rien à signaler.</p>
+          ) : (
+            <div className="space-y-4">
+              {[...new Set(cat.items.map((it) => it.groupe))].map((groupe) => (
+                <div key={groupe}>
+                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">{groupe}</div>
+                  <ul className="space-y-2">
+                    {cat.items.filter((it) => it.groupe === groupe).map((it) => {
+                      const statut = statuts[it.key];
+                      const enNote = noteEnCours?.key === it.key;
+                      const noteEnvoyee = notesEnvoyees[it.key];
+                      return (
+                        <li key={it.key} className={`rounded-lg p-2.5 border ${statut === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : statut === "ko" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
+                          <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{it.label}</p>
+                          {it.detail && <p className="text-xs text-[var(--steel)] mb-2 leading-snug">{it.detail}</p>}
+                          {!statut && !enNote && (
+                            <div className="flex gap-2">
+                              <button onClick={() => setStatut(it.key, "ok")} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg font-medium active:scale-[0.97] transition-transform" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
+                                <CheckCircle2 size={16} /> Oui
+                              </button>
+                              <button onClick={() => { setStatut(it.key, "ko"); setNoteEnCours({ key: it.key, label: it.label, assignedTo: it.assignedTo, note: notesEnvoyees[it.key] || "" }); }} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium bg-[var(--warn-soft)] active:scale-[0.97] transition-transform">
+                                <XCircle size={16} /> Non
+                              </button>
+                            </div>
+                          )}
+                          {statut === "ok" && <button onClick={() => setStatut(it.key, undefined)} className="text-xs text-[var(--steel)]">Annuler</button>}
+                          {statut === "ko" && !enNote && (
+                            <div>
+                              {noteEnvoyee && <p className="text-xs text-[var(--warn)] mb-1">📝 Note envoyée : {noteEnvoyee}</p>}
+                              <div className="flex gap-2">
+                                <button onClick={() => setNoteEnCours({ key: it.key, label: it.label, assignedTo: it.assignedTo, note: noteEnvoyee || "" })} className="text-xs text-[var(--accent)] font-medium">{noteEnvoyee ? "Modifier la note" : "+ Ajouter une note"}</button>
+                                <button onClick={() => setStatut(it.key, undefined)} className="text-xs text-[var(--steel)]">Annuler</button>
+                              </div>
+                            </div>
+                          )}
+                          {enNote && (
+                            <div className="mt-1 space-y-2">
+                              <p className="text-xs text-[var(--steel)]">L'employé concerné retrouvera cette note demain matin.</p>
+                              <textarea className={`${inputCls} w-full text-sm`} rows={2} placeholder="Ce qui n'a pas été fait ou doit être corrigé..." value={noteEnCours.note} onChange={(e) => setNoteEnCours({ ...noteEnCours, note: e.target.value })} autoFocus />
+                              <div className="flex gap-2">
+                                <Button onClick={envoyerNote} disabled={!noteEnCours.note.trim()}>Envoyer la note</Button>
+                                <Button variant="ghost" onClick={() => setNoteEnCours(null)}>Annuler</Button>
+                              </div>
+                            </div>
+                          )}
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+// Déclaration TIAC (Toxi-Infection Alimentaire Collective) — pré-remplit automatiquement ce qui peut
+// l'être à partir des données déjà enregistrées dans l'application (personnel actif, réservations,
+// produits réceptionnés/tracés sur les 5 jours précédant les premiers symptômes, comme demandé par
+// la procédure officielle), pour ne laisser à compléter à la main que ce que le logiciel ne peut pas
+// savoir : la liste des malades et le suivi de l'alerte aux autorités.
+function DeclarationTiac({ employees, activityLog, receptions, preparations, produits, reservations, currentUserId, logActivity, declarationsTiac, setDeclarationsTiac }) {
+  const [etablissementNom, setEtablissementNom] = useStored("tiac-etablissement-nom", "Games Factory Salaise");
+  const [etablissementAdresse, setEtablissementAdresse] = useStored("tiac-etablissement-adresse", "");
+  const [dateDebut, setDateDebut] = useState(todayISO());
+  const [malades, setMalades] = useState([{ id: uid(), nom: "", age: "", symptomes: "", dateHeure: "" }]);
+  const [arsFait, setArsFait] = useState(false);
+  const [arsDateHeure, setArsDateHeure] = useState("");
+  const [ddcspFait, setDdcspFait] = useState(false);
+  const [ddcspDateHeure, setDdcspDateHeure] = useState("");
+  const [conserve, setConserve] = useState("");
+  const [notes, setNotes] = useState("");
+  const [texteGenere, setTexteGenere] = useState(null);
+  const [consultation, setConsultation] = useState(null);
+
+  const dateDebutPlage = addDays(dateDebut, -5);
+
+  const responsableNoms = employees.filter((e) => e.estChef || e.estDirection).map((e) => e.nom).join(", ") || "à compléter";
+
+  const personnelNoms = React.useMemo(() => {
+    const ids = new Set((activityLog || []).filter((a) => a.date >= dateDebutPlage && a.date <= dateDebut).map((a) => a.employeeId));
+    return [...ids].map((id) => employees.find((e) => e.id === id)?.nom).filter(Boolean);
+  }, [activityLog, dateDebutPlage, dateDebut, employees]);
+
+  const convivesParJour = React.useMemo(() => {
+    const parJour = {};
+    (reservations || []).filter((r) => r.date >= dateDebutPlage && r.date <= dateDebut).forEach((r) => {
+      parJour[r.date] = (parJour[r.date] || 0) + (Number(r.personnes) || 0);
+    });
+    return Object.entries(parJour).sort(([a], [b]) => a.localeCompare(b));
+  }, [reservations, dateDebutPlage, dateDebut]);
+
+  const produitsReceptionnes = React.useMemo(() => (
+    (receptions || []).filter((r) => r.date >= dateDebutPlage && r.date <= dateDebut)
+  ), [receptions, dateDebutPlage, dateDebut]);
+
+  const nomProduitPrepare = (p) => p.nomLibre || (produits || []).find((pr) => pr.id === p.produitId)?.nom || "(sans nom)";
+
+  const produitsPrepares = React.useMemo(() => (
+    (preparations || []).filter((p) => p.date >= dateDebutPlage && p.date <= dateDebut)
+  ), [preparations, dateDebutPlage, dateDebut]);
+
+  const ajouterMalade = () => setMalades([...malades, { id: uid(), nom: "", age: "", symptomes: "", dateHeure: "" }]);
+  const updateMalade = (id, patch) => setMalades(malades.map((m) => (m.id === id ? { ...m, ...patch } : m)));
+  const retirerMalade = (id) => setMalades(malades.filter((m) => m.id !== id));
+
+  const genererTexte = (source) => {
+    const s = source || {
+      etablissementNom, etablissementAdresse, dateDebut, dateDebutPlage, responsableNoms,
+      personnelNoms, convivesParJour, produitsReceptionnes, produitsPrepares,
+      malades, arsFait, arsDateHeure, ddcspFait, ddcspDateHeure, conserve, notes,
+    };
+    const lignes = [];
+    lignes.push("DÉCLARATION D'UNE TOXI-INFECTION ALIMENTAIRE COLLECTIVE (TIAC)");
+    lignes.push(`${s.etablissementNom}${s.etablissementAdresse ? " — " + s.etablissementAdresse : ""}`);
+    lignes.push(`Fiche rédigée le ${fmtLong(todayISO())}`);
+    lignes.push(`Premiers symptômes signalés le : ${fmtLong(s.dateDebut)}`);
+    lignes.push("");
+    lignes.push("1. RESPONSABLE DE L'ÉTABLISSEMENT AVERTI");
+    lignes.push(s.responsableNoms);
+    lignes.push("");
+    lignes.push("2. ALERTE DES AUTORITÉS");
+    lignes.push(`Médecin Inspecteur de l'ARS PACA — Tél : 04 13 55 80 10 — Fax : 04 13 55 80 40${s.arsFait ? ` — contacté le ${s.arsDateHeure || "date non précisée"}` : " — À CONTACTER"}`);
+    lignes.push(`Service Qualité et Sécurité Sanitaire de l'Alimentation (DDCSPP 06) — Tél : 04 93 72 28 00 — Fax : 04 93 72 28 05${s.ddcspFait ? ` — contacté le ${s.ddcspDateHeure || "date non précisée"}` : " — À CONTACTER"}`);
+    lignes.push("");
+    lignes.push("3. ÉLÉMENTS CONSERVÉS");
+    lignes.push(s.conserve || "à compléter");
+    lignes.push("");
+    lignes.push(`4. ÉLÉMENTS D'INFORMATION — période du ${fmtShort(s.dateDebutPlage)} au ${fmtShort(s.dateDebut)} (5 jours précédant les premiers symptômes)`);
+    lignes.push("");
+    lignes.push("Convives par jour (d'après les réservations enregistrées — ne compte pas les clients sans réservation) :");
+    if (s.convivesParJour.length) s.convivesParJour.forEach(([d, n]) => lignes.push(`  - ${fmtShort(d)} : ${n} personne(s)`));
+    else lignes.push("  (aucune réservation enregistrée sur cette période)");
+    lignes.push("");
+    lignes.push("Personnel en cuisine sur cette période (d'après l'activité enregistrée dans l'application) :");
+    lignes.push(s.personnelNoms.length ? `  ${s.personnelNoms.join(", ")}` : "  (aucune activité enregistrée trouvée — à compléter manuellement)");
+    lignes.push("");
+    lignes.push("Liste des malades :");
+    if (s.malades.some((m) => m.nom || m.symptomes)) {
+      s.malades.filter((m) => m.nom || m.symptomes).forEach((m) => lignes.push(`  - ${m.nom || "(nom non précisé)"}${m.age ? `, ${m.age} ans` : ""} — ${m.symptomes || "symptômes non précisés"} — début des symptômes : ${m.dateHeure || "non précisé"}`));
+    } else lignes.push("  (à compléter)");
+    lignes.push("");
+    lignes.push("Produits réceptionnés sur la période (traçabilité réception) :");
+    if (s.produitsReceptionnes.length) s.produitsReceptionnes.forEach((p) => lignes.push(`  - ${fmtShort(p.date)} — ${p.produit} — lot ${p.lot || "—"} — DLC ${p.dlc || "—"} — origine ${p.origine || "—"} — fournisseur ${p.fournisseur || "—"}${p.agrementSanitaire ? ` — agrément sanitaire ${p.agrementSanitaire}` : ""}`));
+    else lignes.push("  (aucune réception tracée sur cette période)");
+    lignes.push("");
+    lignes.push("Produits/plats préparés et tracés sur la période :");
+    if (s.produitsPrepares.length) s.produitsPrepares.forEach((p) => lignes.push(`  - ${fmtShort(p.date)} ${p.heure || ""} — ${nomProduitPrepare(p)} — lot ${p.lot || "—"}`));
+    else lignes.push("  (aucune préparation tracée sur cette période)");
+    if (s.notes) { lignes.push(""); lignes.push(`Notes complémentaires : ${s.notes}`); }
+    return lignes.join("\n");
+  };
+
+  const enregistrer = (texte) => {
+    const decl = {
+      id: uid(), dateCreation: todayISO(), dateDebut, nbMalades: malades.filter((m) => m.nom || m.symptomes).length, texte, creePar: currentUserId,
+    };
+    setDeclarationsTiac((prev) => [decl, ...(prev || [])]);
+    logActivity("HACCP", "Déclaration TIAC enregistrée", `Premiers symptômes le ${dateDebut} — ${decl.nbMalades} malade(s) recensé(s)`);
+    return decl;
+  };
+
+  const mailtoHref = (texte) => `mailto:?subject=${encodeURIComponent(`Déclaration TIAC — ${etablissementNom} — ${dateDebut}`)}&body=${encodeURIComponent(texte)}`;
+
+  if (consultation) {
+    return (
+      <div className="mb-6">
+        <button onClick={() => setConsultation(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
+          <ArrowLeft size={15} /> Retour à l'historique
+        </button>
+        <Card>
+          <pre className="text-xs whitespace-pre-wrap text-[var(--ink)] font-sans">{consultation.texte}</pre>
+        </Card>
+        <div className="flex flex-wrap gap-2 mt-4 print:hidden">
+          <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
+          <a href={mailtoHref(consultation.texte)}><Button variant="ghost"><Mail size={16} /> Envoyer par e-mail</Button></a>
+        </div>
+      </div>
+    );
+  }
+
+  if (texteGenere) {
+    return (
+      <div className="mb-6">
+        <button onClick={() => setTexteGenere(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
+          <ArrowLeft size={15} /> Retour au formulaire
+        </button>
+        <Card>
+          <pre className="text-xs whitespace-pre-wrap text-[var(--ink)] font-sans">{texteGenere}</pre>
+        </Card>
+        <div className="flex flex-wrap gap-2 mt-4 print:hidden">
+          <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
+          <a href={mailtoHref(texteGenere)}><Button variant="ghost"><Mail size={16} /> Envoyer par e-mail</Button></a>
+          <Button variant="ghost" onClick={() => { enregistrer(texteGenere); setTexteGenere(null); }}><CheckCircle2 size={16} /> Enregistrer dans l'historique</Button>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="mb-6 space-y-6">
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-2">Établissement</h3>
+        <p className="text-xs text-[var(--steel)] mb-2">Renseigné une fois, réutilisé automatiquement à chaque déclaration.</p>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+          <input className={inputCls} placeholder="Nom de l'établissement" value={etablissementNom} onChange={(e) => setEtablissementNom(e.target.value)} />
+          <input className={inputCls} placeholder="Adresse de l'établissement" value={etablissementAdresse} onChange={(e) => setEtablissementAdresse(e.target.value)} />
+        </div>
+        <p className="text-xs text-[var(--steel)] mt-2">Responsable de l'établissement (détecté automatiquement) : <span className="text-[var(--ink)] font-medium">{responsableNoms}</span></p>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-2">1. Date des premiers symptômes signalés</h3>
+        <p className="text-xs text-[var(--steel)] mb-2">La procédure officielle demande les informations sur les 5 jours précédant cette date — calculé automatiquement.</p>
+        <input className={inputCls} type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
+        <p className="text-xs text-[var(--steel)] mt-2">Période analysée : du {fmtShort(dateDebutPlage)} au {fmtShort(dateDebut)}.</p>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Pré-rempli automatiquement à partir de vos données</h3>
+        <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-3">
+          <p className="text-xs text-[var(--ink)]"><strong>À savoir avant de compléter :</strong> ces chiffres viennent uniquement de ce qui est déjà enregistré dans l'application, pas d'un comptage réel sur place.</p>
+          <ul className="text-xs text-[var(--ink)] list-disc pl-4 mt-1 space-y-0.5">
+            <li>« Convives » = uniquement les <strong>réservations enregistrées</strong> — les clients venus sans réservation ne sont pas comptés.</li>
+            <li>« Personnel en cuisine » = les employés ayant eu au moins une <strong>action enregistrée dans l'appli</strong> ce jour-là — quelqu'un présent mais n'ayant rien saisi dans l'application peut manquer à la liste.</li>
+          </ul>
+          <p className="text-xs text-[var(--warn)] mt-1.5">Vérifiez et complétez ces deux listes à la main avant d'envoyer la fiche, surtout si le service concerné a eu du monde sans réservation ou du personnel en renfort.</p>
+        </Card>
+        <div className="space-y-3 text-sm">
+          <div>
+            <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Convives par jour (réservations)</p>
+            {convivesParJour.length
+              ? <ul className="text-[var(--ink)]">{convivesParJour.map(([d, n]) => <li key={d}>{fmtShort(d)} : {n} personne(s)</li>)}</ul>
+              : <p className="text-[var(--steel)] italic">Aucune réservation enregistrée sur cette période.</p>}
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Personnel en cuisine</p>
+            <p className="text-[var(--ink)]">{personnelNoms.length ? personnelNoms.join(", ") : <span className="text-[var(--steel)] italic">Aucune activité enregistrée trouvée — à compléter manuellement dans la fiche générée.</span>}</p>
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Produits réceptionnés tracés ({produitsReceptionnes.length})</p>
+            {produitsReceptionnes.length
+              ? <ul className="text-[var(--ink)] space-y-0.5">{produitsReceptionnes.map((p) => <li key={p.id}>{fmtShort(p.date)} — {p.produit} — lot {p.lot || "—"}</li>)}</ul>
+              : <p className="text-[var(--steel)] italic">Aucune réception tracée sur cette période.</p>}
+          </div>
+          <div>
+            <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Produits/plats préparés tracés ({produitsPrepares.length})</p>
+            {produitsPrepares.length
+              ? <ul className="text-[var(--ink)] space-y-0.5">{produitsPrepares.map((p) => <li key={p.id}>{fmtShort(p.date)} {p.heure} — {nomProduitPrepare(p)} — lot {p.lot || "—"}</li>)}</ul>
+              : <p className="text-[var(--steel)] italic">Aucune préparation tracée sur cette période.</p>}
+          </div>
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Liste des malades — à compléter</h3>
+        <div className="space-y-3">
+          {malades.map((m) => (
+            <div key={m.id} className="border border-[var(--line)] rounded-lg p-3">
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                <input className={inputCls} placeholder="Nom" value={m.nom} onChange={(e) => updateMalade(m.id, { nom: e.target.value })} />
+                <input className={inputCls} placeholder="Âge" value={m.age} onChange={(e) => updateMalade(m.id, { age: e.target.value })} />
+                <input className={inputCls} placeholder="Symptômes" value={m.symptomes} onChange={(e) => updateMalade(m.id, { symptomes: e.target.value })} />
+                <input className={inputCls} placeholder="Début des symptômes (date/heure)" value={m.dateHeure} onChange={(e) => updateMalade(m.id, { dateHeure: e.target.value })} />
+              </div>
+              {malades.length > 1 && <button onClick={() => retirerMalade(m.id)} className="text-xs text-[var(--warn)] mt-2">Retirer ce malade</button>}
+            </div>
+          ))}
+          <Button variant="ghost" onClick={ajouterMalade}><Plus size={16} /> Ajouter un malade</Button>
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">2. Alerte des autorités</h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between gap-2 border border-[var(--line)] rounded-lg p-3">
+            <div>
+              <p className="text-sm font-medium text-[var(--ink)]">Médecin Inspecteur ARS PACA</p>
+              <a href="tel:0413558010" className="text-xs text-[var(--accent)]">04 13 55 80 10</a>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-[var(--steel)]">
+              <input type="checkbox" checked={arsFait} onChange={(e) => setArsFait(e.target.checked)} /> Contacté
+            </label>
+          </div>
+          {arsFait && <input className={inputCls} placeholder="Date/heure du contact ARS" value={arsDateHeure} onChange={(e) => setArsDateHeure(e.target.value)} />}
+          <div className="flex items-center justify-between gap-2 border border-[var(--line)] rounded-lg p-3">
+            <div>
+              <p className="text-sm font-medium text-[var(--ink)]">DDCSPP 06 (Sécurité sanitaire de l'alimentation)</p>
+              <a href="tel:0493722800" className="text-xs text-[var(--accent)]">04 93 72 28 00</a>
+            </div>
+            <label className="flex items-center gap-2 text-xs text-[var(--steel)]">
+              <input type="checkbox" checked={ddcspFait} onChange={(e) => setDdcspFait(e.target.checked)} /> Contacté
+            </label>
+          </div>
+          {ddcspFait && <input className={inputCls} placeholder="Date/heure du contact DDCSPP" value={ddcspDateHeure} onChange={(e) => setDdcspDateHeure(e.target.value)} />}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">3. Éléments conservés</h3>
+        <ChampTexteOuVocal value={conserve} onChange={setConserve} placeholder="Aliments/restes conservés, échantillons de selles ou vomissements, étiquetages conservés..." />
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Notes complémentaires</h3>
+        <ChampTexteOuVocal value={notes} onChange={setNotes} placeholder="Toute autre information utile..." />
+      </Card>
+
+      <Button onClick={() => setTexteGenere(genererTexte())}>Générer la fiche</Button>
+
+      {(declarationsTiac || []).length > 0 && (
+        <Card>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Historique des déclarations</h3>
+          <div className="space-y-2">
+            {declarationsTiac.map((d) => (
+              <div key={d.id} className="flex items-center justify-between text-sm border-b border-[var(--line)] pb-2 last:border-0 last:pb-0">
+                <div>
+                  <div className="text-[var(--ink)] font-medium">Symptômes signalés le {fmtShort(d.dateDebut)}</div>
+                  <div className="text-xs text-[var(--steel)]">Enregistrée le {fmtShort(d.dateCreation)} — {d.nbMalades} malade(s) recensé(s)</div>
+                </div>
+                <Button variant="ghost" onClick={() => setConsultation(d)}>Voir / Réimprimer</Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom }) {
+  // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
+  // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
+  const [sectionActive, setSectionActive] = useState(null);
+  const [releve, setReleve] = useState(false);
+  const [releveMensuel, setReleveMensuel] = useState(false);
+  const [moisReleve, setMoisReleve] = useState(todayISO().slice(0, 7));
+  const [referentielActif, setReferentielActif] = useState(false);
+  const [verifReceptionsActif, setVerifReceptionsActif] = useState(false);
+  const [tracabiliteCompleteActif, setTracabiliteCompleteActif] = useState(false);
+  const [rechercheTracabilite, setRechercheTracabilite] = useState("");
+  const [remarqueEnCours, setRemarqueEnCours] = useState(null);
+  const [sousEcran, setSousEcran] = useState(null);
+  const [rechAllergenePlat, setRechAllergenePlat] = useState("");
+  const [rechAllergeneProduit, setRechAllergeneProduit] = useState("");
+  const [rechOrigineProduit, setRechOrigineProduit] = useState("");
+  // true pour le compte "direction" en dur, ou pour tout compte employé créé avec le poste
+  // "Directeur" (voir POSTES_COMPTE / ajouterCompte plus bas) — les deux donnent accès aux
+  // tuiles réservées à la direction sur l'écran d'accueil de Contrôle & Gestion.
+  const compteDirection = currentUserId === "direction" || !!employees.find((e) => e.id === currentUserId)?.estDirection;
+  // Un compte Chef (le tien, Loïc, ou tout compte créé avec le poste "Chef") a le même niveau
+  // d'accès complet qu'un compte Directeur — il doit donc pouvoir lui aussi générer le planning
+  // et les réservations depuis l'écran d'accueil, pas seulement le compte "direction"/Directeur.
+  const accesPlanningReservations = compteDirection || !!employees.find((e) => e.id === currentUserId)?.estChef;
+  const [nomCompteNouveau, setNomCompteNouveau] = useState("");
+  const [posteCompteNouveau, setPosteCompteNouveau] = useState("Poste Chaud");
+  const [codeCompteNouveau, setCodeCompteNouveau] = useState("");
+  const today = todayISO();
+
+  // Postes proposés à la création d'un compte : les trois postes de cuisine (qui donnent
+  // automatiquement accès aux tâches et au matériel de leur poste), "Commis de cuisine" et
+  // "Cuisinier" (accès employé de base, sans poste spécifique), "Chef" (accès complet, identique
+  // au compte du chef — pose estChef: true) et "Directeur" (accès complet également, pose
+  // estChef: true ET estDirection: true, ce qui donne en plus les tuiles réservées à la
+  // direction sur l'écran d'accueil de Contrôle & Gestion — voir plus bas).
+  const POSTES_COMPTE = ["Poste Chaud", "Poste Froid", "Poste Pizza", "Commis de cuisine", "Cuisinier", "Chef", "Directeur"];
+  const ajouterCompte = () => {
+    if (!nomCompteNouveau.trim()) return;
+    const nouveau = {
+      id: uid(),
+      nom: nomCompteNouveau.trim(),
+      poste: posteCompteNouveau,
+      code: codeCompteNouveau.trim() || null,
+      ...(posteCompteNouveau === "Chef" || posteCompteNouveau === "Directeur" ? { estChef: true } : {}),
+      ...(posteCompteNouveau === "Directeur" ? { estDirection: true } : {}),
+    };
+    setEmployees([...employees, nouveau]);
+    logActivity("Équipe", "Compte créé", `${nouveau.nom} (${posteCompteNouveau})`);
+    setNomCompteNouveau(""); setPosteCompteNouveau("Poste Chaud"); setCodeCompteNouveau("");
+  };
+  const [messageComptes, setMessageComptes] = useState(null);
+  const [etiquetteOuverte, setEtiquetteOuverte] = useState(null); // nom du produit dont le chef édite l'étiquette DLC
+  const supprimerCompte = (id) => {
+    if (id === currentUserId) {
+      setMessageComptes("Impossible de supprimer le compte actuellement connecté — changez de compte avant de le supprimer.");
+      return;
+    }
+    const emp = employees.find((e) => e.id === id);
+    const autresChefs = employees.filter((e) => e.id !== id && e.estChef);
+    if (emp?.estChef && autresChefs.length === 0) {
+      setMessageComptes("Impossible de supprimer le dernier compte Chef/Directeur — créez d'abord un autre compte avec ce niveau d'accès.");
+      return;
+    }
+    setEmployees(employees.filter((e) => e.id !== id));
+    setShifts(shifts.filter((s) => s.employeeId !== id));
+    if (emp) logActivity("Équipe", "Compte supprimé", emp.nom);
+    setMessageComptes(null);
+  };
+
+  const SOUS_TUILES_CONTROLE_TOUTES = [
+    { id: "planning", label: "Contrôle journalier", icon: ListChecks, couleur: TUILE_COULEURS.taches, section: "controle" },
+    { id: "temperatures", label: "Températures", icon: Thermometer, couleur: TUILE_COULEURS.haccpTemp, section: "controle" },
+    { id: "huile", label: "Huile", icon: Droplets, couleur: TUILE_COULEURS.haccpHuile, section: "controle" },
+    { id: "cuisson", label: "Cuisson", icon: Flame, couleur: TUILE_COULEURS.haccpCuisson, section: "controle" },
+    { id: "cellule", label: "Cellule", icon: Snowflake, couleur: TUILE_COULEURS.haccpRefroid, section: "controle" },
+    { id: "maintien", label: "Maintien au chaud", icon: Soup, couleur: TUILE_COULEURS.haccpChaud, section: "controle" },
+    { id: "tracabilite", label: "Traçabilité", icon: Camera, couleur: TUILE_COULEURS.tracabilite, section: "controle" },
+    { id: "reception", label: "Réception", icon: Truck, couleur: TUILE_COULEURS.reception, section: "controle" },
+    // Tuiles "gestion" — pour le moment Allergènes et Fournisseur ; d'autres tuiles de gestion
+    // pourront être ajoutées ici plus tard (il suffit de leur donner section: "gestion").
+    { id: "allergenes", label: "Allergènes", icon: AlertTriangle, couleur: TUILE_COULEURS.haccpChaud, section: "gestion" },
+    { id: "origine", label: "Origine des viandes", icon: MapPin, couleur: TUILE_COULEURS.reception, section: "gestion" },
+    { id: "tiac", label: "Déclaration TIAC", icon: Activity, couleur: TUILE_COULEURS.haccpCuisson, section: "gestion" },
+    { id: "fournisseur", label: "Fournisseur", icon: ShoppingCart, couleur: TUILE_COULEURS.stock, section: "gestion" },
+    { id: "comptes", label: "Gestion des comptes", icon: Users, couleur: TUILE_COULEURS.comptes, section: "gestion" },
+    { id: "pms", label: "PMS", icon: Droplets, couleur: TUILE_COULEURS.haccpHuile, section: "gestion" },
+    { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, couleur: TUILE_COULEURS.fiches, section: "gestion" },
+  ];
+  // "Planning employé" et "Réservation client" sont réservées à la direction : elles ne sont
+  // plus des sous-tuiles de la section Gestion, mais deux grandes tuiles à part, tout en haut
+  // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
+  // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive);
+  const ouvrirSousTuile = (id) => {
+    if (id === "reception") return setVerifReceptionsActif(true);
+    if (id === "fournisseur") return setReferentielActif(true);
+    if (id === "tracabilite") return setTracabiliteCompleteActif(true);
+    setSousEcran(id);
+  };
+
+  const marquerEnvoyee = (id) => setNotificationsFournisseur(notificationsFournisseur.map((n) => (n.id === id ? { ...n, envoyee: true } : n)));
+  const enregistrerEmailFournisseur = (fournisseur, email) => {
+    if (!fournisseur) return;
+    setEmailsFournisseurs((prev) => ({ ...prev, [fournisseur]: email }));
+    logActivity("Contrôle", "E-mail fournisseur enregistré", `${fournisseur} — ${email}`);
+  };
+  const enAttente = notificationsFournisseur.filter((n) => !n.envoyee);
+  const envoyees = notificationsFournisseur.filter((n) => n.envoyee);
+  // E-mail(s) IA prêt(s) à envoyer en un clic : notification non envoyée, née d'une réception
+  // analysée par l'IA, avec une adresse fournisseur déjà connue — le sujet/corps complet est déjà
+  // généré (voir validerReception), il ne manque que le clic d'envoi dans l'appli mail. Bannière
+  // volontairement non sonore : ce n'est pas une alerte HACCP de sécurité, juste un rappel visuel.
+  const emailsIaPrets = enAttente.filter((n) => n.genereParIA && emailsFournisseurs[n.fournisseur]);
+  const anneeCourante = today.slice(0, 4);
+  const totalEcartPrixAnnee = notificationsFournisseur
+    .filter((n) => (n.date || "").slice(0, 4) === anneeCourante)
+    .reduce((somme, n) => somme + (n.nonConformes || []).reduce((s, p) => s + (Number(p.ecartPrix) || 0), 0), 0);
+
+  const marquerAlerteVue = (id) => setAlertesControle(alertesControle.map((a) => (a.id === id ? { ...a, vue: true } : a)));
+  const alertesNonVues = alertesControle.filter((a) => !a.vue);
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+
+  const validerPourEmploye = (task, employeeId) => toggleTask(task, today, employeeId, currentUserId);
+  const nettoyerCelluleChef = (id) => {
+    const r = refroidissements.find((x) => x.id === id);
+    setRefroidissements(refroidissements.map((x) => (x.id === id ? { ...x, cellNettoyee: true } : x)));
+    logActivity("HACCP", "Nettoyage de la cellule validé par le chef", r?.produit || "");
+  };
+
+  const refroidissementsDuJour = refroidissements.filter((r) => r.date === today);
+  const rechTracPropre = rechercheTracabilite.trim().toLowerCase();
+  const tracabiliteFiltree = [...preparations]
+    .sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure))
+    .filter((p) => {
+      if (!rechTracPropre) return true;
+      const nom = (produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || "").toLowerCase();
+      return nom.includes(rechTracPropre) || (p.lot || "").toLowerCase().includes(rechTracPropre);
+    });
+  const huileDuJour = huileTests.filter((h) => h.date === today);
+  const relevesFroidDuJour = relevesFroid.filter((r) => r.date === today);
+  const surveillancesDuJour = surveillancesFroid.filter((s) => s.date === today);
+
+  if (releve) {
+    return <ReleveControle employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} today={today} onBack={() => setReleve(false)} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} />;
+  }
+
+  if (releveMensuel) {
+    return <ReleveMensuelHACCP employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} mois={moisReleve} setMois={setMoisReleve} onBack={() => setReleveMensuel(false)} />;
+  }
+
+  if (referentielActif) {
+    return <ReferentielProduits stock={stock} onBack={() => setReferentielActif(false)} />;
+  }
+
+  if (verifReceptionsActif) {
+    return <VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => setVerifReceptionsActif(false)} />;
+  }
+
+  if (tracabiliteCompleteActif) {
+    return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => setTracabiliteCompleteActif(false)} />;
+  }
+
+  const [infosTiac, setInfosTiac] = useState(null);
+
+  return (
+    <div>
+      {!sectionActive ? (
+      <>
+      <SectionHeader title="Contrôle & Gestion" subtitle="Vue d'ensemble du chef — qui a fait quoi aujourd'hui"
+        action={<button onClick={() => setTab("equipe")} className="text-xs text-[var(--accent)] font-medium">Journal d'activité complet →</button>} />
+
+      {emailsIaPrets.length > 0 && (
+        <Card className="mb-6 border-2" style={{ borderColor: "#C1432D", backgroundColor: "#fff5f5" }}>
+          <div className="flex items-start gap-3">
+            <Mail size={22} className="shrink-0 mt-0.5" style={{ color: "#C1432D" }} />
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-bold" style={{ color: "#C1432D" }}>
+                {emailsIaPrets.length === 1 ? "1 e-mail fournisseur prêt à envoyer" : `${emailsIaPrets.length} e-mails fournisseur prêts à envoyer`}
+              </p>
+              <p className="text-xs text-[var(--ink)] mt-1">
+                Non-conformité(s) détectée(s) à la réception — l'IA a préparé le sujet, le message (demande d'avoir/remboursement) et le destinataire. Il ne reste qu'à cliquer pour l'ouvrir dans votre appli mail et l'envoyer — <strong>aucun envoi n'est automatique</strong>, l'appli ne peut pas envoyer de mail elle-même.
+              </p>
+              <ul className="mt-2 space-y-1">
+                {emailsIaPrets.map((n) => (
+                  <li key={n.id} className="text-xs text-[var(--ink)] flex items-center justify-between gap-2">
+                    <span>{n.fournisseur} — {n.date} à {n.heure} — {n.nonConformes.length} article(s)</span>
+                    <a href={`mailto:${encodeURIComponent(emailsFournisseurs[n.fournisseur] || "")}?subject=${encodeURIComponent(n.sujet)}&body=${encodeURIComponent(n.corps)}`}>
+                      <Button>Ouvrir et envoyer</Button>
+                    </a>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </Card>
+      )}
+
+      <BoutonInfosNormes ficheKey="tiac" onClick={setInfosTiac} label="Procédure de déclaration d'une TIAC" />
+      {infosTiac && <ModalInfosNormes fiche={FICHES_NORMES[infosTiac] || infosTiac} onClose={() => setInfosTiac(null)} />}
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+          <h3 className="font-semibold text-[var(--ink)]">Vérification RappelConso (DGCCRF)</h3>
+          <button onClick={onVerifierRappelConso} disabled={rappelConsoEnCours} className="text-xs text-[var(--accent)] font-medium disabled:opacity-50">
+            {rappelConsoEnCours ? "Vérification en cours..." : "Vérifier maintenant"}
+          </button>
+        </div>
+        <p className="text-xs text-[var(--steel)] mb-3">Croise automatiquement vos produits (stock + catalogue) avec la liste officielle des rappels sanitaires — automatique tous les jeudis et dimanches après les livraisons. Dernière vérification : {dernierControleRappelConso ? fmtLong(dernierControleRappelConso) : "jamais"}.</p>
+        {alertesRappelConso.length === 0 ? (
+          <p className="text-sm text-[var(--accent)]">Aucune correspondance avec un rappel officiel récent.</p>
+        ) : (
+          <ul className="divide-y divide-[var(--line)]">
+            {alertesRappelConso.map((a) => (
+              <li key={a.id} className="py-2 text-sm">
+                <div className={`font-medium ${a.traite ? "text-[var(--steel)]" : "text-[var(--warn)]"}`}>{a.produit} — {a.titre}</div>
+                <div className="text-xs text-[var(--steel)]">{a.motif}{a.date ? ` — publié le ${a.date}` : ""}</div>
+                <a href={a.lien} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] font-medium">Voir la fiche officielle →</a>
+                {a.traite ? (
+                  <div className="text-xs text-[var(--accent)] font-medium mt-1">✓ Traité{a.traiteDate ? ` le ${a.traiteDate}` : ""}</div>
+                ) : (
+                  <div className="mt-1.5">
+                    <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Marquer comme traité</Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {alertesNonVues.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-[var(--warn)] uppercase tracking-wide mb-3">Alertes qualité ({alertesNonVues.length})</h3>
+          <div className="space-y-3">
+            {alertesNonVues.map((a) => (
+              <Card key={a.id} className="border-[var(--warn)]/40">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <div className="text-sm font-medium text-[var(--ink)]">{a.titre}</div>
+                    <div className="text-xs text-[var(--steel)] mt-1">{a.detail}</div>
+                    <div className="text-xs text-[var(--steel)] mt-1">{a.date} à {a.heure} · {who(a.employeeId)} · {a.type}{a.conforme === false ? " · non conforme" : a.conforme === true ? " · accepté" : ""}</div>
+                  </div>
+                  <Button variant="ghost" onClick={() => marquerAlerteVue(a.id)}>Vu</Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {notificationsFournisseur.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Notifications fournisseur {enAttente.length > 0 && <span className="text-[var(--warn)]">({enAttente.length} à envoyer)</span>}</h3>
+          {totalEcartPrixAnnee === 0 && <div className="mb-2" />}
+          {totalEcartPrixAnnee > 0 && (
+            <p className="text-xs text-[var(--steel)] mb-3">Total des écarts de prix signalés en {anneeCourante} (produits substitués/facturés plus cher que commandé) : <span className="font-semibold text-[var(--ink)]">{totalEcartPrixAnnee.toFixed(2)} €</span></p>
+          )}
+          <div className="space-y-3">
+            {enAttente.map((n) => <NotificationFournisseur key={n.id} notif={n} employees={employees} onMarquerEnvoyee={marquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} />)}
+            {envoyees.slice(0, 5).map((n) => <NotificationFournisseur key={n.id} notif={n} employees={employees} onMarquerEnvoyee={marquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} />)}
+          </div>
+        </div>
+      )}
+
+      {/* Les grandes tuiles, dans le même style que toutes les autres tuiles de l'appli :
+          on choisit une des sections, puis on retrouve les icônes qui lui correspondent.
+          Sur le compte direction, deux tuiles supplémentaires (Planning employé, Réservation
+          client) arrivent en premier et ouvrent directement leur écran, sans passer par
+          une section — avec un bouton de retour en haut de chaque écran. */}
+      <div className="grid grid-cols-2 gap-3 mb-6">
+        {accesPlanningReservations && (
+          <>
+            <button onClick={() => setTab("horaires")}
+              style={{ background: "#1D4E89", boxShadow: "0 8px 20px rgba(29,78,137,0.35)" }}
+              className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform">
+              <ListChecks size={30} color="#ffffff" strokeWidth={2} />
+              <span className="text-sm font-bold text-white leading-tight">Planning employé</span>
+            </button>
+            <button onClick={() => setTab("reservations")}
+              style={{ background: "#6D28D9", boxShadow: "0 8px 20px rgba(109,40,217,0.35)" }}
+              className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform">
+              <CalendarDays size={30} color="#ffffff" strokeWidth={2} />
+              <span className="text-sm font-bold text-white leading-tight">Réservation client</span>
+            </button>
+          </>
+        )}
+        <button onClick={() => setSectionActive("controle")}
+          style={{ background: "#2F6B4F", boxShadow: "0 8px 20px rgba(47,107,79,0.35)" }}
+          className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform">
+          <ClipboardCheck size={30} color="#ffffff" strokeWidth={2} />
+          <span className="text-sm font-bold text-white leading-tight">Contrôle</span>
+        </button>
+        <button onClick={() => setSectionActive("gestion")}
+          style={{ background: "#B45309", boxShadow: "0 8px 20px rgba(180,83,9,0.35)" }}
+          className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform">
+          <Users size={30} color="#ffffff" strokeWidth={2} />
+          <span className="text-sm font-bold text-white leading-tight">Gestion</span>
+        </button>
+      </div>
+      </>
+      ) : (
+      <>
+      <button onClick={() => setSectionActive(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
+
+      {sectionActive === "gestion" ? (
+        <SectionHeader title="Gestion" subtitle="Allergènes, fournisseurs — et les prochaines rubriques de gestion à venir" />
+      ) : (
+        <SectionHeader title="Contrôle" subtitle="Toutes les tuiles de contrôle du jour" />
+      )}
+
+      {sousEcran && (
+        <button onClick={() => setSousEcran(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à {sectionActive === "gestion" ? "Gestion" : "Contrôle"}</button>
+      )}
+
+      {!sousEcran && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+          {SOUS_TUILES_CONTROLE.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button key={t.id} onClick={() => ouvrirSousTuile(t.id)}
+                style={{ background: t.couleur.fond, boxShadow: `0 8px 20px ${t.couleur.ombre}` }}
+                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[80px] px-2 text-center active:scale-95 transition-transform">
+                <Icon size={26} color="#ffffff" strokeWidth={2} />
+                <span className="text-xs font-bold text-white leading-tight line-clamp-2">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      </>
+      )}
+
+      {sousEcran === "temperatures" && (
+        <>
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Frigos & congélateurs</h3>
+          {relevesFroidDuJour.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun relevé aujourd'hui.</p> : (
+            <div className="space-y-2">
+              <p className="text-xs text-[var(--steel)]">{relevesFroidDuJour.filter((r) => r.conforme).length}/{relevesFroidDuJour.length} relevés conformes</p>
+              {surveillancesDuJour.length > 0 && (
+                <div className="space-y-1.5 pt-2 border-t border-[var(--line)]">
+                  {surveillancesDuJour.map((s) => {
+                    const eq = equipementsFroid.find((e) => e.id === s.equipementId);
+                    return (
+                      <div key={s.id} className="text-xs flex items-center justify-between">
+                        <span className="text-[var(--ink)]">{eq?.nom}</span>
+                        <span className={`px-2 py-0.5 rounded-full ${s.statut === "resolu" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>
+                          {s.statut === "attente" ? "En attente" : s.statut === "anomalie" ? `Anomalie — ${s.motif}` : "Résolu"}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          )}
+        </Card>
+        <HistoriqueEtCourbesTemperature relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} who={who} />
+        </>
+      )}
+
+      {sousEcran === "cellule" && (
+        <>
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Refroidissements du jour & cellule</h3>
+          {refroidissementsDuJour.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun aujourd'hui.</p> : (
+            <div className="space-y-2">
+              {refroidissementsDuJour.map((r) => (
+                <div key={r.id} className="text-sm border-b border-[var(--line)] pb-2 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--ink)]">{r.produit}</span>
+                    <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${r.statut === "en-cours" ? "bg-[var(--warn-soft)] text-[var(--warn)]" : r.conforme ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>
+                      {r.statut === "en-cours" ? "En cours" : r.conforme ? "Conforme" : "Non conforme"}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[var(--steel)]">{who(r.employeeId)}</div>
+                  {r.statut === "termine" && r.cellNettoyee === false && (
+                    <Button variant="danger" className="mt-1.5" onClick={() => nettoyerCelluleChef(r.id)}>Valider le nettoyage de la cellule</Button>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        {etiquetteOuverte ? (
+          <EditeurEtiquette
+            nom={etiquetteOuverte}
+            historique={(preparations || []).filter((p) => (p.nomLibre || "").trim().toLowerCase() === etiquetteOuverte.trim().toLowerCase()).sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure))}
+            creerEtiquetteDlc={creerEtiquetteDlc}
+            currentUserId={currentUserId}
+            who={who}
+            produits={produits}
+            onBack={() => setEtiquetteOuverte(null)}
+          />
+        ) : (
+          <HistoriqueRefroidissements refroidissements={refroidissements} who={who} nettoyerCellule={nettoyerCelluleChef} creerEtiquetteDlc={creerEtiquetteDlc} onEditerEtiquette={setEtiquetteOuverte} />
+        )}
+        </>
+      )}
+
+      {sousEcran === "cuisson" && (
+        <>
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Cuissons du jour</h3>
+          {cuissons.filter((c) => c.date === today).length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune aujourd'hui.</p> : (
+            <div className="space-y-2">
+              {cuissons.filter((c) => c.date === today).map((c) => (
+                <div key={c.id} className="text-sm border-b border-[var(--line)] pb-2 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--ink)]">{c.produit}</span>
+                    <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${c.statut === "en-cours" ? "bg-[var(--warn-soft)] text-[var(--warn)]" : c.conforme === false ? "bg-[var(--warn-soft)] text-[var(--warn)]" : "bg-[var(--accent-soft)] text-[var(--accent)]"}`}>
+                      {c.statut === "en-cours" ? "En cours" : c.conforme === false ? "Non conforme" : "Terminée"}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[var(--steel)]">{who(c.employeeId)}{c.temperatureCoeur ? ` · ${c.temperatureCoeur}°C à cœur` : ""}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        <HistoriqueCuissons cuissons={cuissons} who={who} />
+        </>
+      )}
+
+      {sousEcran === "maintien" && (
+        <>
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Maintien au chaud du jour</h3>
+          {(entriesMaintienChaud || []).filter((e) => e.date === today).length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun aujourd'hui.</p> : (
+            <div className="space-y-2">
+              {(entriesMaintienChaud || []).filter((e) => e.date === today).map((e) => (
+                <div key={e.id} className="text-sm border-b border-[var(--line)] pb-2 last:border-0 last:pb-0">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[var(--ink)]">{e.produit || e.nom}</span>
+                    <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${e.statut === "en-cours" ? "bg-[var(--warn-soft)] text-[var(--warn)]" : "bg-[var(--accent-soft)] text-[var(--accent)]"}`}>
+                      {e.statut === "en-cours" ? "En cours" : "Terminé"}
+                    </span>
+                  </div>
+                  <div className="text-xs text-[var(--steel)]">{e.heureDebut}{e.heureFin ? ` → ${e.heureFin}` : ""}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+        <HistoriqueMaintienChaud entries={entriesMaintienChaud} who={who} />
+        </>
+      )}
+
+      {sousEcran === "huile" && (
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Tests huile du jour</h3>
+          {huileDuJour.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun aujourd'hui.</p> : (
+            <div className="space-y-2">
+              {huileDuJour.map((h) => (
+                <div key={h.id} className="flex items-center justify-between text-sm border-b border-[var(--line)] pb-2 last:border-0 last:pb-0">
+                  <div className="flex items-center gap-2.5">
+                    {h.photo && <img src={h.photo} alt="Test bandelette" className="w-12 h-12 object-cover rounded-lg border border-[var(--line)]" />}
+                    <div>
+                      <span className="text-[var(--ink)]">{who(h.employeeId)}</span>
+                      <span className="text-xs text-[var(--steel)] ml-2">{h.heure}</span>
+                    </div>
+                  </div>
+                  <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(h.resultat) ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{h.resultat}</span>
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {sousEcran === "allergenes" && (
+        <div className="mb-6 space-y-6">
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-2">Rechercher — plats</h3>
+            <p className="text-xs text-[var(--steel)] mb-2">Tapez ou dictez, par ex. "sans gluten" pour lister les plats sans cet allergène (une fois les tableaux renseignés ci-dessous).</p>
+            <ChampTexteOuVocal value={rechAllergenePlat} onChange={setRechAllergenePlat} placeholder="Rechercher un plat ou « sans gluten »..." />
+          </Card>
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes — plats ({(fiches || []).length})</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Plat</th><th className="py-1.5 pr-3">Catégorie</th><th className="py-1.5">Allergènes (à renseigner)</th></tr></thead>
+                <tbody className="divide-y divide-[var(--line)]">
+                  {(fiches || [])
+                    .filter((f) => {
+                      const q = rechAllergenePlat.trim().toLowerCase();
+                      if (!q) return true;
+                      const sansMatch = q.match(/^sans\s+(.+)/);
+                      if (sansMatch) {
+                        const allerg = sansMatch[1].trim();
+                        const val = (allergenesPlats[f.nom] || "").toLowerCase();
+                        return val && !val.includes(allerg);
+                      }
+                      return (f.nom || "").toLowerCase().includes(q);
+                    })
+                    .map((f) => (
+                      <tr key={f.id || f.nom}>
+                        <td className="py-1.5 pr-3 text-[var(--ink)]">{f.nom}</td>
+                        <td className="py-1.5 pr-3 text-xs text-[var(--steel)]">{f.categorie}</td>
+                        <td className="py-1.5">
+                          <input className={`${inputCls} text-xs`} placeholder="ex : gluten, lait, œuf..."
+                            value={allergenesPlats[f.nom] || ""}
+                            onChange={(e) => setAllergenesPlats({ ...allergenesPlats, [f.nom]: e.target.value })} />
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-2">Rechercher — produits</h3>
+            <ChampTexteOuVocal value={rechAllergeneProduit} onChange={setRechAllergeneProduit} placeholder="Rechercher un produit ou « sans gluten »..." />
+          </Card>
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes — produits ({stock.length})</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Produit</th><th className="py-1.5 pr-3">Catégorie</th><th className="py-1.5">Allergènes (à renseigner)</th></tr></thead>
+                <tbody className="divide-y divide-[var(--line)]">
+                  {stock
+                    .filter((s) => {
+                      const q = rechAllergeneProduit.trim().toLowerCase();
+                      if (!q) return true;
+                      const sansMatch = q.match(/^sans\s+(.+)/);
+                      if (sansMatch) {
+                        const allerg = sansMatch[1].trim();
+                        const val = (allergenesProduits[s.nom] || "").toLowerCase();
+                        return val && !val.includes(allerg);
+                      }
+                      return (s.nom || "").toLowerCase().includes(q);
+                    })
+                    .map((s) => (
+                      <tr key={s.id}>
+                        <td className="py-1.5 pr-3 text-[var(--ink)]">{s.nom}</td>
+                        <td className="py-1.5 pr-3 text-xs text-[var(--steel)]">{s.categorie}</td>
+                        <td className="py-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <input className={`${inputCls} text-xs`} placeholder="ex : gluten, lait, œuf..."
+                              value={allergenesProduits[s.nom] || ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setAllergenesProduits({ ...allergenesProduits, [s.nom]: v });
+                                // Une correction manuelle par le chef devient la nouvelle norme de l'établissement
+                                // (ce n'est plus une exception de lot temporaire).
+                                setAllergenesStandard({ ...allergenesStandard, [s.nom]: v });
+                                if (produitsLotException[s.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[s.nom]; return n; });
+                              }} />
+                            {produitsLotException[s.nom] && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">lot en cours</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {sousEcran === "origine" && (
+        <div className="mb-6 space-y-6">
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-2">Rechercher — produits</h3>
+            <p className="text-xs text-[var(--steel)] mb-2">Tapez ou dictez, par ex. "viande" pour retrouver rapidement vos viandes. Renseigné automatiquement à la lecture de l'étiquette en réception (mis à jour en temps réel si un produit reçu diffère de l'habituel), modifiable ici à la main.</p>
+            <ChampTexteOuVocal value={rechOrigineProduit} onChange={setRechOrigineProduit} placeholder="Rechercher un produit..." />
+          </Card>
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-3">Origine / provenance — produits ({stock.length})</h3>
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Produit</th><th className="py-1.5 pr-3">Catégorie</th><th className="py-1.5">Origine / provenance (à renseigner)</th></tr></thead>
+                <tbody className="divide-y divide-[var(--line)]">
+                  {stock
+                    .filter((s) => {
+                      const q = rechOrigineProduit.trim().toLowerCase();
+                      if (!q) return true;
+                      return (s.nom || "").toLowerCase().includes(q) || (s.categorie || "").toLowerCase().includes(q);
+                    })
+                    .map((s) => (
+                      <tr key={s.id}>
+                        <td className="py-1.5 pr-3 text-[var(--ink)]">{s.nom}</td>
+                        <td className="py-1.5 pr-3 text-xs text-[var(--steel)]">{s.categorie}</td>
+                        <td className="py-1.5">
+                          <div className="flex items-center gap-1.5">
+                            <input className={`${inputCls} text-xs`} placeholder="ex : France, Bretagne, UE..."
+                              value={origineProduits[s.nom] || ""}
+                              onChange={(e) => {
+                                const v = e.target.value;
+                                setOrigineProduits({ ...origineProduits, [s.nom]: v });
+                                setOrigineStandard({ ...origineStandard, [s.nom]: v });
+                                if (produitsLotException[s.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[s.nom]; return n; });
+                              }} />
+                            {produitsLotException[s.nom] && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">lot en cours</span>}
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {sousEcran === "tiac" && (
+        <DeclarationTiac employees={employees} activityLog={activityLog} receptions={receptions} preparations={preparations} produits={produits} reservations={reservations} currentUserId={currentUserId} logActivity={logActivity} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} />
+      )}
+
+      {sousEcran === "comptes" && (
+        <div className="mb-6 space-y-6">
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-3">Créer un compte</h3>
+            <div className="flex flex-wrap gap-3 items-end">
+              <Field label="Nom">
+                <input className={inputCls} value={nomCompteNouveau} onChange={(e) => setNomCompteNouveau(e.target.value)} />
+              </Field>
+              <Field label="Poste">
+                <select className={inputCls} value={posteCompteNouveau} onChange={(e) => setPosteCompteNouveau(e.target.value)}>
+                  {POSTES_COMPTE.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </Field>
+              <Field label="Code personnel (optionnel)">
+                <input className={`${inputCls} w-32`} placeholder="Ex. 4821" value={codeCompteNouveau} onChange={(e) => setCodeCompteNouveau(e.target.value)} />
+              </Field>
+              <Button onClick={ajouterCompte}><Plus size={16} /> Créer le compte</Button>
+            </div>
+            <p className="text-xs text-[var(--steel)] mt-2">
+              Le poste choisi détermine automatiquement ce que voit l'employé : un poste de cuisine (chaud, froid, pizza) donne accès aux tâches et au matériel de ce poste, "Commis de cuisine" et "Cuisinier" donnent un accès employé de base sans poste dédié, "Chef" donne un accès complet identique à votre propre compte, et "Directeur" donne le même accès complet avec en plus les tuiles réservées à la direction (Planning employé, Réservation client) sur l'écran d'accueil.
+            </p>
+          </Card>
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-3">Comptes existants ({employees.length})</h3>
+            {messageComptes && (
+              <div className="mb-3 text-xs text-[var(--warn)] bg-[var(--warn-soft,#fff3dc)] rounded-lg px-3 py-2">{messageComptes}</div>
+            )}
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Nom</th><th className="py-1.5 pr-3">Poste</th><th className="py-1.5 pr-3">Code</th><th className="py-1.5"></th></tr></thead>
+                <tbody className="divide-y divide-[var(--line)]">
+                  {employees.map((emp) => (
+                    <tr key={emp.id}>
+                      <td className="py-1.5 pr-3 text-[var(--ink)]">{emp.nom}{emp.estDirection && <span className="ml-1.5 text-xs text-[var(--accent)] font-medium">(Directeur)</span>}{!emp.estDirection && emp.estChef && <span className="ml-1.5 text-xs text-[var(--accent)] font-medium">(Chef)</span>}{emp.id === currentUserId && <span className="ml-1.5 text-xs text-[var(--steel)]">— compte connecté</span>}</td>
+                      <td className="py-1.5 pr-3 text-xs text-[var(--steel)]">{emp.poste || "—"}</td>
+                      <td className="py-1.5 pr-3 text-xs text-[var(--steel)]">{emp.code || "—"}</td>
+                      <td className="py-1.5 text-right">
+                        {emp.id === currentUserId ? (
+                          <span className="text-xs text-[var(--steel)] italic">Compte actuel</span>
+                        ) : (
+                          <BoutonSupprimer onConfirm={() => supprimerCompte(emp.id)} size={15} libelle={emp.nom} />
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {sousEcran === "pms" && (
+        <div className="mb-6">
+          <NettoyagePage cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} employees={employees} logActivity={logActivity} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} />
+        </div>
+      )}
+
+      {sousEcran === "creationFiche" && (
+        <div className="mb-6">
+          <CreationFicheTechniqueComplete
+            fiches={fiches}
+            fichesCustom={fichesCustom}
+            setFichesCustom={setFichesCustom}
+            stock={stock}
+            employees={employees}
+            currentUserId={currentUserId}
+            logActivity={logActivity}
+            estChef={!!(employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction")}
+          />
+        </div>
+      )}
+
+      {sousEcran === "planning" && (
+        <div className="mb-6">
+          <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
+        </div>
+      )}
+
+      {!sousEcran && sectionActive === "controle" && (
+        <Card className="text-center">
+          <div className="flex items-center justify-center gap-2 mb-2">
+            <ClipboardCheck size={20} className="text-[var(--accent)]" />
+            <h3 className="font-semibold text-[var(--ink)]">Contrôle du service d'hygiène</h3>
+          </div>
+          <p className="text-sm text-[var(--steel)] mb-4">Générez un relevé complet de la journée — équipe, températures, huile, refroidissement, cuisson, traçabilité, DLC et nettoyage — prêt à présenter.</p>
+          <Button onClick={() => setReleve(true)}>Générer le relevé de contrôle</Button>
+          <Button onClick={() => setReleveMensuel(true)}><BookOpen size={16} /> Registre HACCP mensuel (PDF)</Button>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
+  const [comptage, setComptage] = useState({});
+  const [valide, setValide] = useState(false);
+
+  const parCategorie = stock.reduce((acc, s) => { (acc[s.categorie || "Sans catégorie"] = acc[s.categorie || "Sans catégorie"] || []).push(s); return acc; }, {});
+
+  const validerInventaire = () => {
+    let ecarts = 0;
+    const next = stock.map((s) => {
+      const saisi = comptage[s.id];
+      if (saisi === undefined || saisi === "" || Number(saisi) === Number(s.quantite)) return s;
+      ecarts += 1;
+      return { ...s, quantite: Number(saisi) };
+    });
+    setStock(next);
+    logActivity("Stock", "Inventaire mensuel réalisé", `${ecarts} écart(s) corrigé(s) — ${today}`);
+    setValide(true);
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 print:hidden">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+          <ArrowLeft size={15} /> Retour au contrôle
+        </button>
+        <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[var(--line)] p-6 sm:p-8">
+        <div className="flex items-center gap-2 mb-1">
+          <ChefHat size={22} className="text-[var(--accent)]" />
+          <span className="text-lg font-semibold text-[var(--ink)]">Ma Cuisine — Inventaire mensuel</span>
+        </div>
+        <p className="text-sm text-[var(--steel)] mb-6">{fmtLong(today)}</p>
+
+        {valide ? (
+          <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/30 mb-4">
+            <p className="text-sm text-[var(--ink)]">Inventaire validé — le stock a été corrigé selon les quantités comptées.</p>
+          </Card>
+        ) : (
+          <>
+            {Object.entries(parCategorie).map(([categorie, items]) => (
+              <div key={categorie} className="mb-6">
+                <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">{categorie}</h3>
+                <div className="overflow-x-auto print:overflow-visible">
+                <table className="w-full text-sm min-w-[480px] print:min-w-0">
+                  <thead>
+                    <tr className="text-left text-[var(--steel)]">
+                      <th className="pb-1.5 font-medium">Référence</th>
+                      <th className="pb-1.5 font-medium">Nom</th>
+                      <th className="pb-1.5 font-medium">Qté système</th>
+                      <th className="pb-1.5 font-medium">Qté comptée</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {items.map((s) => (
+                      <tr key={s.id} className="border-t border-[var(--line)]">
+                        <td className="py-1.5 text-[var(--steel)]">{s.reference || "—"}</td>
+                        <td className="py-1.5 text-[var(--ink)]">{s.nom}</td>
+                        <td className="py-1.5 text-[var(--steel)]">{s.quantite} {s.unite}</td>
+                        <td className="py-1.5">
+                          <input
+                            className={`${inputCls} w-24 print:border-0`}
+                            type="number"
+                            placeholder={`${s.quantite}`}
+                            value={comptage[s.id] ?? ""}
+                            onChange={(e) => setComptage({ ...comptage, [s.id]: e.target.value })}
+                          />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+                </div>
+              </div>
+            ))}
+            <Button onClick={validerInventaire} className="print:hidden">Valider l'inventaire et corriger le stock</Button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Préparations maison : pas de référence fournisseur — leur DLC (une fois faites en cuisine) est
+// déjà saisie ailleurs dans Ma Cuisine (fiches techniques, catalogue DLC). Ici, purement informatif.
+const PREPARATIONS_MAISON_REF = [
+  { nom: "Pâton pizza 250 g", rendement: "104 pâtons / batch (≈26 kg de pâte)", note: "farine pizza, sel, huile d'olive, levure boulangère, eau" },
+  { nom: "Pâton pizza 180 g", rendement: "146 pâtons / batch", note: "farine pizza, sel, huile d'olive, levure boulangère, eau" },
+  { nom: "Sauce tomate maison", rendement: "à préciser", note: "purée de tomate Rodolphi, sel, huile d'olive, eau" },
+  { nom: "Crème parmesan maison", rendement: "à préciser", note: "crème liquide, parmesan copeaux, lait" },
+  { nom: "Vinaigrette maison", rendement: "à préciser", note: "utilisée dans les salades — coût actuellement marqué « introuvable » dans la fiche, à chiffrer" },
+  { nom: "Sauce cheddar maison", rendement: "à préciser", note: "à distinguer de la sauce cheddar industrielle achetée (réf. 41928)" },
+  { nom: "Sauce vigneronne", rendement: "à préciser", note: "vin rouge, fond de veau, échalotes, beurre, thym, laurier" },
+  { nom: "Sauce aux champignons", rendement: "à préciser", note: "champignons, échalotes, crème liquide, fond de veau, parmesan" },
+  { nom: "Sauce au poivre", rendement: "à préciser", note: "échalotes, beurre, poivre concassé, crème liquide, fond de veau" },
+  { nom: "Sauce bolognaise (pizza)", rendement: "pour 10 pizzas", note: "bœuf haché, oignons, carottes, sauce tomate, vin rouge" },
+  { nom: "Sauce bolognaise (lasagne)", rendement: "à préciser", note: "bœuf haché, oignons, carottes, sauce tomate, vin rouge" },
+  { nom: "Sauce béchamel maison", rendement: "à préciser", note: "existe aussi en préparation achetée (réf. 17599)" },
+  { nom: "Pain (pâte à pizza)", rendement: "1/4 de pâton de 250 g", note: "utilisé pour l'accompagnement « Pain » des planches" },
+];
+
+const ENTRETIEN_REF = [
+  { titre: "Produits d'entretien — Cuisine (Keystone)", note: "Marque Keystone (gamme Sysco fabriquée par Ecolab) réservée aux surfaces cuisine/plonge : dégraissants plancha/grill, lave-vaisselle pro, plonge manuelle, nettoyants surfaces dures. Aucune référence encore renseignée — à remplir avec le produit exact, son usage et son dosage dès réception des fiches techniques ou photos d'étiquettes." },
+  { titre: "Produits d'entretien — Salle", note: "Hygiène des mains, nettoyants WC/urinoirs, désinfection éviers, entretien sols et surfaces. Aucune référence encore renseignée — à remplir dès réception des fiches techniques ou photos d'étiquettes." },
+];
+
+function ReferentielProduits({ stock, onBack }) {
+  const [mode, setMode] = useState("stock"); // 'stock' | 'preparations'
+  const [catOuverte, setCatOuverte] = useState(null);
+
+  const parCategorie = stock.reduce((acc, s) => { (acc[s.categorie] = acc[s.categorie] || []).push(s); return acc; }, {});
+  const categories = Object.keys(parCategorie);
+
+  return (
+    <div>
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
+        <ArrowLeft size={15} /> Retour au contrôle
+      </button>
+      <SectionHeader title="Référentiel produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
+
+      <div className="flex gap-2 mb-4">
+        <button onClick={() => setMode("stock")} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${mode === "stock" ? "bg-[var(--accent)] text-white border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Produits achetés</button>
+        <button onClick={() => setMode("preparations")} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${mode === "preparations" ? "bg-[var(--accent)] text-white border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Préparations maison</button>
+      </div>
+
+      {mode === "stock" ? (
+        <div className="space-y-2">
+          {categories.map((cat) => (
+            <Card key={cat} className="!p-0 overflow-hidden">
+              <button onClick={() => setCatOuverte((c) => (c === cat ? null : cat))} className="w-full flex items-center justify-between px-4 py-3 bg-[var(--accent-soft)]/40 text-left">
+                <span className="font-medium text-[var(--ink)] text-sm">{cat}</span>
+                <span className="text-xs text-[var(--steel)]">{parCategorie[cat].length} produit(s) {catOuverte === cat ? "▲" : "▼"}</span>
+              </button>
+              {catOuverte === cat && (
+                <ul className="divide-y divide-[var(--line)]">
+                  {parCategorie[cat].map((s) => (
+                    <li key={s.id} className="px-4 py-2.5">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="text-sm font-medium text-[var(--ink)] flex items-center gap-2">
+                          {s.nom} {!s.referenceVerifiee && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à vérifier</span>}
+                        </div>
+                        {s.prixUnitaire && <div className="text-xs text-[var(--steel)]">{s.prixUnitaire}</div>}
+                      </div>
+                      <div className="text-xs text-[var(--steel)] mt-0.5">
+                        {s.reference ? `${s.fournisseur} · Réf. ${s.reference}` : `${s.fournisseur} (hors Sysco)`}{s.conditionnement ? ` · ${s.conditionnement}` : ""}
+                      </div>
+                      {s.poidsParPiece && <div className="text-xs text-[var(--accent)] mt-0.5">Poids/pièce calculé : {s.poidsParPiece}</div>}
+                      {s.note && <div className="text-xs text-[var(--steel)] italic mt-0.5">{s.note}</div>}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          ))}
+          {ENTRETIEN_REF.map((e) => (
+            <Card key={e.titre} className="!p-0 overflow-hidden">
+              <div className="px-4 py-3 bg-[var(--accent-soft)]/40">
+                <span className="font-medium text-[var(--ink)] text-sm">{e.titre}</span>
+                <span className="text-xs text-[var(--steel)] ml-2">à compléter</span>
+              </div>
+              <div className="px-4 py-2.5 text-xs text-[var(--steel)]">{e.note}</div>
+            </Card>
+          ))}
+        </div>
+      ) : (
+        <Card className="!p-0 overflow-hidden">
+          <ul className="divide-y divide-[var(--line)]">
+            {PREPARATIONS_MAISON_REF.map((p) => (
+              <li key={p.nom} className="px-4 py-2.5">
+                <div className="text-sm font-medium text-[var(--ink)]">{p.nom}</div>
+                <div className="text-xs text-[var(--steel)] mt-0.5">Rendement : {p.rendement}</div>
+                {p.note && <div className="text-xs text-[var(--steel)] italic mt-0.5">{p.note}</div>}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, mois, setMois, onBack }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom || "—";
+  const joursduMois = [];
+  const debut = new Date(mois + "-01T00:00:00");
+  const annee = debut.getFullYear(), moisNum = debut.getMonth();
+  const nbJours = new Date(annee, moisNum + 1, 0).getDate();
+  for (let d = 1; d <= nbJours; d++) joursduMois.push(`${mois}-${String(d).padStart(2, "0")}`);
+
+  const NOMS_MOIS_LONG = ["Janvier","Février","Mars","Avril","Mai","Juin","Juillet","Août","Septembre","Octobre","Novembre","Décembre"];
+  const titreMois = `${NOMS_MOIS_LONG[moisNum]} ${annee}`;
+
+  const relevesFroids = relevesFroid.filter((r) => r.date?.startsWith(mois));
+  const huilesMois = huileTests.filter((h) => h.date?.startsWith(mois));
+  const refroidsMois = refroidissements.filter((r) => r.date?.startsWith(mois));
+  const cuissonsMois = cuissons.filter((c) => c.date?.startsWith(mois));
+  const prepsMois = preparations.filter((p) => p.date?.startsWith(mois));
+
+  const nbConformesTemp = relevesFroids.filter((r) => r.conforme).length;
+  const nbHorsSeuilTemp = relevesFroids.filter((r) => !r.conforme).length;
+  const nbConformesRefroid = refroidsMois.filter((r) => r.conforme === true).length;
+  const nbNonConformesRefroid = refroidsMois.filter((r) => r.conforme === false).length;
+  const nbConformesCuisson = cuissonsMois.filter((c) => c.conforme === true).length;
+  const nbNonConformesCuisson = cuissonsMois.filter((c) => c.conforme === false).length;
+
+  const moisPrecedent = () => { const d = new Date(mois + "-01"); d.setMonth(d.getMonth() - 1); setMois(toISO(d).slice(0, 7)); };
+  const moisSuivant = () => { const d = new Date(mois + "-01"); d.setMonth(d.getMonth() + 1); setMois(toISO(d).slice(0, 7)); };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 print:hidden flex-wrap gap-2">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+          <ArrowLeft size={15} /> Retour
+        </button>
+        <div className="flex items-center gap-2">
+          <button onClick={moisPrecedent} className="w-8 h-8 rounded-md border border-[var(--line)] flex items-center justify-center"><ChevronLeft size={16} /></button>
+          <span className="text-sm font-medium text-[var(--ink)]">{titreMois}</span>
+          <button onClick={moisSuivant} className="w-8 h-8 rounded-md border border-[var(--line)] flex items-center justify-center"><ChevronRight size={16} /></button>
+        </div>
+        <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / PDF</Button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[var(--line)] p-6 sm:p-8">
+        <div className="flex items-center justify-between mb-1">
+          <div className="flex items-center gap-2">
+            <ChefHat size={22} className="text-[var(--accent)]" />
+            <span className="text-lg font-semibold text-[var(--ink)]">Games Factory — Registre HACCP</span>
+          </div>
+          <span className="text-sm text-[var(--steel)]">Groupe Adrena</span>
+        </div>
+        <p className="text-sm text-[var(--steel)] mb-1">Période : {titreMois}</p>
+        <p className="text-xs text-[var(--steel)] mb-6">Document établi conformément au Règlement (CE) n° 852/2004 — Plan de Maîtrise Sanitaire (PMS)</p>
+
+        <h3 className="font-bold text-[var(--ink)] border-b-2 border-[var(--ink)] pb-1.5 mb-4 uppercase tracking-wide text-sm">1. Synthèse du mois</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+          {[
+            { label: "Relevés T° frigos", ok: nbConformesTemp, nok: nbHorsSeuilTemp },
+            { label: "Refroidissements", ok: nbConformesRefroid, nok: nbNonConformesRefroid },
+            { label: "Cuissons", ok: nbConformesCuisson, nok: nbNonConformesCuisson },
+            { label: "Préparations tracées", ok: prepsMois.length, nok: 0 },
+          ].map((s, i) => (
+            <div key={i} className="border border-[var(--line)] rounded-lg p-3 text-center">
+              <div className="text-xs text-[var(--steel)] mb-1">{s.label}</div>
+              <div className="text-lg font-bold" style={{ color: s.nok > 0 ? "#c0392b" : "#2F6B4F" }}>{s.ok + s.nok}</div>
+              <div className="text-xs">{s.ok} ✓ {s.nok > 0 && <span className="text-[var(--warn)]">{s.nok} ✗</span>}</div>
+            </div>
+          ))}
+        </div>
+
+        <h3 className="font-bold text-[var(--ink)] border-b-2 border-[var(--ink)] pb-1.5 mb-4 uppercase tracking-wide text-sm">2. Relevés de températures — Frigos & Congélateurs</h3>
+        {relevesFroids.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun relevé ce mois.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[560px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)] bg-[var(--bg)]"><th className="p-2 font-medium">Date</th><th className="p-2 font-medium">Heure</th><th className="p-2 font-medium">Équipement</th><th className="p-2 font-medium">T° relevée</th><th className="p-2 font-medium">Conformité</th><th className="p-2 font-medium">Agent</th></tr></thead>
+            <tbody>
+              {relevesFroids.map((r) => (
+                <tr key={r.id} className="border-t border-[var(--line)]">
+                  <td className="p-2 text-[var(--steel)]">{r.date}</td>
+                  <td className="p-2 text-[var(--steel)]">{r.heure}</td>
+                  <td className="p-2 text-[var(--ink)]">{equipementsFroid.find((e) => e.id === r.equipementId)?.nom || "—"}</td>
+                  <td className="p-2 font-medium">{r.valeur}°C</td>
+                  <td className={`p-2 font-medium ${r.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{r.conforme ? "✓ Conforme" : "✗ Hors seuil"}</td>
+                  <td className="p-2 text-[var(--steel)]">{who(r.employeeId)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-bold text-[var(--ink)] border-b-2 border-[var(--ink)] pb-1.5 mb-4 uppercase tracking-wide text-sm">3. Refroidissements rapides</h3>
+        {refroidsMois.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun suivi ce mois.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[820px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)] bg-[var(--bg)]"><th className="p-2 font-medium">Date</th><th className="p-2 font-medium">Produit</th><th className="p-2 font-medium">T° départ</th><th className="p-2 font-medium">Heure entrée</th><th className="p-2 font-medium">Heure sortie</th><th className="p-2 font-medium">T° fin</th><th className="p-2 font-medium">Durée</th><th className="p-2 font-medium">Conformité</th><th className="p-2 font-medium">Agent</th></tr></thead>
+            <tbody>
+              {refroidsMois.map((r) => (
+                <tr key={r.id} className="border-t border-[var(--line)]">
+                  <td className="p-2 text-[var(--steel)]">{r.date}</td>
+                  <td className="p-2 text-[var(--ink)]">{r.produit}</td>
+                  <td className="p-2">{r.tempDebut}°C</td>
+                  <td className="p-2 text-[var(--steel)]">{r.heureDebut}</td>
+                  <td className="p-2 text-[var(--steel)]">{r.heureFin || "—"}</td>
+                  <td className="p-2">{r.tempFin ? `${r.tempFin}°C` : "—"}</td>
+                  <td className="p-2 text-[var(--steel)]">{r.dureeMin ? `${r.dureeMin} min` : "—"}</td>
+                  <td className={`p-2 font-medium ${r.conforme === true ? "text-[var(--accent)]" : r.conforme === false ? "text-[var(--warn)]" : "text-[var(--steel)]"}`}>{r.conforme === true ? "✓ Conforme" : r.conforme === false ? "✗ Non conforme" : "En cours"}</td>
+                  <td className="p-2 text-[var(--steel)]">{who(r.employeeId)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-bold text-[var(--ink)] border-b-2 border-[var(--ink)] pb-1.5 mb-4 uppercase tracking-wide text-sm">4. Cuissons</h3>
+        {cuissonsMois.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun contrôle ce mois.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[560px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)] bg-[var(--bg)]"><th className="p-2 font-medium">Date</th><th className="p-2 font-medium">Produit</th><th className="p-2 font-medium">T° à cœur</th><th className="p-2 font-medium">Heure</th><th className="p-2 font-medium">Conformité</th><th className="p-2 font-medium">Agent</th></tr></thead>
+            <tbody>
+              {cuissonsMois.map((c) => (
+                <tr key={c.id} className="border-t border-[var(--line)]">
+                  <td className="p-2 text-[var(--steel)]">{c.date}</td>
+                  <td className="p-2 text-[var(--ink)]">{c.produit}</td>
+                  <td className={`p-2 font-medium ${c.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{c.temperature ? `${c.temperature}°C` : "—"}</td>
+                  <td className="p-2 text-[var(--steel)]">{c.heureFin || c.heureDebut}</td>
+                  <td className={`p-2 font-medium ${c.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{c.conforme ? "✓ ≥ 63°C" : "✗ Non conforme"}</td>
+                  <td className="p-2 text-[var(--steel)]">{who(c.employeeId)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-bold text-[var(--ink)] border-b-2 border-[var(--ink)] pb-1.5 mb-4 uppercase tracking-wide text-sm">5. Huile de friture</h3>
+        {huilesMois.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun test ce mois.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[480px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)] bg-[var(--bg)]"><th className="p-2 font-medium">Date</th><th className="p-2 font-medium">Heure</th><th className="p-2 font-medium">Résultat</th><th className="p-2 font-medium">Décision</th><th className="p-2 font-medium">Agent</th></tr></thead>
+            <tbody>
+              {huilesMois.map((h) => (
+                <tr key={h.id} className="border-t border-[var(--line)]">
+                  <td className="p-2 text-[var(--steel)]">{h.date}</td>
+                  <td className="p-2 text-[var(--steel)]">{h.heure}</td>
+                  <td className="p-2 text-[var(--ink)]">{h.valeur}</td>
+                  <td className={`p-2 font-medium ${["Conforme", "Conservée", "Bonne", "Filtration (matin)"].some((v) => h.resultat?.includes(v)) ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{h.resultat}</td>
+                  <td className="p-2 text-[var(--steel)]">{who(h.employeeId)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-bold text-[var(--ink)] border-b-2 border-[var(--ink)] pb-1.5 mb-4 uppercase tracking-wide text-sm">6. Traçabilité des préparations</h3>
+        {prepsMois.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucune traçabilité ce mois.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[560px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)] bg-[var(--bg)]"><th className="p-2 font-medium">Date</th><th className="p-2 font-medium">Heure</th><th className="p-2 font-medium">Produit</th><th className="p-2 font-medium">Quantité</th><th className="p-2 font-medium">DLC</th><th className="p-2 font-medium">Agent</th></tr></thead>
+            <tbody>
+              {prepsMois.map((p) => {
+                const prod = produits.find((pr) => pr.id === p.produitId);
+                return (
+                  <tr key={p.id} className="border-t border-[var(--line)]">
+                    <td className="p-2 text-[var(--steel)]">{p.date}</td>
+                    <td className="p-2 text-[var(--steel)]">{p.heure}</td>
+                    <td className="p-2 text-[var(--ink)]">{prod?.nom || p.nomLibre || "—"}</td>
+                    <td className="p-2">{p.quantite}</td>
+                    <td className="p-2 text-[var(--steel)]">{p.dlcDate || "—"}</td>
+                    <td className="p-2 text-[var(--steel)]">{who(p.employeeId)}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <div className="mt-8 pt-4 border-t border-[var(--line)] grid grid-cols-2 gap-8">
+          <div>
+            <p className="text-xs text-[var(--steel)] mb-1">Responsable HACCP</p>
+            <p className="text-sm font-medium text-[var(--ink)]">Loïc — Chef de cuisine</p>
+            <div className="mt-4 border-t border-[var(--steel)] w-32 pt-1"><p className="text-xs text-[var(--steel)]">Signature</p></div>
+          </div>
+          <div>
+            <p className="text-xs text-[var(--steel)] mb-1">Document généré le</p>
+            <p className="text-sm text-[var(--ink)]">{fmtLong(todayISO())}</p>
+            <p className="text-xs text-[var(--steel)] mt-2">Registre à conserver 5 ans conformément à la réglementation</p>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, today, onBack, relevesFroid, equipementsFroid }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const tempsDuJour = tempLogs.filter((l) => l.date === today);
+  const huileDuJour = huileTests.filter((h) => h.date === today);
+  const refroiDuJour = refroidissements.filter((r) => r.date === today);
+  const cuissonDuJour = cuissons.filter((c) => c.date === today);
+  const prepActives = preparations.filter((p) => !p.jete);
+  const prepAujourdhui = preparations.filter((p) => p.date === today);
+  const resasDuJour = reservations.filter((r) => r.date === today);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 print:hidden">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+          <ArrowLeft size={15} /> Retour au contrôle
+        </button>
+        <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / Exporter</Button>
+      </div>
+
+      <div className="bg-white rounded-xl border border-[var(--line)] p-6 sm:p-8">
+        <div className="flex items-center gap-2 mb-1">
+          <ChefHat size={22} className="text-[var(--accent)]" />
+          <span className="text-lg font-semibold text-[var(--ink)]">Ma Cuisine — Relevé de contrôle</span>
+        </div>
+        <p className="text-sm text-[var(--steel)] mb-6">{fmtLong(today)} — édité pour le contrôle du service d'hygiène</p>
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Équipe et horaires du jour</h3>
+        <div className="overflow-x-auto print:overflow-visible">
+        <table className="w-full text-sm mb-6 min-w-[560px] print:min-w-0">
+          <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Employé</th><th className="pb-1.5 font-medium">Poste</th><th className="pb-1.5 font-medium">Horaires</th><th className="pb-1.5 font-medium">Tâches faites / prévues</th></tr></thead>
+          <tbody>
+            {employees.map((emp) => {
+              const jourIdx = (new Date().getDay() + 6) % 7;
+              const creneaux = shifts.filter((s) => s.employeeId === emp.id && s.jour === JOURS[jourIdx]);
+              const mesTaches = tasks.filter((t) => taskAppliesTo(t, emp) && isTaskActive(t, today));
+              const faites = mesTaches.filter((t) => !!t.completions?.[today]?.[emp.id]);
+              return (
+                <tr key={emp.id} className="border-t border-[var(--line)]">
+                  <td className="py-1.5 text-[var(--ink)]">{emp.nom}</td>
+                  <td className="py-1.5 text-[var(--steel)]">{emp.poste}</td>
+                  <td className="py-1.5 text-[var(--steel)]">{creneaux.length ? creneaux.map((c) => `${c.service} ${c.debut}-${c.fin}`).join(" · ") : "Repos"}</td>
+                  <td className="py-1.5 text-[var(--ink)]">{faites.length} / {mesTaches.length}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+        </div>
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Réservations du jour</h3>
+        <p className="text-sm text-[var(--ink)] mb-6">{resasDuJour.length} réservation{resasDuJour.length !== 1 ? "s" : ""} — {resasDuJour.reduce((s, r) => s + Number(r.personnes || 0), 0)} personnes</p>
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Frigos & congélateurs</h3>
+        {relevesFroid.filter((r) => r.date === today).length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun relevé aujourd'hui.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[440px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Heure</th><th className="pb-1.5 font-medium">Équipement</th><th className="pb-1.5 font-medium">Valeur</th><th className="pb-1.5 font-medium">Conformité</th></tr></thead>
+            <tbody>
+              {relevesFroid.filter((r) => r.date === today).map((r) => (
+                <tr key={r.id} className="border-t border-[var(--line)]">
+                  <td className="py-1.5 text-[var(--steel)]">{r.heure}</td>
+                  <td className="py-1.5 text-[var(--ink)]">{equipementsFroid.find((e) => e.id === r.equipementId)?.nom || "—"}</td>
+                  <td className="py-1.5 text-[var(--ink)]">{r.valeur}°C</td>
+                  <td className={`py-1.5 ${r.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{r.conforme ? "Conforme" : "Hors seuil"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Maintien au chaud</h3>
+        {tempsDuJour.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun relevé aujourd'hui.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[440px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Heure</th><th className="pb-1.5 font-medium">Emplacement</th><th className="pb-1.5 font-medium">Valeur</th><th className="pb-1.5 font-medium">Conformité</th></tr></thead>
+            <tbody>
+              {tempsDuJour.map((l) => (
+                <tr key={l.id} className="border-t border-[var(--line)]">
+                  <td className="py-1.5 text-[var(--steel)]">{l.heure}</td>
+                  <td className="py-1.5 text-[var(--ink)]">{l.emplacement}</td>
+                  <td className="py-1.5 text-[var(--ink)]">{l.valeur}°C</td>
+                  <td className={`py-1.5 ${isTempOk(l.type, l.valeur) ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{isTempOk(l.type, l.valeur) ? "Conforme" : "Hors seuil"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Huile de friture</h3>
+        {huileDuJour.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun test aujourd'hui.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[440px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Heure</th><th className="pb-1.5 font-medium">Poste</th><th className="pb-1.5 font-medium">Résultat</th><th className="pb-1.5 font-medium">Conclusion</th></tr></thead>
+            <tbody>
+              {huileDuJour.map((h) => (
+                <tr key={h.id} className="border-t border-[var(--line)]">
+                  <td className="py-1.5 text-[var(--steel)]">{h.heure}</td>
+                  <td className="py-1.5 text-[var(--ink)]">{h.poste}</td>
+                  <td className="py-1.5 text-[var(--ink)]">{h.valeur}</td>
+                  <td className={`py-1.5 ${["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(h.resultat) ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{h.resultat}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Refroidissement en cellule</h3>
+        {refroiDuJour.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun suivi aujourd'hui.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[380px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Produit</th><th className="pb-1.5 font-medium">Début → Fin</th><th className="pb-1.5 font-medium">Conformité</th></tr></thead>
+            <tbody>
+              {refroiDuJour.map((r) => (
+                <tr key={r.id} className="border-t border-[var(--line)]">
+                  <td className="py-1.5 text-[var(--ink)]">{r.produit}</td>
+                  <td className="py-1.5 text-[var(--steel)]">{r.heureDebut} ({r.tempDebut}°C) → {r.heureFin} ({r.tempFin}°C)</td>
+                  <td className={`py-1.5 ${r.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{r.conforme ? "Conforme" : "Non conforme"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Cuissons</h3>
+        {cuissonDuJour.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun contrôle aujourd'hui.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[440px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Produit</th><th className="pb-1.5 font-medium">Heure</th><th className="pb-1.5 font-medium">Température</th><th className="pb-1.5 font-medium">Conformité</th></tr></thead>
+            <tbody>
+              {cuissonDuJour.map((c) => (
+                <tr key={c.id} className="border-t border-[var(--line)]">
+                  <td className="py-1.5 text-[var(--ink)]">{c.produit}</td>
+                  <td className="py-1.5 text-[var(--steel)]">{c.heure}</td>
+                  <td className="py-1.5 text-[var(--ink)]">{c.temperature}°C</td>
+                  <td className={`py-1.5 ${c.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{c.conforme ? "Conforme" : "Non conforme"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Traçabilité — préparations du jour</h3>
+        {prepAujourdhui.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucune préparation aujourd'hui.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[440px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Produit</th><th className="pb-1.5 font-medium">Quantité</th><th className="pb-1.5 font-medium">Par</th><th className="pb-1.5 font-medium">DLC</th></tr></thead>
+            <tbody>
+              {prepAujourdhui.map((p) => {
+                const produit = produits.find((pr) => pr.id === p.produitId);
+                return (
+                  <tr key={p.id} className="border-t border-[var(--line)]">
+                    <td className="py-1.5 text-[var(--ink)]">{produit?.nom || p.nomLibre || "—"}</td>
+                    <td className="py-1.5 text-[var(--steel)]">{p.quantite}</td>
+                    <td className="py-1.5 text-[var(--steel)]">{who(p.employeeId)}</td>
+                    <td className="py-1.5 text-[var(--steel)]">{p.dlcDate}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">DLC en cours de surveillance</h3>
+        {prepActives.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucune préparation active.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm mb-6 min-w-[440px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Produit</th><th className="pb-1.5 font-medium">Préparé le</th><th className="pb-1.5 font-medium">DLC</th><th className="pb-1.5 font-medium">Statut</th></tr></thead>
+            <tbody>
+              {prepActives.map((p) => {
+                const produit = produits.find((pr) => pr.id === p.produitId);
+                return (
+                  <tr key={p.id} className="border-t border-[var(--line)]">
+                    <td className="py-1.5 text-[var(--ink)]">{produit?.nom || p.nomLibre || "—"}</td>
+                    <td className="py-1.5 text-[var(--steel)]">{p.date}</td>
+                    <td className="py-1.5 text-[var(--steel)]">{p.dlcDate}</td>
+                    <td className={`py-1.5 ${p.dlcDate <= today ? "text-[var(--warn)]" : "text-[var(--accent)]"}`}>{p.dlcDate <= today ? "À jeter" : "OK"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+          </div>
+        )}
+
+        <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Plan de nettoyage</h3>
+        {cleaning.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune tâche définie.</p> : (
+          <div className="overflow-x-auto print:overflow-visible">
+          <table className="w-full text-sm min-w-[380px] print:min-w-0">
+            <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Tâche</th><th className="pb-1.5 font-medium">Fréquence</th><th className="pb-1.5 font-medium">Statut</th></tr></thead>
+            <tbody>
+              {cleaning.map((t) => (
+                <tr key={t.id} className="border-t border-[var(--line)]">
+                  <td className="py-1.5 text-[var(--ink)]">{t.tache}</td>
+                  <td className="py-1.5 text-[var(--steel)]">{t.frequence}</td>
+                  <td className={`py-1.5 ${t.fait ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{t.fait ? `Fait${who(t.employeeId) ? ` — ${who(t.employeeId)}` : ""}` : "Non fait"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logActivity, equipementsFroid, setEquipementsFroid, relevesFroid, setRelevesFroid, surveillancesFroid, setSurveillancesFroid, ajouterAlerteControle }) {
+  const [infosFiche, setInfosFiche] = useState(null);
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
+  return (
+    <div>
+      <SectionHeader title="Température frigo & congélateur" subtitle="Relevés de température et alertes" />
+      <BoutonInfosNormes ficheKey="temperatureFrigo" onClick={ouvrirNormes} label="Températures & rangement — Normes HACCP" />
+      <HaccpTemperatures tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} logActivity={logActivity} who={who} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} />
+      {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
+    </div>
+  );
+}
+
+function HaccpRefroidPage({ refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+  const [infosFiche, setInfosFiche] = useState(null);
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
+  return (
+    <div>
+      <SectionHeader title="Refroidissement rapide" subtitle="Suivi des refroidissements et de la cellule" />
+      <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" />
+      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" />
+      <HaccpRefroidissement refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+      {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
+    </div>
+  );
+}
+
+function HaccpHuilePage({ huileTests, employees }) {
+  const [infosFiche, setInfosFiche] = useState(null);
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
+  return (
+    <div>
+      <SectionHeader title="Contrôle des huiles de friture" subtitle="Tests et suivi des bains d'huile" />
+      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} />
+      <HaccpHuile huileTests={huileTests} who={who} />
+      {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
+    </div>
+  );
+}
+
+function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMaintienChaud, setCatalogueMaintienChaud, entriesMaintienChaud, setEntriesMaintienChaud, refroidissements, setRefroidissements, ajouterAlerteControle, maintienChaudSuggere, setMaintienChaudSuggere }) {
+  const [infosFiche, setInfosFiche] = useState(null);
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
+  return (
+    <div>
+      <SectionHeader title="Gestion du maintien au chaud" subtitle="Suivi des produits en maintien au chaud" />
+      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" />
+      <MaintienChaud currentUserId={currentUserId} logActivity={logActivity} who={who} catalogue={catalogueMaintienChaud} setCatalogue={setCatalogueMaintienChaud} entries={entriesMaintienChaud} setEntries={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} produitSuggere={maintienChaudSuggere} setProduitSuggere={setMaintienChaudSuggere} />
+      {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
+    </div>
+  );
+}
+
+function HaccpCuissonPage({ cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle }) {
+  const [infosFiche, setInfosFiche] = useState(null);
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
+  return (
+    <div>
+      <SectionHeader title="Gestion des cuissons" subtitle="Suivi des cuissons et températures à cœur" />
+      <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" />
+      <HaccpCuisson cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
+      {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
+    </div>
+  );
+}
+
+const FREQUENCES_NETTOYAGE = ["À chaque utilisation", "Quotidienne", "Hebdomadaire", "Mensuelle", "Périodique (3-6 mois)"];
+
+function HaccpNettoyage({ cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage, setZonesNettoyage }) {
+  const [infosFicheNettoyage, setInfosFicheNettoyage] = useState(null);
+  const [nouveau, setNouveau] = useState({ tache: "", frequence: "Quotidienne", poste: "Tous" });
+  const [noteOuverte, setNoteOuverte] = useState(null);
+  const [nouvelleZone, setNouvelleZone] = useState("");
+  const [messageZones, setMessageZones] = useState(null);
+
+  const ajouterZone = () => {
+    const nom = nouvelleZone.trim();
+    if (!nom) return;
+    if (zonesNettoyage.some((z) => z.toLowerCase() === nom.toLowerCase())) {
+      setMessageZones("Cette zone existe déjà.");
+      return;
+    }
+    setZonesNettoyage([...zonesNettoyage, nom]);
+    setNouvelleZone("");
+    setMessageZones(null);
+  };
+  const supprimerZone = (zone) => {
+    if (zone === "Tous") {
+      setMessageZones('La zone "Tous" ne peut pas être supprimée.');
+      return;
+    }
+    if (cleaning.some((t) => t.poste === zone)) {
+      setMessageZones(`Impossible de supprimer "${zone}" : des tâches de nettoyage y sont encore rattachées.`);
+      return;
+    }
+    setZonesNettoyage(zonesNettoyage.filter((z) => z !== zone));
+    setMessageZones(null);
+  };
+
+  const toggleTask = (id) => {
+    setCleaning(cleaning.map((t) => {
+      if (t.id !== id) return t;
+      const fait = !t.fait;
+      if (fait) logActivity("HACCP", "Tâche de nettoyage effectuée", t.tache);
+      return { ...t, fait, date: fait ? todayISO() : null, employeeId: fait ? currentUserId : null };
+    }));
+  };
+  const addTask = () => {
+    if (!nouveau.tache) return;
+    setCleaning([...cleaning, { id: uid(), tache: nouveau.tache, frequence: nouveau.frequence, poste: nouveau.poste, note: "", fait: false, date: null, employeeId: null }]);
+    setNouveau({ tache: "", frequence: nouveau.frequence, poste: nouveau.poste });
+  };
+  const removeTask = (id) => setCleaning(cleaning.filter((t) => t.id !== id));
+  const updateNote = (id, note) => setCleaning(cleaning.map((t) => (t.id === id ? { ...t, note } : t)));
+
+  const parPoste = cleaning.reduce((acc, t) => { const p = t.poste || "Tous"; (acc[p] = acc[p] || []).push(t); return acc; }, {});
+
+  return (
+    <div>
+      <BoutonInfosNormes ficheKey="lavageLegumes" onClick={setInfosFicheNettoyage} label="Protocole de lavage des fruits et légumes" />
+      <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="BPH — Boîtes conserve / Planches à découper" />
+      {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
+      <Card className="mb-4 bg-[var(--warn-soft)] border-[var(--warn)]/30">
+        <p className="text-sm text-[var(--warn)] font-medium">Il manque encore les produits et les quantités précises pour plusieurs tâches ci-dessous — à compléter dès que possible.</p>
+      </Card>
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Nettoyage quotidien détaillé — fin de service</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">Même contenu que dans les fenêtres du planning, pour référence et vérification.</p>
+        {["Poste Chaud", "Poste Pizza", "Poste Froid"].map((poste) => (
+          <div key={poste} className="mb-4 last:mb-0">
+            <h4 className="text-sm font-bold text-[var(--ink)] mb-2">{poste}</h4>
+            {["midi", "soir"].map((moment) => {
+              const etapes = NETTOYAGE_QUOTIDIEN_DETAIL[`${poste}-${moment}`];
+              if (!etapes) return null;
+              return (
+                <div key={moment} className="mb-2">
+                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">{moment === "midi" ? "Fin de service midi" : "Fin de service soir"}</div>
+                  <ul className="list-disc list-inside space-y-0.5">
+                    {etapes.map((texte, i) => <li key={i} className="text-sm text-[var(--ink)]">{texte}</li>)}
+                  </ul>
+                </div>
+              );
+            })}
+          </div>
+        ))}
+        <div className="mt-4">
+          <h4 className="text-sm font-bold text-[var(--ink)] mb-2">Pour tout le monde</h4>
+          <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Midi et soir</div>
+          <ul className="list-disc list-inside space-y-0.5 mb-2">
+            {NETTOYAGE_QUOTIDIEN_TOUS.map((texte, i) => <li key={i} className="text-sm text-[var(--ink)]">{texte}</li>)}
+          </ul>
+          <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">En plus le soir</div>
+          <ul className="list-disc list-inside space-y-0.5">
+            {NETTOYAGE_QUOTIDIEN_TOUS_SOIR.map((texte, i) => <li key={i} className="text-sm text-[var(--ink)]">{texte}</li>)}
+          </ul>
+        </div>
+      </Card>
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Zones de nettoyage</h3>
+        {messageZones && (
+          <div className="mb-3 text-xs text-[var(--warn)] bg-[var(--warn-soft,#fff3dc)] rounded-lg px-3 py-2">{messageZones}</div>
+        )}
+        <div className="flex flex-wrap gap-2 mb-3">
+          {zonesNettoyage.map((z) => (
+            <span key={z} className="inline-flex items-center gap-1.5 text-xs font-medium bg-[var(--surface,#f4f2ee)] border border-[var(--line)] rounded-full pl-3 pr-1.5 py-1">
+              {z}
+              {z !== "Tous" && (
+                <button onClick={() => supprimerZone(z)} className="text-[var(--steel)] hover:text-[var(--warn)]" title={`Supprimer ${z}`}>
+                  <X size={13} />
+                </button>
+              )}
+            </span>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Nouvelle zone">
+            <input className={inputCls} placeholder="Ex. Cave, Plonge..." value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} />
+          </Field>
+          <Button onClick={ajouterZone}><Plus size={16} /> Ajouter la zone</Button>
+        </div>
+      </Card>
+
+      <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-4">Plan de nettoyage</h3>
+
+      {cleaning.length === 0 ? (
+        <p className="text-sm text-[var(--steel)] mb-4">Aucune tâche définie.</p>
+      ) : (
+        zonesNettoyage.filter((p) => parPoste[p]).map((poste) => {
+          const parFrequence = parPoste[poste].reduce((acc, t) => { (acc[t.frequence] = acc[t.frequence] || []).push(t); return acc; }, {});
+          return (
+            <div key={poste} className="mb-6 last:mb-0">
+              <h4 className="text-sm font-bold text-[var(--ink)] mb-2">{poste}</h4>
+              {FREQUENCES_NETTOYAGE.filter((f) => parFrequence[f]).map((freq) => (
+                <div key={freq} className="mb-3 last:mb-0">
+                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">{freq}</div>
+                  <ul className="space-y-1.5">
+                    {parFrequence[freq].map((t) => (
+                      <li key={t.id}>
+                        <div className="flex items-center gap-3 text-sm">
+                          <button onClick={() => toggleTask(t.id)}>
+                            {t.fait ? <CheckCircle2 size={18} className="text-[var(--accent)]" /> : <Circle size={18} className="text-[var(--steel)]" />}
+                          </button>
+                          <span className={`flex-1 ${t.fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{t.tache}</span>
+                          {t.jour && <span className="text-xs text-[var(--gold)] font-medium">{t.jour}</span>}
+                          {t.jourSemaineMois && <span className="text-xs text-[var(--gold)] font-medium">{t.positionMois === "dernier" ? "dernier" : `${t.positionMois}${t.positionMois === 1 ? "er" : "e"}`} {t.jourSemaineMois} du mois</span>}
+                          {t.jourDuMois && <span className="text-xs text-[var(--gold)] font-medium">le {t.jourDuMois}</span>}
+                          {t.fait && t.date && <span className="text-xs text-[var(--accent)]">fait le {t.date}{who(t.employeeId) ? ` par ${who(t.employeeId)}` : ""}</span>}
+                          <button onClick={() => setNoteOuverte(noteOuverte === t.id ? null : t.id)} className="text-xs text-[var(--steel)] hover:text-[var(--accent)] underline decoration-dotted">
+                            {t.note ? "Note" : "+ Note"}
+                          </button>
+                          <BoutonSupprimer onConfirm={() => removeTask(t.id)} size={14} libelle={t.tache} />
+                        </div>
+                        {noteOuverte === t.id ? (
+                          <input className={`${inputCls} w-full mt-1.5`} placeholder="Détail à respecter (produit, geste, point de vigilance...)" value={t.note || ""} onChange={(e) => updateNote(t.id, e.target.value)} autoFocus />
+                        ) : t.note ? (
+                          <p className="text-xs text-[var(--steel)] italic ml-8 mt-0.5">{t.note}</p>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
+            </div>
+          );
+        })
+      )}
+
+      <div className="flex flex-wrap items-end gap-2 pt-3 border-t border-[var(--line)]">
+        <Field label="Nouvelle tâche"><input className={inputCls} value={nouveau.tache} onChange={(e) => setNouveau({ ...nouveau, tache: e.target.value })} /></Field>
+        <Field label="Poste">
+          <select className={inputCls} value={nouveau.poste} onChange={(e) => setNouveau({ ...nouveau, poste: e.target.value })}>
+            {zonesNettoyage.map((p) => <option key={p} value={p}>{p}</option>)}
+          </select>
+        </Field>
+        <Field label="Fréquence">
+          <select className={inputCls} value={nouveau.frequence} onChange={(e) => setNouveau({ ...nouveau, frequence: e.target.value })}>
+            {FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{f}</option>)}
+          </select>
+        </Field>
+        <Button onClick={addTask}><Plus size={16} /> Ajouter</Button>
+      </div>
+    </Card>
+    </div>
+  );
+}
+
+function NettoyagePage({ cleaning, setCleaning, currentUserId, employees, logActivity, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  return (
+    <div>
+      <SectionHeader title="PMS" subtitle="Plan de maîtrise sanitaire — nettoyage de la cuisine" />
+      <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-6">
+        <p className="text-xs text-[var(--ink)]">
+          <strong>À finaliser :</strong> détailler pour chaque matériel les étapes de nettoyage selon le protocole HACCP (comme déjà fait pour la friteuse), et déterminer quel produit Keystone (Ecolab) utiliser pour chaque tâche, avec la quantité/dilution exacte. À compléter dans « Protocoles de nettoyage détaillés » ci-dessous, produit par produit.
+        </p>
+      </Card>
+      <HaccpNettoyage cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} />
+      <div className="mt-6">
+        <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
+      </div>
+    </div>
+  );
+}
+
+function ProtocoleDetail({ protocole, onBack, onRemove }) {
+  return (
+    <div>
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
+        <ArrowLeft size={15} /> Retour aux protocoles
+      </button>
+      <div className="flex items-start justify-between mb-6 gap-4">
+        <h2 className="text-xl font-semibold text-[var(--ink)] tracking-tight">{protocole.nom}</h2>
+        <BoutonSupprimer onConfirm={() => onRemove(protocole.id)} size={16} libelle={protocole.nom} />
+      </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+        <Card>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Produits à utiliser</h3>
+          {protocole.produits.length === 0 ? <p className="text-sm text-[var(--steel)]">À définir.</p> : (
+            <ul className="space-y-1.5">
+              {protocole.produits.map((p, i) => (
+                <li key={i} className="flex items-center justify-between text-sm">
+                  <span className="text-[var(--ink)]">{p.nom}</span>
+                  <span className="text-[var(--steel)]">{p.quantite} {p.unite}</span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </Card>
+        <Card>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Étapes à effectuer</h3>
+          {protocole.etapes.length === 0 ? <p className="text-sm text-[var(--steel)]">À définir.</p> : (
+            <ol className="space-y-2.5">
+              {protocole.etapes.map((etape, i) => (
+                <li key={i} className="flex gap-3 text-sm">
+                  <span className="w-5 h-5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-semibold flex items-center justify-center shrink-0">{i + 1}</span>
+                  <span className="text-[var(--ink)]">{etape}</span>
+                </li>
+              ))}
+            </ol>
+          )}
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function ProtocolesNettoyage({ protocoles, setProtocoles, logActivity }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const [nom, setNom] = useState("");
+  const [produits, setProduits] = useState([{ nom: "", quantite: "", unite: "ml" }]);
+  const [etapes, setEtapes] = useState([""]);
+
+  const selected = protocoles.find((p) => p.id === selectedId);
+  if (selected) {
+    return <ProtocoleDetail protocole={selected} onBack={() => setSelectedId(null)} onRemove={(id) => { setProtocoles(protocoles.filter((p) => p.id !== id)); setSelectedId(null); }} />;
+  }
+
+  const addProduitRow = () => setProduits([...produits, { nom: "", quantite: "", unite: "ml" }]);
+  const updateProduit = (i, champ, val) => setProduits(produits.map((p, idx) => (idx === i ? { ...p, [champ]: val } : p)));
+  const removeProduitRow = (i) => setProduits(produits.filter((_, idx) => idx !== i));
+  const addEtapeRow = () => setEtapes([...etapes, ""]);
+  const updateEtape = (i, val) => setEtapes(etapes.map((e, idx) => (idx === i ? val : e)));
+  const removeEtapeRow = (i) => setEtapes(etapes.filter((_, idx) => idx !== i));
+
+  const addProtocole = () => {
+    if (!nom) return;
+    const protocole = { id: uid(), nom, produits: produits.filter((p) => p.nom.trim() !== ""), etapes: etapes.map((e) => e.trim()).filter((e) => e !== "") };
+    setProtocoles([...protocoles, protocole]);
+    logActivity("Nettoyage", "Protocole de nettoyage créé", nom);
+    setNom(""); setProduits([{ nom: "", quantite: "", unite: "ml" }]); setEtapes([""]);
+  };
+
+  return (
+    <div>
+      <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">Protocoles de nettoyage détaillés</h3>
+      <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+        {protocoles.map((p) => (
+          <button key={p.id} onClick={() => setSelectedId(p.id)} className="text-left">
+            <Card className="h-full hover:border-[var(--accent)]/50 transition-colors">
+              <div className="font-medium text-[var(--ink)] text-sm">{p.nom}</div>
+              <div className="text-xs text-[var(--steel)] mt-1">{p.etapes.length === 0 ? "Étapes à définir" : `${p.etapes.length} étape(s)`}</div>
+            </Card>
+          </button>
+        ))}
+      </div>
+
+      <Card>
+        <h4 className="font-semibold text-[var(--ink)] mb-3">Ajouter un protocole</h4>
+        <Field label="Nom du protocole"><input className={`${inputCls} w-full mb-3`} value={nom} onChange={(e) => setNom(e.target.value)} /></Field>
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-[var(--steel)]">Produits</span>
+            <Button variant="ghost" onClick={addProduitRow}><Plus size={14} /> Ligne</Button>
+          </div>
+          <div className="space-y-2">
+            {produits.map((p, i) => (
+              <div key={i} className="grid grid-cols-6 gap-2">
+                <input className={`${inputCls} col-span-3`} placeholder="Produit" value={p.nom} onChange={(e) => updateProduit(i, "nom", e.target.value)} />
+                <input className={`${inputCls} col-span-1`} type="number" placeholder="Qté" value={p.quantite} onChange={(e) => updateProduit(i, "quantite", e.target.value)} />
+                <select className={`${inputCls} col-span-1`} value={p.unite} onChange={(e) => updateProduit(i, "unite", e.target.value)}>
+                  {["ml", "L", "g", "kg", "dose"].map((u) => <option key={u} value={u}>{u}</option>)}
+                </select>
+                <button onClick={() => removeProduitRow(i)} className="text-[var(--steel)] hover:text-[var(--warn)] flex items-center justify-center"><X size={14} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-[var(--steel)]">Étapes</span>
+            <Button variant="ghost" onClick={addEtapeRow}><Plus size={14} /> Étape</Button>
+          </div>
+          <div className="space-y-2">
+            {etapes.map((etape, i) => (
+              <div key={i} className="flex gap-2">
+                <span className="w-7 h-9 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
+                <input className={`${inputCls} flex-1`} placeholder="Décrire l'étape" value={etape} onChange={(e) => updateEtape(i, e.target.value)} />
+                <button onClick={() => removeEtapeRow(i)} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <Button onClick={addProtocole}><Plus size={16} /> Créer le protocole</Button>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- module Fiches techniques ---------- */
+
+const ORDRE_CATEGORIES_FICHES = [
+  "Partagé", "Salade", "Plat", "Base", "Sauce",
+  "Burger", "Burger du mois", "Pizza", "Pizza du mois", "Dessert",
+];
+
+function classeGroupeFiche(f) {
+  return f.sousCategorie || f.categorie;
+}
+
+function normaliserRechercheFiche(s) {
+  return (s || "").toString().normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase();
+}
+
+/* ---------- Détail d'une fiche technique (lecture seule, fidèle au fichier fourni) ---------- */
+function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef }) {
+  const whoSafe = who || (() => null);
+  const t = fiche.titresSections || {};
+  const ligneBloc = (lignes) => (
+    <div className="space-y-1">
+      {lignes.map((l, i) => <p key={i} className="text-sm text-[var(--ink)] leading-snug">{l}</p>)}
+    </div>
+  );
+
+  const [quantiteDlc, setQuantiteDlc] = useState("");
+  const [dlcEnregistree, setDlcEnregistree] = useState(null);
+  const [etiquetteCreee, setEtiquetteCreee] = useState(null);
+  const [noteIngredients, setNoteIngredients] = useState("");
+  const [ingredientsEnregistres, setIngredientsEnregistres] = useState(false);
+  // Sélection des ingrédients à décompter du stock au moment de la traçabilité (destockage).
+  // Pré-rempli avec les quantités de la fiche (pour le rendement complet), l'employé les ajuste
+  // à la quantité réellement produite avant de valider — on ne devine jamais un facteur d'échelle.
+  const [ingredientsDestockage, setIngredientsDestockage] = useState(
+    () => (fiche.ingredients || []).map((ing) => ({ nom: ing.nom, quantite: ing.quantite, unite: ing.unite, coche: true }))
+  );
+  const toggleIngredientDestockage = (i) => setIngredientsDestockage((arr) => arr.map((x, idx) => (idx === i ? { ...x, coche: !x.coche } : x)));
+  const changerQuantiteDestockage = (i, val) => setIngredientsDestockage((arr) => arr.map((x, idx) => (idx === i ? { ...x, quantite: val } : x)));
+
+  const validerDlc = () => {
+    if (!quantiteDlc || !onEditerDlc) return;
+    const ingredientsUtilises = ingredientsDestockage.filter((x) => x.coche && Number(x.quantite) > 0).map((x) => ({ nom: x.nom, quantite: x.quantite }));
+    const entry = onEditerDlc(fiche, quantiteDlc, null, ingredientsUtilises.length > 0 ? ingredientsUtilises : null);
+    if (entry) { setDlcEnregistree(entry.dlcDate); setEtiquetteCreee(entry); setQuantiteDlc(""); }
+  };
+  const validerIngredients = () => {
+    if (!onTracabiliteIngredients) return;
+    onTracabiliteIngredients(fiche, { note: noteIngredients });
+    setIngredientsEnregistres(true);
+    setNoteIngredients("");
+  };
+
+  return (
+    <div>
+      <div className="flex items-start justify-between gap-3 mb-4">
+        <div className="flex items-center gap-2 min-w-0 flex-wrap">
+          {fiche.code && <span className="text-xs font-bold px-2 py-1 rounded shrink-0" style={{ backgroundColor: "#C1432D", color: "#fff" }}>{fiche.code}</span>}
+          <h2 className="text-lg font-semibold text-[var(--ink)] tracking-tight">{fiche.nom}</h2>
+        </div>
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)] hover:text-[var(--accent)] shrink-0 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-white">
+          <ArrowLeft size={15} /> Retour
+        </button>
+      </div>
+
+      {fiche.sousTitre && <p className="text-sm text-[var(--steel)] mb-4">{fiche.sousTitre}</p>}
+
+      {(onDemarrerRefroidissement || onDemarrerCuisson || onDemarrerMaintienChaud || onEditerDlc || onTracabiliteIngredients) && (
+        <Card className="mb-5 border-[var(--accent)]/30">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Actions à partir de cette fiche</h3>
+
+          {/* Ordre volontaire : d'abord on confirme ce qui a été réellement préparé (quantité +
+              ingrédients décomptés du stock), ensuite seulement on enchaîne sur la cuisson, le
+              refroidissement ou le maintien au chaud. Si on préparait une double ou triple dose
+              (ex. un groupe de 20 personnes), la quantité et chaque ingrédient se modifient ici
+              avant validation — rien n'est jamais déduit automatiquement de la fiche telle quelle,
+              pour ne jamais fausser le stock. */}
+          {onEditerDlc && (
+            <div className="pb-3 mb-3 border-b border-[var(--line)]">
+              {ingredientsDestockage.length > 0 && (
+                <div className="mb-3">
+                  <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">1. Ingrédients à décompter du stock</p>
+                  <p className="text-xs text-[var(--steel)] mb-2">Quantités de la fiche pour le rendement complet — si vous avez préparé plus (ex. double dose pour un gros service), modifiez chaque quantité ci-dessous avant d'enregistrer, ou décochez ce qui ne doit pas être décompté.</p>
+                  <div className="space-y-1.5">
+                    {ingredientsDestockage.map((ing, i) => (
+                      <label key={i} className="flex items-center gap-2 text-sm">
+                        <input type="checkbox" checked={ing.coche} onChange={() => toggleIngredientDestockage(i)} />
+                        <span className={`flex-1 ${ing.coche ? "text-[var(--ink)]" : "text-[var(--steel)] line-through"}`}>{ing.nom}</span>
+                        <input className={`${inputCls} w-24`} value={ing.quantite} disabled={!ing.coche} onChange={(e) => changerQuantiteDestockage(i, e.target.value)} />
+                        <span className="text-xs text-[var(--steel)] w-10">{ing.unite}</span>
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div className="flex flex-wrap items-end gap-2">
+                <Field label="2. Quantité produite (traçabilité + DLC)">
+                  <input className={`${inputCls} w-32`} placeholder="ex. 3 kg" value={quantiteDlc} onChange={(e) => setQuantiteDlc(e.target.value)} />
+                </Field>
+                <Button onClick={validerDlc} disabled={!quantiteDlc}>Valider le destockage</Button>
+                {dlcEnregistree && <span className="text-xs text-[var(--accent)] font-medium">Enregistré — DLC {fmtLong ? fmtLong(dlcEnregistree) : dlcEnregistree}</span>}
+              </div>
+              {etiquetteCreee && (
+                <div className="mt-3 pt-3 border-t border-[var(--line)] print:border-0 print:pt-0 print:mt-0">
+                  <div className="mb-2">
+                    <EtiquetteDlcImprimable produitNom={etiquetteCreee.nomLibre} lot={etiquetteCreee.lot} dlcDate={etiquetteCreee.dlcDate} date={etiquetteCreee.date} heure={etiquetteCreee.heure} who={whoSafe} employeeId={etiquetteCreee.employeeId} cuissonInfo={etiquetteCreee.cuissonInfo} refroidissementInfo={etiquetteCreee.refroidissementInfo} maintienInfo={etiquetteCreee.maintienInfo} decongelationInfo={etiquetteCreee.decongelationInfo} />
+                  </div>
+                  <Button variant="ghost" className="print:hidden" onClick={() => window.print()}><Printer size={15} /> Imprimer l'étiquette</Button>
+                </div>
+              )}
+            </div>
+          )}
+
+          {(onDemarrerRefroidissement || onDemarrerCuisson || onDemarrerMaintienChaud) && (
+            <div className={onTracabiliteIngredients ? "pb-3 mb-3 border-b border-[var(--line)]" : ""}>
+              {ingredientsDestockage.length > 0 && !dlcEnregistree && (
+                <p className="text-xs text-[var(--warn)] mb-2">Validez d'abord la quantité produite et le destockage ci-dessus, puis démarrez l'étape suivante.</p>
+              )}
+              <div className="flex flex-wrap gap-2">
+                {onDemarrerRefroidissement && fiche.procedes?.refroid?.on !== false && (
+                  <Button variant="ghost" disabled={ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "positif")}>
+                    <Snowflake size={15} /> {fiche.procedes?.refroid?.mode === "cellule" ? "Mettre en cellule" : "Démarrer un refroidissement"}
+                  </Button>
+                )}
+                {onDemarrerRefroidissement && fiche.procedes?.congel?.on && (
+                  <Button variant="ghost" disabled={ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "negatif")}>
+                    <Snowflake size={15} /> Lancer la congélation
+                  </Button>
+                )}
+                {onDemarrerCuisson && (
+                  <Button variant="ghost" disabled={ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerCuisson(fiche.nom, fiche.cuissonDureeMin, fiche.familleCuisson)}>
+                    <Flame size={15} /> Démarrer une cuisson
+                  </Button>
+                )}
+                {onDemarrerMaintienChaud && (
+                  <Button variant="ghost" disabled={ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerMaintienChaud(fiche.nom)}>
+                    <Soup size={15} /> Démarrer un maintien au chaud
+                  </Button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {onTracabiliteIngredients && (
+            <div className="flex flex-wrap items-end gap-2">
+              <Field label="Traçabilité des ingrédients utilisés (note libre)">
+                <input className={`${inputCls} w-64`} placeholder="ex. lot / observation" value={noteIngredients} onChange={(e) => setNoteIngredients(e.target.value)} />
+              </Field>
+              <Button variant="ghost" onClick={validerIngredients}>Enregistrer la traçabilité</Button>
+              {ingredientsEnregistres && <span className="text-xs text-[var(--accent)] font-medium">Enregistré</span>}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {(fiche.rendementCourt || fiche.categorie) && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {fiche.categorie && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded" style={{ backgroundColor: "#1D2321", color: "#fff" }}>{fiche.sousCategorie || fiche.categorie}</span>}
+          {fiche.rendementCourt && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded bg-[var(--accent-soft)] text-[var(--accent)]">{fiche.rendementCourt}</span>}
+        </div>
+      )}
+
+      {fiche.ingredients.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[1] || "1. Ingrédients"}</h3>
+          <table className="w-full text-sm">
+            <tbody>
+              {fiche.ingredients.map((ing, i) => (
+                <tr key={i} className="border-b border-[var(--line)] last:border-0">
+                  <td className="py-1.5 text-[var(--ink)]">{ing.nom}</td>
+                  <td className="py-1.5 text-[var(--steel)] text-right whitespace-nowrap pl-3">{ing.quantite} {ing.unite}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {fiche.rendementAttendu && (
+            <p className="text-xs text-[var(--steel)] mt-3 pt-3 border-t border-[var(--line)] whitespace-pre-line">{fiche.rendementAttendu}</p>
+          )}
+        </Card>
+      )}
+
+      {fiche.groupesPortions.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Portions</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            {fiche.groupesPortions.map((g, gi) => (
+              <div key={gi}>
+                {g.titre && <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">{g.titre}</p>}
+                <table className="w-full text-sm">
+                  <tbody>
+                    {g.lignes.map((l, i) => (
+                      <tr key={i} className="border-b border-[var(--line)] last:border-0">
+                        <td className="py-1 text-[var(--ink)]">{l.produit}</td>
+                        <td className="py-1 text-[var(--steel)] text-right whitespace-nowrap pl-3">{l.quantite} {l.unite}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {fiche.materiel.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[2] || "2. Matériel nécessaire"}</h3>
+          {ligneBloc(fiche.materiel)}
+        </Card>
+      )}
+
+      {fiche.haccp.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[4] || "4. Points de contrôle — HACCP"}</h3>
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="text-left text-[var(--steel)] text-xs uppercase tracking-wide">
+                  <th className="pb-2 pr-3 font-semibold">Étape</th>
+                  <th className="pb-2 pr-3 font-semibold">Point critique</th>
+                  <th className="pb-2 font-semibold">À contrôler</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fiche.haccp.map((h, i) => (
+                  <tr key={i} className="border-t border-[var(--line)] align-top">
+                    <td className="py-2 pr-3 font-medium text-[var(--ink)] whitespace-nowrap">{h.etape}</td>
+                    <td className="py-2 pr-3 text-[var(--ink)] whitespace-pre-line">{h.pointCritique}</td>
+                    <td className="py-2 text-[var(--steel)] whitespace-pre-line">{h.aControler}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      )}
+
+      {fiche.preparation.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[5] || "5. Préparation — étape par étape"}</h3>
+          <ol className="space-y-3">
+            {fiche.preparation.map((p, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="w-6 h-6 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">{p.numero}</span>
+                <div>
+                  {p.titre && <div className="text-sm font-semibold text-[var(--ink)] mb-0.5">{p.titre}</div>}
+                  <p className="text-sm text-[var(--ink)] whitespace-pre-line leading-snug">{p.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          {fiche.consignesImportantes.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-[var(--line)]">
+              <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Consignes importantes</p>
+              {ligneBloc(fiche.consignesImportantes)}
+            </div>
+          )}
+        </Card>
+      )}
+
+      {fiche.refroidissementStockage.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[6] || "6. Refroidissement — stockage — utilisation"}</h3>
+          {ligneBloc(fiche.refroidissementStockage)}
+        </Card>
+      )}
+
+      {(fiche.rendement.length > 0 || fiche.dureeConservation.length > 0) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
+          {fiche.rendement.length > 0 && (
+            <Card>
+              <h3 className="font-semibold text-[var(--ink)] mb-3">{t[7] || "7. Rendement"}</h3>
+              {ligneBloc(fiche.rendement)}
+            </Card>
+          )}
+          {fiche.dureeConservation.length > 0 && (
+            <Card>
+              <h3 className="font-semibold text-[var(--ink)] mb-3">{t[8] || "8. Durée de conservation"}</h3>
+              {ligneBloc(fiche.dureeConservation)}
+            </Card>
+          )}
+        </div>
+      )}
+
+      {fiche.nonConformite.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[9] || "9. Conduite en cas de non-conformité"}</h3>
+          {ligneBloc(fiche.nonConformite)}
+        </Card>
+      )}
+
+      {fiche.tracabilite.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[10] || "10. Traçabilité obligatoire"}</h3>
+          {ligneBloc(fiche.tracabilite)}
+        </Card>
+      )}
+
+      {fiche.etiquetage.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[11] || "11. Étiquetage — exemple d'étiquette"}</h3>
+          {ligneBloc(fiche.etiquetage)}
+        </Card>
+      )}
+
+      {fiche.allergenes && fiche.allergenes.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes</h3>
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+            {ALLERGENES_14.map((a) => (
+              <span key={a} className={`text-xs font-medium ${fiche.allergenes.includes(a) ? "text-[var(--accent)] font-semibold" : "text-[var(--steel)]"}`}>
+                {fiche.allergenes.includes(a) ? "■" : "□"} {a}
+              </span>
+            ))}
+          </div>
+        </Card>
+      )}
+
+      {fiche.aRetenir.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">À retenir</h3>
+          {ligneBloc(fiche.aRetenir)}
+        </Card>
+      )}
+
+      {estChef && fiche.cout && (fiche.cout.coutRecette || fiche.cout.prixVente) && (
+        <Card className="mb-5 border-[var(--accent)]/30">
+          <h3 className="font-semibold text-[var(--ink)] mb-1 flex items-center gap-2">
+            Coût matière
+            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--ink)] text-white">Chef / Directeur</span>
+          </h3>
+          <p className="text-xs text-[var(--steel)] mb-3">Jamais affiché ni imprimé pour les employés.</p>
+          <ul className="text-sm text-[var(--ink)] space-y-1">
+            {fiche.cout.coutRecette && <li>Coût matière de la recette (calculé depuis le stock) : <strong>{fiche.cout.coutRecette} €</strong></li>}
+            {fiche.cout.coutPortion && <li>Coût matière par portion : <strong>{fiche.cout.coutPortion} €</strong></li>}
+            {fiche.cout.prixVente && <li>Prix de vente TTC d'une portion : <strong>{fiche.cout.prixVente} €</strong></li>}
+            {fiche.cout.coutPortion && fiche.cout.prixVente && (
+              <li>Marge indicative par portion : <strong>{(Number(fiche.cout.prixVente) - Number(fiche.cout.coutPortion)).toFixed(2)} €</strong></li>
+            )}
+          </ul>
+        </Card>
+      )}
+
+      {fiche.autresSections.map((s, i) => (
+        <Card className="mb-5" key={i}>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{s.titre}</h3>
+          {ligneBloc(s.lignes)}
+        </Card>
+      ))}
+
+      {fiche.nonCategorise && fiche.nonCategorise.length > 0 && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Informations complémentaires</h3>
+          {ligneBloc(fiche.nonCategorise.map((c) => c.texte))}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ---------- Liste des fiches techniques, groupée par catégorie, avec recherche ---------- */
+function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef }) {
+  const [selectedId, setSelectedId] = useState(null);
+  const [recherche, setRecherche] = useState("");
+  const [categorieFiltre, setCategorieFiltre] = useState(null);
+
+  // Permet d'ouvrir directement la fiche d'un produit depuis l'extérieur (commande vocale notamment) :
+  // on force la sélection, puis on prévient l'appelant pour qu'il efface la demande (sinon on resterait
+  // bloqué sur cette fiche à chaque retour sur l'écran).
+  useEffect(() => {
+    if (ouvrirIdAuto) {
+      setSelectedId(ouvrirIdAuto);
+      if (onConsommeOuvrirIdAuto) onConsommeOuvrirIdAuto();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [ouvrirIdAuto]);
+
+  const selected = fiches.find((f) => f.id === selectedId);
+
+  // La recherche filtre directement la liste affichée (plutôt que de simplement faire défiler
+  // jusqu'au premier résultat) : plus fiable, et le résultat reste visible même s'il y a beaucoup
+  // de fiches dans la même catégorie.
+  const q = normaliserRechercheFiche(recherche.trim());
+  const fichesFiltrees = q.length >= 2 ? fiches.filter((f) => normaliserRechercheFiche(f.nom).includes(q)) : fiches;
+
+  const groupes = React.useMemo(() => {
+    const acc = {};
+    fichesFiltrees.forEach((f) => { const g = classeGroupeFiche(f); (acc[g] = acc[g] || []).push(f); });
+    Object.values(acc).forEach((liste) => liste.sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr")));
+    return acc;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fichesFiltrees]);
+
+  const categoriesPresentes = ORDRE_CATEGORIES_FICHES.filter((c) => groupes[c]?.length);
+  const categoriesAffichees = categorieFiltre ? [categorieFiltre] : categoriesPresentes;
+
+  if (selected) {
+    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} />;
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Préparation culinaire" subtitle={`${fiches.length} fiches techniques — recettes et préparations de référence`} />
+
+      <Card className="mb-5">
+        <Field label="Recherche rapide — tapez le nom d'un plat">
+          <input className={inputCls} value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Ex. Bolognaise, Margherita, Le Bacon..." />
+        </Field>
+        <div className="flex flex-wrap gap-2 mt-3">
+          <button onClick={() => setCategorieFiltre(null)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${!categorieFiltre ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+            Toutes ({fiches.length})
+          </button>
+          {categoriesPresentes.map((c) => (
+            <button key={c} onClick={() => setCategorieFiltre((v) => (v === c ? null : c))}
+              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${categorieFiltre === c ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+              {c} ({groupes[c].length})
+            </button>
+          ))}
+        </div>
+      </Card>
+
+      {q.length >= 2 && fichesFiltrees.length === 0 && (
+        <Card className="mb-6">
+          <p className="text-sm text-[var(--steel)]">Aucune fiche ne correspond à « {recherche} ».</p>
+        </Card>
+      )}
+
+      {categoriesAffichees.map((cat) => (
+        <div key={cat} className="mb-6">
+          <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">{cat}</h3>
+          <div className="space-y-2">
+            {groupes[cat].map((f) => (
+              <button key={f.id} id={`fiche-${f.id}`} onClick={() => setSelectedId(f.id)} className="w-full text-left">
+                <Card className="hover:border-[var(--accent)]/50 transition-colors py-3.5">
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="font-semibold text-[var(--ink)] text-base leading-tight truncate">{f.nom}</div>
+                      <div className="text-xs text-[var(--steel)] mt-1">
+                        {f.code}{f.rendementCourt ? ` · ${f.rendementCourt}` : ""}
+                      </div>
+                    </div>
+                    <ChevronRight size={18} className="text-[var(--steel)] shrink-0" />
+                  </div>
+                </Card>
+              </button>
+            ))}
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ================================================================================
+   CRÉATION D'UNE FICHE TECHNIQUE — questionnaire complet (7 étapes), photo IA,
+   fiche A4 en direct, liens automatiques stock / HACCP / étiquette / traçabilité.
+   Vit dans Contrôle & Gestion → Gestion (réservé Chef / Directeur) — voir
+   SOUS_TUILES_CONTROLE_TOUTES (id "creationFiche") plus haut.
+   ================================================================================ */
+
+const CATEGORIES_FICHE_TECHNIQUE = [
+  ["Partagé", "PARTAGE"], ["Salade", "SALADE"], ["Plat", "PLAT"], ["Base", "BASE"],
+  ["Sauce", "SAUCE"], ["Burger", "BURGER"], ["Pizza", "PIZZA"], ["Dessert", "DESSERT"],
+];
+const POSTES_FICHE = ["Pizza", "Chaud", "Froid", "Pâtisserie", "Garde-manger"];
+const UNITES_FICHE = ["g", "kg", "ml", "cl", "L", "pièce(s)", "tranche(s)", "feuille(s)", "branche(s)", "botte(s)", "pincée", "QS"];
+const BASE_APPAREILS_FICHE = ["Four mixte (Rational)", "Four ventilé", "Four à pizza", "Sauteuse multifonction (iVario)", "Plaque / plancha", "Piano / feux vifs", "Plaque à induction", "Grill / charbon", "Salamandre", "Friteuse", "Cuiseur vapeur", "Bain-marie", "Micro-ondes", "Toaster", "Gaufrier", "Crêpière", "Wok", "Rôtissoire"];
+const BASE_MATERIEL_FICHE = ["Cellule de refroidissement", "Chambre froide positive", "Saladette", "Balance électronique", "Thermomètre sonde", "Robot-coupe / cutter", "Mixeur plongeant", "Batteur / robot pâtissier", "Trancheuse", "Bac gastro GN 1/1", "Bac gastro GN 1/2", "Bac gastro GN 1/3", "Bac gastro GN 1/6", "Étiqueteuse DLC", "Film alimentaire"];
+const BASE_USTENSILES_FICHE = ["Casserole", "Sauteuse", "Poêle", "Marmite", "Sautoir", "Fouet", "Spatule", "Maryse", "Louche", "Écumoire", "Chinois", "Passoire", "Couteau chef", "Couteau d'office", "Économe", "Planche à découper", "Cul-de-poule", "Mandoline", "Pelle à pizza", "Cuillère à sauce", "Pince", "Râpe", "Poche à douille", "Rouleau à pâtisserie", "Pinceau", "Verre doseur"];
+const ALLERGENES_14 = ["Gluten", "Crustacés", "Œufs", "Poissons", "Arachides", "Soja", "Lait", "Fruits à coque", "Céleri", "Moutarde", "Sésame", "Sulfites", "Lupin", "Mollusques"];
+const ALLERGENES_MOTS_CLES = [
+  ["Gluten", ["farine", "pain", "pâte", "pate", "semoule", "blé", "ble", "chapelure", "brioche", "biscuit", "lasagne", "spaghetti", "tagliatelle", "bière", "biere", "panés", "pané", "panure", "bun"]],
+  ["Crustacés", ["crevette", "gambas", "homard", "langoustine", "crabe", "écrevisse"]],
+  ["Œufs", ["oeuf", "œuf", "mayonnaise"]],
+  ["Poissons", ["poisson", "saumon", "thon", "cabillaud", "anchois", "colin", "dorade", "fish"]],
+  ["Arachides", ["arachide", "cacahu"]],
+  ["Soja", ["soja", "tofu"]],
+  ["Lait", ["lait", "crème", "creme", "beurre", "fromage", "mozzarella", "parmesan", "cheddar", "burrata", "mascarpone", "ricotta", "yaourt", "emmental", "chèvre", "chevre", "gorgonzola", "comté", "comte"]],
+  ["Fruits à coque", ["noix", "noisette", "amande", "pistache", "cajou", "pécan", "pecan"]],
+  ["Céleri", ["céleri", "celeri"]],
+  ["Moutarde", ["moutarde"]],
+  ["Sésame", ["sésame", "sesame", "tahin"]],
+  ["Sulfites", ["vin ", "vinaigre", "porto", "cognac"]],
+  ["Lupin", ["lupin"]],
+  ["Mollusques", ["moule", "calamar", "seiche", "poulpe", "huître", "huitre", "saint-jacques", "escargot"]],
+];
+
+function ficheVideInit() {
+  return {
+    nom: "", sousTitre: "", categorie: "", catAutre: "", poste: "", type: "recette", badge: "",
+    ingredients: [{ nom: "", qte: "", unite: "g", lienType: null, lienId: null }],
+    allergenes: [], allgConfirm: false,
+    procedes: {
+      froid: { on: false },
+      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", famille: "general" },
+      refroid: { on: false, mode: "cellule" },
+      maintien: { on: false, appareil: "Bain-marie", temp: 63, duree: "" },
+      remise: { on: false, appareil: "", cible: 63 },
+      congel: { on: false, type: "maison" },
+      decongel: { on: false, mode: "froid" },
+    },
+    appareils: [], materiel: [], ustensiles: [],
+    etapes: [{ titre: "", texte: "", crit: "" }],
+    consignes: "",
+    conservation: { type: "DLC", jours: 3, etude: false, temp: "0 / +3 °C", contenant: "" },
+    rendement: { total: "", unite: "kg", portions: "", grammage: "" },
+    prixVente: "",
+    dressage: { assiette: "", envoi: "", notes: "" },
+  };
+}
+
+function normaliserCode(s) {
+  return (s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toUpperCase().replace(/[^A-Z]/g, "");
+}
+function codeCategorieFiche(categorie, catAutre, customCats) {
+  if (categorie === "__autre") return normaliserCode(catAutre).slice(0, 8) || "AUTRE";
+  const trouve = CATEGORIES_FICHE_TECHNIQUE.find((c) => c[0] === categorie) || (customCats || []).find((c) => c[0] === categorie);
+  return trouve ? trouve[1] : "";
+}
+// Position alphabétique (française) dans la catégorie — recalculée à chaque rendu, donc toujours
+// à jour si d'autres fiches de la même catégorie ont été ajoutées/renommées/supprimées entre temps.
+function calculerCodeFT(categorieLabel, codeCat, nomFiche, toutesFiches) {
+  if (!codeCat) return "";
+  const nomCible = (nomFiche || "").trim() || "￿";
+  const memeCategorie = (toutesFiches || []).filter((f) => f.categorie === categorieLabel).map((f) => f.nom || "");
+  const noms = [...memeCategorie, nomCible].sort((a, b) => a.localeCompare(b, "fr"));
+  const idx = noms.indexOf(nomCible);
+  const position = idx === -1 ? noms.length : idx + 1;
+  return `FT ${codeCat} ${String(position).padStart(2, "0")}`;
+}
+function ingredientsRenseignes(S) { return S.ingredients.filter((i) => i.nom.trim()); }
+function suggererAllergenes(ingredients) {
+  const texte = " " + ingredients.filter((i) => i.nom.trim()).map((i) => i.nom.toLowerCase()).join(" | ") + " ";
+  return ALLERGENES_MOTS_CLES.filter(([, mots]) => mots.some((m) => texte.includes(m))).map(([a]) => a);
+}
+function lignesDepuisTexte(txt) {
+  return (txt || "").split("\n").map((l) => l.trim()).filter(Boolean);
+}
+function matchIngredientLien(nom, stock, fiches) {
+  const n = (nom || "").trim().toLowerCase();
+  if (!n) return { lienType: null, lienId: null };
+  const s = (stock || []).find((it) => (it.nom || "").trim().toLowerCase() === n);
+  if (s) return { lienType: "stock", lienId: s.id };
+  const f = (fiches || []).find((it) => (it.nom || "").trim().toLowerCase() === n);
+  if (f) return { lienType: "fiche", lienId: f.id };
+  return { lienType: null, lienId: null };
+}
+function dlcMaxFiche(S) { return S.conservation.etude ? 30 : 3; }
+
+function haccpRowsFiche(S) {
+  const p = S.procedes, rows = [];
+  const ingOk = ingredientsRenseignes(S);
+  if (ingOk.length) rows.push({ etape: "Réception", pointCritique: "Matières premières", aControler: "T° conforme (≤ +4 °C frais, ≤ +2 °C viande hachée), emballage intact, DLC" });
+  if (p.froid.on) rows.push({ etape: "Préparation froide", pointCritique: "Chaîne du froid", aControler: "≤ +3 °C, préparée au plus près du service" });
+  if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 à +4 °C · DLC J+3 après sortie" : "Cuisson directe depuis le congelé" });
+  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${cuissonSeuilMin(p.cuisson.famille)} °C${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}` });
+  if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: "+63 °C → +10 °C à cœur en moins de 2 h" + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
+  if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C en moins de 4 h 30, étiquette « congelé le … »" });
+  if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
+  rows.push({ etape: "Conservation", pointCritique: S.conservation.type, aControler: `J+${S.conservation.jours || "?"}` });
+  if (p.maintien.on) rows.push({ etape: "Maintien au chaud", pointCritique: "CCP – T°", aControler: `≥ +${Math.max(63, Number(p.maintien.temp) || 63)} °C à cœur${p.maintien.duree ? " · " + p.maintien.duree : ""}` });
+  if (p.remise.on) rows.push({ etape: "Remise en T°", pointCritique: "CCP – T° / temps", aControler: `+10 °C → ≥ +${p.remise.cible} °C en moins d'1 h` });
+  return rows;
+}
+function nonConformitesFiche(S) {
+  const p = S.procedes, a = [];
+  if (p.cuisson.on) a.push("T° à cœur non atteinte : poursuivre la cuisson, ne pas envoyer.");
+  if (p.refroid.on) a.push("+10 °C non atteint en 2 h : ne pas stocker, jeter et enregistrer.");
+  if (p.maintien.on) a.push("Maintien < +63 °C : remettre à température immédiatement ou jeter selon le PMS.");
+  if (p.remise.on) a.push("+63 °C non atteint en 1 h : jeter, ne jamais refroidir à nouveau.");
+  if (p.decongel.on) a.push("Produit décongelé : jamais recongelé.");
+  a.push("Odeur, aspect anormal ou DLC dépassée : ne pas utiliser, jeter.");
+  a.push("Enregistrer et isoler le produit concerné, prévenir le chef.");
+  return a;
+}
+function tracabiliteFiche(S) {
+  const p = S.procedes;
+  const a = ["Date et heure de fabrication", "Opérateur (compte employé)", "Quantité produite", "N° de lot des matières premières"];
+  if (p.cuisson.on) a.push("T° à cœur en fin de cuisson + heure");
+  if (p.refroid.on) a.push("Refroidissement : heure et T° d'entrée, heure et T° de sortie" + (p.refroid.mode === "sans" ? ", relevé à 2 h" : ""));
+  if (p.maintien.on) a.push("Maintien : heure de début, relevés T°, heure de fin");
+  if (p.remise.on) a.push("Remise en T° : heure de début, T° atteinte, durée");
+  if (p.congel.on) a.push("Date de congélation");
+  if (p.decongel.on) a.push("Date et heure de sortie du congélateur");
+  a.push("Édition de l'étiquette DLC");
+  return a;
+}
+function etiquetageFiche(S) {
+  const p = S.procedes, a = [];
+  a.push("Nom du produit, date et heure de fabrication, poids net, numéro de lot, opérateur");
+  a.push(`Conditions de conservation : ${S.conservation.temp}`);
+  if (S.allergenes.length) a.push(`Allergènes : ${S.allergenes.join(", ")}`);
+  if (p.refroid.on) a.push(p.refroid.mode === "cellule" ? "Mention « Refroidi en cellule »" : "Mention « Refroidi en chambre froide »");
+  if (p.congel.on) a.push("Mention « Congelé le … »");
+  if (p.decongel.on) a.push("Mention « Décongelé le … », DLC J+3 après sortie");
+  a.push("DLC/DDM calculée automatiquement, « à 23:59 » — pas de QR code");
+  return a;
+}
+function problemesFiche(S) {
+  const out = [];
+  const p = S.procedes;
+  const ingOk = ingredientsRenseignes(S);
+  if (!S.nom.trim()) out.push(["r", "Nom de la recette manquant (étape 1 · Identité)."]);
+  if (!S.categorie) out.push(["r", "Catégorie manquante (étape 1 · Identité)."]);
+  if (!S.poste) out.push(["r", "Poste manquant (étape 1 · Identité)."]);
+  if (!ingOk.length) out.push(["r", "Aucun ingrédient (étape 2 · Ingrédients)."]);
+  if (ingOk.some((i) => !i.qte && i.unite !== "QS")) out.push(["o", "Un ingrédient n'a pas de quantité (étape 2 · Ingrédients)."]);
+  if (!S.allgConfirm) out.push(["r", "Allergènes non confirmés par le chef (étape 2 · Ingrédients)."]);
+  if (!Object.values(p).some((x) => x.on)) out.push(["r", "Aucun procédé choisi : cuisson, préparation froide… (étape 3 · Cuisson & températures)."]);
+  if (p.cuisson.on && !p.cuisson.coeur) out.push(["o", "T° à cœur de cuisson non précisée (étape 3 · Cuisson & températures)."]);
+  if (p.maintien.on && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson & températures)."]);
+  if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["r", `DLC J+${S.conservation.jours} supérieure au maximum J+${dlcMaxFiche(S)} sans étude de vieillissement validée (étape 6 · Conservation & rendement).`]);
+  if (!S.etapes.some((e) => e.titre.trim() || e.texte.trim())) out.push(["o", "Aucune étape de préparation (étape 5 · Préparation)."]);
+  if (p.cuisson.on && !S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Aucune étape marquée « T° de cuisson à relever » (étape 5 · Préparation)."]);
+  if (p.refroid.on && !S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Aucune étape marquée « début de refroidissement » (étape 5 · Préparation)."]);
+  return out;
+}
+
+function parserPrixUnitaire(txt) {
+  if (!txt) return null;
+  const m = String(txt).match(/([\d.,]+)\s*€\s*\/\s*([a-zA-Zéèê%]+)/);
+  if (!m) return null;
+  const val = parseFloat(m[1].replace(",", "."));
+  if (Number.isNaN(val)) return null;
+  return { val, unite: m[2].toLowerCase() };
+}
+function uniteNormaliseeFiche(u) {
+  const x = (u || "").toLowerCase();
+  if (x.startsWith("pièce") || x === "pc") return "pc";
+  return x;
+}
+function convertirQuantiteFiche(qte, uniteSource, uniteCible) {
+  const q = parseFloat(String(qte).replace(",", "."));
+  if (Number.isNaN(q)) return null;
+  const us = uniteNormaliseeFiche(uniteSource), uc = uniteNormaliseeFiche(uniteCible);
+  if (us === uc) return q;
+  const table = { g: 1, kg: 1000, ml: 1, l: 1000, cl: 10 };
+  const masse = ["g", "kg"], volume = ["ml", "l", "cl"];
+  if (table[us] !== undefined && table[uc] !== undefined) {
+    const memeFamille = (masse.includes(us) && masse.includes(uc)) || (volume.includes(us) && volume.includes(uc));
+    if (!memeFamille) return null;
+    return (q * table[us]) / table[uc];
+  }
+  return null;
+}
+function calculerCoutRecette(ingredients, stock) {
+  let total = 0, compte = 0, partiel = false;
+  ingredients.forEach((ing) => {
+    if (ing.lienType !== "stock" || !ing.lienId) { partiel = true; return; }
+    const art = (stock || []).find((s) => s.id === ing.lienId);
+    if (!art) { partiel = true; return; }
+    const prix = parserPrixUnitaire(art.prixUnitaire);
+    if (!prix) { partiel = true; return; }
+    const qteConvertie = convertirQuantiteFiche(ing.quantite ?? ing.qte, ing.unite, prix.unite);
+    if (qteConvertie === null) { partiel = true; return; }
+    total += qteConvertie * prix.val;
+    compte += 1;
+  });
+  return { coutRecette: compte > 0 ? total.toFixed(2) : "", partiel: partiel || compte === 0 };
+}
+
+function fileVersDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+}
+function correspondanceOption(v, list) {
+  const l = String(v || "").toLowerCase().trim();
+  if (!l) return "";
+  const exact = (list || []).find((o) => o.toLowerCase() === l);
+  if (exact) return exact;
+  return (list || []).find((o) => l.includes(o.toLowerCase()) || o.toLowerCase().includes(l)) || "";
+}
+
+/* ---------- petits composants d'UI réutilisés par le questionnaire ---------- */
+function ChipsCategorie({ options, customOptions, value, onChange, onAjouterAutre }) {
+  const [autre, setAutre] = useState("");
+  const toutes = [...options.map((o) => o[0]), ...customOptions.map((o) => o[0])];
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {toutes.map((o) => (
+          <button key={o} type="button" onClick={() => onChange(o)}
+            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${value === o ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+            {o}
+          </button>
+        ))}
+        <button type="button" onClick={() => onChange("__autre")}
+          className={`text-xs font-semibold px-3 py-1.5 rounded-full border border-dashed transition-colors ${value === "__autre" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+          Autre…
+        </button>
+      </div>
+      {value === "__autre" && (
+        <div className="flex gap-2 max-w-sm">
+          <input className={`${inputCls} flex-1`} placeholder="Nouvelle catégorie" value={autre} onChange={(e) => setAutre(e.target.value)}
+            onBlur={() => { if (autre.trim()) onAjouterAutre(autre.trim()); }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selected, onToggle }) {
+  const [autre, setAutre] = useState("");
+  const toutes = [...baseOptions, ...customOptions.filter((o) => !baseOptions.includes(o))];
+  selected.forEach((s) => { if (!toutes.includes(s)) toutes.push(s); });
+  const ajouterAutre = () => {
+    const v = autre.trim();
+    if (!v) return;
+    if (!baseOptions.includes(v) && !customOptions.includes(v)) setCustomOptions([...customOptions, v]);
+    if (!selected.includes(v)) onToggle(v);
+    setAutre("");
+  };
+  return (
+    <div>
+      <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{label}</div>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {toutes.map((o) => {
+          const estCustom = !baseOptions.includes(o);
+          const actif = selected.includes(o);
+          return (
+            <button key={o} type="button" onClick={() => onToggle(o)}
+              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : estCustom ? "border-dashed border-[var(--line)] text-[var(--steel)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+              {o}
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex gap-2 max-w-sm">
+        <input className={`${inputCls} flex-1`} placeholder={`Autre (ajouté à vos choix)…`} value={autre} onChange={(e) => setAutre(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ajouterAutre(); } }} />
+        <Button variant="ghost" onClick={ajouterAutre}><Plus size={14} /> Ajouter</Button>
+      </div>
+    </div>
+  );
+}
+
+function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef }) {
+  const [S, setS] = useState(ficheVideInit);
+  const [step, setStep] = useState(0);
+  const [confirmation, setConfirmation] = useState(null);
+  const [photoApercu, setPhotoApercu] = useState(null);
+  const [iaEnCours, setIaEnCours] = useState(false);
+  const [iaMessage, setIaMessage] = useState(null);
+
+  const [etablissementNom] = useStored("tiac-etablissement-nom", "Games Factory Salaise");
+  const [congelPms, setCongelPms] = useStored("ft-reglage-congel-pms", false);
+  const [celluleDispo, setCelluleDispo] = useStored("ft-reglage-cellule", true);
+  const [customCategories, setCustomCategories] = useStored("ft-categories-perso", []);
+  const [customAppareils, setCustomAppareils] = useStored("ft-appareils-perso", []);
+  const [customMateriel, setCustomMateriel] = useStored("ft-materiel-perso", []);
+  const [customUstensiles, setCustomUstensiles] = useStored("ft-ustensiles-perso", []);
+
+  const toutesLesFiches = fiches || [];
+  const nomsStockEtFiches = [...(stock || []).map((s) => s.nom), ...toutesLesFiches.map((f) => f.nom)];
+
+  // Si la congélation ou la cellule sont désactivées dans les réglages pendant que le procédé est
+  // coché, on le décoche automatiquement — jamais de procédé verrouillé qui reste actif.
+  useEffect(() => {
+    if (!congelPms && S.procedes.congel.on) majProcede("congel", { on: false });
+    if (!celluleDispo && S.procedes.refroid.mode === "cellule") majProcede("refroid", { mode: "sans" });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [congelPms, celluleDispo]);
+
+  const champ = (key, val) => setS((prev) => ({ ...prev, [key]: val }));
+  const majProcede = (key, patch) => setS((prev) => ({ ...prev, procedes: { ...prev.procedes, [key]: { ...prev.procedes[key], ...patch } } }));
+  const majConservation = (patch) => setS((prev) => ({ ...prev, conservation: { ...prev.conservation, ...patch } }));
+  const majRendement = (patch) => setS((prev) => ({ ...prev, rendement: { ...prev.rendement, ...patch } }));
+  const majDressage = (patch) => setS((prev) => ({ ...prev, dressage: { ...prev.dressage, ...patch } }));
+
+  const majIngredient = (i, patch) => setS((prev) => ({ ...prev, ingredients: prev.ingredients.map((ing, idx) => (idx === i ? { ...ing, ...patch } : ing)) }));
+  const ajouterIngredient = () => setS((prev) => ({ ...prev, ingredients: [...prev.ingredients, { nom: "", qte: "", unite: "g", lienType: null, lienId: null }] }));
+  const retirerIngredient = (i) => setS((prev) => ({ ...prev, ingredients: prev.ingredients.length > 1 ? prev.ingredients.filter((_, idx) => idx !== i) : prev.ingredients }));
+  const nomIngredientChange = (i, val) => {
+    const lien = matchIngredientLien(val, stock, toutesLesFiches);
+    majIngredient(i, { nom: val, lienType: lien.lienType, lienId: lien.lienId });
+    setS((prev) => ({ ...prev, allgConfirm: false }));
+  };
+
+  const toggleAllergene = (a) => setS((prev) => ({ ...prev, allergenes: prev.allergenes.includes(a) ? prev.allergenes.filter((x) => x !== a) : [...prev.allergenes, a], allgConfirm: false }));
+
+  const majEtape = (i, patch) => setS((prev) => ({ ...prev, etapes: prev.etapes.map((e, idx) => (idx === i ? { ...e, ...patch } : e)) }));
+  const ajouterEtape = () => setS((prev) => ({ ...prev, etapes: [...prev.etapes, { titre: "", texte: "", crit: "" }] }));
+  const retirerEtape = (i) => setS((prev) => ({ ...prev, etapes: prev.etapes.length > 1 ? prev.etapes.filter((_, idx) => idx !== i) : prev.etapes }));
+  const monterEtape = (i) => setS((prev) => { if (i === 0) return prev; const arr = [...prev.etapes]; const t = arr[i - 1]; arr[i - 1] = arr[i]; arr[i] = t; return { ...prev, etapes: arr }; });
+
+  const toggleListe = (cle, valeur) => setS((prev) => ({ ...prev, [cle]: prev[cle].includes(valeur) ? prev[cle].filter((x) => x !== valeur) : [...prev[cle], valeur] }));
+
+  const categorieLabelActuelle = S.categorie === "__autre" ? (S.catAutre.trim() || "Autre") : S.categorie;
+  const codeCatActuel = codeCategorieFiche(S.categorie, S.catAutre, customCategories);
+  const codeFTActuel = calculerCodeFT(categorieLabelActuelle, codeCatActuel, S.nom, toutesLesFiches);
+
+  const STEPS_FICHE = [
+    "Identité", "Ingrédients & allergènes", "Cuisson & températures", "Matériel & ustensiles",
+    "Préparation", "Conservation & rendement", "Coût & dressage",
+  ];
+  const etapeComplete = (i) => {
+    switch (i) {
+      case 0: return !!(S.nom.trim() && S.categorie && S.poste);
+      case 1: return ingredientsRenseignes(S).length > 0 && S.allgConfirm;
+      case 2: return Object.values(S.procedes).some((p) => p.on);
+      case 3: return S.appareils.length + S.materiel.length + S.ustensiles.length > 0;
+      case 4: return S.etapes.some((e) => e.titre.trim() || e.texte.trim());
+      case 5: return !!(S.rendement.total || S.rendement.portions);
+      case 6: return !!(S.dressage.assiette || S.prixVente);
+      default: return false;
+    }
+  };
+
+  const problemes = problemesFiche(S);
+  const bloquant = problemes.some((p) => p[0] === "r");
+  const ingOk = ingredientsRenseignes(S);
+  const suggestions = suggererAllergenes(S.ingredients);
+  const coutApercu = calculerCoutRecette(ingOk.map((i) => ({ ...i, quantite: i.qte })), stock);
+  const coutPortionApercu = coutApercu.coutRecette && Number(S.rendement.portions) > 0
+    ? (Number(coutApercu.coutRecette) / Number(S.rendement.portions)).toFixed(2) : "";
+
+  /* ---------- photo IA ---------- */
+  const PROMPT_PHOTO_FICHE = `Tu lis la photo d'une recette de cuisine professionnelle (restaurant, France). Extrais-la pour remplir une fiche technique. Réponds UNIQUEMENT avec un objet JSON strict, sans texte autour ni balises markdown, de cette forme exacte :
+{"nom":"string","sous_titre":"string","categorie":"une des valeurs: ${CATEGORIES_FICHE_TECHNIQUE.map((c) => c[0]).join(" | ")}","poste":"une des valeurs: ${POSTES_FICHE.join(" | ")}","ingredients":[{"nom":"string","quantite":"string (nombre, vide si illisible)","unite":"une des valeurs: ${UNITES_FICHE.join(" | ")}"}],"etapes":[{"titre":"TITRE COURT EN MAJUSCULES","texte":"description précise","point_critique":"cuisson|refroid|maintien|remise|"}],"cuisson":{"appareil":"string ou vide","reglage":"string","duree":"string","temp_coeur":"string","famille":"general|viandeHachee|volaille|poisson"} ou null,"preparation_froide":false,"refroidissement":false,"maintien_chaud":false,"remise_en_temperature":false,"ustensiles":["string"],"materiel":["string"],"rendement":{"total":"string","unite":"kg|g|L|ml|pièce(s)","portions":"string","grammage":"string"},"allergenes":["parmi: ${ALLERGENES_14.join(", ")}"],"consignes":["string"]}
+N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'est pas une recette, réponds {"erreur":"pas une recette"}.`;
+
+  const appliquerResultatIA = (d) => {
+    const n = ficheVideInit();
+    n.nom = d.nom || ""; n.sousTitre = d.sous_titre || "";
+    const cat = CATEGORIES_FICHE_TECHNIQUE.find((c) => c[0] === d.categorie);
+    n.categorie = cat ? cat[0] : "";
+    n.poste = POSTES_FICHE.includes(d.poste) ? d.poste : "";
+    n.ingredients = (d.ingredients || []).map((i) => {
+      const unite = UNITES_FICHE.includes(i.unite) ? i.unite : "g";
+      const lien = matchIngredientLien(i.nom, stock, toutesLesFiches);
+      return { nom: String(i.nom || ""), qte: String(i.quantite || ""), unite, lienType: lien.lienType, lienId: lien.lienId };
+    });
+    if (!n.ingredients.length) n.ingredients = ficheVideInit().ingredients;
+    n.etapes = (d.etapes || []).map((e) => ({ titre: String(e.titre || ""), texte: String(e.texte || ""), crit: ["cuisson", "refroid", "maintien", "remise"].includes(e.point_critique) ? e.point_critique : "" }));
+    if (!n.etapes.length) n.etapes = ficheVideInit().etapes;
+    if (d.cuisson && (d.cuisson.appareil || d.cuisson.duree || d.cuisson.reglage)) {
+      n.procedes.cuisson.on = true;
+      const app = correspondanceOption(d.cuisson.appareil, BASE_APPAREILS_FICHE);
+      n.procedes.cuisson.appareil = app || ""; n.procedes.cuisson.reglage = d.cuisson.reglage || "";
+      n.procedes.cuisson.duree = d.cuisson.duree || ""; n.procedes.cuisson.coeur = d.cuisson.temp_coeur || "";
+      n.procedes.cuisson.famille = CUISSON_FAMILLES.some((f) => f.id === d.cuisson.famille) ? d.cuisson.famille : "general";
+      if (app) n.appareils.push(app);
+    }
+    n.procedes.froid.on = !!d.preparation_froide;
+    n.procedes.refroid.on = !!d.refroidissement;
+    n.procedes.maintien.on = !!d.maintien_chaud;
+    n.procedes.remise.on = !!d.remise_en_temperature;
+    (d.ustensiles || []).forEach((u) => { const m = correspondanceOption(u, BASE_USTENSILES_FICHE); n.ustensiles.push(m || String(u)); });
+    (d.materiel || []).forEach((u) => { const m = correspondanceOption(u, BASE_MATERIEL_FICHE); n.materiel.push(m || String(u)); });
+    n.ustensiles = [...new Set(n.ustensiles)]; n.materiel = [...new Set(n.materiel)];
+    if (d.rendement) {
+      n.rendement.total = d.rendement.total || "";
+      n.rendement.unite = ["kg", "g", "L", "ml", "pièce(s)"].includes(d.rendement.unite) ? d.rendement.unite : "kg";
+      n.rendement.portions = d.rendement.portions || ""; n.rendement.grammage = d.rendement.grammage || "";
+    }
+    n.allergenes = (d.allergenes || []).filter((a) => ALLERGENES_14.includes(a));
+    n.consignes = (d.consignes || []).join("\n");
+    setS(n);
+    setStep(0);
+  };
+
+  const gererPhoto = async (file) => {
+    if (!file) return;
+    try {
+      const dataUrl = await fileVersDataUrl(file);
+      setPhotoApercu(dataUrl);
+      setIaEnCours(true);
+      setIaMessage(null);
+      const resultat = await analyserImage(dataUrl, PROMPT_PHOTO_FICHE);
+      setIaEnCours(false);
+      if (!resultat) { setIaMessage({ type: "err", texte: "L'analyse par IA n'a pas pu aboutir (vérifiez la configuration). Remplissez le questionnaire ci-dessous." }); return; }
+      if (resultat.erreur) { setIaMessage({ type: "err", texte: "L'image ne semble pas être une recette. Essayez une photo plus nette, bien cadrée." }); return; }
+      appliquerResultatIA(resultat);
+      setIaMessage({ type: "warn", texte: "À relire — l'IA a pré-rempli le questionnaire. Vérifiez chaque grammage, les allergènes et les températures avant d'enregistrer." });
+    } catch (e) {
+      setIaEnCours(false);
+      setIaMessage({ type: "err", texte: "L'analyse a échoué. Réessayez ou remplissez le questionnaire ci-dessous." });
+    }
+  };
+
+  /* ---------- enregistrement ---------- */
+  const enregistrer = () => {
+    if (bloquant) return;
+    const ingFinal = ingOk.map((i) => ({ nom: i.nom.trim(), quantite: i.qte.trim(), unite: i.unite, lienType: i.lienType || null, lienId: i.lienId || null }));
+    const code = codeFTActuel;
+    const materiel = [...S.appareils, ...S.materiel, ...S.ustensiles];
+    const preparation = S.etapes.filter((e) => e.titre.trim() || e.texte.trim()).map((e, idx) => ({ numero: idx + 1, titre: e.titre.trim(), description: e.texte.trim(), pointCritique: e.crit || "" }));
+    const haccp = haccpRowsFiche(S);
+    const nonConformite = nonConformitesFiche(S);
+    const tracabilite = tracabiliteFiche(S);
+    const etiquetage = etiquetageFiche(S);
+    const refroidissementStockage = [];
+    if (S.procedes.refroid.on) refroidissementStockage.push(S.procedes.refroid.mode === "cellule" ? `Refroidissement en cellule, bacs ouverts, sonde à cœur, puis stockage ${S.conservation.temp}.` : `Refroidissement sans cellule : bacs 5 cm max en chambre froide, relevé obligatoire à 2 h, puis stockage ${S.conservation.temp}.`);
+    const consignesImportantes = lignesDepuisTexte(S.consignes);
+    const dureeConservation = [`${S.conservation.type} : J+${S.conservation.jours} (jour de fabrication compris)`, `Température : ${S.conservation.temp}${S.conservation.contenant ? ", " + S.conservation.contenant : ""}`];
+    if (S.procedes.decongel.on) dureeConservation.push("Après décongélation : DLC J+3 à partir de la sortie du congélateur");
+    const rendement = [];
+    if (S.rendement.total) rendement.push(`Total : ${S.rendement.total} ${S.rendement.unite}`);
+    if (S.rendement.portions) rendement.push(`${S.rendement.portions} portions${S.rendement.grammage ? " de " + S.rendement.grammage : ""}`);
+    const dressage = [];
+    if (S.dressage.assiette) dressage.push(`Contenant : ${S.dressage.assiette}`);
+    if (S.dressage.envoi) dressage.push(`Délai d'envoi : ${S.dressage.envoi}`);
+    if (S.dressage.notes) dressage.push(S.dressage.notes);
+    const coutFinal = calculerCoutRecette(ingFinal, stock);
+    const coutPortionFinal = coutFinal.coutRecette && Number(S.rendement.portions) > 0 ? (Number(coutFinal.coutRecette) / Number(S.rendement.portions)).toFixed(2) : "";
+
+    const nouvelleFiche = {
+      id: uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(),
+      categorie: categorieLabelActuelle, sousCategorie: null,
+      rendementCourt: S.badge.trim() || (S.rendement.portions ? `${S.rendement.portions} PORTIONS` : ""),
+      rendementAttendu: S.rendement.total ? `RENDEMENT ATTENDU : ${S.rendement.total} ${S.rendement.unite}${S.rendement.portions ? ` – ${S.rendement.portions} portions` : ""}${S.rendement.grammage ? ` de ${S.rendement.grammage}` : ""}` : "",
+      ingredients: ingFinal, materiel, haccp, preparation, consignesImportantes,
+      refroidissementStockage, rendement, dureeConservation, nonConformite, tracabilite, etiquetage,
+      aRetenir: [], autresSections: [], groupesPortions: [], titresSections: {}, nonCategorise: [],
+      allergenes: [...S.allergenes],
+      procedes: JSON.parse(JSON.stringify(S.procedes)),
+      familleCuisson: S.procedes.cuisson.famille,
+      cuissonDureeMin: Number(S.procedes.cuisson.dureeMin) || null,
+      poste: S.poste, type: S.type,
+      dlcJours: Number(S.conservation.jours) || 0,
+      version: 1, creeLe: todayISO(), creeParId: currentUserId,
+      dressage,
+      cout: { coutRecette: coutFinal.coutRecette || "", coutPortion: coutPortionFinal || "", prixVente: S.prixVente || "" },
+    };
+    setFichesCustom([...(fichesCustom || []), nouvelleFiche]);
+    if (congelPms !== undefined) { /* réglage déjà persistant via useStored */ }
+    logActivity("Fiches techniques", "Fiche technique créée", `${nouvelleFiche.nom} — ${code}`);
+    setConfirmation({ nom: nouvelleFiche.nom, code });
+    setS(ficheVideInit());
+    setStep(0);
+    setPhotoApercu(null);
+    setIaMessage(null);
+  };
+
+  return (
+    <div>
+      <SectionHeader title="Création de fiche technique" subtitle="Questionnaire en 7 étapes — la fiche se construit en direct ci-dessous, puis crée automatiquement ses liens stock, HACCP, étiquette et traçabilité" />
+
+      {confirmation && (
+        <Card className="mb-6 bg-[var(--accent-soft)] border-[var(--accent)]/30">
+          <p className="text-sm text-[var(--ink)]">Fiche « {confirmation.nom} » enregistrée sous le code <strong>{confirmation.code}</strong> — elle apparaît désormais dans Fiches techniques → Préparation culinaire, avec ses liens stock / HACCP / étiquette / traçabilité déjà créés.</p>
+        </Card>
+      )}
+
+      {/* 1. Bandeau photo IA */}
+      <Card className="mb-5 border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)]">
+        <div className="flex items-start gap-3 flex-wrap">
+          <div className="w-11 h-11 rounded-xl bg-[var(--accent)] flex items-center justify-center shrink-0">
+            <Sparkles size={22} color="#fff" />
+          </div>
+          <div className="flex-1 min-w-[220px]">
+            <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)]">Création assistée par IA</div>
+            <h3 className="font-semibold text-[var(--ink)] mt-0.5">Créer la fiche à partir d'une photo</h3>
+            <p className="text-sm text-[var(--steel)] mt-1">Prenez en photo une recette (fiche papier, carnet, écran) ou importez une image. L'IA remplit le questionnaire ci-dessous ; relisez et corrigez avant d'enregistrer — les allergènes ne sont jamais confirmés automatiquement.</p>
+          </div>
+          <label className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium cursor-pointer" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
+            <Camera size={16} /> Prendre / importer une photo
+            <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) gererPhoto(f); e.target.value = ""; }} />
+          </label>
+        </div>
+        {(photoApercu || iaEnCours || iaMessage) && (
+          <div className="flex items-start gap-3 mt-3 pt-3 border-t border-[var(--accent)]/20">
+            {photoApercu && <img src={photoApercu} alt="Photo importée" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />}
+            {iaEnCours && <p className="text-sm text-[var(--ink)]">Lecture de la recette en cours…</p>}
+            {!iaEnCours && iaMessage && (
+              <p className={`text-sm ${iaMessage.type === "err" ? "text-[var(--warn)]" : "text-[var(--ink)]"}`}><strong>{iaMessage.type === "err" ? "Erreur" : "À relire"}</strong> — {iaMessage.texte}</p>
+            )}
+          </div>
+        )}
+      </Card>
+
+      {/* 2. Questionnaire */}
+      <Card className="mb-5">
+        <div className="flex flex-wrap gap-1.5 mb-4 pb-4 border-b border-[var(--line)]">
+          {STEPS_FICHE.map((t, i) => (
+            <button key={t} type="button" onClick={() => setStep(i)}
+              className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${i === step ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : etapeComplete(i) ? "border-[var(--line)] text-[var(--ink)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${etapeComplete(i) ? "bg-[var(--accent)] text-white" : "border border-[var(--line)]"}`}>{etapeComplete(i) ? "✓" : i + 1}</span>
+              {t}
+            </button>
+          ))}
+        </div>
+
+        <h3 className="font-semibold text-[var(--ink)] text-lg mb-3">{step + 1}. {STEPS_FICHE[step]}</h3>
+
+        {step === 0 && (
+          <div className="space-y-4">
+            <p className="text-xs text-[var(--steel)]">Le code de la fiche (FT + catégorie + numéro) est attribué automatiquement selon le rangement alphabétique dans la catégorie. Code prévu actuellement : <strong>{codeFTActuel || "— à compléter"}</strong>.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <Field label="Nom de la recette *"><input className={inputCls} value={S.nom} onChange={(e) => champ("nom", e.target.value)} placeholder="ex. Sauce au poivre" /></Field>
+              <Field label="Sous-titre / description courte"><input className={inputCls} value={S.sousTitre} onChange={(e) => champ("sousTitre", e.target.value)} placeholder="ex. Sauce d'envoi – montée au beurre minute" /></Field>
+            </div>
+            <div>
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Catégorie *</div>
+              <ChipsCategorie options={CATEGORIES_FICHE_TECHNIQUE} customOptions={customCategories} value={S.categorie}
+                onChange={(v) => champ("categorie", v)}
+                onAjouterAutre={(v) => { const code = normaliserCode(v).slice(0, 8) || "AUTRE"; setCustomCategories([...customCategories, [v, code]]); champ("categorie", v); }} />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <Field label="Poste *">
+                <select className={inputCls} value={S.poste} onChange={(e) => champ("poste", e.target.value)}>
+                  <option value="">Choisir…</option>
+                  {POSTES_FICHE.map((p) => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </Field>
+              <Field label="Type de fiche">
+                <select className={inputCls} value={S.type} onChange={(e) => champ("type", e.target.value)}>
+                  <option value="recette">Plat servi au client</option>
+                  <option value="base">Préparation de base (utilisée dans d'autres fiches)</option>
+                </select>
+              </Field>
+              <Field label="Badge (rendement / contenant)"><input className={inputCls} value={S.badge} onChange={(e) => champ("badge", e.target.value)} placeholder="ex. GN 1/1, 12 PARTS" /></Field>
+            </div>
+            <div className="rounded-lg px-3 py-2.5 text-xs" style={{ backgroundColor: "var(--bg)", color: "var(--steel)" }}>Le poste relie la fiche au planning : la production apparaîtra dans la liste de tâches des employés de ce poste.</div>
+          </div>
+        )}
+
+        {step === 1 && (
+          <div className="space-y-4">
+            <p className="text-xs text-[var(--steel)]">Chaque ingrédient est relié automatiquement à un article du stock (ou à une autre fiche technique, pour une sous-recette) quand son nom correspond exactement. Il sera retiré du stock à chaque fabrication validée.</p>
+            <datalist id="dlist-ingredients-fiche">
+              {nomsStockEtFiches.map((n, i) => <option key={i} value={n} />)}
+            </datalist>
+            <div className="space-y-2">
+              {S.ingredients.map((ing, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input className={`${inputCls} flex-1`} list="dlist-ingredients-fiche" placeholder="Ingrédient / article du stock" value={ing.nom} onChange={(e) => nomIngredientChange(i, e.target.value)} />
+                  <input className={`${inputCls} w-24`} placeholder="Qté" value={ing.qte} onChange={(e) => majIngredient(i, { qte: e.target.value })} />
+                  <select className={`${inputCls} w-28`} value={ing.unite} onChange={(e) => majIngredient(i, { unite: e.target.value })}>
+                    {UNITES_FICHE.map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                  {ing.lienType && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded bg-[var(--ok-soft,#e7f3e8)] text-[var(--accent)] shrink-0">{ing.lienType === "stock" ? "Stock" : "Fiche"}</span>}
+                  <button type="button" onClick={() => retirerIngredient(i)} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0"><X size={16} /></button>
+                </div>
+              ))}
+            </div>
+            <Button variant="ghost" onClick={ajouterIngredient}><Plus size={14} /> Ajouter un ingrédient</Button>
+
+            <div className="pt-3 border-t border-[var(--line)]">
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Allergènes (14 réglementaires)</div>
+              <div className="flex flex-wrap gap-2 mb-2">
+                {ALLERGENES_14.map((a) => {
+                  const actif = S.allergenes.includes(a);
+                  const suggere = suggestions.includes(a) && !actif;
+                  return (
+                    <button key={a} type="button" onClick={() => toggleAllergene(a)}
+                      className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : suggere ? "border-[var(--warn)] text-[var(--warn)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+                      {a}{suggere ? " ?" : ""}
+                    </button>
+                  );
+                })}
+              </div>
+              {suggestions.some((a) => !S.allergenes.includes(a)) && (
+                <div className="flex items-center gap-2 text-xs rounded-lg px-3 py-2 mb-2" style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}>
+                  <span>Suggéré d'après les ingrédients : {suggestions.filter((a) => !S.allergenes.includes(a)).join(", ")}.</span>
+                  <button type="button" className="underline font-semibold shrink-0" onClick={() => setS((prev) => ({ ...prev, allergenes: [...new Set([...prev.allergenes, ...suggestions])], allgConfirm: false }))}>Tout cocher</button>
+                </div>
+              )}
+              <label className="flex items-start gap-2 text-sm mt-2">
+                <input type="checkbox" className="mt-0.5" checked={S.allgConfirm} onChange={(e) => champ("allgConfirm", e.target.checked)} />
+                <span><strong>Je confirme la liste des allergènes</strong> (obligatoire — information écrite due au client).</span>
+              </label>
+            </div>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div className="space-y-3">
+            <p className="text-xs text-[var(--steel)]">Cochez ce que la recette utilise. Chaque choix ajoute ses seuils au tableau HACCP, ses relevés à la traçabilité et ses mentions à l'étiquette. Seuls les procédés conformes sont proposés.</p>
+
+            <ProcedeCard titre="Préparation froide (sans cuisson)" regle="≤ +3 °C, préparée au plus près du service" actif={S.procedes.froid.on} onToggle={() => majProcede("froid", { on: !S.procedes.froid.on })} />
+
+            <ProcedeCard titre="Cuisson" regle="T° à cœur contrôlée à la sonde" actif={S.procedes.cuisson.on} onToggle={() => majProcede("cuisson", { on: !S.procedes.cuisson.on })}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Famille (seuil HACCP officiel)">
+                  <select className={inputCls} value={S.procedes.cuisson.famille} onChange={(e) => majProcede("cuisson", { famille: e.target.value })}>
+                    {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+                  </select>
+                </Field>
+                <Field label="Appareil de cuisson">
+                  <select className={inputCls} value={S.procedes.cuisson.appareil} onChange={(e) => { majProcede("cuisson", { appareil: e.target.value }); if (e.target.value && !S.appareils.includes(e.target.value)) setS((prev) => ({ ...prev, appareils: [...prev.appareils, e.target.value] })); }}>
+                    <option value="">Choisir…</option>
+                    {[...BASE_APPAREILS_FICHE, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </Field>
+                <Field label="Réglage / température appareil"><input className={inputCls} value={S.procedes.cuisson.reglage} onChange={(e) => majProcede("cuisson", { reglage: e.target.value })} placeholder="ex. 180 °C chaleur combinée" /></Field>
+                <Field label="Durée (affichée sur la fiche)"><input className={inputCls} value={S.procedes.cuisson.duree} onChange={(e) => majProcede("cuisson", { duree: e.target.value })} placeholder="ex. 12 à 15 min" /></Field>
+                <Field label="Durée en minutes (pour le chrono de cuisson)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value })} placeholder="ex. 14" /></Field>
+                <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={`ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C`} /></Field>
+              </div>
+            </ProcedeCard>
+
+            <ProcedeCard titre="Refroidissement rapide" regle="+63 °C → +10 °C à cœur en moins de 2 h" actif={S.procedes.refroid.on} onToggle={() => majProcede("refroid", { on: !S.procedes.refroid.on })}>
+              <div className="space-y-2">
+                <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 ${S.procedes.refroid.mode === "cellule" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"} ${!celluleDispo ? "opacity-50" : "cursor-pointer"}`}>
+                  <input type="radio" disabled={!celluleDispo} checked={S.procedes.refroid.mode === "cellule"} onChange={() => majProcede("refroid", { mode: "cellule" })} className="mt-0.5" />
+                  <span><strong>Cellule de refroidissement</strong> — bacs ouverts, sonde à cœur, puis stockage 0 / +3 °C{celluleDispo ? "" : " (pas de cellule déclarée dans les réglages ci-dessous)"}</span>
+                </label>
+                <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.refroid.mode === "sans" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+                  <input type="radio" checked={S.procedes.refroid.mode === "sans"} onChange={() => majProcede("refroid", { mode: "sans" })} className="mt-0.5" />
+                  <span><strong>Sans cellule</strong> — bacs peu épais (5 cm max) en chambre froide, relevé obligatoire à 2 h</span>
+                </label>
+                {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
+                <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
+              </div>
+            </ProcedeCard>
+
+            <ProcedeCard titre="Maintien au chaud" regle="≥ +63 °C à cœur pendant le service" actif={S.procedes.maintien.on} onToggle={() => majProcede("maintien", { on: !S.procedes.maintien.on })}>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Field label="Appareil">
+                  <select className={inputCls} value={S.procedes.maintien.appareil} onChange={(e) => majProcede("maintien", { appareil: e.target.value })}>
+                    {["Bain-marie", "Étuve / armoire chaude", "Vitrine chauffante", "Four mixte (Rational)", "Lampe chauffante", ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </Field>
+                <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>
+                <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>
+              </div>
+              {Number(S.procedes.maintien.temp) < 63 && <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — le maintien au chaud doit être à +63 °C minimum. La fiche ne pourra pas être enregistrée.</p>}
+            </ProcedeCard>
+
+            <ProcedeCard titre="Remise en température" regle="+10 °C → ≥ cible à cœur en moins d'1 h" actif={S.procedes.remise.on} onToggle={() => majProcede("remise", { on: !S.procedes.remise.on })}>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Appareil">
+                  <select className={inputCls} value={S.procedes.remise.appareil} onChange={(e) => majProcede("remise", { appareil: e.target.value })}>
+                    <option value="">Choisir…</option>
+                    {[...BASE_APPAREILS_FICHE, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </Field>
+                <Field label="T° cible à cœur">
+                  <select className={inputCls} value={S.procedes.remise.cible} onChange={(e) => majProcede("remise", { cible: Number(e.target.value) })}>
+                    <option value={63}>≥ +63 °C (réglementaire)</option>
+                    <option value={75}>≥ +75 °C (objectif renforcé)</option>
+                  </select>
+                </Field>
+              </div>
+              <p className="text-xs text-[var(--steel)] mt-2">Un seul réchauffage : le reste est jeté, jamais refroidi une deuxième fois.</p>
+            </ProcedeCard>
+
+            <ProcedeCard titre="Congélation" regle="≤ −18 °C, avant la DLC" actif={S.procedes.congel.on}
+              locked={!congelPms} lockMsg={`Cochez « La congélation est décrite dans notre PMS » dans les réglages de l'établissement ci-dessous.`}
+              onToggle={() => majProcede("congel", { on: !S.procedes.congel.on })}>
+              <div className="space-y-2">
+                {[["maison", "Préparation maison — congelée le plus tôt possible après fabrication"], ["achat", "Produit acheté frais préemballé — avant sa DLC, emballage d'origine + suremballage daté"], ["plat", "Plat cuisiné fini — seulement si prévu par votre PMS"]].map(([v, lbl]) => (
+                  <label key={v} className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.congel.type === v ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+                    <input type="radio" checked={S.procedes.congel.type === v} onChange={() => majProcede("congel", { type: v })} className="mt-0.5" />
+                    <span>{lbl}</span>
+                  </label>
+                ))}
+                <p className="text-xs text-[var(--steel)]">Interdit : produits frais non emballés, légumes crus mangés crus, œufs en coquille, recongélation d'un produit décongelé. Déclenche le même suivi que l'écran Refroidissement rapide, en mode « négatif / surgélation ».</p>
+              </div>
+            </ProcedeCard>
+
+            <ProcedeCard titre="Décongélation" regle="0 à +4 °C · DLC J+3 après sortie" actif={S.procedes.decongel.on} onToggle={() => majProcede("decongel", { on: !S.procedes.decongel.on })}>
+              <div className="space-y-2">
+                <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.decongel.mode === "froid" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+                  <input type="radio" checked={S.procedes.decongel.mode === "froid"} onChange={() => majProcede("decongel", { mode: "froid" })} className="mt-0.5" />
+                  <span>En chambre froide positive (0 à +4 °C)</span>
+                </label>
+                <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.decongel.mode === "cuisson" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+                  <input type="radio" checked={S.procedes.decongel.mode === "cuisson"} onChange={() => majProcede("decongel", { mode: "cuisson" })} className="mt-0.5" />
+                  <span>Cuisson / réchauffage directement depuis le congelé</span>
+                </label>
+                <p className="text-xs text-[var(--steel)]">Décongélation à l'ambiante ou sous l'eau non proposée : non conforme. L'étiquette du produit décongelé (créée depuis l'écran Étiquettes DLC pour les articles « Surgelés ») porte « décongelé le … » et une DLC J+3.</p>
+              </div>
+            </ProcedeCard>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div className="space-y-5">
+            <p className="text-xs text-[var(--steel)]">Un « Autre » ajouté ici est enregistré dans vos choix et reproposé pour les prochaines fiches de cet établissement.</p>
+            <ChipsMulti label="Appareils de cuisson" baseOptions={BASE_APPAREILS_FICHE} customOptions={customAppareils} setCustomOptions={setCustomAppareils} selected={S.appareils} onToggle={(v) => toggleListe("appareils", v)} />
+            <ChipsMulti label="Matériel" baseOptions={BASE_MATERIEL_FICHE} customOptions={customMateriel} setCustomOptions={setCustomMateriel} selected={S.materiel} onToggle={(v) => toggleListe("materiel", v)} />
+            <ChipsMulti label="Ustensiles" baseOptions={BASE_USTENSILES_FICHE} customOptions={customUstensiles} setCustomOptions={setCustomUstensiles} selected={S.ustensiles} onToggle={(v) => toggleListe("ustensiles", v)} />
+          </div>
+        )}
+
+        {step === 4 && (
+          <div className="space-y-4">
+            <p className="text-xs text-[var(--steel)]">Décrivez les étapes dans l'ordre. Une étape marquée « point critique » rappellera à l'employé de faire le relevé correspondant pendant la fabrication.</p>
+            <div className="space-y-3">
+              {S.etapes.map((e, i) => (
+                <div key={i} className="border border-[var(--line)] rounded-lg p-3">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-xs font-bold text-[var(--accent)]">Étape {i + 1}</span>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => monterEtape(i)} disabled={i === 0} className="text-[var(--steel)] disabled:opacity-30 px-1">↑</button>
+                      <button type="button" onClick={() => retirerEtape(i)} className="text-[var(--steel)] hover:text-[var(--warn)] px-1"><X size={16} /></button>
+                    </div>
+                  </div>
+                  <input className={`${inputCls} w-full mb-2`} placeholder="Titre de l'étape (ex. RÉDUCTION)" value={e.titre} onChange={(ev) => majEtape(i, { titre: ev.target.value })} />
+                  <textarea className={`${inputCls} w-full mb-2`} rows={2} placeholder="Description précise : quantités, temps, gestes, aspect attendu…" value={e.texte} onChange={(ev) => majEtape(i, { texte: ev.target.value })} />
+                  <select className={inputCls} value={e.crit} onChange={(ev) => majEtape(i, { crit: ev.target.value })}>
+                    <option value="">Étape simple</option>
+                    <option value="cuisson">Point critique : T° de cuisson à relever</option>
+                    <option value="refroid">Point critique : début de refroidissement (chrono 2 h)</option>
+                    <option value="maintien">Point critique : mise en maintien au chaud</option>
+                    <option value="remise">Point critique : remise en température</option>
+                  </select>
+                </div>
+              ))}
+            </div>
+            <Button variant="ghost" onClick={ajouterEtape}><Plus size={14} /> Ajouter une étape</Button>
+            <Field label="Consignes importantes (une par ligne)">
+              <textarea className={`${inputCls} w-full`} rows={3} value={S.consignes} onChange={(e) => champ("consignes", e.target.value)} placeholder="ex. Réduction à feu très doux : la crème ne doit pas attacher." />
+            </Field>
+          </div>
+        )}
+
+        {step === 5 && (
+          <div className="space-y-4">
+            <div>
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Durée de conservation</div>
+              <div className="flex gap-2 mb-3">
+                {[["DLC", "DLC — produit périssable, préparation maison"], ["DDM", "DDM — produit stable (épicerie, flacon fermé)"]].map(([v, lbl]) => (
+                  <button key={v} type="button" onClick={() => majConservation({ type: v })} className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg border text-left ${S.conservation.type === v ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>{lbl}</button>
+                ))}
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Field label={`Durée (jours, J+) · max J+${dlcMaxFiche(S)}${S.conservation.etude ? "" : " sans étude"}`}><input className={inputCls} type="number" min="0" value={S.conservation.jours} onChange={(e) => majConservation({ jours: e.target.value })} /></Field>
+                <Field label="Température de stockage">
+                  <select className={inputCls} value={S.conservation.temp} onChange={(e) => majConservation({ temp: e.target.value })}>
+                    {["0 / +3 °C", "0 / +2 °C", "≤ +4 °C", "≤ −18 °C", "Température ambiante (produit stable)"].map((o) => <option key={o} value={o}>{o}</option>)}
+                  </select>
+                </Field>
+                <Field label="Contenant"><input className={inputCls} value={S.conservation.contenant} onChange={(e) => majConservation({ contenant: e.target.value })} placeholder="ex. bac GN 1/6 filmé" /></Field>
+              </div>
+              <label className="flex items-start gap-2 text-sm mt-2">
+                <input type="checkbox" checked={S.conservation.etude} onChange={(e) => majConservation({ etude: e.target.checked })} className="mt-0.5" />
+                <span>Une étude de vieillissement validée justifie une DLC plus longue</span>
+              </label>
+              {S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S) && (
+                <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — sans étude de vieillissement, une préparation maison est limitée à J+3 (jour de fabrication compris).</p>
+              )}
+            </div>
+            <div className="pt-3 border-t border-[var(--line)]">
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Rendement</div>
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <Field label="Quantité totale produite">
+                  <div className="flex gap-2">
+                    <input className={`${inputCls} flex-1`} value={S.rendement.total} onChange={(e) => majRendement({ total: e.target.value })} placeholder="ex. 0,95" />
+                    <select className={`${inputCls} w-24`} value={S.rendement.unite} onChange={(e) => majRendement({ unite: e.target.value })}>
+                      {["kg", "g", "L", "ml", "pièce(s)"].map((u) => <option key={u} value={u}>{u}</option>)}
+                    </select>
+                  </div>
+                </Field>
+                <Field label="Nombre de portions"><input className={inputCls} value={S.rendement.portions} onChange={(e) => majRendement({ portions: e.target.value })} placeholder="ex. 12" /></Field>
+                <Field label="Grammage par portion"><input className={inputCls} value={S.rendement.grammage} onChange={(e) => majRendement({ grammage: e.target.value })} placeholder="ex. 75 ml" /></Field>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {step === 6 && (
+          <div className="space-y-4">
+            <p className="text-xs text-[var(--steel)]">Facultatif. Le coût matière n'est visible que par le chef et le directeur ; il n'est jamais affiché ni imprimé pour les employés.</p>
+            <div>
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Coût matière et prix de vente</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label="Prix de vente TTC d'une portion (€)"><input className={inputCls} value={S.prixVente} onChange={(e) => champ("prixVente", e.target.value)} placeholder="ex. 3,50" /></Field>
+                <div className="rounded-lg px-3 py-2.5 text-xs" style={{ backgroundColor: "var(--bg)", color: "var(--steel)" }}>
+                  {coutApercu.coutRecette ? (
+                    <>Coût matière estimé : <strong>{coutApercu.coutRecette} €</strong>{coutPortionApercu ? ` (${coutPortionApercu} €/portion)` : ""}{coutApercu.partiel ? " — partiel : certains ingrédients ne sont pas reliés au stock ou leur prix est illisible." : " — calculé depuis les prix du stock."}</>
+                  ) : "Calculé automatiquement dès que des ingrédients sont reliés au stock (étape 2)."}
+                </div>
+              </div>
+            </div>
+            <div className="pt-3 border-t border-[var(--line)]">
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Dressage et envoi</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <Field label="Assiette / contenant de service"><input className={inputCls} value={S.dressage.assiette} onChange={(e) => majDressage({ assiette: e.target.value })} placeholder="ex. saucière inox 10 cl" /></Field>
+                <Field label="Délai d'envoi maximum"><input className={inputCls} value={S.dressage.envoi} onChange={(e) => majDressage({ envoi: e.target.value })} placeholder="ex. envoi immédiat" /></Field>
+              </div>
+              <Field label="Consignes de dressage"><textarea className={`${inputCls} w-full`} rows={2} value={S.dressage.notes} onChange={(e) => majDressage({ notes: e.target.value })} placeholder="ex. Napper la viande, jamais de sauce sur l'accompagnement." /></Field>
+            </div>
+          </div>
+        )}
+
+        <div className="flex justify-between gap-2 mt-5 pt-4 border-t border-[var(--line)]">
+          <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>← Précédent</Button>
+          <Button onClick={() => setStep((s) => Math.min(STEPS_FICHE.length - 1, s + 1))} disabled={step === STEPS_FICHE.length - 1}>Suivant →</Button>
+        </div>
+      </Card>
+
+      {/* Réglages de l'établissement */}
+      <details className="mb-5 bg-white border border-[var(--line)] rounded-xl">
+        <summary className="px-5 py-3.5 cursor-pointer font-semibold text-[var(--ink)] text-sm">Réglages de l'établissement <span className="font-normal text-[var(--steel)]">— débloquent le procédé congélation</span></summary>
+        <div className="px-5 pb-4 space-y-2.5">
+          <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong> — modifiable dans Contrôle & Gestion → Déclaration TIAC.</p>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={!!congelPms} onChange={(e) => setCongelPms(e.target.checked)} className="mt-0.5" /><span>La congélation est décrite dans notre PMS</span></label>
+          <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={!!celluleDispo} onChange={(e) => setCelluleDispo(e.target.checked)} className="mt-0.5" /><span>L'établissement dispose d'une cellule de refroidissement</span></label>
+        </div>
+      </details>
+
+      {/* Contrôles avant enregistrement */}
+      <Card className="mb-5">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+          <h3 className="font-semibold text-[var(--ink)] text-lg">Contrôles avant enregistrement</h3>
+          <Button onClick={enregistrer} disabled={bloquant}>Enregistrer la fiche</Button>
+        </div>
+        {problemes.length === 0 ? (
+          <p className="text-sm flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full bg-[var(--accent)]" />Tout est conforme : la fiche peut être enregistrée.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {problemes.map(([niveau, texte], i) => (
+              <li key={i} className="flex items-start gap-2 text-sm">
+                <span className={`w-2.5 h-2.5 rounded-full mt-1.5 shrink-0`} style={{ backgroundColor: niveau === "r" ? "#C1432D" : "#D9A017" }} />
+                <span className="text-[var(--ink)]">{texte}</span>
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {/* Aperçu de la fiche A4 */}
+      <div className="mb-8">
+        <h3 className="font-semibold text-[var(--ink)] text-lg mb-1">Aperçu de la fiche technique</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Se remplit au fur et à mesure du questionnaire.</p>
+        <div className="bg-white border border-[var(--line)] rounded-xl p-5 sm:p-6">
+          <div className="flex items-start justify-between gap-3 border-b-2 border-[var(--ink)] pb-3 mb-3 flex-wrap">
+            <div className="font-bold uppercase text-lg text-[var(--ink)]" style={{ fontFamily: "inherit" }}>{etablissementNom}</div>
+            <div className="text-right text-[10px] text-[var(--steel)]">Fiche générée par<br /><strong>BrigadeRestoPro</strong></div>
+          </div>
+          <div className="flex items-center gap-3 flex-wrap mb-1">
+            <div className="text-white font-bold text-center px-3 py-1.5 rounded shrink-0" style={{ backgroundColor: "#C1432D" }}>
+              <div className="text-[10px] leading-none">{codeCatActuel ? `FT ${codeCatActuel}` : "FT CATÉGORIE"}</div>
+              <div className="text-lg leading-none mt-0.5">{codeFTActuel ? codeFTActuel.split(" ").pop() : "—"}</div>
+            </div>
+            <div className="flex-1 min-w-[160px] text-center">
+              <div className="font-bold uppercase text-xl sm:text-2xl text-[var(--ink)]">{S.nom || <span className="text-[var(--steel)] italic">Nom de la recette</span>}</div>
+              <div className="text-xs text-[var(--steel)]">{S.sousTitre || <span className="italic">Sous-titre de la recette</span>}</div>
+            </div>
+            {S.badge && <div className="text-white font-bold text-center px-3 py-1.5 rounded shrink-0" style={{ backgroundColor: "#C1432D" }}>{S.badge}</div>}
+          </div>
+          <div className="text-center text-[11px] text-[var(--steel)] mb-4">
+            {categorieLabelActuelle && `Catégorie : ${categorieLabelActuelle}`}{S.poste && ` · Poste : ${S.poste}`} · Type : {S.type === "base" ? "préparation de base" : "plat servi"} · Version : 1
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div className="space-y-3">
+              <ApercuSection titre="1. Ingrédients">
+                {ingOk.length ? (
+                  <table className="w-full text-xs">
+                    <tbody>{ingOk.map((i, idx) => <tr key={idx} className="border-b border-[var(--line)] last:border-0"><td className="py-1">{i.nom}</td><td className="py-1 text-right">{i.qte} {i.unite}</td></tr>)}</tbody>
+                  </table>
+                ) : <ApercuVide texte="Ingrédients, quantités et unités — reliés au stock." />}
+              </ApercuSection>
+              <ApercuSection titre="3. Allergènes">
+                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
+                  {ALLERGENES_14.map((a) => <span key={a} className={S.allergenes.includes(a) ? "font-semibold text-[var(--accent)]" : "text-[var(--steel)]"}>{S.allergenes.includes(a) ? "■" : "□"} {a}</span>)}
+                </div>
+              </ApercuSection>
+              <ApercuSection titre="5. Préparation">
+                {S.etapes.some((e) => e.titre || e.texte) ? (
+                  <ol className="space-y-1 text-xs list-decimal list-inside">
+                    {S.etapes.filter((e) => e.titre || e.texte).map((e, idx) => <li key={idx}><strong>{(e.titre || "Étape").toUpperCase()}</strong>{e.crit ? " [point critique]" : ""} — {e.texte}</li>)}
+                  </ol>
+                ) : <ApercuVide texte="Étapes numérotées, dans l'ordre." />}
+              </ApercuSection>
+              <ApercuSection titre="8. Durée de conservation">
+                <p className="text-xs"><strong>{S.conservation.type} : J+{S.conservation.jours || "?"}</strong> (jour de fabrication compris) — {S.conservation.temp}{S.conservation.contenant ? `, ${S.conservation.contenant}` : ""}</p>
+              </ApercuSection>
+            </div>
+            <div className="space-y-3">
+              <ApercuSection titre="2. Matériel et ustensiles">
+                {(S.appareils.length + S.materiel.length + S.ustensiles.length) ? (
+                  <p className="text-xs">{[...S.appareils, ...S.materiel, ...S.ustensiles].join(" · ")}</p>
+                ) : <ApercuVide texte="Appareils, matériel et ustensiles utilisés." />}
+              </ApercuSection>
+              <ApercuSection titre="4. Points de contrôle HACCP">
+                {haccpRowsFiche(S).length ? (
+                  <table className="w-full text-[11px]">
+                    <tbody>{haccpRowsFiche(S).map((r, idx) => <tr key={idx} className="border-b border-[var(--line)] last:border-0"><td className="py-1 pr-1 font-semibold">{r.etape}</td><td className="py-1 text-[var(--steel)]">{r.aControler}</td></tr>)}</tbody>
+                  </table>
+                ) : <ApercuVide texte="Construit automatiquement à partir des choix du questionnaire." />}
+              </ApercuSection>
+              <ApercuSection titre="9. Non-conformité">
+                <ul className="text-xs list-disc list-inside">{nonConformitesFiche(S).map((n, idx) => <li key={idx}>{n}</li>)}</ul>
+              </ApercuSection>
+              <ApercuSection titre="11. Étiquetage">
+                <ul className="text-xs list-disc list-inside">{etiquetageFiche(S).map((n, idx) => <li key={idx}>{n}</li>)}</ul>
+              </ApercuSection>
+              {estChef && (coutApercu.coutRecette || S.prixVente) && (
+                <ApercuSection titre="12. Coût matière (chef / directeur)">
+                  <p className="text-xs">{coutApercu.coutRecette ? `Coût recette : ${coutApercu.coutRecette} €${coutPortionApercu ? ` (${coutPortionApercu} €/portion)` : ""}` : "—"}{S.prixVente ? ` · Prix de vente : ${S.prixVente} € TTC` : ""}</p>
+                </ApercuSection>
+              )}
+            </div>
+          </div>
+          <div className="text-center font-bold text-xs mt-4 pt-3 border-t border-[var(--line)] text-[var(--ink)]">HYGIÈNE – PROPRETÉ – TEMPÉRATURES MAÎTRISÉES = QUALITÉ ET SÉCURITÉ ALIMENTAIRE</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ProcedeCard({ titre, regle, actif, onToggle, locked, lockMsg, children }) {
+  return (
+    <div className={`border rounded-lg p-3 ${actif ? "border-[var(--accent)]" : "border-[var(--line)]"} ${locked ? "bg-[var(--bg)]" : "bg-white"}`}>
+      <div className="flex items-center justify-between gap-3 flex-wrap">
+        <label className={`flex items-center gap-2 font-semibold text-sm ${locked ? "text-[var(--steel)]" : "text-[var(--ink)] cursor-pointer"}`}>
+          <input type="checkbox" disabled={locked} checked={actif && !locked} onChange={onToggle} className="w-4 h-4" />
+          {titre}
+        </label>
+        <span className="text-xs text-[var(--steel)] font-mono">{regle}</span>
+      </div>
+      {locked ? (
+        <p className="text-xs text-[var(--steel)] mt-2">{lockMsg}</p>
+      ) : actif && children ? (
+        <div className="mt-3 pt-3 border-t border-[var(--line)]">{children}</div>
+      ) : null}
+    </div>
+  );
+}
+
+function ApercuSection({ titre, children }) {
+  return (
+    <div className="border border-[var(--line)] rounded-lg p-2.5">
+      <div className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#C1432D" }}>{titre}</div>
+      {children}
+    </div>
+  );
+}
+function ApercuVide({ texte }) {
+  return <p className="text-xs text-[var(--steel)] italic">{texte}</p>;
+}
+
+
+function FichesTechniquesMenu({ fichesProps, creationProps, consentementAccorde, ouvrirIdAuto, onConsommeOuvrirIdAuto }) {
+  const [sub, setSub] = useState(null);
+
+  // Même logique de déverrouillage automatique que dans FichesTechniques : si on nous demande
+  // d'ouvrir une fiche précise (commande vocale), on saute directement le sous-menu "Préparation
+  // culinaire" au lieu de laisser l'utilisateur cliquer dessus lui-même.
+  useEffect(() => {
+    if (ouvrirIdAuto) setSub("preparation");
+  }, [ouvrirIdAuto]);
+
+  if (sub === null) {
+    return (
+      <div>
+        <SectionHeader title="Fiches techniques" subtitle="Préparation culinaire et plan de maîtrise sanitaire" />
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          {FICHES_TUILES.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button
+                key={t.id}
+                onClick={() => setSub(t.id)}
+                style={{ background: t.couleur.fond, boxShadow: `0 8px 20px ${t.couleur.ombre}` }}
+                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform"
+              >
+                <Icon size={34} color="#ffffff" strokeWidth={2} />
+                <span className="text-sm font-bold text-white leading-tight line-clamp-2">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex justify-end mb-3">
+        <button onClick={() => setSub(null)}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--line)] text-[var(--steel)] bg-white">
+          <ChevronLeft size={14} />
+          Retour Fiches techniques
+        </button>
+      </div>
+
+      {sub === "preparation" && (
+        consentementAccorde()
+          ? <FichesTechniques {...fichesProps} ouvrirIdAuto={ouvrirIdAuto} onConsommeOuvrirIdAuto={onConsommeOuvrirIdAuto} />
+          : <AccesRestreint titre="Fiches techniques et recettes personnalisées" />
+      )}
+    </div>
+  );
+}
+
+
+function GraphiqueTemperatures({ releves, eq }) {
+  if (!releves || releves.length === 0) {
+    return <p className="text-sm text-[var(--steel)] py-8 text-center">Aucun relevé sur cette période pour cet équipement.</p>;
+  }
+  const largeur = 640, hauteur = 190;
+  const marge = { haut: 14, bas: 26, gauche: 40, droite: 12 };
+  const zoneL = largeur - marge.gauche - marge.droite;
+  const zoneH = hauteur - marge.haut - marge.bas;
+
+  const valeurs = releves.map((r) => Number(r.valeur));
+  const seuils = [eq?.min, eq?.max].filter((v) => v !== null && v !== undefined).map(Number);
+  const toutesValeurs = [...valeurs, ...seuils];
+  const minY = Math.min(...toutesValeurs) - 1;
+  const maxY = Math.max(...toutesValeurs) + 1;
+  const echelleY = (v) => marge.haut + zoneH - ((v - minY) / (maxY - minY || 1)) * zoneH;
+  const echelleX = (i) => marge.gauche + (releves.length === 1 ? zoneL / 2 : (i / (releves.length - 1)) * zoneL);
+
+  const points = releves.map((r, i) => `${echelleX(i)},${echelleY(Number(r.valeur))}`).join(" ");
+  const seuilBas = seuils.length === 2 ? Math.min(...seuils) : null;
+  const seuilHaut = seuils.length === 2 ? Math.max(...seuils) : null;
+
+  return (
+    <svg viewBox={`0 0 ${largeur} ${hauteur}`} className="w-full h-auto" style={{ maxHeight: 230 }}>
+      {seuilBas !== null && (
+        <rect x={marge.gauche} y={echelleY(seuilHaut)} width={zoneL} height={Math.max(1, echelleY(seuilBas) - echelleY(seuilHaut))} fill="#2F6B4F" opacity="0.08" />
+      )}
+      {seuils.map((s, i) => (
+        <line key={i} x1={marge.gauche} x2={largeur - marge.droite} y1={echelleY(s)} y2={echelleY(s)} stroke="#2F6B4F" strokeDasharray="4 3" strokeWidth="1" opacity="0.5" />
+      ))}
+      <polyline points={points} fill="none" stroke="#1B5FA8" strokeWidth="2" />
+      {releves.map((r, i) => (
+        <circle key={r.id} cx={echelleX(i)} cy={echelleY(Number(r.valeur))} r="3.5" fill={r.conforme === false ? "#c0392b" : "#1B5FA8"} />
+      ))}
+      <text x={marge.gauche} y={hauteur - 6} fontSize="10" fill="#8B93A1">{releves[0].date}{releves[0].heure ? ` ${releves[0].heure}` : ""}</text>
+      <text x={largeur - marge.droite} y={hauteur - 6} fontSize="10" fill="#8B93A1" textAnchor="end">{releves[releves.length - 1].date}{releves[releves.length - 1].heure ? ` ${releves[releves.length - 1].heure}` : ""}</text>
+    </svg>
+  );
+}
+
+function HistoriqueEtCourbesTemperature({ relevesFroid, equipementsFroid, who }) {
+  const [equipementHistorique, setEquipementHistorique] = useState(equipementsFroid[0]?.id || "");
+  const [periodeGraphique, setPeriodeGraphique] = useState("jour"); // "jour" | "semaine" | "mois"
+
+  const eqById = (id) => equipementsFroid.find((e) => e.id === id);
+
+  const relevesEquipementHistorique = relevesFroid.filter((r) => r.equipementId === equipementHistorique && r.date === todayISO());
+
+  const joursPeriode = periodeGraphique === "jour" ? 0 : periodeGraphique === "semaine" ? 6 : 29;
+  const dateDebutGraphique = addDays(todayISO(), -joursPeriode);
+  const releveGraphique = relevesFroid
+    .filter((r) => r.equipementId === equipementHistorique && r.date >= dateDebutGraphique)
+    .slice()
+    .sort((a, b) => `${a.date} ${a.heure || ""}`.localeCompare(`${b.date} ${b.heure || ""}`));
+
+  return (
+    <>
+      <Card className="mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-3">
+          <h3 className="font-semibold text-[var(--ink)]">Historique des relevés du jour</h3>
+          <select className={`${inputCls} w-auto`} value={equipementHistorique} onChange={(e) => setEquipementHistorique(e.target.value)}>
+            {equipementsFroid.map((eq) => (
+              <option key={eq.id} value={eq.id}>{eq.nom}</option>
+            ))}
+          </select>
+        </div>
+        {relevesEquipementHistorique.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun relevé aujourd'hui pour cet équipement.</p> : (
+          <div className="divide-y divide-[var(--line)]">
+            {relevesEquipementHistorique.map((r) => (
+              <div key={r.id} className="flex items-center justify-between py-2.5 text-sm">
+                <div className="flex items-center gap-3">
+                  <Snowflake size={16} className={r.conforme === false ? "text-[var(--warn)]" : "text-[var(--steel)]"} />
+                  <div>
+                    <div className="text-[var(--ink)] font-medium">{r.date} à {r.heure}{who(r.employeeId) ? ` · ${who(r.employeeId)}` : ""}</div>
+                    {r.manuel && <div className="text-xs text-[var(--steel)]">Saisie manuelle{r.note ? ` — ${r.note}` : ""}</div>}
+                  </div>
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className={`font-semibold ${r.conforme === false ? "text-[var(--warn)]" : "text-[var(--ink)]"}`}>{r.valeur}°C</span>
+                  {r.conforme === false && <span className="text-xs bg-[var(--warn-soft)] text-[var(--warn)] px-2 py-0.5 rounded-full">Hors seuil</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between flex-wrap gap-2 mb-1">
+          <h3 className="font-semibold text-[var(--ink)]">Courbes de température</h3>
+          <div className="flex gap-1.5">
+            {[{ id: "jour", label: "Jour" }, { id: "semaine", label: "Semaine" }, { id: "mois", label: "Mois" }].map((p) => (
+              <button key={p.id} onClick={() => setPeriodeGraphique(p.id)}
+                className={`text-xs px-2.5 py-1.5 rounded-lg border ${periodeGraphique === p.id ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+                {p.label}
+              </button>
+            ))}
+          </div>
+        </div>
+        <p className="text-xs text-[var(--steel)] mb-3">{eqById(equipementHistorique)?.nom} — pointillés : seuils de norme. Points rouges : relevés hors seuil.</p>
+        <GraphiqueTemperatures releves={releveGraphique} eq={eqById(equipementHistorique)} />
+      </Card>
+    </>
+  );
+}
+
+function HaccpTemperatures({
+  equipementsFroid, setEquipementsFroid, relevesFroid, setRelevesFroid, surveillancesFroid, setSurveillancesFroid,
+  tempLogs, setTempLogs, currentUserId, logActivity, who, ajouterAlerteControle, ouvrirNormes,
+}) {
+  const [saisieManuelle, setSaisieManuelle] = useState({}); // { [equipementId]: { valeur, note } }
+  const [recontrole, setRecontrole] = useState({}); // { [surveillanceId]: valeur }
+  const [anomalieForm, setAnomalieForm] = useState({}); // { [surveillanceId]: { motif, note } }
+  const [editionId, setEditionId] = useState(null); // id de l'appareil en cours de modification
+  const [editionForm, setEditionForm] = useState({});
+  const [suppressionDemandee, setSuppressionDemandee] = useState(null); // équipement à confirmer avant suppression
+  const [formAjout, setFormAjout] = useState({ famille: "positif", sousType: "", nom: "", sonde: "", min: "", max: "" });
+
+  const eqById = (id) => equipementsFroid.find((e) => e.id === id);
+
+  const majSaisie = (eqId, champ, val) => setSaisieManuelle((prev) => ({ ...prev, [eqId]: { ...(prev[eqId] || {}), [champ]: val } }));
+
+  const enregistrerSaisieManuelle = (eq) => {
+    const s = saisieManuelle[eq.id];
+    if (!s || s.valeur === undefined || s.valeur === "") return;
+    const conforme = equipementConforme(eq, s.valeur);
+    const entry = { id: uid(), equipementId: eq.id, valeur: s.valeur, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme, manuel: true, note: s.note || "" };
+    setRelevesFroid((prev) => [entry, ...prev]);
+    logActivity("HACCP", "Contrôle température — saisie manuelle (thermomètre laser)", `${eq.nom} : ${s.valeur}°C — ${conforme ? "conforme" : "hors seuil"}${s.note ? ` — ${s.note}` : ""}`);
+
+    if (equipementEcartAnomalie(eq, s.valeur)) {
+      const surveillance = { id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: entry.heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false };
+      setSurveillancesFroid((prev) => [surveillance, ...prev]);
+      logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${s.valeur}°C — à recontrôler dans 30 min`);
+    }
+    setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
+  };
+
+  const recontroler = (surv) => {
+    const val = recontrole[surv.id];
+    if (val === undefined || val === "") return;
+    const eq = eqById(surv.equipementId);
+    const conforme = equipementConforme(eq, val);
+    setRelevesFroid((prev) => [{ id: uid(), equipementId: surv.equipementId, valeur: val, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme }, ...prev]);
+    if (conforme) {
+      setSurveillancesFroid((prev) => prev.map((s) => (s.id === surv.id ? { ...s, statut: "resolu" } : s)));
+      logActivity("HACCP", "Recontrôle conforme", `${eq.nom} : ${val}°C — retour à la normale`);
+      setRecontrole((prev) => { const n = { ...prev }; delete n[surv.id]; return n; });
+    } else {
+      setAnomalieForm((prev) => ({ ...prev, [surv.id]: { motif: "", note: "" } }));
+    }
+  };
+
+  const confirmerAnomalie = (surv) => {
+    const { motif, note } = anomalieForm[surv.id] || {};
+    if (!motif) return;
+    const eq = eqById(surv.equipementId);
+    setSurveillancesFroid((prev) => prev.map((s) => (s.id === surv.id ? { ...s, statut: "anomalie", motif, note } : s)));
+    logActivity("HACCP", "Anomalie température confirmée", `${eq.nom} — ${motif}`);
+    ajouterAlerteControle({
+      id: uid(), date: todayISO(), heure: new Date().toTimeString().slice(0, 5), type: "Température", employeeId: currentUserId,
+      titre: `${eq.nom} — anomalie de température`,
+      detail: `Motif : ${motif}${note ? ` — ${note}` : ""}. Relevé initial ${surv.valeurInitiale}°C, toujours hors seuil au recontrôle.`,
+      conforme: false,
+    });
+  };
+
+  const updateEquipement = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val === "" ? null : Number(val) } : e)));
+  const updateEquipementTexte = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val } : e)));
+
+  // Choisir un type d'appareil dans la liste pré-remplit la norme de température à respecter
+  // (modifiable ensuite si l'appareil réel du restaurant a un réglage un peu différent).
+  const choisirSousTypeAjout = (label) => {
+    const famille = formAjout.famille;
+    const preset = PRESETS_EQUIPEMENT_FROID[famille].find((p) => p.label === label);
+    if (!preset) return;
+    setFormAjout((prev) => ({
+      ...prev, sousType: label, nom: prev.nom || label,
+      min: preset.min === null ? "" : String(preset.min), max: String(preset.max),
+    }));
+  };
+
+  const ajouterEquipement = () => {
+    if (!formAjout.nom.trim() || formAjout.max === "") return;
+    const nouveau = {
+      id: uid(), nom: formAjout.nom.trim(), type: formAjout.famille === "negatif" ? "congelateur" : "frigo",
+      min: formAjout.famille === "negatif" ? null : (formAjout.min === "" ? null : Number(formAjout.min)),
+      max: Number(formAjout.max), sonde: formAjout.sonde.trim() || null, sondeConnectee: false,
+    };
+    setEquipementsFroid((prev) => [...prev, nouveau]);
+    logActivity("HACCP", "Appareil de froid ajouté", `${nouveau.nom} — norme ${nouveau.type === "congelateur" ? `≤ ${nouveau.max}°C` : `${nouveau.min}°C à ${nouveau.max}°C`}`);
+    setFormAjout({ famille: "positif", sousType: "", nom: "", sonde: "", min: "", max: "" });
+  };
+
+  const commencerEdition = (eq) => {
+    setEditionId(eq.id);
+    setEditionForm({ nom: eq.nom, sonde: eq.sonde || "", min: eq.min ?? "", max: eq.max ?? "" });
+  };
+  const annulerEdition = () => { setEditionId(null); setEditionForm({}); };
+  const validerEdition = (id) => {
+    updateEquipementTexte(id, "nom", editionForm.nom.trim());
+    updateEquipementTexte(id, "sonde", editionForm.sonde.trim() || null);
+    const eq = eqById(id);
+    if (eq.type !== "congelateur") updateEquipement(id, "min", editionForm.min);
+    updateEquipement(id, "max", editionForm.max);
+    logActivity("HACCP", "Appareil de froid modifié", editionForm.nom);
+    annulerEdition();
+  };
+
+  const supprimerEquipement = (eq) => {
+    setEquipementsFroid((prev) => prev.filter((e) => e.id !== eq.id));
+    logActivity("HACCP", "Appareil de froid retiré", eq.nom);
+    setSuppressionDemandee(null);
+  };
+
+  // Préparé pour la mise en service des sondes connectées : en attendant le vrai matériel, ce
+  // bouton marque simplement la sonde comme associée à l'appareil, pour que l'écran soit prêt
+  // dès que la connexion automatique sera branchée.
+  const connecterSonde = (eq) => {
+    updateEquipementTexte(eq.id, "sondeConnectee", true);
+    logActivity("HACCP", "Sonde connectée", `${eq.nom} — sonde n° ${eq.sonde}`);
+  };
+
+  const dernierReleve = (eqId) => {
+    const releves = relevesFroid.filter((r) => r.equipementId === eqId);
+    if (releves.length === 0) return null;
+    return releves.reduce((plusRecent, r) => (`${r.date} ${r.heure || ""}` > `${plusRecent.date} ${plusRecent.heure || ""}` ? r : plusRecent));
+  };
+
+  const enAttente = surveillancesFroid.filter((s) => s.statut === "attente");
+
+  return (
+    <div>
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Relevés — frigos &amp; congélateurs</h3>
+        <p className="text-xs text-[var(--steel)] mb-2">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
+        <p className="text-xs text-[var(--steel)] mb-4">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
+        <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-[var(--bg)]">
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Matériel</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Norme</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Dernier relevé</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Contrôle manuel (thermomètre laser)</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]"></th>
+              </tr>
+            </thead>
+            <tbody>
+              {equipementsFroid.map((eq, i) => {
+                const dr = dernierReleve(eq.id);
+                const s = saisieManuelle[eq.id] || {};
+                if (editionId === eq.id) {
+                  return (
+                    <tr key={eq.id} className={i % 2 === 0 ? "bg-white" : "bg-[var(--bg)]/50"}>
+                      <td colSpan={5} className="px-3 py-3">
+                        <div className="flex flex-wrap items-end gap-2">
+                          <Field label="Nom de l'appareil"><input className={`${inputCls} w-48`} value={editionForm.nom} onChange={(e) => setEditionForm({ ...editionForm, nom: e.target.value })} /></Field>
+                          <Field label="Numéro de sonde"><input className={`${inputCls} w-28`} value={editionForm.sonde} onChange={(e) => setEditionForm({ ...editionForm, sonde: e.target.value })} /></Field>
+                          {eq.type !== "congelateur" && (
+                            <Field label="Norme min (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.min} onChange={(e) => setEditionForm({ ...editionForm, min: e.target.value })} /></Field>
+                          )}
+                          <Field label="Norme max (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.max} onChange={(e) => setEditionForm({ ...editionForm, max: e.target.value })} /></Field>
+                          <Button onClick={() => validerEdition(eq.id)}>Enregistrer</Button>
+                          <Button variant="ghost" onClick={annulerEdition}>Annuler</Button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                }
+                return (
+                  <tr key={eq.id} className={i % 2 === 0 ? "bg-white" : "bg-[var(--bg)]/50"}>
+                    <td className="px-3 py-2 align-top">
+                      <div className="text-[var(--ink)] font-medium">{eq.nom}</div>
+                      {eq.sonde ? (
+                        <div className="text-xs text-[var(--steel)] flex items-center gap-1.5">
+                          Sonde n° {eq.sonde}
+                          {eq.sondeConnectee ? (
+                            <span className="text-[var(--accent)] font-medium">· connectée</span>
+                          ) : (
+                            <button className="underline" onClick={() => connecterSonde(eq)}>· connecter cette sonde</button>
+                          )}
+                        </div>
+                      ) : <div className="text-xs text-[var(--steel)]">Sonde non renseignée</div>}
+                    </td>
+                    <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap">
+                      {dr ? (
+                        <>
+                          <span className={`font-semibold ${dr.conforme === false ? "text-[var(--warn)]" : "text-[var(--ink)]"}`}>{dr.valeur}°C</span>
+                          <div className="text-xs text-[var(--steel)]">{dr.date} à {dr.heure}</div>
+                        </>
+                      ) : <span className="text-xs text-[var(--steel)]">Aucun relevé</span>}
+                    </td>
+                    <td className="px-3 py-2 align-top">
+                      <div className="flex items-center gap-1.5 mb-1.5">
+                        <input className={`${inputCls} w-20`} type="number" step="0.1" placeholder="°C" value={s.valeur ?? ""} onChange={(e) => majSaisie(eq.id, "valeur", e.target.value)} />
+                        <Button variant="ghost" onClick={() => enregistrerSaisieManuelle(eq)} disabled={s.valeur === undefined || s.valeur === ""}>Enregistrer</Button>
+                      </div>
+                      <input className={`${inputCls} w-full max-w-[220px]`} placeholder="Note (optionnel)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
+                    </td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap">
+                      <button className="text-xs text-[var(--steel)] underline mr-2" onClick={() => commencerEdition(eq)}>Modifier</button>
+                      <button className="text-[var(--warn)]" onClick={() => setSuppressionDemandee(eq)} title="Retirer cet appareil"><Trash2 size={15} /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {enAttente.length > 0 && (
+        <Card className="mb-6 border-[var(--warn)]/40">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">En surveillance — recontrôle sous 30 min</h3>
+          <div className="space-y-3">
+            {enAttente.map((s) => {
+              const eq = eqById(s.equipementId);
+              const minutes = Math.floor((Date.now() - (s.rappelTs - 30 * 60000)) / 60000);
+              const pret = Date.now() >= s.rappelTs;
+              const form = anomalieForm[s.id];
+              return (
+                <div key={s.id} className="border border-[var(--warn)]/40 bg-[var(--warn-soft)] rounded-lg p-3">
+                  <div className="text-sm text-[var(--ink)] font-medium">{eq?.nom} — relevé initial {s.valeurInitiale}°C à {s.heureDetection}</div>
+                  <div className="text-xs text-[var(--steel)] mb-2">{minutes} min écoulées {pret ? "— recontrôle possible" : `— possible dans ${30 - minutes} min`}</div>
+                  {!form ? (
+                    <div className="flex items-center gap-2">
+                      <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="Nouvelle T°" value={recontrole[s.id] ?? ""} onChange={(e) => setRecontrole({ ...recontrole, [s.id]: e.target.value })} />
+                      <Button onClick={() => recontroler(s)}>Recontrôler</Button>
+                    </div>
+                  ) : (
+                    <div>
+                      <p className="text-xs text-[var(--warn)] font-medium mb-1.5">Toujours hors seuil — quelle est la cause ?</p>
+                      <div className="flex flex-wrap gap-2 mb-2">
+                        {MOTIFS_ANOMALIE_FROID.map((m) => (
+                          <button key={m} onClick={() => setAnomalieForm({ ...anomalieForm, [s.id]: { ...form, motif: m } })}
+                            className={`text-xs px-2.5 py-1.5 rounded-lg border ${form.motif === m ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                      <input className={`${inputCls} w-full mb-2`} placeholder="Note (optionnel)" value={form.note} onChange={(e) => setAnomalieForm({ ...anomalieForm, [s.id]: { ...form, note: e.target.value } })} />
+                      <Button variant="danger" onClick={() => confirmerAnomalie(s)} disabled={!form.motif}>Confirmer l'anomalie</Button>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer les appareils</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — la norme de température est pré-remplie automatiquement, modifiable ensuite si besoin.</p>
+        <div className="flex flex-wrap items-end gap-2 mb-2">
+          <Field label="Famille">
+            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ famille: e.target.value, sousType: "", nom: "", sonde: "", min: "", max: "" })}>
+              <option value="positif">Froid positif</option>
+              <option value="negatif">Froid négatif</option>
+            </select>
+          </Field>
+          <Field label="Type d'appareil">
+            <select className={inputCls} value={formAjout.sousType} onChange={(e) => choisirSousTypeAjout(e.target.value)}>
+              <option value="">— Choisir —</option>
+              {PRESETS_EQUIPEMENT_FROID[formAjout.famille].map((p) => <option key={p.label} value={p.label}>{p.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Nom de cet appareil"><input className={`${inputCls} w-48`} placeholder="ex. Frigo viande 2" value={formAjout.nom} onChange={(e) => setFormAjout({ ...formAjout, nom: e.target.value })} /></Field>
+          <Field label="Numéro de sonde (optionnel)"><input className={`${inputCls} w-32`} value={formAjout.sonde} onChange={(e) => setFormAjout({ ...formAjout, sonde: e.target.value })} /></Field>
+        </div>
+        <div className="flex flex-wrap items-end gap-2 mb-4">
+          {formAjout.famille === "positif" && (
+            <Field label="Norme min (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.min} onChange={(e) => setFormAjout({ ...formAjout, min: e.target.value })} /></Field>
+          )}
+          <Field label="Norme max (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.max} onChange={(e) => setFormAjout({ ...formAjout, max: e.target.value })} /></Field>
+          <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === ""}><Plus size={14} /> Ajouter cet appareil</Button>
+        </div>
+        <p className="text-xs text-[var(--steel)]">Le numéro de sonde peut être renseigné tout de suite ou ajouté plus tard (bouton "Modifier" sur la ligne de l'appareil). Une fois les sondes connectées réellement installées, le bouton "Connecter cette sonde" sur chaque ligne permettra de l'activer en un geste à sa mise en service.</p>
+      </Card>
+
+      {suppressionDemandee && (
+        <ModalConfirmerSuppression
+          libelle={suppressionDemandee.nom}
+          onConfirmer={() => supprimerEquipement(suppressionDemandee)}
+          onAnnuler={() => setSuppressionDemandee(null)}
+        />
+      )}
+
+    </div>
+  );
+}
+
+const DEFAULT_PRODUITS_MAINTIEN_CHAUD = ["Sauce champignons & parmesan", "Sauce vigneronne", "Sauce au poivre", "Sauce parmesan", "Sauce cheddar", "Suprêmes de poulet", "Plat du jour"];
+// Pas de durée maximale ici : la norme HACCP officielle ne limite que le temps passé SOUS 63°C
+// (zone de danger +4°C à +63°C, 2h cumulées). Tant que le produit reste à 63°C ou plus, aucune
+// norme ne chiffre de durée maximale — donc pas de chrono ni d'alarme de durée sur cette tuile.
+// Le maintien se termine par un geste volontaire (fin de service) qui bascule directement en
+// refroidissement rapide, où l'alarme de durée s'applique (normes propres à ce module).
+
+function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, refroidissements, setRefroidissements, ajouterAlerteControle, ouvrirNormes, produitSuggere, setProduitSuggere }) {
+  const [selection, setSelection] = useState([]);
+  const [appareil, setAppareil] = useState("Bain-marie");
+  const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
+  const [nouveauProduit, setNouveauProduit] = useState("");
+  const [selectionEnCours, setSelectionEnCours] = useState([]);
+  const [tempSortie, setTempSortie] = useState({});
+  const today = todayISO();
+
+  // Arrivée depuis le bouton "Démarrer un maintien au chaud" d'une fiche technique : on démarre
+  // directement le chrono pour ce produit (ajouté au catalogue si besoin), sans repasser par la
+  // sélection manuelle — même logique que le refroidissement/cuisson suggérés.
+  useEffect(() => {
+    if (!produitSuggere) return;
+    if (!catalogue.includes(produitSuggere)) setCatalogue((c) => [...c, produitSuggere]);
+    const heure = new Date().toTimeString().slice(0, 5);
+    const nouvelle = { id: uid(), nom: produitSuggere, appareil: "Bain-marie", date: today, heureDebut: heure, debutTs: Date.now(), employeeId: currentUserId, statut: "en-cours" };
+    setEntries((prev) => [nouvelle, ...prev]);
+    logActivity("HACCP", "Maintien au chaud démarré", `${produitSuggere} — Bain-marie à ${heure}`);
+    setProduitSuggere(null);
+  }, [produitSuggere, setProduitSuggere, catalogue, setCatalogue, setEntries, currentUserId, logActivity, today]);
+
+  const toggleSelection = (nom) => setSelection((s) => (s.includes(nom) ? s.filter((n) => n !== nom) : [...s, nom]));
+  const ajouterProduit = () => {
+    if (!nouveauProduit || catalogue.includes(nouveauProduit)) return;
+    setCatalogue([...catalogue, nouveauProduit]);
+    setNouveauProduit("");
+  };
+  const retirerProduit = (nom) => setCatalogue(catalogue.filter((n) => n !== nom));
+
+  const demarrerMaintien = () => {
+    if (selection.length === 0) return;
+    const nouvelles = selection.map((nom) => ({
+      id: uid(), nom, appareil, date: today, heureDebut, debutTs: Date.now(), employeeId: currentUserId, statut: "en-cours",
+    }));
+    setEntries([...nouvelles, ...entries]);
+    logActivity("HACCP", "Maintien au chaud démarré", `${selection.join(", ")} — ${appareil} à ${heureDebut}`);
+    setSelection([]);
+  };
+
+  const enCours = entries.filter((e) => e.statut === "en-cours");
+
+  const toggleSelectionEnCours = (id) => setSelectionEnCours((s) => (s.includes(id) ? s.filter((i) => i !== id) : [...s, id]));
+
+  const lancerRefroidissementSelection = () => {
+    const aTraiter = enCours.filter((e) => selectionEnCours.includes(e.id) && tempSortie[e.id]);
+    if (aTraiter.length === 0) return;
+    const nouveauxRefroidissements = aTraiter.map((e) => ({
+      id: uid(), date: today, employeeId: currentUserId, produit: e.nom,
+      heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), tempDebut: tempSortie[e.id],
+      heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null, cellNettoyee: false,
+    }));
+    setRefroidissements([...nouveauxRefroidissements, ...refroidissements]);
+    const heureFinMaintien = new Date().toTimeString().slice(0, 5);
+    setEntries(entries.map((e) => (aTraiter.some((a) => a.id === e.id) ? { ...e, statut: "termine", heureFin: heureFinMaintien } : e)));
+    logActivity("HACCP", "Passage en refroidissement rapide depuis le maintien au chaud", aTraiter.map((a) => a.nom).join(", "));
+    setSelectionEnCours([]);
+    setTempSortie({});
+  };
+
+  return (
+    <div>
+      <Card className="mb-6 bg-[var(--warn-soft)] border-[var(--warn)]/30">
+        <h3 className="font-semibold text-[var(--ink)] mb-2">Obligation HACCP — maintien au chaud</h3>
+        <p className="text-sm text-[var(--ink)] mb-1.5">Tout plat maintenu au chaud (bain-marie ou four Rational) doit rester à <strong>63°C minimum, en permanence</strong>, aussi longtemps qu'il reste en service — la norme officielle ne fixe aucune durée maximale tant que cette température est tenue.</p>
+        <p className="text-sm text-[var(--ink)]">Si la température descend accidentellement sous 63°C en cours de service : régénérer une seule fois à ≥65°C. Une deuxième descente = destruction obligatoire du produit.</p>
+      </Card>
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer un maintien au chaud</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Cochez tous les produits concernés, réglez l'heure une seule fois, et démarrez le chrono pour tout le lot.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+          {catalogue.map((nom) => (
+            <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--ink)]"}`}>
+              <input type="checkbox" checked={selection.includes(nom)} onChange={() => toggleSelection(nom)} />
+              {nom}
+              <button onClick={(e) => { e.preventDefault(); retirerProduit(nom); }} className="ml-auto text-[var(--steel)] hover:text-[var(--warn)]"><X size={13} /></button>
+            </label>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-end gap-2 mb-4">
+          <Field label="Ajouter un produit à la liste"><input className={inputCls} value={nouveauProduit} onChange={(e) => setNouveauProduit(e.target.value)} /></Field>
+          <Button variant="ghost" onClick={ajouterProduit}><Plus size={14} /> Ajouter</Button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
+          <Field label="Appareil">
+            <select className={inputCls} value={appareil} onChange={(e) => setAppareil(e.target.value)}>
+              <option value="Bain-marie">Bain-marie</option>
+              <option value="Four Rational">Four Rational</option>
+            </select>
+          </Field>
+          <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
+        </div>
+        <Button onClick={demarrerMaintien} disabled={selection.length === 0}>Démarrer le maintien ({selection.length})</Button>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">En maintien au chaud</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Pas de durée à surveiller ici — tant que le produit reste à 63°C ou plus, il n'y a pas d'urgence. Une fois le service terminé (ou le produit non utilisé), cochez-le, indiquez sa température de sortie, puis "Terminer le maintien" : il passe directement dans le module Refroidissement rapide, avec son suivi et son alarme propres.</p>
+        {enCours.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien en maintien au chaud actuellement.</p> : (
+          <div className="space-y-2 mb-4">
+            {enCours.map((e) => {
+              const minutes = Math.floor((Date.now() - e.debutTs) / 60000);
+              return (
+                <div key={e.id} className="border rounded-lg p-3 border-[var(--line)]">
+                  <div className="flex items-center gap-2">
+                    <input type="checkbox" checked={selectionEnCours.includes(e.id)} onChange={() => toggleSelectionEnCours(e.id)} />
+                    <div className="flex-1">
+                      <div className="text-sm text-[var(--ink)] font-medium">{e.nom} <span className="text-xs text-[var(--steel)] font-normal">— {e.appareil}</span></div>
+                      <div className="text-xs text-[var(--steel)]">Depuis {e.heureDebut} · {minutes} min</div>
+                    </div>
+                    {selectionEnCours.includes(e.id) && (
+                      <input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="T° sortie" value={tempSortie[e.id] ?? ""} onChange={(ev) => setTempSortie({ ...tempSortie, [e.id]: ev.target.value })} />
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+        <Button onClick={lancerRefroidissementSelection} disabled={selectionEnCours.length === 0}>Terminer le maintien et lancer le refroidissement</Button>
+      </Card>
+    </div>
+  );
+}
+
+function HistoriqueMaintienChaud({ entries, who }) {
+  const terminees = (entries || []).filter((e) => e.statut === "termine");
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-3">Historique</h3>
+      {terminees.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun maintien au chaud terminé pour le moment.</p> : (
+        <div className="divide-y divide-[var(--line)]">
+          {terminees.map((e) => (
+            <div key={e.id} className="flex items-center justify-between py-2.5 text-sm">
+              <div>
+                <div className="text-[var(--ink)] font-medium">{e.nom || e.produit}</div>
+                <div className="text-xs text-[var(--steel)]">{e.appareil} · {e.date}{who(e.employeeId) ? ` · ${who(e.employeeId)}` : ""}</div>
+              </div>
+              <div className="text-xs text-[var(--steel)]">{e.heureDebut}{e.heureFin ? ` → ${e.heureFin}` : ""}</div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+const REFROIDISSEMENT_NORME = { debutMin: 63, finMax: 10, dureeMaxMin: 120, alerteAvantMin: 10 };
+// Surgélation (froid négatif) : normes différentes du refroidissement rapide positif — température
+// cible < -18°C, durée maximale 4h30 (270 min) au lieu de 2h. Même fiche HACCP officielle
+// ("Surgélation avec cellule de refroidissement"), jusque-là affichée mais jamais reliée à un
+// vrai suivi chronométré dans l'écran — corrigé ici avec un deuxième parcours dédié.
+const SURGELATION_NORME = { finMax: -18, dureeMaxMin: 270, alerteAvantMin: 10 };
+// Entrée sans `type` enregistré (créées avant cette version) = toujours refroidissement positif,
+// pour ne jamais rétroactivement changer la norme appliquée à un refroidissement déjà en cours.
+function normeRefroidissement(type) { return type === "negatif" ? SURGELATION_NORME : REFROIDISSEMENT_NORME; }
+
+function EtiquetteRefroidissement({ r, who }) {
+  return (
+    <div className="border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm">
+      <div className="text-xs text-[var(--steel)] uppercase tracking-wide mb-1">Étiquette — refroidissement rapide</div>
+      <div className="text-lg font-semibold text-[var(--ink)] mb-2">{r.produit}</div>
+      <div className="text-sm text-[var(--ink)] space-y-0.5">
+        <div>Réalisé par : <strong>{who(r.employeeId)}</strong></div>
+        <div>Date : {r.date}</div>
+        <div>Refroidissement : {r.heureDebut} ({r.tempDebut}°C) → {r.heureFin} ({r.tempFin}°C)</div>
+        <div>Durée : {r.dureeMin} min — {r.conforme ? "conforme" : "non conforme"}</div>
+        <div className="text-[var(--steel)] mt-1">DLC de consommation : à définir</div>
+      </div>
+    </div>
+  );
+}
+
+const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Maintien à température", "Processus de refroidissement non conforme"];
+
+function HaccpRefroidissement({ refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+  const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
+  const [produit, setProduit] = useState("");
+  const [tempDebut, setTempDebut] = useState("");
+  const [heureDepart, setHeureDepart] = useState(new Date().toTimeString().slice(0, 5));
+  const [finForm, setFinForm] = useState({});
+  const [etiquetteOuverte, setEtiquetteOuverte] = useState(null); // nom du produit dont on édite l'étiquette
+  const today = todayISO();
+
+  useEffect(() => {
+    if (produitSuggere) {
+      if (typeof produitSuggere === "object") { setProduit(produitSuggere.nom); setModeDemarrage(produitSuggere.mode || "positif"); }
+      else { setProduit(produitSuggere); setModeDemarrage("positif"); }
+      setProduitSuggere(null);
+    }
+  }, [produitSuggere, setProduitSuggere]);
+
+  useEffect(() => {
+    setHeureDepart(new Date().toTimeString().slice(0, 5));
+  }, []);
+
+  const demarrer = () => {
+    if (!produit || tempDebut === "") return;
+    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
+    setRefroidissements([entry, ...refroidissements]);
+    logActivity("HACCP", modeDemarrage === "negatif" ? "Congélation / surgélation démarrée" : "Refroidissement démarré", `${produit} — ${tempDebut}°C à ${heureDepart}`);
+    setProduit(""); setTempDebut(""); setHeureDepart(new Date().toTimeString().slice(0, 5));
+  };
+
+  const majFin = (id, champ, valeur) => setFinForm({ ...finForm, [id]: { ...finForm[id], [champ]: valeur } });
+
+  const terminer = (id) => {
+    const r = refroidissements.find((x) => x.id === id);
+    const norme = normeRefroidissement(r.type);
+    const saisie = finForm[id] || {};
+    if (saisie.tempFin === undefined || saisie.tempFin === "") return;
+    const dureeMin = Math.round((Date.now() - r.debutTs) / 60000);
+    const depasse = dureeMin > norme.dureeMaxMin;
+    if (depasse && !saisie.motif) return; // motif obligatoire en cas de dépassement
+
+    const maintienAccepte = saisie.motif === "Maintien à température";
+    const conforme = depasse ? maintienAccepte : (r.type === "negatif" ? parseFloat(saisie.tempFin) < norme.finMax : parseFloat(saisie.tempFin) < norme.finMax);
+
+    setRefroidissements(refroidissements.map((x) => (x.id === id ? {
+      ...x, heureFin: new Date().toTimeString().slice(0, 5), tempFin: saisie.tempFin, dureeMin, conforme, statut: "termine", anomalie: depasse ? saisie.motif : null, cellNettoyee: false,
+    } : x)));
+    // Plus d'alarme sonore pour le nettoyage de cellule : la tâche part directement sur le
+    // planning de la personne, en fin de service, à valider comme une tâche normale.
+    if (ajouterTacheNettoyageCellule) ajouterTacheNettoyageCellule({ id, produit: r.produit, employeeId: r.employeeId });
+    // Dernière étape du protocole : on propose tout de suite l'étiquette DLC, pour ne pas
+    // avoir à s'en souvenir plus tard une fois passé à autre chose.
+    if (proposerEtiquetteRapide) proposerEtiquetteRapide(r.produit);
+
+    logActivity("HACCP", depasse ? `${r.type === "negatif" ? "Congélation" : "Refroidissement"} terminé(e) avec anomalie` : `${r.type === "negatif" ? "Congélation" : "Refroidissement"} terminé(e)`, `${r.produit} — ${saisie.tempFin}°C${depasse ? ` — ${saisie.motif}` : ""}`);
+
+    if (depasse) {
+      ajouterAlerteControle({
+        id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: r.type === "negatif" ? "Congélation" : "Refroidissement", employeeId: currentUserId,
+        titre: `${r.produit} — dépassement du délai de ${r.type === "negatif" ? "surgélation" : "refroidissement"}`,
+        detail: `Motif : ${saisie.motif}. ${maintienAccepte ? "Accepté (maintien à température confirmé)." : "Produit à considérer comme non conforme — à jeter."}`,
+        conforme: maintienAccepte,
+      });
+    }
+  };
+
+  const nettoyerCellule = (id) => {
+    const r = refroidissements.find((x) => x.id === id);
+    setRefroidissements(refroidissements.map((x) => (x.id === id ? { ...x, cellNettoyee: true } : x)));
+    logActivity("HACCP", "Nettoyage de la cellule de refroidissement validé", r?.produit || "");
+  };
+
+  const enCours = refroidissements.filter((r) => r.statut === "en-cours");
+  const termines = refroidissements.filter((r) => r.statut === "termine");
+
+  if (etiquetteOuverte) {
+    const historiqueProduit = (preparations || [])
+      .filter((p) => (p.nomLibre || "").trim().toLowerCase() === etiquetteOuverte.trim().toLowerCase())
+      .sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure));
+    return (
+      <EditeurEtiquette
+        nom={etiquetteOuverte}
+        historique={historiqueProduit}
+        creerEtiquetteDlc={creerEtiquetteDlc}
+        currentUserId={currentUserId}
+        who={who}
+        onBack={() => setEtiquetteOuverte(null)}
+      />
+    );
+  }
+
+  return (
+    <div>
+      <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/20 mb-3">
+        <p className="text-xs text-[var(--ink)]">
+          <strong>Refroidissement rapide — positif (réglementation française) :</strong> le produit doit être à plus de {REFROIDISSEMENT_NORME.debutMin}°C en fin de cuisson, puis passer en dessous de {REFROIDISSEMENT_NORME.finMax}°C en moins de {REFROIDISSEMENT_NORME.dureeMaxMin / 60}h ({REFROIDISSEMENT_NORME.dureeMaxMin} min) une fois en cellule. Après refroidissement, conservation entre 0°C et 3°C.
+        </p>
+      </Card>
+      <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/20 mb-6">
+        <p className="text-xs text-[var(--ink)]">
+          <strong>Congélation / surgélation — négatif (fiche HACCP "Surgélation avec cellule") :</strong> la denrée la plus compacte doit passer sous {SURGELATION_NORME.finMax}°C en moins de {SURGELATION_NORME.dureeMaxMin / 60}h ({SURGELATION_NORME.dureeMaxMin} min), puis être stockée dans une enceinte négative &lt; -18°C. Ne congelez que des aliments très frais, sains et mûrs à point. Interdiction de surgeler un produit déjà décongelé ou en cours de décongélation.
+        </p>
+      </Card>
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer un refroidissement</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">L'heure de départ est pré-remplie à l'heure actuelle — modifiable si vous démarrez avec un léger décalage.</p>
+        <div className="flex gap-2 mb-3">
+          <button onClick={() => setModeDemarrage("positif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "positif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Refroidissement rapide (positif)</button>
+          <button onClick={() => setModeDemarrage("negatif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "negatif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Congélation / surgélation (négatif)</button>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+          <Field label="Produit"><input className={inputCls} value={produit} onChange={(e) => setProduit(e.target.value)} /></Field>
+          <Field label="Température de départ (°C)"><input className={inputCls} type="number" value={tempDebut} onChange={(e) => setTempDebut(e.target.value)} /></Field>
+          <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDepart} onChange={(e) => setHeureDepart(e.target.value)} /></Field>
+        </div>
+        <Button onClick={demarrer}><Plus size={16} /> {modeDemarrage === "negatif" ? "Démarrer la surgélation" : "Démarrer le refroidissement"}</Button>
+      </Card>
+
+      {enCours.length > 0 && (
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">En cours</h3>
+          <div className="space-y-3">
+            {enCours.map((r) => {
+              const norme = normeRefroidissement(r.type);
+              const minutes = Math.floor((Date.now() - r.debutTs) / 60000);
+              const depasse = minutes >= norme.dureeMaxMin;
+              const saisie = finForm[r.id] || {};
+              return (
+                <div key={r.id} className={`border rounded-lg p-3 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
+                  <div className="flex items-center justify-between mb-2">
+                    <div>
+                      <div className="text-sm font-medium text-[var(--ink)]">{r.type === "negatif" ? "❄ " : ""}{r.produit} — départ {r.tempDebut}°C à {r.heureDebut}</div>
+                      <div className={`text-xs ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? ` — délai de ${norme.dureeMaxMin / 60}h dépassé !` : ` / ${norme.dureeMaxMin} min max`} · {who(r.employeeId)}</div>
+                    </div>
+                  </div>
+
+                  {depasse && (
+                    <div className="mb-2">
+                      <p className="text-xs text-[var(--ink)] font-medium mb-1.5">Quelle est l'anomalie ?</p>
+                      <div className="flex flex-wrap gap-2">
+                        {MOTIFS_ANOMALIE_REFROIDISSEMENT.map((m) => (
+                          <button key={m} onClick={() => majFin(r.id, "motif", m)}
+                            className={`text-xs px-2.5 py-1.5 rounded-lg border ${saisie.motif === m ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)]"}`}>
+                            {m}
+                          </button>
+                        ))}
+                      </div>
+                      {saisie.motif && saisie.motif !== "Maintien à température" && (
+                        <p className="text-xs text-[var(--warn)] mt-1.5">Ce motif rendra le refroidissement non conforme — le produit sera à jeter.</p>
+                      )}
+                      {saisie.motif === "Maintien à température" && (
+                        <p className="text-xs text-[var(--accent)] mt-1.5">Accepté — le produit reste utilisable si la température de fin confirme un maintien correct.</p>
+                      )}
+                    </div>
+                  )}
+
+                  <div className="flex items-center gap-2">
+                    <input className={`${inputCls} w-28`} type="number" placeholder="T° fin" value={saisie.tempFin ?? ""} onChange={(e) => majFin(r.id, "tempFin", e.target.value)} />
+                    <Button onClick={() => terminer(r.id)} disabled={depasse && !saisie.motif}>{r.type === "negatif" ? "Terminer la surgélation" : "Terminer le refroidissement"}</Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+    </div>
+  );
+}
+
+function HistoriqueRefroidissements({ refroidissements, who, nettoyerCellule, creerEtiquetteDlc, onEditerEtiquette }) {
+  const termines = refroidissements.filter((r) => r.statut === "termine");
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-3">Historique</h3>
+      {termines.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun refroidissement terminé pour le moment.</p> : (
+        <div className="space-y-4">
+          {termines.map((r) => (
+            <div key={r.id} className="flex flex-col sm:flex-row sm:items-start gap-3 border-b border-[var(--line)] pb-4 last:border-0 last:pb-0">
+              <div className="flex-1 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-[var(--ink)] font-medium">{r.type === "negatif" ? "❄ " : ""}{r.produit}</span>
+                  <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${r.conforme ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{r.conforme ? "Conforme" : "Non conforme"}</span>
+                </div>
+                <div className="text-xs text-[var(--steel)]">{r.heureDebut} ({r.tempDebut}°C) → {r.heureFin} ({r.tempFin}°C) · {r.dureeMin} min · {r.date} · {who(r.employeeId)}</div>
+                {r.anomalie && <div className="text-xs text-[var(--warn)] mt-0.5">Anomalie : {r.anomalie}</div>}
+                {r.cellNettoyee === false ? (
+                  <Button variant="danger" className="mt-2" onClick={() => nettoyerCellule(r.id)}>Nettoyer la cellule</Button>
+                ) : r.cellNettoyee && (
+                  <div className="text-xs text-[var(--accent)] mt-1">Cellule nettoyée</div>
+                )}
+                {creerEtiquetteDlc && (
+                  <Button variant="ghost" className="mt-2" onClick={() => onEditerEtiquette(r.produit)}><Printer size={14} /> Éditer l'étiquette</Button>
+                )}
+              </div>
+              <EtiquetteRefroidissement r={r} who={who} />
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function EtiquetteCuisson({ c, who }) {
+  return (
+    <div className="border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm">
+      <div className="text-xs text-[var(--steel)] uppercase tracking-wide mb-1">Étiquette — cuisson</div>
+      <div className="text-lg font-semibold text-[var(--ink)] mb-2">{c.produit}</div>
+      <div className="text-sm text-[var(--ink)] space-y-0.5">
+        <div>Réalisé par : <strong>{who(c.employeeId)}</strong></div>
+        <div>Date : {c.date}</div>
+        <div>Cuisson : {c.heureDebut} → {c.heureFin}</div>
+        <div>Température à cœur : {c.temperature}°C — {c.conforme ? "conforme" : "non conforme"}</div>
+      </div>
+    </div>
+  );
+}
+
+// Seuils de conformité par famille de produit (fiche HACCP "Cuisson" — ce sont les vrais chiffres
+// officiels, pas une simplification) : la règle générale est 63°C, mais viande hachée et volaille
+// ont des seuils officiels plus élevés. On ne compare donc plus toutes les cuissons au même chiffre.
+const CUISSON_FAMILLES = [
+  { id: "general", label: "Général (légumes, découpes, sauces...)", seuil: 63 },
+  { id: "viandeHachee", label: "Viande hachée (steak haché, bolognaise, lasagne...)", seuil: 70 },
+  { id: "volaille", label: "Volaille (poulet, dinde...)", seuil: 80 },
+  { id: "poisson", label: "Poisson", seuil: 63 },
+];
+const cuissonSeuilMin = (familleId) => (CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0]).seuil;
+const CUISSON_ALERTE_AVANT_MIN = 10;
+
+function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle }) {
+  const [form, setForm] = useState({ produit: "", heure: "", temperature: "", famille: "general" });
+  const [selectionEnCours, setSelectionEnCours] = useState([]);
+  const [temperatureSaisie, setTemperatureSaisie] = useState({});
+  const [selection, setSelection] = useState([]);
+  const [heureDebutChrono, setHeureDebutChrono] = useState(new Date().toTimeString().slice(0, 5));
+  const [nouveauPlat, setNouveauPlat] = useState("");
+  const [nouvelleDuree, setNouvelleDuree] = useState("");
+  const [selectionRefroid, setSelectionRefroid] = useState([]);
+  const [tempDebutRefroid, setTempDebutRefroid] = useState({});
+  const [appareilProgramme, setAppareilProgramme] = useState("Four à pizza");
+  const [produitProgramme, setProduitProgramme] = useState("");
+  const [dureeProgrammee, setDureeProgrammee] = useState("");
+  const [heureDebutProgramme, setHeureDebutProgramme] = useState(new Date().toTimeString().slice(0, 5));
+  const [familleProgramme, setFamilleProgramme] = useState("general");
+  const [nouvelleFamillePlat, setNouvelleFamillePlat] = useState("general");
+  const today = todayISO();
+
+  useEffect(() => {
+    if (produitSuggere) {
+      const dureeMin = produitSuggere.dureeMin || 20;
+      const famille = produitSuggere.famille || "general";
+      const entry = { id: uid(), produit: produitSuggere.nom, famille, date: todayISO(), employeeId: currentUserId, statut: "en-cours", heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), dureeAttendueMin: dureeMin, heureFin: null, temperature: null, conforme: null };
+      setCuissons((prev) => [entry, ...prev]);
+      logActivity("HACCP", "Cuisson démarrée", `${produitSuggere.nom} — durée attendue ~${dureeMin} min`);
+      setProduitSuggere(null);
+    }
+  }, [produitSuggere, setProduitSuggere, currentUserId, setCuissons, logActivity]);
+
+  const addEntry = () => {
+    if (!form.produit) return;
+    const conforme = parseFloat(form.temperature) >= cuissonSeuilMin(form.famille);
+    const entry = { id: uid(), date: todayISO(), employeeId: currentUserId, statut: "termine", heureDebut: form.heure, heureFin: form.heure, ...form, conforme };
+    setCuissons([entry, ...cuissons]);
+    logActivity("HACCP", "Cuisson enregistrée", `${form.produit} — ${form.temperature}°C — ${conforme ? "conforme" : "non conforme"}`);
+    setForm({ produit: "", heure: "", temperature: "", famille: "general" });
+  };
+
+  const toggleSelectionEnCours = (id) => setSelectionEnCours((s) => (s.includes(id) ? s.filter((i) => i !== id) : [...s, id]));
+
+  const terminerCuisson = (c) => {
+    const temp = temperatureSaisie[c.id];
+    if (temp === undefined || temp === "") return;
+    const conforme = parseFloat(temp) >= cuissonSeuilMin(c.famille);
+    setCuissons((prev) => prev.map((x) => (x.id === c.id ? { ...x, statut: "termine", heureFin: new Date().toTimeString().slice(0, 5), temperature: temp, conforme } : x)));
+    logActivity("HACCP", "Cuisson terminée", `${c.produit} — ${temp}°C à cœur — ${conforme ? "conforme" : "non conforme"}`);
+    setTemperatureSaisie((prev) => { const n = { ...prev }; delete n[c.id]; return n; });
+    setSelectionEnCours((s) => s.filter((i) => i !== c.id));
+  };
+
+  // Cuisson chronométrée démarrée depuis le catalogue (bolognaise, lasagne...) — durée connue
+  // par la fiche technique, donc pas de pizza/burger ici (cuisson courte, surveillée en direct).
+  const toggleSelection = (nom) => setSelection((s) => (s.includes(nom) ? s.filter((n) => n !== nom) : [...s, nom]));
+  const ajouterPlat = () => {
+    if (!nouveauPlat || Number(nouvelleDuree) <= 0 || catalogue.some((p) => p.nom === nouveauPlat)) return;
+    setCatalogue([...catalogue, { nom: nouveauPlat, dureeMin: Number(nouvelleDuree), famille: nouvelleFamillePlat }]);
+    setNouveauPlat(""); setNouvelleDuree(""); setNouvelleFamillePlat("general");
+  };
+  const retirerPlat = (nom) => setCatalogue(catalogue.filter((p) => p.nom !== nom));
+
+  // Cuisson programmée à la main (four à pizza, four Rational...) : pas de fiche technique
+  // chronométrée ici, l'employé choisit l'appareil, note ce qu'il cuit (plat/programme) et règle
+  // la durée lui-même. Une fois validée, ça crée une entrée "en-cours" en tout point identique à
+  // une cuisson chronométrée — elle rejoint donc automatiquement "Cuissons en cours" et profite
+  // de la même alarme (pré-alerte 10 min avant, puis bannière + bip/vibration à l'échéance).
+  const demarrerCuissonProgrammee = () => {
+    if (!produitProgramme || !(Number(dureeProgrammee) > 0)) return;
+    const entry = { id: uid(), produit: produitProgramme, famille: familleProgramme, appareil: appareilProgramme, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutProgramme, debutTs: Date.now(), dureeAttendueMin: Number(dureeProgrammee), heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
+    setCuissons([entry, ...cuissons]);
+    logActivity("HACCP", "Cuisson programmée démarrée", `${produitProgramme} — ${appareilProgramme}, ${dureeProgrammee} min, à ${heureDebutProgramme}`);
+    setProduitProgramme("");
+    setDureeProgrammee("");
+  };
+
+  const demarrerCuissonsChronometrees = () => {
+    if (selection.length === 0) return;
+    const nouvelles = selection.map((nom) => {
+      const p = catalogue.find((x) => x.nom === nom);
+      return { id: uid(), produit: nom, famille: p?.famille || "general", date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutChrono, debutTs: Date.now(), dureeAttendueMin: p?.dureeMin || 20, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
+    });
+    setCuissons([...nouvelles, ...cuissons]);
+    logActivity("HACCP", "Cuisson chronométrée démarrée", `${selection.join(", ")} à ${heureDebutChrono}`);
+    setSelection([]);
+  };
+
+  // Une fois la cuisson terminée (temp à cœur enregistrée) pour un plat venant du catalogue
+  // chronométré, on enchaîne directement sur le passage en refroidissement — bac/gastro d'abord,
+  // puis température de départ pour vérifier la conformité (norme : ≥ 63°C).
+  const toggleSelectionRefroid = (id) => setSelectionRefroid((s) => (s.includes(id) ? s.filter((i) => i !== id) : [...s, id]));
+  const pretesPourRefroidissement = cuissons.filter((c) => c.statut === "termine" && c.pretPourRefroidissement && !c.refroidissementLance);
+
+  const lancerRefroidissementDepuisCuisson = () => {
+    const aTraiter = pretesPourRefroidissement.filter((c) => selectionRefroid.includes(c.id) && tempDebutRefroid[c.id]);
+    if (aTraiter.length === 0) return;
+    const nouveauxRefroidissements = aTraiter.map((c) => ({
+      id: uid(), date: today, employeeId: currentUserId, produit: c.produit,
+      heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), tempDebut: tempDebutRefroid[c.id],
+      heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null, cellNettoyee: false,
+    }));
+    setRefroidissements([...nouveauxRefroidissements, ...refroidissements]);
+    setCuissons((prev) => prev.map((c) => (aTraiter.some((a) => a.id === c.id) ? { ...c, refroidissementLance: true } : c)));
+    logActivity("HACCP", "Passage en refroidissement rapide depuis la cuisson", aTraiter.map((a) => a.produit).join(", "));
+    setSelectionRefroid([]);
+    setTempDebutRefroid({});
+  };
+
+  const enCours = cuissons.filter((c) => c.statut === "en-cours");
+  const terminees = cuissons.filter((c) => c.statut !== "en-cours");
+
+  return (
+    <div>
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer une cuisson chronométrée</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Pour les plats dont la fiche technique donne une durée de cuisson (sauce bolognaise, lasagne...) — pas pour les pizzas et burgers, cuits sous surveillance directe. Cochez, réglez l'heure une seule fois, et démarrez le chrono.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+          {catalogue.map((p) => (
+            <label key={p.nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(p.nom) ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--ink)]"}`}>
+              <input type="checkbox" checked={selection.includes(p.nom)} onChange={() => toggleSelection(p.nom)} />
+              {p.nom} <span className="text-xs opacity-70">({p.dureeMin} min · ≥{cuissonSeuilMin(p.famille)}°C)</span>
+              <button onClick={(e) => { e.preventDefault(); retirerPlat(p.nom); }} className="ml-auto text-[var(--steel)] hover:text-[var(--warn)]"><X size={13} /></button>
+            </label>
+          ))}
+        </div>
+        <div className="flex flex-wrap items-end gap-2 mb-4">
+          <Field label="Ajouter un plat au catalogue"><input className={inputCls} value={nouveauPlat} onChange={(e) => setNouveauPlat(e.target.value)} /></Field>
+          <Field label="Durée de cuisson (min, fiche technique)"><input className={`${inputCls} w-32`} type="number" value={nouvelleDuree} onChange={(e) => setNouvelleDuree(e.target.value)} /></Field>
+          <Field label="Famille (seuil HACCP)">
+            <select className={inputCls} value={nouvelleFamillePlat} onChange={(e) => setNouvelleFamillePlat(e.target.value)}>
+              {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+            </select>
+          </Field>
+          <Button variant="ghost" onClick={ajouterPlat}><Plus size={14} /> Ajouter</Button>
+        </div>
+        <Field label="Heure de départ"><input className={`${inputCls} w-32 mb-4`} type="time" value={heureDebutChrono} onChange={(e) => setHeureDebutChrono(e.target.value)} /></Field>
+        <Button onClick={demarrerCuissonsChronometrees} disabled={selection.length === 0}>Démarrer la cuisson ({selection.length})</Button>
+      </Card>
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer une cuisson programmée (manuelle)</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Pour un plat cuit dans un appareil programmable (four à pizza, four Rational...) sans fiche technique chronométrée. Choisissez l'appareil, notez le plat/programme et la durée, puis validez : le chrono démarre tout de suite, avec la même alerte sonore qu'en fin de refroidissement.</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
+          <Field label="Appareil">
+            <select className={inputCls} value={appareilProgramme} onChange={(e) => setAppareilProgramme(e.target.value)}>
+              <option value="Four à pizza">Four à pizza</option>
+              <option value="Four Rational">Four Rational</option>
+              <option value="Four Atoll Speed / Mery Chef">Four Atoll Speed / Mery Chef</option>
+              <option value="Plancha">Plancha</option>
+              <option value="Friteuse">Friteuse</option>
+              <option value="Salamandre">Salamandre</option>
+            </select>
+          </Field>
+          <Field label="Plat / programme"><input className={inputCls} value={produitProgramme} onChange={(e) => setProduitProgramme(e.target.value)} placeholder="Ex. Pizza margherita, prog. 3" /></Field>
+          <Field label="Famille (seuil HACCP)">
+            <select className={inputCls} value={familleProgramme} onChange={(e) => setFamilleProgramme(e.target.value)}>
+              {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+            </select>
+          </Field>
+          <Field label="Durée (min)"><input className={inputCls} type="number" value={dureeProgrammee} onChange={(e) => setDureeProgrammee(e.target.value)} /></Field>
+          <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDebutProgramme} onChange={(e) => setHeureDebutProgramme(e.target.value)} /></Field>
+        </div>
+        <Button onClick={demarrerCuissonProgrammee} disabled={!produitProgramme || !(Number(dureeProgrammee) > 0)}>Démarrer la cuisson</Button>
+      </Card>
+
+      {enCours.length > 0 && (
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Cuissons en cours</h3>
+          <p className="text-xs text-[var(--steel)] mb-3">Le seuil de conformité dépend de la famille du produit (63°C en général, 70°C pour la viande hachée, 80°C pour la volaille — voir la fiche des normes). Entrez la température mesurée pour terminer.</p>
+          <div className="space-y-2">
+            {enCours.map((c) => {
+              const minutes = Math.floor((Date.now() - c.debutTs) / 60000);
+              const depasse = minutes >= c.dureeAttendueMin;
+              const seuil = cuissonSeuilMin(c.famille);
+              const familleLabel = (CUISSON_FAMILLES.find((f) => f.id === c.famille) || CUISSON_FAMILLES[0]).label;
+              return (
+                <div key={c.id} className={`border rounded-lg p-3 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
+                  <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
+                  <div className="text-xs text-[var(--steel)] mb-2">Depuis {c.heureDebut} · {minutes} min (attendu ~{c.dureeAttendueMin} min){c.appareil ? ` · ${c.appareil}` : ""} · {familleLabel} : conforme si ≥{seuil}°C{depasse ? " — À VÉRIFIER MAINTENANT" : ""}</div>
+                  <div className="flex items-center gap-2">
+                    <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="T° à cœur" value={temperatureSaisie[c.id] ?? ""} onChange={(e) => setTemperatureSaisie({ ...temperatureSaisie, [c.id]: e.target.value })} />
+                    <Button onClick={() => terminerCuisson(c)}>Terminer la cuisson</Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      )}
+
+      {pretesPourRefroidissement.length > 0 && (
+        <Card className="mb-6 border-[var(--warn)]/40">
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Cuisson terminée — à mettre en refroidissement</h3>
+          <p className="text-xs text-[var(--steel)] mb-3">Mettez d'abord le produit en gastro ou en bac, puis cochez-le, indiquez sa température de départ (conforme si ≥ {REFROIDISSEMENT_NORME.debutMin}°C) et lancez le refroidissement — ça l'envoie directement dans Refroidissement rapide.</p>
+          <div className="space-y-2 mb-4">
+            {pretesPourRefroidissement.map((c) => (
+              <div key={c.id} className="border border-[var(--line)] rounded-lg p-3 flex items-center gap-2">
+                <input type="checkbox" checked={selectionRefroid.includes(c.id)} onChange={() => toggleSelectionRefroid(c.id)} />
+                <div className="flex-1">
+                  <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
+                  <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.temperature}°C à cœur</div>
+                </div>
+                {selectionRefroid.includes(c.id) && (
+                  <input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="T° départ" value={tempDebutRefroid[c.id] ?? ""} onChange={(ev) => setTempDebutRefroid({ ...tempDebutRefroid, [c.id]: ev.target.value })} />
+                )}
+              </div>
+            ))}
+          </div>
+          <Button onClick={lancerRefroidissementDepuisCuisson} disabled={selectionRefroid.length === 0}>Lancer le refroidissement pour la sélection</Button>
+        </Card>
+      )}
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Nouveau contrôle de cuisson</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">Pour les pizzas, burgers et tout ce qui n'a pas de chrono dédié — choisissez la famille du produit, la conformité est calculée avec le bon seuil (63°C, 70°C ou 80°C selon la famille).</p>
+        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-3">
+          <Field label="Produit"><input className={inputCls} value={form.produit} onChange={(e) => setForm({ ...form, produit: e.target.value })} /></Field>
+          <Field label="Famille (seuil HACCP)">
+            <select className={inputCls} value={form.famille} onChange={(e) => setForm({ ...form, famille: e.target.value })}>
+              {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+            </select>
+          </Field>
+          <Field label="Heure"><input className={inputCls} type="time" value={form.heure} onChange={(e) => setForm({ ...form, heure: e.target.value })} /></Field>
+          <Field label="Température à cœur (°C)"><input className={inputCls} type="number" value={form.temperature} onChange={(e) => setForm({ ...form, temperature: e.target.value })} /></Field>
+        </div>
+        <Button onClick={addEntry}><Plus size={16} /> Enregistrer</Button>
+      </Card>
+    </div>
+  );
+}
+
+function HistoriqueCuissons({ cuissons, who }) {
+  const terminees = cuissons.filter((c) => c.statut !== "en-cours");
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-3">Historique</h3>
+      {terminees.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun contrôle enregistré.</p> : (
+        <div className="divide-y divide-[var(--line)]">
+          {terminees.map((c) => (
+            <div key={c.id} className="flex items-center justify-between py-2.5 text-sm">
+              <div>
+                <div className="text-[var(--ink)] font-medium">{c.produit}</div>
+                <div className="text-xs text-[var(--steel)]">{c.heure || c.heureFin} · {c.date}{who(c.employeeId) ? ` · ${who(c.employeeId)}` : ""}</div>
+              </div>
+              <div className="flex items-center gap-2">
+                <span className="font-semibold text-[var(--ink)]">{c.temperature}°C</span>
+                <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${c.conforme ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{c.conforme ? "Conforme" : "Non conforme"}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function HaccpHuile({ huileTests, who }) {
+  return (
+    <div>
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Historique</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">Le test (photo de la bandelette + "Test bon" / "Test non conforme") se fait uniquement à la validation des tâches de nettoyage liées — aucune saisie manuelle ici.</p>
+        {huileTests.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun test enregistré.</p> : (
+          <div className="divide-y divide-[var(--line)]">
+            {huileTests.map((h) => (
+              <div key={h.id} className="flex items-center justify-between py-2.5 text-sm">
+                <div className="flex items-center gap-3">
+                  {h.photo && <img src={h.photo} alt="Bandelette" className="w-12 h-12 object-cover rounded-lg border border-[var(--line)]" />}
+                  <div className="text-xs text-[var(--steel)]">{h.date} à {h.heure}{who(h.employeeId) ? ` · ${who(h.employeeId)}` : ""}</div>
+                </div>
+                <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(h.resultat) ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{h.resultat}</span>
+              </div>
+            ))}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// Catégorie alimentaire déduite du nom du produit (aucun champ dédié dans les données existantes) —
+// permet de regrouper le catalogue par famille de produits plutôt que par poste de préparation.
+function categoriserProduitDlc(nom) {
+  const n = (nom || "").toLowerCase();
+  if (/surgel|accras|stick mozza|ring's|beignet|samoussa|nugget|tender|falafel|torpedo|raviole|camembert pané|rösti|rosti/.test(n)) return "Surgelés";
+  if (/vapeur|lasagne/.test(n)) return "Plats préparés";
+  if (/tiramisu|mousse|gaufre|chantilly|crème brûlée|pain perdu|spéculoos|sucre glace|cassonade|cacao|coulis/.test(n)) return "Desserts";
+  if (/sauce|pesto|vinaigrette|ketchup|mayonnaise/.test(n)) return "Sauces";
+  if (/fromage|mozzarella|comté|emmental|tome|crottin|marcellin|reblochon|cheddar|parmesan|burratina|beurre|yaourt|crème|fourme/.test(n)) return "Produits laitiers";
+  if (/jambon|chorizo|rosette|lardons|bacon|saucisson/.test(n)) return "Charcuterie";
+  if (/steak|poulet|bœuf|boeuf|viande|suprême|volaille|merguez/.test(n)) return "Viandes";
+  if (/poisson|calamar|morue|saumon|thon|crevette|cabillaud|colin/.test(n)) return "Poissons";
+  if (/salade|tomate|oignon|courgette|carotte|haricot|champignon|pomme de terre|olive|poivron|roquette|légume/.test(n)) return "Produits frais";
+  if (/pain|pâte|pâton/.test(n)) return "Pains & bases";
+  if (/miel|sucre|cornichon|œuf|oeuf|épice/.test(n)) return "Épicerie";
+  return "Autres";
+}
+const ORDRE_CATEGORIES_DLC = ["Produits laitiers", "Produits frais", "Charcuterie", "Viandes", "Poissons", "Sauces", "Desserts", "Pains & bases", "Surgelés", "Plats préparés", "Épicerie", "Autres"];
+
+function GestionProduitsDlc({ produits, setProduits, logActivity, onEditerEtiquette }) {
+  const [nouveau, setNouveau] = useState({ nom: "", poste: "Poste Chaud", dlcJours: "" });
+
+  const updateProduit = (id, champ, val) => setProduits(produits.map((p) => (p.id === id ? { ...p, [champ]: champ === "dlcJours" ? Number(val) : val } : p)));
+  const addProduit = () => {
+    if (!nouveau.nom) return;
+    setProduits([...produits, { id: uid(), nom: nouveau.nom, poste: nouveau.poste, dlcJours: Number(nouveau.dlcJours) || 0 }]);
+    logActivity("HACCP", "Produit ajouté au catalogue", `${nouveau.nom} — DLC J+${nouveau.dlcJours || 0}`);
+    setNouveau({ nom: "", poste: nouveau.poste, dlcJours: "" });
+  };
+
+  const parCategorie = produits.reduce((acc, p) => { const cat = categoriserProduitDlc(p.nom); (acc[cat] = acc[cat] || []).push(p); return acc; }, {});
+
+  return (
+    <Card className="mb-6">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Produits préparés & leurs DLC</h3>
+      <p className="text-xs text-[var(--steel)] mb-4">DLC en jours après préparation (0 = jour même). Modifiable ici à tout moment — l'étiquette fabricant peut différer d'un produit à l'autre.</p>
+
+      {ORDRE_CATEGORIES_DLC.filter((cat) => parCategorie[cat]?.length).map((cat) => (
+        <div key={cat} className="mb-4 last:mb-0">
+          <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{cat}</div>
+          <div className="divide-y divide-[var(--line)]">
+            {parCategorie[cat].map((p) => (
+              <div key={p.id} className="flex items-center justify-between py-2 text-sm gap-2 flex-wrap">
+                <span className="text-[var(--ink)] flex-1 min-w-[8rem]">{p.nom}</span>
+                {p.dlcSource === "reception" ? (
+                  <span className="text-xs text-[var(--steel)] italic">DDM à réception</span>
+                ) : (
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--steel)]">
+                    <span>J+</span>
+                    <input className={`${inputCls} w-16`} type="number" min="0" value={p.dlcJours} onChange={(e) => updateProduit(p.id, "dlcJours", e.target.value)} />
+                  </div>
+                )}
+                <button onClick={() => onEditerEtiquette(p.nom)}
+                  style={{ backgroundColor: "#2F6B4F", color: "#ffffff" }}
+                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold shrink-0">
+                  <Printer size={13} /> Éditer étiquette
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <div className="flex flex-wrap items-end gap-2 pt-3 border-t border-[var(--line)]">
+        <Field label="Nouveau produit"><input className={inputCls} value={nouveau.nom} onChange={(e) => setNouveau({ ...nouveau, nom: e.target.value })} /></Field>
+        <Field label="Poste">
+          <select className={inputCls} value={nouveau.poste} onChange={(e) => setNouveau({ ...nouveau, poste: e.target.value })}>
+            <option value="Poste Chaud">Poste Chaud</option>
+            <option value="Poste Froid">Poste Froid</option>
+            <option value="Poste Pizza">Poste Pizza</option>
+          </select>
+        </Field>
+        <Field label="DLC (jours)"><input className={`${inputCls} w-24`} type="number" min="0" value={nouveau.dlcJours} onChange={(e) => setNouveau({ ...nouveau, dlcJours: e.target.value })} /></Field>
+        <Button onClick={addProduit}><Plus size={16} /> Ajouter</Button>
+      </div>
+    </Card>
+  );
+}
+
+function HaccpDlc({ preparations, produits, who, jeterPreparation, today, stock, jeterStock }) {
+  const [pickerRetirer, setPickerRetirer] = useState(false);
+  const [rechercheRetirer, setRechercheRetirer] = useState("");
+
+  const nomProduitPrep = (p) => produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || "Produit";
+
+  // Tout ce qui a atteint sa DLC aujourd'hui (ou avant) : à retirer maintenant, groupé par catégorie.
+  const stockARetirer = stock.filter((s) => s.dlc && Number(s.quantite) > 0 && s.dlc <= today).sort((a, b) => a.dlc.localeCompare(b.dlc));
+  const prepsARetirer = preparations.filter((p) => !p.jete && p.dlcDate <= today).sort((a, b) => a.dlcDate.localeCompare(b.dlcDate));
+  const prepsParPoste = (posteLabel) => prepsARetirer.filter((p) => produits.find((pr) => pr.id === p.produitId)?.poste === posteLabel);
+
+  const categories = [
+    { titre: "En stock", items: stockARetirer.map((s) => ({ id: s.id, nom: `${s.nom} — ${s.quantite} ${s.unite}`, detail: `Lot ${s.lot || "—"} · DLC ${s.dlc}`, onJeter: () => jeterStock(s.id) })) },
+    { titre: "Poste Froid", items: prepsParPoste("Poste Froid").map((p) => ({ id: p.id, nom: `${nomProduitPrep(p)} — ${p.quantite}`, detail: `Préparé le ${p.date}${who(p.employeeId) ? " · " + who(p.employeeId) : ""} · DLC ${p.dlcDate}`, onJeter: () => jeterPreparation(p.id) })) },
+    { titre: "Poste Pizza", items: prepsParPoste("Poste Pizza").map((p) => ({ id: p.id, nom: `${nomProduitPrep(p)} — ${p.quantite}`, detail: `Préparé le ${p.date}${who(p.employeeId) ? " · " + who(p.employeeId) : ""} · DLC ${p.dlcDate}`, onJeter: () => jeterPreparation(p.id) })) },
+    { titre: "Poste Chaud", items: prepsParPoste("Poste Chaud").map((p) => ({ id: p.id, nom: `${nomProduitPrep(p)} — ${p.quantite}`, detail: `Préparé le ${p.date}${who(p.employeeId) ? " · " + who(p.employeeId) : ""} · DLC ${p.dlcDate}`, onJeter: () => jeterPreparation(p.id) })) },
+  ];
+
+  const rechercheRetirerPropre = rechercheRetirer.trim().toLowerCase();
+  const resultatsRetirer = rechercheRetirerPropre.length > 1 ? [
+    ...stock.filter((s) => Number(s.quantite) > 0 && s.nom.toLowerCase().includes(rechercheRetirerPropre)).map((s) => ({ cle: "stock-" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite}`, onJeter: () => jeterStock(s.id) })),
+    ...preparations.filter((p) => !p.jete && nomProduitPrep(p).toLowerCase().includes(rechercheRetirerPropre)).map((p) => ({ cle: "prep-" + p.id, nom: `${nomProduitPrep(p)} — ${p.quantite}`, onJeter: () => jeterPreparation(p.id) })),
+  ].slice(0, 15) : [];
+
+  return (
+    <div>
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">DLC des produits en stock à retirer aujourd'hui</h3>
+        <div className="flex gap-2 mb-4 flex-wrap">
+          <Button variant="ghost" onClick={() => setPickerRetirer((v) => !v)}><Trash2 size={16} /> Retirer un produit</Button>
+        </div>
+
+        {pickerRetirer && (
+          <div className="mb-4 p-3 rounded-lg border border-[var(--line)] bg-[var(--bg)]">
+            <Field label="Chercher un produit à retirer (stock ou préparation)">
+              <input className={inputCls} value={rechercheRetirer} onChange={(e) => setRechercheRetirer(e.target.value)} placeholder="Nom du produit" />
+            </Field>
+            {resultatsRetirer.length > 0 && (
+              <div className="divide-y divide-[var(--line)] mt-2">
+                {resultatsRetirer.map((r) => (
+                  <div key={r.cle} className="flex items-center justify-between py-2 text-sm">
+                    <span className="text-[var(--ink)]">{r.nom}</span>
+                    <Button variant="danger" onClick={() => { r.onJeter(); setRechercheRetirer(""); }}>Jeter</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        <p className="text-xs text-[var(--steel)] mb-4">Tout ce qui atteint sa DLC aujourd'hui, à retirer maintenant — par catégorie.</p>
+
+        {categories.every((c) => c.items.length === 0) ? (
+          <p className="text-sm text-[var(--steel)]">Rien à retirer aujourd'hui.</p>
+        ) : (
+          categories.filter((c) => c.items.length > 0).map((c) => (
+            <div key={c.titre} className="mb-4 last:mb-0">
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{c.titre}</div>
+              <div className="divide-y divide-[var(--line)]">
+                {c.items.map((it) => (
+                  <div key={it.id} className="flex items-center justify-between py-2.5 text-sm">
+                    <div>
+                      <div className="text-[var(--ink)] font-medium">{it.nom}</div>
+                      <div className="text-xs text-[var(--steel)]">{it.detail}</div>
+                    </div>
+                    <Button variant="danger" onClick={it.onJeter}>Jeter</Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- module Étiquettes DLC ---------- */
+
+function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, employeeId, cuissonInfo, refroidissementInfo, maintienInfo, decongelationInfo }) {
+  return (
+    <div className="border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm break-inside-avoid" style={{ pageBreakInside: "avoid" }}>
+      <div className="text-xs text-[var(--steel)] uppercase tracking-wide mb-1">Étiquette DLC / DDM</div>
+      <div className="text-lg font-semibold text-[var(--ink)] mb-2">{produitNom}</div>
+      <div className="text-sm text-[var(--ink)] space-y-0.5">
+        <div>Lot : <strong>{lot || "—"}</strong></div>
+        <div>Ouvert/préparé le : {date} à {heure}</div>
+        <div>Par : {who(employeeId)}</div>
+        {cuissonInfo && (
+          <div>Cuisson : {cuissonInfo.heureDebut}{cuissonInfo.heureFin ? ` → ${cuissonInfo.heureFin}` : ""}{cuissonInfo.temperature ? ` — ${cuissonInfo.temperature}°C à cœur` : ""}{cuissonInfo.conforme === false ? " (non conforme)" : ""}</div>
+        )}
+        {refroidissementInfo && (
+          <div>Refroidissement : {refroidissementInfo.heureDebut} ({refroidissementInfo.tempDebut}°C) → {refroidissementInfo.heureFin} ({refroidissementInfo.tempFin}°C){refroidissementInfo.conforme === false ? " (non conforme)" : ""}</div>
+        )}
+        {maintienInfo && (
+          <div>Maintien au chaud : {maintienInfo.heureDebut}{maintienInfo.heureFin ? ` → ${maintienInfo.heureFin}` : ""}{maintienInfo.appareil ? ` — ${maintienInfo.appareil}` : ""}</div>
+        )}
+        {decongelationInfo && (
+          <div>Décongelé le : <strong>{decongelationInfo.dateAffichee}</strong> — jamais recongelé</div>
+        )}
+        <div className="font-semibold text-base mt-1">DLC/DDM : {dlcDate}</div>
+      </div>
+    </div>
+  );
+}
+
+// Petite fenêtre pour créer rapidement une ou plusieurs étiquettes DLC sans passer par l'écran
+// Étiquettes DLC — utilisée en bout de chaîne d'un protocole HACCP (refroidissement, notamment)
+// et par la commande vocale, via proposerEtiquetteRapide. Plusieurs produits peuvent être ajoutés
+// au même panier (ex. "reblochon, chèvre, crème brûlée" en une seule fois) : lot et DLC/DDM de
+// chacun sont calculés automatiquement, mais le nombre d'étiquettes de CHAQUE produit doit
+// toujours être saisi par l'employé, jamais déduit automatiquement d'une quantité — un même lot
+// préparé (ex. 8 Saint-Marcellin) peut très bien finir stocké dans une seule boîte et n'avoir
+// besoin que d'une seule étiquette, donc on ne devine jamais, on demande toujours.
+function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDlc, employees, onClose }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const [panier, setPanier] = useState(() => {
+    const vus = new Set();
+    return (produitsInitiaux || []).filter((nom) => {
+      const clef = (nom || "").trim().toLowerCase();
+      if (!clef || vus.has(clef)) return false;
+      vus.add(clef);
+      return true;
+    }).map((nom) => ({ nom, nbEtiquettes: "" }));
+  });
+  const [rechercheAjout, setRechercheAjout] = useState("");
+  const [entreesCreees, setEntreesCreees] = useState(null);
+
+  useEffect(() => {
+    if (entreesCreees) { const t = setTimeout(() => window.print(), 200); return () => clearTimeout(t); }
+  }, [entreesCreees]);
+
+  const ajouterProduit = () => {
+    const trouve = trouverCorrespondance(rechercheAjout, produits, (p) => p.nom);
+    if (!trouve) return;
+    setPanier((prev) => {
+      if (prev.some((it) => it.nom.trim().toLowerCase() === trouve.nom.trim().toLowerCase())) return prev;
+      return [...prev, { nom: trouve.nom, nbEtiquettes: "" }];
+    });
+    setRechercheAjout("");
+  };
+
+  const majNb = (nom, val) => setPanier((prev) => prev.map((it) => (it.nom === nom ? { ...it, nbEtiquettes: val } : it)));
+  const retirer = (nom) => setPanier((prev) => prev.filter((it) => it.nom !== nom));
+
+  const totalEtiquettes = panier.reduce((s, it) => s + (Number(it.nbEtiquettes) || 0), 0);
+  const pretAValider = panier.length > 0 && panier.every((it) => Number(it.nbEtiquettes) > 0);
+
+  const confirmer = () => {
+    const entrees = [];
+    panier.forEach((it) => {
+      const produitCatalogue = trouverCorrespondance(it.nom, produits, (p) => p.nom);
+      const dlcDate = produitCatalogue ? dlcCalculeeProduit(produitCatalogue) : null;
+      if (!dlcDate) return;
+      const lot = genererLot(it.nom);
+      const entry = creerEtiquetteDlc({ produitNom: it.nom, lot, dlcDate, photo: null, quantiteUtilisee: "", nbEtiquettes: it.nbEtiquettes });
+      if (entry) entrees.push(entry);
+    });
+    if (entrees.length) setEntreesCreees(entrees);
+  };
+
+  if (entreesCreees) {
+    return (
+      <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10001, backgroundColor: "rgba(20,10,10,0.7)" }}>
+        <div className="bg-white rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+          <div className="flex flex-wrap gap-3 mb-4">
+            {entreesCreees.map((entreeCreee) => Array.from({ length: entreeCreee.nbEtiquettes || 1 }, (_, i) => (
+              <EtiquetteDlcImprimable key={`${entreeCreee.id}-${i}`} produitNom={entreeCreee.nomLibre} lot={entreeCreee.lot} dlcDate={entreeCreee.dlcDate} date={entreeCreee.date} heure={entreeCreee.heure} who={who} employeeId={entreeCreee.employeeId} cuissonInfo={entreeCreee.cuissonInfo} refroidissementInfo={entreeCreee.refroidissementInfo} maintienInfo={entreeCreee.maintienInfo} decongelationInfo={entreeCreee.decongelationInfo} />
+            )))}
+          </div>
+          <div className="flex gap-2 print:hidden">
+            <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
+            <Button variant="ghost" onClick={onClose}>Fermer</Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 flex items-center justify-center p-4" style={{ zIndex: 10001, backgroundColor: "rgba(20,10,10,0.7)" }}>
+      <Card className="w-full max-w-sm">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Étiquettes DLC</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">Lot et DLC/DDM calculés automatiquement pour chaque produit. Indiquez le nombre d'étiquettes voulu pour chacun — jamais deviné à partir d'une quantité.</p>
+
+        <div className="flex gap-2 mb-3">
+          <input className={`${inputCls} flex-1`} placeholder="Ajouter un produit (nom)..." value={rechercheAjout} onChange={(e) => setRechercheAjout(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterProduit(); }} />
+          <Button onClick={ajouterProduit} disabled={!rechercheAjout.trim()}>Ajouter</Button>
+        </div>
+
+        {panier.length === 0 && <p className="text-xs text-[var(--steel)] mb-3">Aucun produit sélectionné pour l'instant.</p>}
+
+        <div className="space-y-2 mb-3">
+          {panier.map((it) => {
+            const produitCatalogue = trouverCorrespondance(it.nom, produits, (p) => p.nom);
+            const dlcDate = produitCatalogue ? dlcCalculeeProduit(produitCatalogue) : null;
+            return (
+              <div key={it.nom} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--line)]">
+                <div className="flex-1 min-w-0">
+                  <div className="text-sm font-medium text-[var(--ink)] truncate">{it.nom}</div>
+                  <div className="text-[10px] text-[var(--steel)]">{dlcDate ? `DLC/DDM ${dlcDate}` : "Introuvable dans le catalogue DLC"}</div>
+                </div>
+                <input type="number" min="1" className={`${inputCls} w-20 text-center`} placeholder="Nb" value={it.nbEtiquettes} onChange={(e) => majNb(it.nom, e.target.value)} />
+                <button onClick={() => retirer(it.nom)} className="text-[var(--warn)] shrink-0" title="Retirer"><X size={16} /></button>
+              </div>
+            );
+          })}
+        </div>
+
+        {panier.length > 0 && (
+          <p className="text-xs text-[var(--steel)] mb-3 font-medium">Total : {totalEtiquettes} étiquette{totalEtiquettes > 1 ? "s" : ""} à imprimer.</p>
+        )}
+
+        <div className="flex gap-2 justify-end">
+          <Button variant="ghost" onClick={onClose}>Plus tard</Button>
+          <Button onClick={confirmer} disabled={!pretAValider}>Valider et imprimer</Button>
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+function EditeurEtiquette({ nom, historique, creerEtiquetteDlc, currentUserId, who, onBack, produits }) {
+  const [quantiteUtilisee, setQuantiteUtilisee] = useState("");
+  const [nbEtiquettes, setNbEtiquettes] = useState(1);
+  const [entreeCreee, setEntreeCreee] = useState(null);
+  const [duplicata, setDuplicata] = useState(null);
+
+  useEffect(() => {
+    if (entreeCreee) { const t = setTimeout(() => window.print(), 200); return () => clearTimeout(t); }
+  }, [entreeCreee]);
+
+  // Comme partout ailleurs dans le logiciel : pour un produit qu'on a fabriqué soi-même, il n'y a
+  // pas d'emballage commercial à photographier, et le lot/la DLC ne se saisissent jamais à la main
+  // (aucune date choisie au feeling) — ils sont toujours calculés automatiquement à partir de la
+  // règle enregistrée dans le catalogue DLC, exactement comme pour l'étiquette rapide après un
+  // refroidissement ou depuis une fiche technique.
+  const produitCatalogue = trouverCorrespondance(nom, produits || [], (p) => p.nom);
+  const lot = genererLot(nom);
+  const dlcDate = produitCatalogue ? dlcCalculeeProduit(produitCatalogue) : null;
+
+  const confirmer = () => {
+    if (!dlcDate) return;
+    const entry = creerEtiquetteDlc({ produitNom: nom, lot, dlcDate, photo: null, quantiteUtilisee, nbEtiquettes });
+    setEntreeCreee(entry);
+  };
+
+  if (duplicata) {
+    return (
+      <div>
+        <button onClick={() => setDuplicata(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
+          <ArrowLeft size={15} /> Retour
+        </button>
+        <p className="text-xs text-[var(--steel)] mb-3 print:hidden">Duplicata — mêmes informations que l'étiquette d'origine, à réimprimer en remplacement.</p>
+        <EtiquetteDlcImprimable produitNom={nom} lot={duplicata.lot} dlcDate={duplicata.dlcDate} date={duplicata.date} heure={duplicata.heure} who={who} employeeId={duplicata.employeeId} cuissonInfo={duplicata.cuissonInfo} refroidissementInfo={duplicata.refroidissementInfo} maintienInfo={duplicata.maintienInfo} decongelationInfo={duplicata.decongelationInfo} />
+        <Button className="mt-4 print:hidden" onClick={() => window.print()}><Printer size={16} /> Imprimer le duplicata</Button>
+      </div>
+    );
+  }
+
+  if (entreeCreee) {
+    return (
+      <div>
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
+          <ArrowLeft size={15} /> Retour aux étiquettes
+        </button>
+        <div className="flex flex-wrap gap-3 mb-4">
+          {Array.from({ length: entreeCreee.nbEtiquettes || 1 }, (_, i) => (
+            <EtiquetteDlcImprimable key={i} produitNom={nom} lot={entreeCreee.lot} dlcDate={entreeCreee.dlcDate} date={entreeCreee.date} heure={entreeCreee.heure} who={who} employeeId={entreeCreee.employeeId} cuissonInfo={entreeCreee.cuissonInfo} refroidissementInfo={entreeCreee.refroidissementInfo} maintienInfo={entreeCreee.maintienInfo} decongelationInfo={entreeCreee.decongelationInfo} />
+          ))}
+        </div>
+        <Button className="mt-4 print:hidden" onClick={() => window.print()}><Printer size={16} /> Imprimer {entreeCreee.nbEtiquettes > 1 ? `les ${entreeCreee.nbEtiquettes} étiquettes` : "l'étiquette"}</Button>
+        <p className="text-xs text-[var(--steel)] mt-2 print:hidden">Sélectionnez votre imprimante à étiquettes dans la fenêtre d'impression si elle est installée sur cet appareil.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
+        <ArrowLeft size={15} /> Retour aux étiquettes
+      </button>
+      <h2 className="text-xl font-semibold text-[var(--ink)] mb-4">{nom}</h2>
+
+      <Card className="mb-6">
+        {produitCatalogue ? (
+          <>
+            <p className="text-sm text-[var(--ink)] mb-3">
+              DLC/DDM calculée automatiquement — pas de saisie possible, comme partout ailleurs dans le logiciel.
+            </p>
+            <div className="grid grid-cols-2 gap-2 mb-4">
+              <div>
+                <div className="text-xs text-[var(--steel)] mb-1">Lot (auto)</div>
+                <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{lot}</div>
+              </div>
+              <div>
+                <div className="text-xs text-[var(--steel)] mb-1">DLC/DDM (auto)</div>
+                <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{dlcDate || "non disponible"}</div>
+              </div>
+              <Field label="Quantité utilisée (optionnel — déstocke automatiquement)"><input className={inputCls} value={quantiteUtilisee} onChange={(e) => setQuantiteUtilisee(e.target.value)} /></Field>
+              <Field label="Nombre d'étiquettes à imprimer"><input className={inputCls} type="number" min="1" value={nbEtiquettes} onChange={(e) => setNbEtiquettes(e.target.value)} /></Field>
+            </div>
+            <Button onClick={confirmer} disabled={!dlcDate}>Confirmer et générer l'étiquette</Button>
+          </>
+        ) : (
+          <p className="text-sm text-[var(--warn)]">Ce produit n'est pas (ou plus) dans le catalogue "Étiquette DLC" — ajoutez-le d'abord dans cet écran pour que le logiciel puisse calculer sa date automatiquement. Aucune date ne peut être saisie à la main ici.</p>
+        )}
+      </Card>
+
+      {historique.length > 0 && (
+        <Card>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">Étiquettes précédentes pour ce produit</h3>
+          <div className="divide-y divide-[var(--line)]">
+            {historique.map((h) => (
+              <div key={h.id} className="flex items-center justify-between py-2.5 text-sm">
+                <div className="flex items-center gap-3">
+                  {h.photo && <img src={h.photo} alt="Étiquette" className="w-12 h-12 object-cover rounded-lg border border-[var(--line)]" />}
+                  <div>
+                    <div className="text-[var(--ink)] font-medium">Lot {h.lot || "—"} · DLC/DDM {h.dlcDate}</div>
+                    <div className="text-xs text-[var(--steel)]">{h.date} à {h.heure}{who(h.employeeId) ? ` · ${who(h.employeeId)}` : ""}{h.jete ? " · jeté" : ""}</div>
+                  </div>
+                </div>
+                <Button variant="ghost" onClick={() => setDuplicata(h)}>Dupliquer</Button>
+              </div>
+            ))}
+          </div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+/* ---------- module Traçabilité ---------- */
+
+// Traçabilité SANS IA (offre d'entrée) : un seul geste, une seule photo de l'étiquette. La photo
+// montre déjà elle-même le nom, la DLC et le lot — on ne redemande jamais rien à taper. Enregistrée
+// avec la date, l'heure et le nom de la personne, conservée 2 mois, retrouvable dans le contrôle
+// traçabilité du chef/direction. Plusieurs produits à la suite : juste reprendre une photo.
+function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple }) {
+  // Plusieurs photos possibles ici aussi (pas réservé au palier avec IA) : le nom, la DLC et le lot
+  // ne sont pas toujours tous lisibles sur une seule face de l'emballage.
+  const [photos, setPhotos] = useState([]);
+  const [enregistre, setEnregistre] = useState(false);
+
+  const confirmer = () => {
+    if (photos.length === 0) return;
+    enregistrerTracabilitePhotoSimple(photos);
+    setEnregistre(true);
+  };
+
+  const nouveau = () => { setPhotos([]); setEnregistre(false); };
+
+  if (enregistre) {
+    return (
+      <Card className="mb-6 flex flex-col items-center text-center gap-3 py-8">
+        <div className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--accent)]" style={{ background: "var(--accent-soft)" }}><CheckCircle2 size={26} /></div>
+        <p className="text-sm text-[var(--ink)] font-medium">Traçabilité enregistrée — photo(s) conservée(s) 2 mois.</p>
+        <Button onClick={nouveau}><Camera size={16} /> Photographier un autre produit</Button>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="mb-6">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Ajouter une traçabilité</h3>
+      <p className="text-xs text-[var(--steel)] mb-4">Photographiez l'étiquette du produit, bien lisible (nom, DLC/DDM, numéro de lot) — plusieurs photos si besoin (devant/dos de l'emballage). Cliquez sur une photo pour l'agrandir et vérifier qu'elle est lisible.</p>
+      {photos.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {photos.map((p, i) => (
+            <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
+          ))}
+        </div>
+      )}
+      <PhotoInput value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"} />
+      <Button className="mt-3 w-full justify-center" onClick={confirmer} disabled={photos.length === 0}><Camera size={16} /> Enregistrer la traçabilité</Button>
+    </Card>
+  );
+}
+
+// Traçabilité AVEC IA (offre haut de gamme) : deux photos possibles (produit + étiquette zoomée),
+// l'IA lit l'étiquette et propose nom, lot, DLC/DDM, allergènes, origine, agrément sanitaire/code
+// usine et délai de conservation après ouverture — les trois informations obligatoires (nom, lot,
+// DLC/DDM) sont toujours redemandées explicitement si l'IA ne les a pas trouvées, avec possibilité
+// de reprendre une photo de l'étiquette ; les autres champs restent éditables au besoin. Plusieurs
+// produits à la suite : "Enregistrer et passer au produit suivant" réinitialise tout.
+function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, setAllergenesStandard, setAllergenesProduits, origineStandard, setOrigineStandard, setOrigineProduits, dlcJoursStandard, setDlcJoursStandard, catalogueProduits, setCatalogueProduits, setProduitsLotException }) {
+  // Une à plusieurs photos par produit — parfois le nom est sur le devant de l'emballage, la DLC et
+  // les ingrédients à l'arrière, et le logo du fabricant/agrément sanitaire encore ailleurs : autant
+  // de photos que nécessaire pour avoir toutes les informations, pas de limite à deux.
+  const [photos, setPhotos] = useState([]);
+  const [analyseEnCours, setAnalyseEnCours] = useState(false);
+  const [echecAnalyse, setEchecAnalyse] = useState(false);
+  const [analyseFaite, setAnalyseFaite] = useState(false);
+  const [nom, setNom] = useState("");
+  const [lot, setLot] = useState("");
+  const [dlcDate, setDlcDate] = useState("");
+  const [allergenes, setAllergenes] = useState("");
+  const [origine, setOrigine] = useState("");
+  const [codeUsine, setCodeUsine] = useState("");
+  const [delaiApresOuvertureJours, setDelaiApresOuvertureJours] = useState("");
+  const [quantiteUtilisee, setQuantiteUtilisee] = useState("");
+  const [nbEtiquettes, setNbEtiquettes] = useState(1);
+  const [entreeCreee, setEntreeCreee] = useState(null);
+
+  useEffect(() => {
+    if (entreeCreee) { const t = setTimeout(() => window.print(), 200); return () => clearTimeout(t); }
+  }, [entreeCreee]);
+
+  // Analyse TOUTES les photos prises (devant, dos, étiquette zoomée...) et fusionne les résultats :
+  // pour chaque information, on garde la première valeur trouvée en parcourant les photos dans
+  // l'ordre où elles ont été prises — une info peut très bien ne se trouver que sur la 2e ou 3e photo.
+  const analyser = async () => {
+    if (photos.length === 0) return;
+    setAnalyseEnCours(true);
+    setEchecAnalyse(false);
+    const consigne = "Tu regardes la photo d'un produit alimentaire ou de son étiquette en cuisine professionnelle. Identifie si visible : le nom du produit, le numéro de lot, la date limite de consommation (DLC) ou date de durabilité minimale (DDM), les allergènes déclarés, l'origine/provenance indiquée, le délai de conservation après ouverture s'il est indiqué (ex : « à consommer sous 3 jours après ouverture »), et le numéro d'agrément sanitaire CE s'il est visible (format type FR xx.xxx.xxx CE). Réponds UNIQUEMENT en JSON strict, sans texte autour, format exact : {\"nom\": \"...\" ou null, \"lot\": \"...\" ou null, \"dlc\": \"AAAA-MM-JJ\" ou null, \"allergenes\": \"...\" ou null, \"origine\": \"...\" ou null, \"dlcApresOuvertureJours\": nombre entier de jours ou null, \"agrementSanitaire\": \"...\" ou null}. Mets null si l'information n'est pas visible, n'invente jamais.";
+    const resultats = await Promise.all(photos.map((p) => analyserImage(p, consigne)));
+    setAnalyseEnCours(false);
+    setAnalyseFaite(true);
+    const fusion = {};
+    resultats.forEach((r) => {
+      if (!r) return;
+      ["nom", "lot", "dlc", "allergenes", "origine", "dlcApresOuvertureJours", "agrementSanitaire"].forEach((champ) => {
+        if (fusion[champ] == null && r[champ] != null) fusion[champ] = r[champ];
+      });
+    });
+    if (fusion.nom) setNom(fusion.nom);
+    if (fusion.lot) setLot(fusion.lot);
+    if (fusion.dlc) setDlcDate(fusion.dlc);
+    if (fusion.allergenes) setAllergenes(fusion.allergenes);
+    if (fusion.origine) setOrigine(fusion.origine);
+    if (fusion.agrementSanitaire) setCodeUsine(fusion.agrementSanitaire);
+    if (fusion.dlcApresOuvertureJours) setDelaiApresOuvertureJours(String(fusion.dlcApresOuvertureJours));
+    if (!fusion.nom && !fusion.lot && !fusion.dlc) setEchecAnalyse(true);
+  };
+
+  // Les trois informations obligatoires, quelle que soit la méthode (IA ou saisie) : sans elles,
+  // pas de traçabilité valable. Tout le reste (allergènes, origine, code usine, délai après
+  // ouverture) est utile mais jamais bloquant.
+  const champsObligatoiresManquants = [!nom && "nom du produit", !lot && "numéro de lot", !dlcDate && "DLC/DDM"].filter(Boolean);
+  const pretAConfirmer = champsObligatoiresManquants.length === 0;
+
+  const confirmer = () => {
+    if (!pretAConfirmer) return;
+    const entry = creerEtiquetteDlc({
+      produitNom: nom, lot, dlcDate, photos, quantiteUtilisee, nbEtiquettes,
+      allergenes, origine, codeUsine, delaiApresOuvertureJours,
+    });
+    // Mise à jour en temps réel de la fiche produit (allergènes/origine/délai après ouverture) —
+    // même mécanisme qu'à la réception : la première valeur connue pour un produit devient sa
+    // "norme habituelle" ; si ce lot affiche une valeur différente, elle s'applique quand même tout
+    // de suite mais seulement pour ce lot (marqué "en exception"), avec retour automatique à la
+    // norme dès que le stock de ce produit revient à 0.
+    const nomProduitScan = nom.trim();
+    if (nomProduitScan) {
+      if (allergenes) {
+        const norme = allergenesStandard[nomProduitScan];
+        setAllergenesProduits((prev) => ({ ...prev, [nomProduitScan]: allergenes }));
+        if (norme === undefined) {
+          setAllergenesStandard((prev) => ({ ...prev, [nomProduitScan]: allergenes }));
+        } else if (norme !== allergenes) {
+          setProduitsLotException((prev) => ({ ...prev, [nomProduitScan]: true }));
+        }
+      }
+      if (origine) {
+        const norme = origineStandard[nomProduitScan];
+        setOrigineProduits((prev) => ({ ...prev, [nomProduitScan]: origine }));
+        if (norme === undefined) {
+          setOrigineStandard((prev) => ({ ...prev, [nomProduitScan]: origine }));
+        } else if (norme !== origine) {
+          setProduitsLotException((prev) => ({ ...prev, [nomProduitScan]: true }));
+        }
+      }
+      const joursApresOuverture = Number(delaiApresOuvertureJours);
+      if (delaiApresOuvertureJours !== "" && Number.isFinite(joursApresOuverture) && joursApresOuverture >= 0 && catalogueProduits) {
+        const nomNorm = nomProduitScan.toLowerCase();
+        const produitCatalogue = catalogueProduits.find((c) => (c.nom || "").trim().toLowerCase() === nomNorm);
+        if (produitCatalogue && Number(produitCatalogue.dlcJours) !== joursApresOuverture) {
+          const ancienDelai = produitCatalogue.dlcJours;
+          const normeJours = dlcJoursStandard[nomProduitScan];
+          setCatalogueProduits((prev) => prev.map((c) => (c.id === produitCatalogue.id ? { ...c, dlcJours: joursApresOuverture } : c)));
+          if (normeJours === undefined) {
+            setDlcJoursStandard((prev) => ({ ...prev, [nomProduitScan]: ancienDelai }));
+          } else {
+            setProduitsLotException((prev) => ({ ...prev, [nomProduitScan]: true }));
+          }
+        }
+      }
+    }
+    setEntreeCreee(entry);
+  };
+
+  const nouveau = () => {
+    setPhotos([]); setAnalyseFaite(false); setEchecAnalyse(false);
+    setNom(""); setLot(""); setDlcDate(""); setAllergenes(""); setOrigine(""); setCodeUsine(""); setDelaiApresOuvertureJours("");
+    setQuantiteUtilisee(""); setNbEtiquettes(1); setEntreeCreee(null);
+  };
+
+  if (entreeCreee) {
+    return (
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-2 print:hidden">Traçabilité enregistrée</h3>
+        <p className="text-sm text-[var(--ink)] mb-3 print:hidden">
+          <strong>{entreeCreee.nomLibre}</strong>{entreeCreee.lot ? ` — lot ${entreeCreee.lot}` : ""} — DLC/DDM {entreeCreee.dlcDate}{entreeCreee.quantite ? ` — ${entreeCreee.quantite} retiré(s) du stock` : ""}
+        </p>
+        <div className="flex flex-wrap gap-3 mb-4">
+          {Array.from({ length: entreeCreee.nbEtiquettes || 1 }, (_, i) => (
+            <EtiquetteDlcImprimable key={i} produitNom={entreeCreee.nomLibre} lot={entreeCreee.lot} dlcDate={entreeCreee.dlcDate} date={entreeCreee.date} heure={entreeCreee.heure} who={who} employeeId={entreeCreee.employeeId} cuissonInfo={entreeCreee.cuissonInfo} refroidissementInfo={entreeCreee.refroidissementInfo} maintienInfo={entreeCreee.maintienInfo} decongelationInfo={entreeCreee.decongelationInfo} />
+          ))}
+        </div>
+        <div className="flex gap-2 print:hidden">
+          <Button onClick={() => window.print()}><Printer size={16} /> Imprimer {entreeCreee.nbEtiquettes > 1 ? `les ${entreeCreee.nbEtiquettes} étiquettes` : "l'étiquette"}</Button>
+          <Button variant="ghost" onClick={nouveau}><Camera size={16} /> Enregistrer un autre produit</Button>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card className="mb-6">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Ajouter une traçabilité par photo</h3>
+      <p className="text-xs text-[var(--steel)] mb-4">Autant de photos que nécessaire pour tout avoir lisible : le nom est parfois sur le devant de l'emballage, la DLC et les ingrédients à l'arrière, le logo du fabricant/agrément sanitaire ailleurs — prenez une photo par information si besoin, l'IA fusionne tout. Une étiquette entièrement visible permet aussi de repérer si ce produit diffère de l'habituel.</p>
+      {photos.length > 0 && (
+        <div className="flex flex-wrap gap-2 mb-3">
+          {photos.map((p, i) => (
+            <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
+          ))}
+        </div>
+      )}
+      <PhotoInput value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo (dos, étiquette, logo...)" : "Photographier le produit"} />
+      {photos.length > 0 && (
+        <Button className="mt-3" onClick={analyser} disabled={analyseEnCours}>
+          {analyseEnCours ? <><Loader2 size={16} className="animate-spin" /> Analyse...</> : `Analyser la${photos.length > 1 ? ` (${photos.length} photos)` : " photo"}`}
+        </Button>
+      )}
+      {echecAnalyse && <p className="text-xs text-[var(--warn)] mt-2">Photo pas assez lisible pour être analysée automatiquement — complétez les champs ci-dessous, ou reprenez une photo de l'étiquette plus nette.</p>}
+      {analyseFaite && champsObligatoiresManquants.length > 0 && (
+        <p className="text-xs text-[var(--warn)] mt-2 font-medium">Information(s) obligatoire(s) manquante(s) : {champsObligatoiresManquants.join(", ")} — complétez ci-dessous ou reprenez une photo de l'étiquette.</p>
+      )}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-4">
+        <Field label="Nom du produit *"><input className={inputCls} value={nom} onChange={(e) => setNom(e.target.value)} /></Field>
+        <Field label="Numéro de lot *"><input className={inputCls} value={lot} onChange={(e) => setLot(e.target.value)} /></Field>
+        <Field label="Date DLC / DDM *"><input className={inputCls} type="date" value={dlcDate} onChange={(e) => setDlcDate(e.target.value)} /></Field>
+        <Field label="Allergènes (si connus)"><input className={inputCls} value={allergenes} onChange={(e) => setAllergenes(e.target.value)} /></Field>
+        <Field label="Origine (si connue)"><input className={inputCls} value={origine} onChange={(e) => setOrigine(e.target.value)} /></Field>
+        <Field label="Agrément sanitaire / code usine"><input className={inputCls} value={codeUsine} onChange={(e) => setCodeUsine(e.target.value)} /></Field>
+        <Field label="Délai après ouverture (jours)"><input className={inputCls} type="number" min="0" value={delaiApresOuvertureJours} onChange={(e) => setDelaiApresOuvertureJours(e.target.value)} /></Field>
+        <Field label="Quantité utilisée (optionnel — déstocke automatiquement)"><input className={inputCls} value={quantiteUtilisee} onChange={(e) => setQuantiteUtilisee(e.target.value)} /></Field>
+        <Field label="Nombre d'étiquettes à imprimer"><input className={inputCls} type="number" min="1" value={nbEtiquettes} onChange={(e) => setNbEtiquettes(e.target.value)} /></Field>
+      </div>
+      <Button className="mt-3" onClick={confirmer} disabled={!pretAConfirmer}>Confirmer la traçabilité</Button>
+    </Card>
+  );
+}
+
+// Lance une reconnaissance vocale ponctuelle (un seul résultat, puis s'arrête) — utilisé par les
+// petits champs de recherche vocale ci-dessous. N'affiche rien lui-même : les deux callbacks
+// pilotent l'état (écoute/erreur) du composant appelant.
+function lancerEcouteVocale(onResultat, onErreur) {
+  const SR = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  if (!SR) { if (onErreur) onErreur("Commande vocale non disponible sur ce navigateur."); return; }
+  const demarrer = async () => {
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (err) {
+        if (onErreur) onErreur("Micro refusé — autorisez l'accès au micro pour ce site.");
+        return;
+      }
+    }
+    try {
+      const reco = new SR();
+      reco.lang = "fr-FR";
+      reco.interimResults = false;
+      reco.maxAlternatives = 1;
+      reco.onresult = (e) => onResultat(e.results[0][0].transcript);
+      reco.onerror = () => { if (onErreur) onErreur("La commande vocale n'a pas fonctionné — réessayez."); };
+      reco.start();
+    } catch (e) {
+      if (onErreur) onErreur("La commande vocale n'a pas pu démarrer ici.");
+    }
+  };
+  demarrer();
+}
+
+// Petit champ de recherche avec un bouton micro à côté — recherche vocale OU saisie manuelle, au
+// choix. Utilisé pour les recherches rapides (traçabilité, nom/date/lot...).
+function ChampRechercheVocale({ value, onChange, placeholder, label }) {
+  const [enEcoute, setEnEcoute] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const supporteVocal = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  const demarrer = () => {
+    setErreur(null);
+    setEnEcoute(true);
+    lancerEcouteVocale(
+      (texte) => { onChange(texte); setEnEcoute(false); },
+      (msg) => { setErreur(msg); setEnEcoute(false); }
+    );
+  };
+
+  return (
+    <Field label={label}>
+      <div className="flex gap-2">
+        <input className={`${inputCls} flex-1`} value={value} onChange={(e) => onChange(e.target.value)} placeholder={placeholder} />
+        {supporteVocal && (
+          <button
+            type="button" onClick={demarrer} disabled={enEcoute}
+            style={enEcoute ? { backgroundColor: "#C1432D", borderColor: "#C1432D", color: "#fff" } : undefined}
+            className={`w-10 h-10 rounded-lg flex items-center justify-center border shrink-0 ${enEcoute ? "animate-pulse" : "border-[var(--line)] text-[var(--steel)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}
+            title="Recherche vocale"
+          >
+            <Mic size={16} />
+          </button>
+        )}
+      </div>
+      {erreur && <p className="text-[10px] text-[var(--warn)] mt-1">{erreur}</p>}
+    </Field>
+  );
+}
+
+function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabilitePhotoSimple, employees, allergenesStandard, setAllergenesStandard, setAllergenesProduits, origineStandard, setOrigineStandard, setOrigineProduits, dlcJoursStandard, setDlcJoursStandard, catalogueProduits, setCatalogueProduits, setProduitsLotException }) {
+  const [recherche, setRecherche] = useState("");
+  const [infosFiche, setInfosFiche] = useState(null);
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
+
+  // Recherche par nom, numéro de lot, OU date (ISO "2026-10-01" aussi bien que "1 oct" / "01/10") —
+  // pour retrouver une traçabilité aussi bien en tapant/disant un produit qu'un jour précis.
+  const recherchePropre = normaliserTexte(recherche.trim());
+  const resultats = recherchePropre.length > 1
+    ? preparations.filter((p) => p.lot !== undefined).filter((p) => {
+        const dateFormatee = p.date ? normaliserTexte(fmtShort(p.date)) : "";
+        const haystack = normaliserTexte(`${p.nomLibre || ""} ${p.lot || ""} ${p.date || ""} ${dateFormatee}`);
+        return haystack.includes(recherchePropre);
+      }).sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure)).slice(0, 30)
+    : [];
+
+  return (
+    <div>
+      <SectionHeader title="Traçabilité" subtitle="Enregistrez la traçabilité d'un produit par photo, ou recherchez une traçabilité déjà enregistrée" />
+
+      <BoutonInfosNormes ficheKey="tracabilite" onClick={ouvrirNormes} label="Qu'est-ce qu'une traçabilité et comment bien la faire" />
+      {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
+
+      {IA_ACTIVEE
+        ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} />
+        : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} />}
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Rechercher une traçabilité</h3>
+        <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Nom du produit, numéro de lot ou date" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
+        {resultats.length > 0 && (
+          <div className="divide-y divide-[var(--line)] mt-3">
+            {resultats.map((r) => (
+              <div key={r.id} className="flex items-center gap-3 py-2.5 text-sm">
+                {r.photo && <img src={r.photo} alt="" className="w-10 h-10 object-cover rounded-lg border border-[var(--line)]" />}
+                <div>
+                  <div className="text-[var(--ink)] font-medium">{r.nomLibre || "Traçabilité par photo"}</div>
+                  <div className="text-xs text-[var(--steel)]">{r.lot ? `Lot ${r.lot} · ` : ""}{r.dlcDate ? `DLC/DDM ${r.dlcDate} · ` : ""}{r.date}{who(r.employeeId) ? " · " + who(r.employeeId) : ""}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {recherchePropre.length > 1 && resultats.length === 0 && (
+          <p className="text-xs text-[var(--steel)] mt-2">Aucune traçabilité trouvée pour cette recherche.</p>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+const DELAIS_RAPIDES_DLC = [
+  { label: "Jour même", jours: 0 }, { label: "1j", jours: 1 }, { label: "2j", jours: 2 }, { label: "3j", jours: 3 },
+  { label: "7j", jours: 7 }, { label: "15j", jours: 15 }, { label: "1 mois", jours: 30 },
+];
+
+function categorieDeProduitDlc(p) { return p.categorieManuelle || categoriserProduitDlc(p.nom); }
+
+function estDdm(p) { return p.typeDate === "DDM" || p.dlcSource === "reception"; }
+
+function libelleDelaiDlc(p) {
+  if (estDdm(p)) return p.ddmLotActuel ? `DDM lot ${p.ddmLotActuel}${p.ddmDateActuelle ? ` : ${p.ddmDateActuelle}` : ""}` : "DDM à réception";
+  return `J+${p.dlcJours ?? 0}`;
+}
+
+function dlcCalculeeProduit(p) {
+  if (estDdm(p)) return p.ddmDateActuelle || "";
+  return addDays(todayISO(), p.dlcJours || 0);
+}
+
+// Génère un numéro de lot automatiquement : abréviation du produit + date du jour de fabrication
+// (JJMMAAAA). L'employé ne choisit pas le lot ni la durée de conservation — tout est calculé par
+// le logiciel à partir du catalogue produits, pour éviter toute DLC/DDM ou lot inventé au feeling.
+function abreviationLot(nom) {
+  const norme = (nom || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z\s]/g, "").trim();
+  const mots = norme.split(/\s+/).filter(Boolean);
+  if (mots.length === 0) return "prod";
+  const motsGeneriques = ["sauce", "plat", "produit"];
+  if (mots.length >= 2 && motsGeneriques.includes(mots[0])) return mots[1].slice(0, 4);
+  if (mots.length === 1) return mots[0].slice(0, 4);
+  return mots.map((m) => m[0]).join("").slice(0, 6);
+}
+function dateLotDuJour() {
+  const d = new Date();
+  return `${String(d.getDate()).padStart(2, "0")}${String(d.getMonth() + 1).padStart(2, "0")}${d.getFullYear()}`;
+}
+function genererLot(nom) {
+  return `${abreviationLot(nom)}${dateLotDuJour()}`;
+}
+
+function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+
+  const [ficheNormesOuverte, setFicheNormesOuverte] = useState(null);
+  const [recherche, setRecherche] = useState("");
+  const [panneauOuvert, setPanneauOuvert] = useState(null); // "produits" | "categories" | null
+  const [selection, setSelection] = useState([]);
+  const [ongletAjoutRetrait, setOngletAjoutRetrait] = useState(null); // "ajouter" | "retirer" | null
+  const [nouveauProduit, setNouveauProduit] = useState({ nom: "", categorie: ORDRE_CATEGORIES_DLC[0], typeDate: "DLC", delaiJours: "", ddmPremierLot: false, ddmLot: "", ddmDate: "" });
+  const [rechercheRetrait, setRechercheRetrait] = useState("");
+  const [assistantLignes, setAssistantLignes] = useState(null); // édition d'étiquette(s)
+  const [etiquettesAImprimer, setEtiquettesAImprimer] = useState(null);
+
+  useEffect(() => {
+    if (etiquettesAImprimer) { const t = setTimeout(() => window.print(), 200); return () => clearTimeout(t); }
+  }, [etiquettesAImprimer]);
+
+  // Un même produit peut exister en plusieurs exemplaires dans le catalogue (un par poste qui le prépare/le stocke),
+  // ce qui reste nécessaire pour les tâches par poste — mais sur cette page on n'affiche qu'une seule tuile par nom.
+  const produitsUniques = React.useMemo(() => {
+    const vus = new Map();
+    produits.forEach((p) => { const cle = (p.nom || "").trim().toLowerCase(); if (!vus.has(cle)) vus.set(cle, p); });
+    return [...vus.values()];
+  }, [produits]);
+
+  const produitsTries = [...produitsUniques].sort((a, b) => a.nom.localeCompare(b.nom));
+  const parCategorie = produitsUniques.reduce((acc, p) => { const c = categorieDeProduitDlc(p); (acc[c] = acc[c] || []).push(p); return acc; }, {});
+  const categoriesPresentes = ORDRE_CATEGORIES_DLC.filter((c) => parCategorie[c]?.length);
+
+  const allerAuProduit = (id) => {
+    setPanneauOuvert(null);
+    const el = document.getElementById(`dlc-prod-${id}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+      el.style.boxShadow = "0 0 0 3px var(--accent)";
+      setTimeout(() => { el.style.boxShadow = ""; }, 1500);
+    }
+  };
+  const allerALaCategorie = (cat) => {
+    setPanneauOuvert(null);
+    const el = document.getElementById(`dlc-cat-${cat}`);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
+
+  useEffect(() => {
+    const q = recherche.trim().toLowerCase();
+    if (q.length < 2) return;
+    const trouve = produitsTries.find((p) => p.nom.toLowerCase().includes(q));
+    if (trouve) allerAuProduit(trouve.id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [recherche]);
+
+  const toggleSelection = (id) => setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
+
+  const majNouveauProduit = (champ, val) => setNouveauProduit((prev) => {
+    const next = { ...prev, [champ]: val };
+    if (champ === "categorie" && val === "Surgelés" && !prev.delaiJours) next.delaiJours = 15;
+    return next;
+  });
+
+  const ajouterProduit = () => {
+    if (!nouveauProduit.nom) return;
+    const entry = {
+      id: uid(), nom: nouveauProduit.nom, poste: "Poste Chaud", categorieManuelle: nouveauProduit.categorie,
+      typeDate: nouveauProduit.typeDate,
+      dlcJours: nouveauProduit.typeDate === "DLC" ? (Number(nouveauProduit.delaiJours) || 0) : null,
+      ddmLotActuel: nouveauProduit.typeDate === "DDM" ? nouveauProduit.ddmLot || null : null,
+      ddmDateActuelle: nouveauProduit.typeDate === "DDM" ? nouveauProduit.ddmDate || null : null,
+    };
+    setProduits([...produits, entry]);
+    logActivity("HACCP", "Produit ajouté au catalogue DLC", `${entry.nom} — ${libelleDelaiDlc(entry)}`);
+    setNouveauProduit({ nom: "", categorie: ORDRE_CATEGORIES_DLC[0], typeDate: "DLC", delaiJours: "", ddmPremierLot: false, ddmLot: "", ddmDate: "" });
+  };
+
+  const retirerProduitsResultats = rechercheRetrait.trim().length > 0
+    ? produitsTries.filter((p) => p.nom.toLowerCase().includes(rechercheRetrait.trim().toLowerCase())) : [];
+  const retirerProduit = (id) => {
+    const p = produits.find((x) => x.id === id);
+    setProduits(produits.filter((x) => x.id !== id));
+    setSelection((s) => s.filter((x) => x !== id));
+    if (p) logActivity("HACCP", "Produit retiré du catalogue DLC", p.nom);
+  };
+
+  const ouvrirAssistantEdition = () => {
+    const lignes = produitsUniques.filter((p) => selection.includes(p.id)).map((p) => ({
+      produitId: p.id, nom: p.nom,
+      lot: genererLot(p.nom), dlcDate: dlcCalculeeProduit(p), quantiteUtilisee: "", nbEtiquettes: 1,
+      // "Ce produit sort-il de congélation ?" n'est posé que pour les articles de la catégorie
+      // Surgelés — si oui, l'étiquette porte "décongelé le ..." et la DLC est recalculée en J+3 à
+      // partir de cette date/heure de sortie (jour de sortie compris), qui prime sur la DLC du
+      // catalogue produits.
+      estSurgele: categorieDeProduitDlc(p) === "Surgelés",
+      decongele: false,
+      decongelDate: todayISO(),
+      decongelHeure: new Date().toTimeString().slice(0, 5),
+    }));
+    if (lignes.length === 0) return;
+    setAssistantLignes(lignes);
+  };
+
+  const majLigne = (produitId, champ, val) => setAssistantLignes((prev) => prev.map((l) => (l.produitId === produitId ? { ...l, [champ]: val } : l)));
+
+  const confirmerAssistant = () => {
+    const entries = assistantLignes
+      .filter((l) => l.dlcDate)
+      .map((l) => {
+        const dlcFinale = l.decongele ? addDays(l.decongelDate, 2) : l.dlcDate;
+        const decongelationInfo = l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null;
+        return creerEtiquetteDlc({ produitNom: l.nom, lot: l.lot, dlcDate: dlcFinale, photo: null, quantiteUtilisee: l.quantiteUtilisee, nbEtiquettes: l.nbEtiquettes, decongelationInfo });
+      })
+      .filter(Boolean)
+      .map((e) => ({ ...e, produitNom: e.nomLibre }));
+    setAssistantLignes(null);
+    setSelection([]);
+    if (entries.length > 0) setEtiquettesAImprimer(entries);
+  };
+
+  const dernierePourNom = (nom) => preparations.filter((p) => p.nomLibre === nom).sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure))[0] || null;
+
+  const reediterEtiquettes = () => {
+    const trouvees = produitsUniques.filter((p) => selection.includes(p.id))
+      .map((p) => { const h = dernierePourNom(p.nom); return h ? { ...h, produitNom: p.nom } : null; })
+      .filter(Boolean);
+    if (trouvees.length === 0) return;
+    setEtiquettesAImprimer(trouvees);
+  };
+
+  if (etiquettesAImprimer) {
+    return (
+      <div>
+        <button onClick={() => setEtiquettesAImprimer(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
+          <ArrowLeft size={15} /> Retour aux étiquettes
+        </button>
+        <div className="space-y-4 print:space-y-2">
+          {etiquettesAImprimer.flatMap((e) => Array.from({ length: e.nbEtiquettes || 1 }, (_, i) => (
+            <EtiquetteDlcImprimable key={`${e.id}-${i}`} produitNom={e.produitNom} lot={e.lot} dlcDate={e.dlcDate} date={e.date} heure={e.heure} who={who} employeeId={e.employeeId} cuissonInfo={e.cuissonInfo} refroidissementInfo={e.refroidissementInfo} maintienInfo={e.maintienInfo} decongelationInfo={e.decongelationInfo} />
+          )))}
+        </div>
+        <Button className="mt-4 print:hidden" onClick={() => window.print()}><Printer size={16} /> Imprimer {etiquettesAImprimer.reduce((n, e) => n + (e.nbEtiquettes || 1), 0)} étiquette(s)</Button>
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Étiquette DLC" subtitle="Produits par catégorie — recherchez, sélectionnez et éditez vos étiquettes" />
+
+      <BoutonInfosNormes ficheKey="dlc" onClick={setFicheNormesOuverte} label="Durées de conservation (DLC) — repères officiels et professionnels" />
+      {ficheNormesOuverte && <ModalInfosNormes fiche={FICHES_NORMES[ficheNormesOuverte]} onClose={() => setFicheNormesOuverte(null)} />}
+
+      <Card className="mb-4">
+        <Field label="Recherche rapide — tapez le nom d'un produit">
+          <input className={inputCls} value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Nom du produit" />
+        </Field>
+
+        <div className="grid grid-cols-2 gap-3 mt-3">
+          <button onClick={() => setPanneauOuvert((v) => (v === "produits" ? null : "produits"))}
+            className={`rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[70px] px-2 text-center border-2 transition-colors ${panneauOuvert === "produits" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
+            <Package size={22} className="text-[var(--accent)]" />
+            <span className="text-sm font-bold text-[var(--ink)]">Produits</span>
+          </button>
+          <button onClick={() => setPanneauOuvert((v) => (v === "categories" ? null : "categories"))}
+            className={`rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[70px] px-2 text-center border-2 transition-colors ${panneauOuvert === "categories" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
+            <ListChecks size={22} className="text-[var(--accent)]" />
+            <span className="text-sm font-bold text-[var(--ink)]">Catégories</span>
+          </button>
+        </div>
+
+        {panneauOuvert === "produits" && (
+          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-[var(--line)] divide-y divide-[var(--line)]">
+            {produitsTries.map((p) => (
+              <button key={p.id} onClick={() => allerAuProduit(p.id)} className="w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--bg)]">{p.nom}</button>
+            ))}
+          </div>
+        )}
+        {panneauOuvert === "categories" && (
+          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-[var(--line)] divide-y divide-[var(--line)]">
+            {categoriesPresentes.map((cat) => (
+              <button key={cat} onClick={() => allerALaCategorie(cat)} className="w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--bg)]">{cat}</button>
+            ))}
+          </div>
+        )}
+      </Card>
+
+      <Card className="mb-6">
+        {categoriesPresentes.map((cat) => (
+          <div key={cat} id={`dlc-cat-${cat}`} className="mb-5 last:mb-0">
+            <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{cat}</h3>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+              {parCategorie[cat].map((p) => {
+                const selectionne = selection.includes(p.id);
+                return (
+                  <button key={p.id} id={`dlc-prod-${p.id}`} onClick={() => toggleSelection(p.id)}
+                    className={`text-left rounded-xl border-2 p-3 transition-colors ${selectionne ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
+                    <div className="flex items-start justify-between gap-1.5">
+                      <span className="text-sm text-[var(--ink)] font-medium leading-tight">{p.nom}</span>
+                      {selectionne ? <CheckCircle2 size={16} className="text-[var(--accent)] shrink-0" /> : <Circle size={16} className="text-[var(--line)] shrink-0" />}
+                    </div>
+                    <div className="text-[11px] text-[var(--steel)] font-medium mt-1">{libelleDelaiDlc(p)}</div>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+
+        <div className="flex flex-wrap justify-end gap-2 mt-5 pt-4 border-t border-[var(--line)]">
+          <Button variant="ghost" onClick={reediterEtiquettes} disabled={selection.length === 0}>Réédite la dernière étiquette</Button>
+          <Button onClick={ouvrirAssistantEdition} disabled={selection.length === 0}><Printer size={16} /> Éditer une étiquette</Button>
+        </div>
+      </Card>
+
+      {assistantLignes && (
+        <Card className="mb-6 border-[var(--accent)]/40">
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Édition d'étiquette{assistantLignes.length > 1 ? "s" : ""}</h3>
+          <p className="text-xs text-[var(--steel)] mb-4">Lot et DLC/DDM sont calculés automatiquement par le logiciel à partir du catalogue produits — ils ne se saisissent pas à la main. Indiquez juste la quantité utilisée et le nombre d'étiquettes à imprimer.</p>
+          <div className="space-y-4">
+            {assistantLignes.map((l) => (
+              <div key={l.produitId} className="border border-[var(--line)] rounded-lg p-3">
+                <div className="font-medium text-[var(--ink)] mb-2">{l.nom}</div>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                  <div>
+                    <div className="text-xs text-[var(--steel)] mb-1">Lot (auto)</div>
+                    <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{l.lot}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-[var(--steel)] mb-1">DLC/DDM (auto)</div>
+                    <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{l.decongele ? (l.decongelDate ? addDays(l.decongelDate, 2) : "—") : (l.dlcDate || "non disponible")}</div>
+                  </div>
+                  <Field label="Quantité utilisée"><input className={inputCls} value={l.quantiteUtilisee} onChange={(e) => majLigne(l.produitId, "quantiteUtilisee", e.target.value)} placeholder="ex : 2 kg" /></Field>
+                  <Field label="Nombre d'étiquettes"><input className={inputCls} type="number" min="1" value={l.nbEtiquettes} onChange={(e) => majLigne(l.produitId, "nbEtiquettes", e.target.value)} /></Field>
+                </div>
+                {!l.dlcDate && !l.decongele && (
+                  <p className="text-xs text-[var(--warn)] mt-2">DDM non renseignée pour ce produit — à mettre à jour depuis la réception avant de générer l'étiquette.</p>
+                )}
+                {l.estSurgele && (
+                  <div className="mt-3 pt-3 border-t border-[var(--line)]">
+                    <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Ce produit sort-il de congélation ?</p>
+                    <div className="flex gap-2 mb-2">
+                      <button type="button" onClick={() => majLigne(l.produitId, "decongele", true)} className={`text-xs font-medium px-3 py-1.5 rounded-full border ${l.decongele ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Oui</button>
+                      <button type="button" onClick={() => majLigne(l.produitId, "decongele", false)} className={`text-xs font-medium px-3 py-1.5 rounded-full border ${!l.decongele ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Non</button>
+                    </div>
+                    {l.decongele && (
+                      <div className="grid grid-cols-2 gap-2">
+                        <Field label="Date de sortie du congélateur"><input className={inputCls} type="date" value={l.decongelDate} onChange={(e) => majLigne(l.produitId, "decongelDate", e.target.value)} /></Field>
+                        <Field label="Heure de sortie"><input className={inputCls} type="time" value={l.decongelHeure} onChange={(e) => majLigne(l.produitId, "decongelHeure", e.target.value)} /></Field>
+                      </div>
+                    )}
+                    {l.decongele && <p className="text-xs text-[var(--steel)] mt-2">L'étiquette portera « Décongelé le … » et une DLC recalculée en J+3 à partir de cette sortie (jour de sortie compris), jamais recongelé.</p>}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-2 mt-4">
+            <Button onClick={confirmerAssistant}><Printer size={16} /> Confirmer et générer les étiquettes</Button>
+            <Button variant="ghost" onClick={() => setAssistantLignes(null)}>Annuler</Button>
+          </div>
+        </Card>
+      )}
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Ajouter ou retirer un produit</h3>
+        <div className="flex gap-2 mb-4">
+          <Button variant={ongletAjoutRetrait === "ajouter" ? "primary" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "ajouter" ? null : "ajouter"))}><Plus size={16} /> Ajouter un produit</Button>
+          <Button variant={ongletAjoutRetrait === "retirer" ? "danger" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "retirer" ? null : "retirer"))}><Trash2 size={16} /> Retirer un produit</Button>
+        </div>
+
+        {ongletAjoutRetrait === "ajouter" && (
+          <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--bg)]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+              <Field label="Nom du produit"><input className={inputCls} value={nouveauProduit.nom} onChange={(e) => majNouveauProduit("nom", e.target.value)} /></Field>
+              <Field label="Catégorie">
+                <select className={inputCls} value={nouveauProduit.categorie} onChange={(e) => majNouveauProduit("categorie", e.target.value)}>
+                  {ORDRE_CATEGORIES_DLC.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+              <Field label="Type de date">
+                <select className={inputCls} value={nouveauProduit.typeDate} onChange={(e) => majNouveauProduit("typeDate", e.target.value)}>
+                  <option value="DLC">DLC (délai après préparation)</option>
+                  <option value="DDM">DDM (date sur l'emballage, suivie par lot)</option>
+                </select>
+              </Field>
+            </div>
+
+            {nouveauProduit.typeDate === "DLC" ? (
+              <div className="mb-3">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {DELAIS_RAPIDES_DLC.map((d) => (
+                    <button key={d.label} onClick={() => majNouveauProduit("delaiJours", d.jours)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border ${Number(nouveauProduit.delaiJours) === d.jours ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <Field label="Délai personnalisé (jours)"><input className={`${inputCls} w-32`} type="number" min="0" value={nouveauProduit.delaiJours} onChange={(e) => majNouveauProduit("delaiJours", e.target.value)} /></Field>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                <Field label="Numéro du lot à sortir en premier"><input className={inputCls} value={nouveauProduit.ddmLot} onChange={(e) => majNouveauProduit("ddmLot", e.target.value)} placeholder="D'après la traçabilité de réception" /></Field>
+                <Field label="DDM de ce lot"><input className={inputCls} type="date" value={nouveauProduit.ddmDate} onChange={(e) => majNouveauProduit("ddmDate", e.target.value)} /></Field>
+              </div>
+            )}
+            <Button onClick={ajouterProduit} disabled={!nouveauProduit.nom}><Plus size={16} /> Ajouter au catalogue</Button>
+          </div>
+        )}
+
+        {ongletAjoutRetrait === "retirer" && (
+          <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--bg)]">
+            <Field label="Rechercher un produit à retirer"><input className={inputCls} value={rechercheRetrait} onChange={(e) => setRechercheRetrait(e.target.value)} /></Field>
+            {retirerProduitsResultats.length > 0 && (
+              <div className="divide-y divide-[var(--line)] mt-2">
+                {retirerProduitsResultats.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between py-2 text-sm">
+                    <span className="text-[var(--ink)]">{p.nom}</span>
+                    <Button variant="danger" onClick={() => { retirerProduit(p.id); setRechercheRetrait(""); }}>Retirer</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- module Stock & réception ---------- */
+
+function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity }) {
+  const [infosStockage, setInfosStockage] = useState(null);
+  const [item, setItem] = useState({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" });
+  const [aCommander, setACommander] = useState({});
+  const [dernierBon, setDernierBon] = useState(null);
+  const [recherche, setRecherche] = useState("");
+  const [modeCatalogue, setModeCatalogue] = useState(null); // null | "ajouter" | "supprimer"
+  const [nomASupprimer, setNomASupprimer] = useState("");
+  const [confirmSuppressionOuverte, setConfirmSuppressionOuverte] = useState(false);
+  const [commandeEnCours, setCommandeEnCours] = useState(false);
+  const [commandeGeneree, setCommandeGeneree] = useState(false);
+  const [vueListeCommande, setVueListeCommande] = useState(false);
+  const [vueEnvoyerCommande, setVueEnvoyerCommande] = useState(false);
+  const [inventaireActif, setInventaireActif] = useState(false);
+  const today = todayISO();
+
+  const addItem = () => {
+    if (!item.nom) return;
+    setStock([...stock, { id: uid(), ...item, quantite: Number(item.quantite) || 0, cible: Number(item.cible) || 0, lot: "", dlc: "" }]);
+    logActivity("Stock", "Article ajouté à l'inventaire", `${item.nom} (${item.quantite || 0} ${item.unite})`);
+    setItem({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" });
+  };
+
+  const adjustQty = (id, delta) => {
+    const s = stock.find((x) => x.id === id);
+    setStock(stock.map((s) => (s.id === id ? { ...s, quantite: Math.max(0, Number(s.quantite) + delta) } : s)));
+    if (s) logActivity("Stock", delta > 0 ? "Quantité augmentée" : "Quantité diminuée", `${s.nom} : ${delta > 0 ? "+" : ""}${delta} ${s.unite}`);
+  };
+
+  const updateCible = (id, valeur) => setStock(stock.map((s) => (s.id === id ? { ...s, cible: valeur } : s)));
+  const updateFournisseur = (id, valeur) => setStock(stock.map((s) => (s.id === id ? { ...s, fournisseur: valeur } : s)));
+
+  const removeItem = (id) => setStock(stock.filter((s) => s.id !== id));
+
+  const manquants = stock.filter((s) => Number(s.quantite) < Number(s.cible));
+
+  const quantitePour = (s) => {
+    const surcharge = aCommander[s.id];
+    if (surcharge && surcharge.quantite !== undefined) return surcharge.quantite;
+    return Math.max(0, Number(s.cible) - Number(s.quantite));
+  };
+  const inclusPour = (s) => aCommander[s.id]?.inclus !== false;
+
+  const grouped = manquants.reduce((acc, s) => {
+    const f = s.fournisseur || "Fournisseur non renseigné";
+    (acc[f] = acc[f] || []).push(s);
+    return acc;
+  }, {});
+
+  const validerCommande = () => {
+    const lignes = manquants.filter((s) => inclusPour(s) && quantitePour(s) > 0);
+    if (lignes.length === 0) return;
+    const parFournisseur = lignes.reduce((acc, s) => {
+      const f = s.fournisseur || "Fournisseur non renseigné";
+      (acc[f] = acc[f] || []).push(`${s.nom} — ${quantitePour(s)} ${s.unite}`);
+      return acc;
+    }, {});
+    const texte = Object.entries(parFournisseur).map(([f, items]) => `${f} :\n${items.map((i) => `  - ${i}`).join("\n")}`).join("\n\n");
+    const bon = { id: uid(), date: todayISO(), employeeId: currentUserId, texte, lignes: lignes.map((s) => ({ nom: s.nom, quantite: quantitePour(s), unite: s.unite, fournisseur: s.fournisseur })) };
+    setCommandesHistorique([bon, ...commandesHistorique]);
+    setDernierBon(bon);
+    logActivity("Stock", "Bon de commande validé", `${lignes.length} article(s)`);
+  };
+
+  const filtres = stock.filter((s) => {
+    const q = recherche.trim().toLowerCase();
+    if (!q) return true;
+    return s.nom.toLowerCase().includes(q) || (s.reference || "").toLowerCase().includes(q);
+  });
+  const parCategorie = filtres.reduce((acc, s) => { (acc[s.categorie || "Sans catégorie"] = acc[s.categorie || "Sans catégorie"] || []).push(s); return acc; }, {});
+
+  const produitASupprimer = nomASupprimer.trim() ? stock.find((s) => s.nom.trim().toLowerCase() === nomASupprimer.trim().toLowerCase()) : null;
+
+  if (inventaireActif) {
+    return <FicheInventaire stock={stock} setStock={setStock} logActivity={logActivity} today={today} onBack={() => setInventaireActif(false)} />;
+  }
+
+  if (vueListeCommande) {
+    return (
+      <div>
+        <button onClick={() => setVueListeCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour</button>
+        <SectionHeader title="Liste de commande" subtitle="Articles sous leur quantité cible — vérifiez, ajustez les quantités, puis confirmez que la commande a été passée." />
+        <Card>
+          {manquants.length === 0 ? (
+            <p className="text-sm text-[var(--steel)]">Rien à commander pour le moment, tout est au-dessus de la quantité cible.</p>
+          ) : (
+            <>
+              {Object.entries(grouped).map(([fournisseur, items]) => (
+                <div key={fournisseur} className="mb-4 last:mb-0">
+                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{fournisseur}</div>
+                  <div className="divide-y divide-[var(--line)]">
+                    {items.map((s) => (
+                      <div key={s.id} className="flex items-center justify-between py-2 text-sm">
+                        <label className="flex items-center gap-2 flex-1">
+                          <input type="checkbox" checked={inclusPour(s)} onChange={(e) => setACommander({ ...aCommander, [s.id]: { ...aCommander[s.id], inclus: e.target.checked, quantite: quantitePour(s) } })} />
+                          <span className="text-[var(--ink)]">{s.nom}</span>
+                          <span className="text-xs text-[var(--steel)]">({s.quantite} → {s.cible} {s.unite})</span>
+                        </label>
+                        <input
+                          type="number"
+                          className={`${inputCls} w-20 text-right`}
+                          value={quantitePour(s)}
+                          onChange={(e) => setACommander({ ...aCommander, [s.id]: { inclus: inclusPour(s), quantite: Number(e.target.value) } })}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              ))}
+              <Button onClick={validerCommande} className="mt-2"><CheckCircle2 size={16} /> Commande passée</Button>
+            </>
+          )}
+
+          {dernierBon && (
+            <div className="mt-5 pt-4 border-t border-[var(--line)]">
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Dernier bon généré — {dernierBon.date}</div>
+              <pre className="text-xs text-[var(--ink)] bg-[var(--bg)] rounded-lg p-3 whitespace-pre-wrap">{dernierBon.texte}</pre>
+            </div>
+          )}
+
+          {commandesHistorique.length > 0 && (
+            <div className="mt-5 pt-4 border-t border-[var(--line)]">
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Historique des bons de commande</div>
+              <div className="divide-y divide-[var(--line)]">
+                {commandesHistorique.slice(0, 10).map((b) => (
+                  <div key={b.id} className="py-2 text-sm text-[var(--ink)]">{b.date} — {b.lignes.length} article(s)</div>
+                ))}
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+    );
+  }
+
+  if (vueEnvoyerCommande) {
+    return (
+      <div>
+        <button onClick={() => setVueEnvoyerCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour</button>
+        <SectionHeader title="Envoyer la commande" subtitle="L'envoi automatique directement sur le site de commande d'un fournisseur n'est pas possible depuis cette application (aucun accès à leurs sites) — voici le plus proche : un e-mail pré-rempli, prêt à envoyer, pour chaque fournisseur." />
+        {manquants.length === 0 ? (
+          <Card><p className="text-sm text-[var(--steel)]">Rien à commander pour le moment.</p></Card>
+        ) : (
+          <div className="space-y-4">
+            {Object.entries(grouped).map(([fournisseur, items]) => {
+              const lignesF = items.filter((s) => inclusPour(s) && quantitePour(s) > 0);
+              if (lignesF.length === 0) return null;
+              const corps = [`Bonjour,`, ``, `Merci de nous confirmer la commande suivante :`, ``, ...lignesF.map((s) => `- ${s.nom} — ${quantitePour(s)} ${s.unite}`), ``, `Cordialement,`].join("\n");
+              const mailtoHref = `mailto:?subject=${encodeURIComponent(`Commande — ${fournisseur} — ${todayISO()}`)}&body=${encodeURIComponent(corps)}`;
+              return (
+                <Card key={fournisseur}>
+                  <div className="font-medium text-[var(--ink)] mb-2">{fournisseur}</div>
+                  <pre className="text-xs text-[var(--ink)] bg-[var(--bg)] rounded-lg p-3 whitespace-pre-wrap mb-3">{corps}</pre>
+                  <a href={mailtoHref}><Button><Mail size={16} /> Envoyer par e-mail à {fournisseur}</Button></a>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div>
+      <SectionHeader title="Stock" subtitle="Référence, nom, lot, DLC, quantité en stock et quantité cible" />
+
+      <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
+        className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-bold border-2 shadow-sm"
+        style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
+        <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
+        <span className="text-sm uppercase tracking-wide">⚠ Gestion du stock — Normes HACCP</span>
+      </button>
+      {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
+          <h3 className="font-semibold text-[var(--ink)]">Stock actuel ({stock.length})</h3>
+          <input className={`${inputCls} w-full sm:w-64`} placeholder="Rechercher un article ou une référence..." value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+        </div>
+        {filtres.length === 0 ? (
+          <p className="text-sm text-[var(--steel)]">Aucun article ne correspond.</p>
+        ) : (
+          Object.entries(parCategorie).map(([categorie, items]) => (
+            <div key={categorie} className="mb-5 last:mb-0">
+              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{categorie} <span className="font-normal normal-case">({items.length})</span></div>
+              <div className="divide-y divide-[var(--line)]">
+                {items.map((s) => {
+                  const bas = Number(s.quantite) < Number(s.cible);
+                  return (
+                    <div key={s.id} className="py-3 first:pt-0">
+                      <div className="flex items-start justify-between gap-2 mb-1.5">
+                        <div className="min-w-0 flex-1">
+                          <div className="text-[var(--ink)] font-medium">{s.nom}</div>
+                          <input
+                            className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full"
+                            placeholder="Fournisseur non renseigné"
+                            value={s.fournisseur}
+                            onChange={(e) => updateFournisseur(s.id, e.target.value)}
+                          />
+                        </div>
+                        <span className="text-xs text-[var(--steel)] shrink-0 text-right">Réf. {s.reference || "—"}</span>
+                      </div>
+                      <div className="flex items-center gap-3 text-xs text-[var(--steel)] mb-2 flex-wrap">
+                        <span>Lot : {s.lot || "—"}</span>
+                        <span>DLC : {s.dlc || "—"}</span>
+                      </div>
+                      <div className="flex items-center justify-between gap-3 flex-wrap">
+                        <div className="flex items-center gap-2 shrink-0">
+                          <button onClick={() => adjustQty(s.id, -1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--line)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">−</button>
+                          <span className="text-center font-semibold text-[var(--ink)] whitespace-nowrap">{s.quantite} {s.unite}</span>
+                          <button onClick={() => adjustQty(s.id, 1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--line)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">+</button>
+                        </div>
+                        <div className="flex items-center gap-1.5 shrink-0">
+                          <span className="text-xs text-[var(--steel)] whitespace-nowrap">Cible :</span>
+                          <input type="number" className={`${inputCls} w-16`} value={s.cible} onChange={(e) => updateCible(s.id, e.target.value)} />
+                        </div>
+                      </div>
+                      {bas && <div className="text-[10px] text-[var(--warn)] mt-1">Sous la cible</div>}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
+        )}
+      </Card>
+
+      <Button onClick={() => setCommandeEnCours(true)} className="w-full justify-center mb-3" style={{ padding: "16px 20px", fontSize: 16 }}>
+        <ShoppingCart size={18} /> Générer une commande
+      </Button>
+
+      {commandeGeneree && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
+          <Button variant="ghost" onClick={() => setVueListeCommande(true)}><ClipboardList size={16} /> Liste de commande</Button>
+          <Button variant="ghost" onClick={() => setVueEnvoyerCommande(true)}><Mail size={16} /> Envoyer commande</Button>
+        </div>
+      )}
+
+      {commandeEnCours && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+            <div className="flex items-center justify-between mb-3">
+              <button onClick={() => setCommandeEnCours(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+                <ArrowLeft size={15} /> Retour
+              </button>
+              <span className="w-14" />
+            </div>
+            <h3 className="font-semibold text-[var(--ink)] mb-1">Quantités qui doivent être en stock</h3>
+            <p className="text-xs text-[var(--steel)] mb-4">Vérifiez et ajustez si besoin la quantité cible de chaque produit, puis validez : le logiciel générera la commande de ce qui manque encore par rapport au stock actuel.</p>
+            <div className="divide-y divide-[var(--line)]">
+              {stock.map((s) => (
+                <div key={s.id} className="flex items-center justify-between py-2 gap-3 text-sm">
+                  <span className="text-[var(--ink)] flex-1">{s.nom}</span>
+                  <span className="text-xs text-[var(--steel)] shrink-0">{s.quantite} {s.unite} en stock</span>
+                  <input type="number" className={`${inputCls} w-20 shrink-0`} value={s.cible} onChange={(e) => updateCible(s.id, e.target.value)} />
+                </div>
+              ))}
+            </div>
+            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-[var(--line)]">
+              <Button variant="ghost" onClick={() => setCommandeEnCours(false)}>Annuler</Button>
+              <Button onClick={() => { setCommandeEnCours(false); setCommandeGeneree(true); }}>Valider et générer la commande</Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {(employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction") && (
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer le catalogue produits</h3>
+          <p className="text-xs text-[var(--steel)] mb-4">Réservé au chef — ajouter un nouveau produit au stock, ou en supprimer un qui n'est plus utilisé.</p>
+
+          {modeCatalogue === null && (
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => setModeCatalogue("ajouter")}><Plus size={16} /> Ajouter un produit</Button>
+              <Button variant="danger" onClick={() => setModeCatalogue("supprimer")}><Trash2 size={16} /> Supprimer un produit</Button>
+            </div>
+          )}
+
+          {modeCatalogue === "ajouter" && (
+            <div>
+              <div className="grid grid-cols-2 sm:grid-cols-7 gap-3 mb-3">
+                <Field label="Référence"><input className={inputCls} value={item.reference} onChange={(e) => setItem({ ...item, reference: e.target.value })} /></Field>
+                <Field label="Nom"><input className={inputCls} value={item.nom} onChange={(e) => setItem({ ...item, nom: e.target.value })} /></Field>
+                <Field label="Catégorie"><input className={inputCls} placeholder="Légumes" value={item.categorie} onChange={(e) => setItem({ ...item, categorie: e.target.value })} /></Field>
+                <Field label="Fournisseur"><input className={inputCls} value={item.fournisseur} onChange={(e) => setItem({ ...item, fournisseur: e.target.value })} /></Field>
+                <Field label="Conditionnement (unité)">
+                  <select className={inputCls} value={item.unite} onChange={(e) => setItem({ ...item, unite: e.target.value })}>
+                    {["kg", "g", "L", "l", "pc", "carton"].map((u) => <option key={u} value={u}>{u}</option>)}
+                  </select>
+                </Field>
+                <Field label="Quantité en stock"><input className={inputCls} type="number" value={item.quantite} onChange={(e) => setItem({ ...item, quantite: e.target.value })} /></Field>
+                <Field label="Quantité cible"><input className={inputCls} type="number" value={item.cible} onChange={(e) => setItem({ ...item, cible: e.target.value })} /></Field>
+              </div>
+              <div className="flex justify-end gap-2">
+                <Button variant="ghost" onClick={() => { setModeCatalogue(null); setItem({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" }); }}>Annuler</Button>
+                <Button onClick={() => { addItem(); setModeCatalogue(null); }} disabled={!item.nom}><CheckCircle2 size={16} /> Valider</Button>
+              </div>
+            </div>
+          )}
+
+          {modeCatalogue === "supprimer" && (
+            <div>
+              <Field label="Nom du produit à supprimer">
+                <ChampTexteOuVocal value={nomASupprimer} onChange={setNomASupprimer} placeholder="Écrire ou dicter le nom du produit..." suggestions={stock.map((s) => s.nom)} />
+              </Field>
+              {nomASupprimer.trim() && !produitASupprimer && (
+                <p className="text-xs text-[var(--warn)] mt-2">Aucun produit du stock ne correspond exactement à ce nom — vérifiez l'orthographe.</p>
+              )}
+              <div className="flex justify-end gap-2 mt-3">
+                <Button variant="ghost" onClick={() => { setModeCatalogue(null); setNomASupprimer(""); }}>Annuler</Button>
+                <Button variant="danger" onClick={() => setConfirmSuppressionOuverte(true)} disabled={!produitASupprimer}>Valider</Button>
+              </div>
+              {confirmSuppressionOuverte && (
+                <ModalConfirmerSuppression
+                  libelle={nomASupprimer}
+                  onAnnuler={() => setConfirmSuppressionOuverte(false)}
+                  onConfirmer={() => {
+                    if (produitASupprimer) removeItem(produitASupprimer.id);
+                    setConfirmSuppressionOuverte(false);
+                    setModeCatalogue(null);
+                    setNomASupprimer("");
+                  }}
+                />
+              )}
+            </div>
+          )}
+        </Card>
+      )}
+
+      <Card className={`text-center mt-6 ${estDernierJourDuMois(today) ? "border-[var(--accent)] bg-[var(--accent-soft)]" : ""}`}>
+        <div className="flex items-center justify-center gap-2 mb-2">
+          <ClipboardList size={20} className="text-[var(--accent)]" />
+          <h3 className="font-semibold text-[var(--ink)]">Inventaire mensuel du stock</h3>
+        </div>
+        <p className="text-sm text-[var(--steel)] mb-2">
+          {estDernierJourDuMois(today)
+            ? "C'est aujourd'hui le dernier jour du mois — générez la fiche à partir du stock actuel, comptez, et corrigez."
+            : "À faire le matin du dernier jour de chaque mois."}
+        </p>
+        <p className="text-xs text-[var(--steel)] mb-4 italic">Note : le modèle exact de fiche à reproduire chaque mois reste à me donner — celle-ci est un tableau générique (référence, nom, quantité système, quantité comptée, écart) en attendant.</p>
+        <Button onClick={() => setInventaireActif(true)}>Générer la fiche d'inventaire</Button>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- module Réception des marchandises ---------- */
+
+const SEUILS_RECEPTION = {
+  surgele: { max: -18, label: "≤ -18°C" },
+  frais: { max: 4, label: "≤ 4°C" },
+  viande: { max: 4, label: "≤ 4°C" },
+};
+const RAISONS_NON_CONFORMITE = ["Produit abîmé à la livraison", "DLC trop courte", "Température non conforme", "Produit non commandé", "Produit substitué / facturé plus cher que commandé"];
+
+// Redimensionne et compresse automatiquement toute photo prise dans le logiciel avant de la
+// transformer en data URL : réduit la taille du fichier (donc le coût d'analyse par l'IA et
+// l'espace de stockage) sans perte visible pour la lecture d'un bon de livraison ou d'une étiquette.
+// Limite la plus grande dimension à 1280px et compresse en JPEG qualité 0.75.
+const PHOTO_TAILLE_MAX_PX = 1280;
+const PHOTO_QUALITE_JPEG = 0.75;
+
+function fileToDataURL(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(r.result);
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  }).then((dataUrlOriginal) => redimensionnerPhoto(dataUrlOriginal).catch(() => dataUrlOriginal));
+}
+
+function redimensionnerPhoto(dataUrlOriginal) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.onload = () => {
+      let { width, height } = img;
+      if (width <= PHOTO_TAILLE_MAX_PX && height <= PHOTO_TAILLE_MAX_PX) {
+        resolve(dataUrlOriginal);
+        return;
+      }
+      const ratio = Math.min(PHOTO_TAILLE_MAX_PX / width, PHOTO_TAILLE_MAX_PX / height);
+      width = Math.round(width * ratio);
+      height = Math.round(height * ratio);
+      const canvas = document.createElement("canvas");
+      canvas.width = width;
+      canvas.height = height;
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL("image/jpeg", PHOTO_QUALITE_JPEG));
+    };
+    img.onerror = reject;
+    img.src = dataUrlOriginal;
+  });
+}
+
+async function analyserImage(dataUrl, consigne) {
+  if (!IA_ACTIVEE) { console.warn("Analyse photo désactivée pour ce restaurant (interrupteur IA)."); return null; }
+  if (!ANTHROPIC_API_KEY) { console.warn("Analyse photo indisponible : aucune clé API configurée (voir CONFIGURATION en haut du fichier)."); return null; }
+  const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
+  if (!match) return null;
+  const [, mediaType, base64] = match;
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 1500,
+        messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: mediaType, data: base64 } }, { type: "text", text: consigne }] }],
+      }),
+    });
+    const data = await res.json();
+    const texte = (data.content || []).map((b) => b.text || "").join("");
+    return JSON.parse(texte.replace(/```json|```/g, "").trim());
+  } catch (e) {
+    console.error("Analyse image échouée", e);
+    return null;
+  }
+}
+
+async function interpreterCommande(texte) {
+  if (!IA_ACTIVEE) { console.warn("Commande vocale/texte désactivée pour ce restaurant (interrupteur IA)."); return null; }
+  if (!ANTHROPIC_API_KEY) { console.warn("Commande vocale/texte indisponible : aucune clé API configurée (voir CONFIGURATION en haut du fichier)."); return null; }
+  try {
+    const res = await fetch("https://api.anthropic.com/v1/messages", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "x-api-key": ANTHROPIC_API_KEY,
+        "anthropic-version": "2023-06-01",
+        "anthropic-dangerous-direct-browser-access": "true",
+      },
+      body: JSON.stringify({
+        model: "claude-sonnet-4-6",
+        max_tokens: 300,
+        messages: [{
+          role: "user",
+          content: `Tu es l'assistant texte/vocal d'une application de gestion de cuisine de restaurant. Un employé vient de dire ou taper une commande rapide. Classe-la dans une des actions ci-dessous et extrais les paramètres utiles. Réponds UNIQUEMENT en JSON strict, sans texte autour, sans balises markdown.
+
+Actions possibles :
+- "ouvrir_reception" : l'employé veut réceptionner une livraison / commencer une réception de marchandises. Pas de paramètre.
+- "retirer_stock" : l'employé veut retirer une quantité d'un produit du stock (cassé, tombé, raté, perdu, abîmé...). Paramètres : produit (nom du produit tel que dit), quantite (nombre, estime une valeur raisonnable si approximatif type "deux trois"), motif (raison courte reformulée).
+- "preparer_produit" : l'employé annonce qu'il prépare un produit précis (traçabilité), sans préciser une étape HACCP particulière. Paramètres : produit (nom du produit).
+- "demarrer_cuisson" : l'employé veut démarrer/enregistrer une cuisson pour un produit précis (ex. "lance une cuisson pour la bolognaise", "je mets la pizza au four"). Paramètres : produit.
+- "demarrer_refroidissement" : l'employé veut démarrer/enregistrer un refroidissement pour un produit précis. Paramètres : produit.
+- "demarrer_maintien_chaud" : l'employé veut démarrer/enregistrer un maintien au chaud pour un produit précis. Paramètres : produit.
+- "naviguer" : l'employé veut ouvrir un autre onglet de l'application. Paramètres : cible, une valeur EXACTE parmi : taches, stock, reception, etiquettes, tracabilite, haccpTemp, haccpRefroid, haccpHuile, haccpChaud, haccpCuisson, fiches, controle.
+- "inconnu" : si aucune des actions ci-dessus ne correspond clairement à la demande.
+
+Important : les relevés de température restent toujours un geste physique volontaire de l'employé une fois l'écran ouvert — la commande vocale ouvre et pré-remplit l'écran, elle ne saisit jamais une température à sa place.
+
+Commande de l'employé : "${texte}"
+
+Format de réponse strict : {"action": "...", "produit": "..." ou null, "quantite": "..." ou null, "motif": "..." ou null, "cible": "..." ou null}`,
+        }],
+      }),
+    });
+    const data = await res.json();
+    const t = (data.content || []).map((b) => b.text || "").join("");
+    return JSON.parse(t.replace(/```json|```/g, "").trim());
+  } catch (e) {
+    console.error("Interprétation commande échouée", e);
+    return null;
+  }
+}
+
+function normaliserTexte(s) {
+  return (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+}
+
+// Normalisation plus pouss\u00e9e, r\u00e9serv\u00e9e \u00e0 trouverFicheCorrespondante : en plus d'enlever les accents,
+// on remplace toute ponctuation/s\u00e9parateur (/, \u2013, \u2014, apostrophe...) par un espace et on aplatit les
+// espaces multiples. \u00c7a \u00e9vite qu'un simple changement de s\u00e9parateur ("P\u00e2te \u00e0 pizza / p\u00e2tons" vs
+// "P\u00c2TE \u00c0 PIZZA \u2013 P\u00c2TONS") fasse rater une correspondance r\u00e9elle.
+function normaliserTexteStrict(s) {
+  return normaliserTexte(s).replace(/[^a-z0-9]+/g, " ").replace(/\s+/g, " ").trim();
+}
+
+const MOTS_GENERIQUES_CORRESPONDANCE = new Set(["sauce", "produit", "maison", "portion", "portionne", "pate", "poste", "cuit", "cuite", "ouvert", "ouverte", "ouverts", "ouvertes"]);
+
+function trouverCorrespondance(nomRecherche, liste, getNom) {
+  const cible = normaliserTexte(nomRecherche);
+  if (!cible) return null;
+  let meilleur = null, meilleurScore = 0;
+  liste.forEach((item) => {
+    const n = normaliserTexte(getNom(item));
+    if (!n) return;
+    let score = 0;
+    if (n === cible) score = 100;
+    else if (n.includes(cible) || cible.includes(n)) score = 70;
+    else {
+      const motsA = cible.split(/\s+/), motsB = n.split(/\s+/);
+      score = motsA.filter((m) => m.length > 2 && !MOTS_GENERIQUES_CORRESPONDANCE.has(m) && motsB.includes(m)).length * 20;
+    }
+    if (score > meilleurScore) { meilleurScore = score; meilleur = item; }
+  });
+  return meilleurScore >= 20 ? meilleur : null;
+}
+
+// Correspondance stricte utilisée uniquement pour relier une préparation/un produit à une VRAIE
+// fiche technique (nom exact ou nom clairement contenu dans l'autre). On exclut volontairement le
+// palier "mots en commun" de trouverCorrespondance : deux noms qui ne partagent qu'un seul mot
+// (ex. "Jambon blanc" et "Pizza calzone jambon") ne sont PAS la même recette, même s'ils partagent
+// un ingrédient — sinon on affiche un lien "recette" qui ne correspond à rien de réel.
+function trouverFicheCorrespondante(nomRecherche, fiches, ficheNomExact) {
+  // Si le produit porte une correspondance explicite (ficheNom), on l'utilise en priorité :
+  // ça couvre les cas où le nom du produit et celui de la fiche sont trop différents pour
+  // qu'un rapprochement automatique soit fiable.
+  if (ficheNomExact) {
+    const exact = (fiches || []).find((f) => f.nom === ficheNomExact);
+    if (exact) return exact;
+  }
+  const cible = normaliserTexteStrict(nomRecherche);
+  if (!cible) return null;
+  let meilleur = null, meilleurScore = 0;
+  (fiches || []).forEach((f) => {
+    const n = normaliserTexteStrict(f.nom);
+    if (!n) return;
+    let score = 0;
+    if (n === cible) score = 100;
+    else if (n.includes(cible) || cible.includes(n)) {
+      // Un simple "contient" ne suffit pas : un mot court comme "miel" ne doit pas matcher
+      // un plat totalement différent juste parce que son nom l'évoque en passant
+      // ("PIZZA CHÈVRE AU MIEL"). On exige que la chaîne la plus courte représente une part
+      // substantielle de la plus longue.
+      const ratio = Math.min(n.length, cible.length) / Math.max(n.length, cible.length);
+      if (ratio >= 0.6) score = 70;
+    }
+    if (score > meilleurScore) { meilleurScore = score; meilleur = f; }
+  });
+  return meilleurScore >= 70 ? meilleur : null;
+}
+
+const FICHES_NORMES = {
+  reception: {
+    titre: "Réception des marchandises — Normes HACCP",
+    sections: [
+      {
+        titre: "Qui / Quand",
+        contenu: "Selon l'organisation du service — À chaque livraison, dès l'arrivée du camion jusqu'à la fin du rangement en stock. Aucune denrée ne doit rester hors température plus que le temps strictement nécessaire au contrôle.",
+      },
+      {
+        titre: "Températures obligatoires à la réception, par famille de produits",
+        type: "tableau",
+        colonnes: ["Famille de produits", "Température à réception"],
+        contenu: [
+          { produit: "Produits surgelés", duree: "-18°C ou moins (tolérance technique -15°C max ponctuellement)" },
+          { produit: "Viandes fraîches, volailles", duree: "0°C à 4°C" },
+          { produit: "Poissons frais, crustacés (sur glace)", duree: "0°C à 2°C" },
+          { produit: "Produits laitiers, plats cuisinés réfrigérés, charcuterie", duree: "0°C à 4°C" },
+          { produit: "Fruits et légumes frais", duree: "Température ambiante à 8°C selon le produit" },
+          { produit: "Conserves, épicerie sèche, boissons", duree: "Température ambiante — pas d'exigence de froid" },
+        ],
+      },
+      {
+        titre: "Contrôles à effectuer sur chaque livraison",
+        contenu: [
+          "🌡 Température des produits : toutes les familles à réception — sonde ou thermomètre laser. Si non conforme : 2e puis 3e mesure pour validation. Nettoyer la sonde avec de l'alcool à 70° entre chaque produit.",
+          "👁 Référence produits et aspect : chaque lot — contrôle visuel (pourriture, odeur, décoloration, surgelés en bloc sans cristaux de givre excessifs signe de rupture de la chaîne du froid).",
+          "⚖ Quantité : chaque lot — comptage ou pesée, comparaison avec le bon de commande.",
+          "📦 Emballage / Étiquetage / Agrément : chaque lot — sous vide fuités, sacs déchirés ou ouverts, boîtes becquées, bombées ou rouillées, présence de l'étiquette, agrément vétérinaire sur les produits d'origine animale.",
+          "📅 DLC / DDM : chaque lot — contrôle visuel, durée de vie résiduelle suffisante pour l'usage prévu.",
+          "🚛 Véhicule et livreur : propreté du véhicule, respect de la chaîne du froid pendant le transport, tenue du livreur.",
+        ],
+      },
+      {
+        titre: "Points de vigilance particuliers",
+        contenu: [
+          "Ne jamais accepter un produit dont l'emballage est ouvert, percé ou souillé, même si la température est correcte.",
+          "Ne jamais accepter un surgelé partiellement décongelé (présence de liquide, cristaux fondus, bloc déformé).",
+          "Vérifier que le numéro de lot et la DLC figurent bien sur chaque référence — sans cela, pas de traçabilité possible.",
+          "Contrôler que la livraison correspond bien à la commande passée (référence, quantité, fournisseur).",
+          "Ne jamais laisser une livraison sans surveillance en zone tampon à température ambiante.",
+        ],
+      },
+      {
+        titre: "Après contrôle",
+        contenu: [
+          "DÉCARTONNER : éliminer systématiquement tous les emballages cartons, cageots souillés. Transférer si nécessaire dans des récipients propres. Se laver les mains après.",
+          "ENREGISTRER : garder les étiquettes, enregistrer la traçabilité (lot, DLC) et la température relevée sur le BON DE LIVRAISON, la FACTURE ou dans l'application.",
+          "STOCKER : stocker immédiatement les denrées à la bonne température, en respectant le FIFO (premier entré, premier sorti) et le rangement par catégorie (voir la fiche Températures & stockage).",
+        ],
+      },
+      {
+        titre: "Gestion des non-conformités — que faire en cas d'anomalie",
+        contenu: "Toute denrée présentant un problème de température, d'intégrité de l'emballage, d'aspect ou une DLC dépassée ou trop courte est systématiquement considérée NON-CONFORME. Elle doit être isolée et repérée « non-conforme » pour ne pas être utilisée ni mélangée avec le reste du stock.\n\nAction corrective : refuser la marchandise sur place si possible, ou la conserver à part (photo, étiquette) pour effectuer le retour, après avoir informé immédiatement le fournisseur de la non-conformité constatée. Noter l'incident (produit, lot, motif, heure) dans le journal d'activité de l'application. En cas de doute sur la salubrité d'un produit déjà accepté : ne jamais l'utiliser et alerter le chef avant toute décision.",
+      },
+    ],
+  },
+
+  tracabilite: {
+    titre: "Traçabilité — Normes HACCP",
+    sections: [
+      {
+        titre: "Qu'est-ce que la traçabilité",
+        contenu: "C'est la capacité à retrouver, à tout moment, l'origine et le parcours d'un produit alimentaire : d'où il vient, quand il a été ouvert ou préparé, et jusqu'à quand il peut être utilisé (DLC/DDM). C'est une obligation réglementaire (paquet hygiène, règlement CE 178/2002) : en cas de problème sanitaire ou de rappel produit, elle permet de remonter rapidement jusqu'au lot concerné et d'informer les autorités.",
+      },
+      {
+        titre: "Quand faut-il faire une traçabilité",
+        contenu: [
+          "À l'ouverture d'un produit en stock (bidon, sachet, boîte, etc.) dès qu'il quitte son conditionnement d'origine.",
+          "Après toute préparation ou transformation d'un produit (portionné, cuisiné, transvasé dans un autre contenant).",
+          "Dès qu'un produit n'a plus d'étiquette d'origine lisible.",
+          "Pour toute préparation maison élaborée à l'avance (sauce, garniture, plat cuisiné).",
+        ],
+      },
+      {
+        titre: "Comment faire une traçabilité",
+        contenu: [
+          "1. Identifier le produit avec son nom exact (celui qui figure sur l'emballage d'origine, pas une abréviation).",
+          "2. Noter ou photographier le numéro de lot indiqué sur l'emballage d'origine — c'est lui qui permet de remonter jusqu'au fournisseur en cas de rappel.",
+          "3. Reporter la DLC ou la DDM telle qu'indiquée sur l'emballage, ou calculer la DLC interne si c'est une préparation maison (voir la fiche DLC).",
+          "4. Étiqueter immédiatement le produit ou la préparation avec ces informations, avant de le ranger.",
+          "5. Enregistrer la traçabilité dans l'application (photo + IA, ou saisie manuelle) dès que possible — jamais après coup, de mémoire.",
+        ],
+      },
+      {
+        titre: "Points importants",
+        contenu: [
+          "Ne jamais utiliser ou stocker un produit sans traçabilité lisible : en cas de doute, le produit doit être jeté.",
+          "Conserver l'étiquette ou l'emballage d'origine jusqu'à épuisement complet du lot, pour garder le numéro de lot disponible.",
+          "Une traçabilité incomplète (sans DLC ou sans lot) n'a pas de valeur en cas de contrôle ou de rappel produit — elle doit être complète.",
+          "En cas de rappel officiel (RappelConso) sur un produit que vous avez en stock ou en traçabilité, retirez-le immédiatement et suivez la procédure de contrôle de l'application.",
+        ],
+      },
+    ],
+  },
+
+  tiac: {
+    titre: "Déclaration d'une TIAC (Toxi-Infection Alimentaire Collective) — Normes HACCP",
+    sections: [
+      { titre: "1. Avertir le responsable de l'établissement", contenu: "Prévenir immédiatement le responsable dès le signalement de cas suspects." },
+      {
+        titre: "2. Alerter",
+        contenu: [
+          "Médecin Inspecteur de l'ARS (Agence Régionale de la Santé) PACA\nTél : 04 13 55 80 10 — Fax : 04 13 55 80 40",
+          "Service de la Qualité et de la Sécurité Sanitaire de l'Alimentation (DDCSPP 06)\nTél : 04 93 72 28 00 — Fax : 04 93 72 28 05",
+        ],
+      },
+      {
+        titre: "3. Conserver",
+        contenu: [
+          "Conserver tout aliment ou les restes de repas ayant été servis les heures ou jours précédant le repas suspecté.",
+          "Les étiquetages (ou toutes autres informations) des denrées alimentaires utilisées, renseignant l'origine des produits (traçabilité).",
+          "Des échantillons de selles (diarrhée) et/ou rejets gastriques (vomissements) sur plusieurs malades — destinés aux analyses de laboratoire.",
+        ],
+      },
+      {
+        titre: "4. Réunir les éléments d'information",
+        contenu: [
+          "Le nombre de convives pour chacun des repas servis dans les 5 jours précédant les premiers symptômes.",
+          "La liste des malades (âge, symptômes, dates et heures de début des symptômes).",
+          "Les listes des agents du personnel en service aux cuisines au cours des 5 jours précédant les premiers symptômes.",
+          "La composition des repas collectifs consommés par chaque malade durant les 5 jours précédents.",
+        ],
+      },
+    ],
+  },
+
+  lavageLegumes: {
+    titre: "Lavage des fruits et légumes — Normes HACCP",
+    sections: [
+      { titre: "Qui / Quand / Où", contenu: "Personnel chargé de la légumerie — Avant de consommer ou d'utiliser les fruits et légumes (sauf légumes de 4e et 5e gamme et fruits dont la peau n'est pas consommée : banane, orange, clémentine…) — À la légumerie ou zone de plonge si opérations séparées dans le temps et matériel dédié." },
+      {
+        titre: "Méthode par type",
+        contenu: [
+          "🥬 Légumes verts à feuilles : double bac eau froide — couper les extrémités, retirer parties endommagées — tremper 2 à 3 min — ajouter produit — sécher à l'essoreuse ou serviette papier.",
+          "🍎 Aliments à chair ferme (pommes, melon...) : frotter vigoureusement avec une brosse ou à la main — ajouter produit — sécher.",
+          "🌿 Fines herbes : remuer légèrement — tremper 2 à 3 min — ajouter produit — essorer délicatement dans papier.",
+          "🍄 Champignons : ne PAS tremper — rincer simplement et délicatement — brosse douce — ajouter produit — retirer les saletés avec serviette papier humide.",
+          "🥕 Légumes-racines : brosse épaisse à eau tiède — ajouter produit — rincer à l'eau claire, égoutter, éplucher.",
+          "🥑 Aliments à chair tendre : laver délicatement à l'eau — ajouter produit — sécher.",
+          "🍇 Raisins et baies : ne pas laisser tremper — retirer zones endommagées — ajouter produit — égoutter.",
+        ],
+      },
+      {
+        titre: "Produits désinfectants",
+        contenu: [
+          "Eau de Javel à 2,6% : 60 ml (0,060 L) pour 100 L d'eau — laisser tremper 5 min.",
+          "Vinaigre blanc : 6% (6 L pour 100 L d'eau) — laisser tremper 10 min.",
+          "⚠ NE PAS UTILISER DE L'EAU DE JAVEL SUR LES VÉGÉTAUX POREUX OU À COUCHES.",
+        ],
+      },
+    ],
+  },
+
+  dlc: {
+    titre: "Durées de conservation (DLC) — Normes HACCP",
+    sections: [
+      {
+        titre: "Ce qui est vraiment fixé par la réglementation",
+        contenu: "Il n'existe pas de tableau légal unique fixant la DLC de chaque produit. La seule règle réellement imposée par un texte officiel est la règle « J+3 » pour les plats cuisinés à l'avance en restauration collective (arrêté du 21 décembre 2009, Annexe IV, point 4) : pas plus de 3 jours après fabrication, sauf étude de vieillissement validée en laboratoire.",
+      },
+      {
+        titre: "Pour tout le reste",
+        contenu: "La réglementation demande à chaque établissement de fixer et de justifier lui-même sa propre DLC interne, en s'appuyant sur les Guides de Bonnes Pratiques d'Hygiène (GBPH) de son secteur. Le tableau ci-dessous, largement utilisé en formation HACCP, vous est donc mis à disposition comme base de connaissance (viandes, poissons, charcuterie, produits laitiers, sauces, etc.) — ce n'est pas une loi, mais une base sérieuse et croisée sur plusieurs sources professionnelles.",
+      },
+      {
+        titre: "Tableau de repères",
+        type: "tableau",
+        contenu: [
+          { categorie: "Viandes", produit: "Viande crue (steak, escalope...)", duree: "2 à 3 jours" },
+          { categorie: "Viandes", produit: "Viande hachée, abats crus", duree: "1 jour (très périssable)" },
+          { categorie: "Viandes", produit: "Viande marinée", duree: "Jusqu'à 5 jours" },
+          { categorie: "Viandes", produit: "Volaille / lapin crus", duree: "3 jours" },
+          { categorie: "Viandes", produit: "Préparation à base de viande cuite", duree: "2 jours maximum" },
+          { categorie: "Charcuterie", produit: "Charcuterie crue (pâté, terrine)", duree: "Jusqu'à 3 jours" },
+          { categorie: "Charcuterie", produit: "Charcuterie cuite tranchée (jambon, boudin)", duree: "2 à 3 jours dès ouverture/tranchage" },
+          { categorie: "Charcuterie", produit: "Charcuterie sèche (saucisson, jambon cru affiné)", duree: "Jusqu'à 10 jours" },
+          { categorie: "Poissons", produit: "Poisson / crustacés frais transformés", duree: "Jusqu'à 3 jours après préparation" },
+          { categorie: "Poissons", produit: "Conserve de la mer ouverte (à l'huile)", duree: "Jusqu'à 15 jours au réfrigérateur" },
+          { categorie: "Fruits & légumes", produit: "Fruit frais transformé (coupé)", duree: "Jusqu'à 2 jours" },
+          { categorie: "Fruits & légumes", produit: "Légume frais transformé (épluché/coupé)", duree: "1 à 2 jours" },
+          { categorie: "Fruits & légumes", produit: "Préparation à base de légumes (crue ou cuite)", duree: "2 jours" },
+          { categorie: "Œufs", produit: "Œufs coquille", duree: "Jusqu'à la DLC de l'emballage (environ 21 jours)" },
+          { categorie: "Œufs", produit: "Œufs liquides / préparation à base d'œufs crus", duree: "1 jour (mayonnaise maison : 2h seulement)" },
+          { categorie: "Œufs", produit: "Œufs durs (écalés)", duree: "3 jours" },
+          { categorie: "Produits laitiers", produit: "Fromage à pâte molle / fraîche (une fois ouvert)", duree: "3 jours" },
+          { categorie: "Produits laitiers", produit: "Fromage à pâte dure (une fois ouvert)", duree: "7 à 15 jours" },
+          { categorie: "Produits laitiers", produit: "Crème chantilly maison", duree: "1 jour" },
+          { categorie: "Produits laitiers", produit: "Crème pâtissière", duree: "2 jours" },
+          { categorie: "Sauces & divers", produit: "Sauce maison (béchamel, vinaigrette...)", duree: "24h à 5 jours selon la recette (sources professionnelles non unanimes)" },
+          { categorie: "Sauces & divers", produit: "Salade composée / fruits coupés (vente directe)", duree: "24 heures" },
+          { categorie: "Sauces & divers", produit: "Boîte de conserve ouverte", duree: "2 jours (transvasée dans un contenant fermé)" },
+          { categorie: "Sauces & divers", produit: "Lait UHT ouvert", duree: "2 jours" },
+          { categorie: "Sauces & divers", produit: "Jus de fruits frais ouvert", duree: "3 jours" },
+          { categorie: "Sauces & divers", produit: "Sirop", duree: "7 jours" },
+        ],
+      },
+      {
+        titre: "⚠ Avertissement — à lire avant d'utiliser ce tableau",
+        contenu: "Cette fiche est fournie à titre indicatif uniquement. Elle ne remplace ni ne corrige les bonnes pratiques d'hygiène et les normes HACCP en vigueur dans votre établissement. Chaque DLC que vous définissez et enregistrez dans le logiciel vous appartient et reste sous votre seule responsabilité : c'est à vous, en tant qu'exploitant, de fixer et de justifier vos propres durées de conservation, le cas échéant en les faisant valider par une étude de vieillissement effectuée et validée par un laboratoire d'analyses certifié. BrigadeRestoPro ne saurait être tenu responsable des conséquences d'une DLC mal évaluée ou non conforme.",
+      },
+    ],
+  },
+
+  bph: {
+    titre: "Bonnes pratiques d'hygiène (BPH) — Boîtes de conserve / Planches à découper — Normes HACCP",
+    sections: [
+      {
+        titre: "Protocole d'ouverture d'une boîte à conserve",
+        contenu: [
+          "Où : zone de déconditionnement — Avec quoi : lingette désinfectante alimentaire ou désinfectant avec papier jetable.",
+          "1. Nettoyer la boîte de conserve à l'aide du produit",
+          "2. Désinfecter l'ouvre-boîte",
+          "3. Déconditionner le contenu dans un récipient alimentaire, couvrir",
+          "4. Indiquer le nom du produit et la date d'ouverture",
+          "5. Nettoyer l'ouvre-boîte après utilisation",
+          "6. Conserver le numéro de lot et le nom du produit",
+          "🚫 NE JAMAIS CONSERVER UN ALIMENT DANS SA BOÎTE OUVERTE !",
+          "🚫 NE JAMAIS ENTREPOSER UNE BOÎTE DE CONSERVE DANS UNE ZONE PROPRE !",
+        ],
+      },
+      {
+        titre: "Désinfection des planches à découper (respecter le code couleur)",
+        contenu: [
+          "Produit : Eau de Javel à 2,6% — Dosage : 3% (3 L pour 100 L d'eau froide)",
+          "1. Laver les planches avec détergeant vaisselle, rincer abondamment",
+          "2. Laisser tremper 5 min dans l'eau javélisée",
+          "3. Rincer à l'eau claire",
+          "4. Utiliser du papier jetable pour essuyer",
+          "5. Stocker les planches en chambre froide — ranger séparément",
+        ],
+      },
+    ],
+  },
+
+  huileFreture: {
+    titre: "Huile de friture — Normes HACCP",
+    sections: [
+      {
+        titre: "1. Après chaque utilisation — Contrôle visuel et olfactif",
+        contenu: "Un bain de friture usé se reconnaît à : brunissement de l'huile, changement d'odeur et de goût, huile plus visqueuse, apparition précoce de fumées et d'une mousse stable. Un bain qui a moussé une fois est inutilisable.",
+      },
+      { titre: "2. Modalité de contrôle avec testeur", contenu: "Chauffer l'huile à 180°C maximum." },
+      {
+        titre: "3. Plonger le testeur dans l'huile 10 secondes",
+        contenu: [
+          "🟢 Voyant VERT → L'huile est bonne",
+          "🟡 Voyant JAUNE → TPM + 24 → À changer → VIDANGER ET NETTOYER LA FRITEUSE",
+        ],
+      },
+      { titre: "4. Collecte des huiles", contenu: "L'huile usagée est stockée dans un bidon — elle est récupérée gratuitement." },
+    ],
+  },
+
+  refroidissementSansCellule: {
+    titre: "Refroidissement rapide sans cellule — Normes HACCP",
+    sections: [
+      {
+        titre: "Mode opératoire",
+        contenu: [
+          "1. Pré-remplir un bac gastro avec de l'eau froide, rajouter des glaçons.",
+          "2. Conditionner les denrées immédiatement après la cuisson.",
+          "3. Fractionner au maximum les préparations pour que leur épaisseur ne dépasse pas 5 cm.",
+          "4. Couvrir pour éviter toute contamination.",
+          "5. Prendre la température à cœur des denrées. Les placer dans le bac.",
+          "6. Enregistrer l'heure et la température d'entrée dans le bac.",
+          "7. Surveiller le refroidissement et remuer régulièrement.",
+          "8. Si besoin, rajouter des glaçons.",
+          "9. Arrêter le refroidissement quand la température à cœur est ≤ 10°C.",
+          "10. Sortir les préparations et les stocker immédiatement entre 0°C et 3°C.",
+          "11. Enregistrer l'heure et la température de sortie du bac.",
+          "12. Calculer la durée de refroidissement — La durée est la différence entre entrée et sortie : en moins de 2 heures.",
+          "13. Étiquetage des préparations culinaires élaborées à l'avance :\n    → DLC sur les produits invendus (fin de service) : J+1\n    → DLC sur les préparations culinaires élaborées à l'avance : J+3",
+        ],
+      },
+    ],
+  },
+
+  refroidissementAvecCellule: {
+    titre: "Surgélation avec cellule de refroidissement — Normes HACCP",
+    sections: [
+      {
+        titre: "Mode opératoire",
+        contenu: [
+          "1. Pré-refroidir la cellule à vide 15 minutes avant l'utilisation.",
+          "2. Conditionner les denrées immédiatement après la cuisson. Fractionner au maximum pour que l'épaisseur ne dépasse pas 5 cm.",
+          "3. Couvrir pour éviter le croûtage et la déshydratation (sauf certains produits difficiles à refroidir, couvrir en sortie de cellule).",
+          "4. Rangement en cellule favorisant la circulation de l'air — Ne pas empiler.",
+          "5. Prendre la température à cœur des denrées. Les placer dans la cellule.",
+          "6. Enregistrer l'heure et la température d'entrée en cellule.",
+          "7. Si la cellule possède une sonde-pilote : piquer la sonde dans la denrée la plus compacte. À l'arrêt automatique, s'assurer d'être bien à une température < -18°C. Si supérieure à -18°C, poursuivre la surgélation.",
+          "8. Si pas de sonde-pilote : surveiller régulièrement et arrêter quand la denrée la plus compacte est < -18°C.",
+          "9. Sortir les préparations et les stocker dans une enceinte négative < -18°C.",
+          "10. Enregistrer l'heure et la température de sortie.",
+          "11. Calculer la durée de surgélation (entrée - sortie) : en moins de 4h30. Tolérance : si > 4h30, la conservation du produit s'en trouve diminuée.",
+        ],
+      },
+      {
+        titre: "La décongélation",
+        contenu: [
+          "1. Enlever tout emballage des produits, y compris les films plastiques.",
+          "2. Placer les produits sur une grille au-dessus d'un récipient adapté pour recueillir l'exsudat.",
+          "3. Protéger par un couvercle ou film. Ajouter une étiquette portant la date de décongélation.",
+          "4. Acheminer rapidement dans la chambre froide entre 0°C et 3°C.",
+          "⚠ Les steaks hachés ne subissent jamais de décongélation — cuisson directe sans décongélation préalable.",
+          "⚠ Réchauffage (recuire) des plats cuisinés sans décongélation préalable.",
+          "⚠ Ne congelez que les aliments très frais, sains et mûrs à point.",
+          "⚠ Interdiction de surgeler un produit décongelé ou en cours de décongélation.",
+          "⚠ Durée de vie d'un produit décongelé : 48 heures.",
+        ],
+      },
+    ],
+  },
+
+  cuisson: {
+    titre: "Cuisson — Normes HACCP",
+    sections: [
+      { titre: "Règle générale — 63°C à cœur", contenu: "≥ 63°C à cœur pour tous les produits (sauf exceptions ci-dessous), maintenus au moins 2 minutes pour garantir la destruction des agents pathogènes. En dessous de 63°C, le produit est non conforme : remise en cuisson obligatoire ou élimination." },
+      { titre: "Cas particuliers par famille de produits", contenu: [
+        "Viandes hachées (steaks hachés, sauces bolognaise…) : ≥ 70°C à cœur.",
+        "Volailles (poulet, dinde…) : ≥ 80°C à cœur.",
+        "Poissons : ≥ 63°C à cœur.",
+        "Œufs : le jaune et le blanc doivent être coagulés (aucun doute possible).",
+        "Bavette, entrecôte bleue/saignante : la réglementation impose en théorie 63°C, mais en restauration commerciale une cuisson à la demande du client est tolérée avec traçabilité.",
+      ]},
+      { titre: "Méthode — Cuisson au four (Rational / Atoll Speed / four à pizza)", contenu: [
+        "1. Préchauffer le four à la température souhaitée.",
+        "2. Utiliser une sonde à cœur pour vérifier la température interne — ne jamais se fier uniquement au temps ou à la couleur.",
+        "3. Enregistrer l'heure de début et la température à cœur en fin de cuisson.",
+        "4. Si non conforme : remettre en cuisson jusqu'à atteindre la température cible.",
+        "5. Après cuisson : service immédiat ou refroidissement rapide (≤ 10°C en moins de 2h).",
+        "Nettoyage four Rational : lancer le nettoyage automatique chaque soir avec les pastilles adaptées, ne jamais utiliser de produits abrasifs sur les parois.",
+        "Nettoyage four Atoll Speed / Mery Chef : éteindre après chaque service, nettoyage complet (intérieur, extérieur, portes) tous les jeudis.",
+      ]},
+      { titre: "Méthode — Plancha / poêle à induction", contenu: [
+        "1. Préchauffer la plancha/induction à la température souhaitée.",
+        "2. Ne jamais surcharger la surface de cuisson — cela abaisse la température et allonge le temps de cuisson.",
+        "3. Vérifier la température à cœur à la sonde — ne pas juger à la couleur seule.",
+        "4. Retourner les pièces au bon moment pour une cuisson homogène.",
+        "5. Enregistrer la température à cœur en fin de cuisson.",
+        "Entretien : nettoyer la plaque et le plan de travail après chaque service (midi et soir) — ne jamais laisser de résidus brûlés s'accumuler.",
+      ]},
+      { titre: "Méthode — Friture", contenu: [
+        "Température de l'huile : cuisson entre 160°C et 180°C maximum. Ne jamais dépasser 180°C — au-delà l'huile se dégrade rapidement et produit des composés toxiques.",
+        "1. Vérifier l'état de l'huile avant utilisation (contrôle visuel et olfactif).",
+        "2. Ne pas surcharger le panier — cela fait chuter la température de l'huile.",
+        "3. Secouer légèrement le panier pour éviter que les produits ne collent.",
+        "4. Égoutter soigneusement après cuisson.",
+        "5. Ne jamais plonger des produits humides ou mouillés dans l'huile chaude.",
+        "Test bandelette obligatoire : chauffer l'huile à 180°C, plonger le testeur 10 secondes. Voyant vert = huile bonne. Voyant jaune = TPM + 24 → à changer, vidanger et nettoyer la friteuse.",
+      ]},
+      { titre: "Après cuisson", contenu: "Stocker immédiatement au chaud (≥ 63°C) pour le service, ou démarrer un refroidissement rapide (cellule ou bain de glace). Ne jamais laisser un produit entre 10°C et 63°C plus de 2h (zone de danger bactériologique)." },
+    ],
+  },
+
+  maintienChaud: {
+    titre: "Maintien au chaud — Normes HACCP",
+    sections: [
+      { titre: "Température minimale de maintien", contenu: "≥ 63°C en permanence, aussi longtemps que le produit reste en service. En dessous, le produit entre dans la zone de danger bactériologique (+4°C à +63°C) — aucune durée maximale officielle n'est fixée tant que les 63°C sont tenus." },
+      { titre: "En cas de descente sous 63°C", contenu: "Régénération possible une seule fois à ≥65°C. Une deuxième descente sous 63°C impose la destruction du produit." },
+      { titre: "Procédure", contenu: [
+        "1. Préchauffer le bain-marie avant d'y placer les produits.",
+        "2. Vérifier régulièrement la température de l'eau ET du produit.",
+        "3. Couvrir les bacs pour maintenir la température et éviter la contamination.",
+        "4. En fin de service (ou produit non utilisé) : sortir le produit et démarrer un refroidissement rapide, ou le finir avant.",
+        "5. En fin de service : vider, nettoyer l'intérieur et l'extérieur, fermer avec le couvercle.",
+      ]},
+      { titre: "Sauces concernées au poste chaud", contenu: "Sauce Vigneronne, Sauce Champignons & Parmesan, Sauce au Poivre, Sauce Cheddar, Sauce Parmesan." },
+    ],
+  },
+
+  temperatureFrigo: {
+    titre: "Températures & stockage frigo / congélateur — Normes HACCP",
+    sections: [
+      {
+        titre: "Qui / Quand",
+        contenu: "Personne en service — Contrôle et enregistrement le matin en arrivant (avant toute ouverture de porte) et le soir (juste avant de quitter l'établissement), plus tout contrôle aléatoire au thermomètre laser.",
+      },
+      {
+        titre: "Températures de conservation obligatoires",
+        type: "tableau",
+        colonnes: ["Enceinte", "Température"],
+        contenu: [
+          { produit: "Chambre froide positive (viandes, poissons, produits laitiers, plats cuisinés)", duree: "0°C à 3°C" },
+          { produit: "Chambre froide fruits et légumes", duree: "+4°C à 8°C" },
+          { produit: "Chambre froide négative (congélateur)", duree: "-18°C ou moins" },
+        ],
+      },
+      {
+        titre: "⚠ Aucune tolérance",
+        contenu: "Aucune tolérance sur ces températures — contrôle obligatoire matin et soir, sans exception ni marge : tout écart doit déclencher une vérification immédiate.",
+      },
+      {
+        titre: "En cas de température non conforme",
+        contenu: [
+          "Déclencher une intervention technique (dépannage) sans attendre.",
+          "Mesurer la température à cœur des produits concernés.",
+          "Décider de conserver ou d'éliminer les produits selon l'écart et la durée de l'anomalie.",
+          "Transvaser le contenu dans une autre enceinte froide fonctionnelle en attendant la réparation.",
+        ],
+      },
+      {
+        titre: "FIFO — Premier entré, premier sorti",
+        contenu: [
+          "Les produits les plus anciens doivent toujours être placés devant et utilisés en premier.",
+          "À chaque nouvelle livraison : pousser les anciens stocks vers l'avant, ranger les nouveaux derrière.",
+          "Vérifier les DLC/DDM à chaque utilisation — ne jamais utiliser un produit dont la DLC est dépassée.",
+          "En cas de doute sur la fraîcheur d'un produit : ne pas utiliser et alerter le chef.",
+        ],
+      },
+      {
+        titre: "Rangement — Quel produit où",
+        contenu: [
+          "⬆ EN HAUT : produits prêts à l'emploi, plats cuisinés, produits finis, desserts — séparés des produits crus.",
+          "🔲 AU MILIEU : produits laitiers, charcuteries, produits déjà ouverts et filmés.",
+          "⬇ EN BAS : viandes et poissons crus — toujours en bas pour éviter tout risque de coulure.",
+          "🥦 LÉGUMES ET FRUITS : chambre froide dédiée ou zone séparée en bas — jamais en contact avec viandes ou poissons.",
+          "INTERDICTION de stocker des boîtes de conserve ouvertes — transvaser dans un récipient alimentaire couvert.",
+        ],
+      },
+      {
+        titre: "Séparation des produits — Éviter les contaminations croisées",
+        contenu: [
+          "Séparer impérativement les produits crus des produits cuits.",
+          "Séparer les viandes, volailles et poissons crus entre eux (bacs ou zones distincts).",
+          "Tout produit entamé doit être couvert d'un film alimentaire ou dans un bac avec couvercle.",
+          "Ne jamais poser de produits à même le sol — toujours sur des étagères ou caillebotis.",
+          "Ne jamais stocker de produits contre les murs — laisser de l'espace pour la circulation de l'air.",
+          "Les cartons et emballages extérieurs souillés sont INTERDITS — décartonner à la réception.",
+        ],
+      },
+      {
+        titre: "Identification et traçabilité",
+        contenu: [
+          "Tout produit entamé ou préparé doit porter une étiquette DLC : nom, date de fabrication/ouverture, DLC.",
+          "Préparations maison : DLC J+1 pour les produits invendus, J+3 pour les préparations élaborées à l'avance.",
+          "Conserver les étiquettes d'origine jusqu'à épuisement du lot.",
+          "En cas de doute sur un produit sans étiquette : le détruire.",
+        ],
+      },
+      {
+        titre: "Entretien et hygiène de la chambre froide",
+        contenu: [
+          "Ne jamais laisser la porte ouverte inutilement.",
+          "Ne pas surcharger — l'air doit circuler entre les produits.",
+          "Nettoyage sol selon planning quotidien, nettoyage complet selon planning mensuel.",
+          "Contrôle des joints et poignées de porte régulièrement — dégivrage régulier.",
+          "Présence obligatoire d'un thermomètre par enceinte, contrôlé régulièrement.",
+          "En cas de panne : alerter immédiatement et transvaser les produits dans une autre enceinte froide.",
+        ],
+      },
+    ],
+  },
+
+  stock: {
+    titre: "Gestion du stock — Normes HACCP",
+    sections: [
+      {
+        titre: "Principe général",
+        contenu: "Le stock (sec, frais, surgelé, épicerie) doit être organisé pour que chaque produit reste identifiable, à la bonne température et utilisé avant sa DLC/DDM. La gestion du stock est le prolongement direct de la réception : ce qui est mal contrôlé à l'entrée reste un risque tant qu'il est en stock.",
+      },
+      {
+        titre: "Rotation des stocks — FIFO obligatoire",
+        contenu: [
+          "1er entré = 1er sorti : tout nouvel arrivage se range derrière les produits déjà en stock, jamais devant.",
+          "À chaque manipulation, vérifier la DLC/DDM avant de ranger ou de sortir un produit.",
+          "Un produit dont la DLC est dépassée ne doit jamais être utilisé, même retiré manuellement du logiciel — il doit être détruit et l'opération enregistrée.",
+        ],
+      },
+      {
+        titre: "Zones de stockage et température",
+        contenu: [
+          "Stock sec / épicerie : local ventilé, sec, à l'abri de la lumière directe, produits surélevés du sol (étagères ou palettes) — jamais à même le sol.",
+          "Stock frais : chambres froides positives selon la fiche Températures & stockage frigo/congélateur (0°C à 3°C viandes/poissons/laitages, +4°C à 8°C fruits et légumes).",
+          "Stock surgelé : congélateur/chambre négative à -18°C ou moins, sans rupture de charge prolongée lors des manipulations.",
+          "Ne jamais stocker un produit hors de sa zone de température adaptée, même temporairement.",
+        ],
+      },
+      {
+        titre: "Identification et traçabilité en stock",
+        contenu: [
+          "Chaque référence en stock doit rester identifiable : nom, lot, fournisseur, DLC/DDM.",
+          "Tout produit entamé doit être ré-étiqueté avec la date d'ouverture et la nouvelle DLC interne (voir la fiche Traçabilité).",
+          "Les mouvements de stock (entrées, sorties, pertes, casse) doivent être enregistrés dans l'application avec le motif.",
+        ],
+      },
+      {
+        titre: "Contrôle et inventaire",
+        contenu: [
+          "Réaliser un inventaire régulier pour vérifier la correspondance entre le stock théorique (logiciel) et le stock réel.",
+          "Contrôler visuellement l'état des produits à chaque inventaire : emballages, DLC, signes d'altération.",
+          "Signaler et isoler immédiatement tout produit suspect trouvé en stock — ne jamais le remettre en circulation en attendant une décision.",
+        ],
+      },
+      {
+        titre: "Gestion des ruptures et des réapprovisionnements",
+        contenu: [
+          "Suivre les quantités cibles définies pour chaque produit afin d'anticiper les ruptures avant qu'elles n'affectent le service.",
+          "Vérifier la conformité de chaque réapprovisionnement à la réception (voir la fiche Réception des marchandises) avant de l'ajouter au stock.",
+          "En cas de rupture, ne jamais utiliser un produit de substitution non prévu sans en informer le chef.",
+        ],
+      },
+      {
+        titre: "Non-conformité en stock",
+        contenu: "Tout produit périmé, mal identifié, endommagé ou suspect découvert en stock doit être immédiatement écarté et signalé (motif enregistré dans l'application), jamais laissé « au cas où ». En cas de rappel officiel (RappelConso) touchant un produit en stock, le retirer sans délai et suivre la procédure de contrôle de l'application.",
+      },
+    ],
+  },
+};
+
+function ModalInfosNormes({ fiche, onClose }) {
+  if (!fiche) return null;
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-2xl w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "88vh", WebkitOverflowScrolling: "touch" }}>
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
+          <ArrowLeft size={15} /> Fermer
+        </button>
+        <h2 className="font-bold text-[var(--ink)] mb-4 text-base">{fiche.titre}</h2>
+        {fiche.sections.map((s, i) => (
+          <div key={i} className="mb-4">
+            <h3 className="text-sm font-semibold text-[var(--accent)] mb-1.5">{s.titre}</h3>
+            {s.type === "tableau" ? (
+              <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
+                <table className="w-full text-sm border-collapse">
+                  <thead>
+                    <tr className="bg-[var(--bg)]">
+                      <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">{s.colonnes?.[0] || "Produit"}</th>
+                      <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">{s.colonnes?.[1] || "Durée de conservation"}</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {s.contenu.map((r, j) => {
+                      const precedente = s.contenu[j - 1];
+                      const nouvelleCategorie = r.categorie && r.categorie !== precedente?.categorie;
+                      return (
+                        <React.Fragment key={j}>
+                          {nouvelleCategorie && (
+                            <tr>
+                              <td colSpan={2} className="px-3 pt-3 pb-1 text-xs font-bold uppercase tracking-wide text-[var(--accent)] bg-[var(--bg)]">{r.categorie}</td>
+                            </tr>
+                          )}
+                          <tr className={j % 2 === 0 ? "bg-white" : "bg-[var(--bg)]/50"}>
+                            <td className="px-3 py-2 text-[var(--ink)] border-b border-[var(--line)] align-top">{r.produit}</td>
+                            <td className="px-3 py-2 text-[var(--ink)] border-b border-[var(--line)] align-top">{r.duree}</td>
+                          </tr>
+                        </React.Fragment>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : Array.isArray(s.contenu)
+              ? <ul className="space-y-1.5">{s.contenu.map((c, j) => <li key={j} className="text-sm text-[var(--ink)] leading-snug">{c}</li>)}</ul>
+              : <p className="text-sm text-[var(--ink)] leading-snug whitespace-pre-line">{s.contenu}</p>
+            }
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function BoutonInfosNormes({ ficheKey, onClick, label }) {
+  return (
+    <button onClick={() => onClick(ficheKey)}
+      className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-bold border-2 shadow-sm"
+      style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
+      <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
+      <span className="text-sm uppercase tracking-wide">⚠ {label || "Informations importantes — Normes HACCP"}</span>
+    </button>
+  );
+}
+
+function PhotoInput({ value, onChange, label = "Prendre la photo", small = false }) {
+  const inputId = "photo-" + Math.random().toString(36).slice(2, 9);
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onChange(await fileToDataURL(file));
+  };
+  return (
+    <div>
+      {value ? (
+        <div className="flex items-center gap-2.5">
+          <img src={value} alt="" className={`${small ? "w-12 h-12" : "w-16 h-16"} object-cover rounded-lg border border-[var(--line)]`} />
+          <label htmlFor={inputId} className="text-xs text-[var(--accent)] font-medium cursor-pointer">Reprendre</label>
+        </div>
+      ) : (
+        <label htmlFor={inputId} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-[var(--line)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]">
+          <Camera size={14} /> {label}
+        </label>
+      )}
+      <input id={inputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+    </div>
+  );
+}
+
+// Vignette de photo déjà prise (dans une galerie multi-photos) : cliquer dessus l'agrandit en plein
+// écran pour vérifier qu'elle est bien lisible, avec deux boutons en bas — "Valider" (on referme, la
+// photo est gardée telle quelle) ou "Refaire cette photo" (ouvre directement l'appareil photo et
+// remplace cette photo précise par la nouvelle une fois prise). La croix en haut à droite de la
+// vignette reste le moyen rapide de simplement supprimer une photo ratée sans la remplacer.
+function PhotoVignetteZoomable({ src, onRetake, onRemove }) {
+  const [agrandie, setAgrandie] = useState(false);
+  const inputId = "refaire-photo-" + Math.random().toString(36).slice(2, 9);
+  const refaire = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    onRetake(await fileToDataURL(file));
+    setAgrandie(false);
+  };
+  return (
+    <>
+      <div className="relative">
+        <img src={src} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] cursor-pointer" onClick={() => setAgrandie(true)} />
+        {onRemove && (
+          <button onClick={onRemove} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--line)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
+        )}
+      </div>
+      {agrandie && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4" onClick={() => setAgrandie(false)}>
+          <img src={src} alt="" className="max-w-full max-h-[75vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
+          <div className="flex gap-3 mt-4" onClick={(e) => e.stopPropagation()}>
+            <Button onClick={() => setAgrandie(false)}><CheckCircle2 size={16} /> Valider</Button>
+            <label htmlFor={inputId} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white text-[var(--ink)] cursor-pointer"><Camera size={16} /> Refaire cette photo</label>
+            <input id={inputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={refaire} />
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+// Carte réutilisable : prendre une photo (ou déposer une capture d'écran) et la faire lire par
+// l'IA pour en extraire une liste structurée (utilisée pour importer un planning ou des
+// réservations sans attendre une passerelle/API dédiée avec le logiciel externe du restaurant).
+function ImportPhotoIA({ titre, description, consigne, onResultats, boutonLabel = "Analyser la photo" }) {
+  const inputId = "import-photo-ia-" + Math.random().toString(36).slice(2, 9);
+  const [photo, setPhoto] = useState(null);
+  const [enCours, setEnCours] = useState(false);
+  const [message, setMessage] = useState(null);
+
+  const handleFile = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setMessage(null);
+    setPhoto(await fileToDataURL(file));
+  };
+
+  const analyser = async () => {
+    if (!photo) return;
+    setEnCours(true);
+    setMessage(null);
+    const resultat = await analyserImage(photo, consigne);
+    setEnCours(false);
+    if (!resultat || !Array.isArray(resultat)) {
+      setMessage("L'IA n'a pas réussi à lire cette photo (fonctions IA désactivées, clé API non configurée, ou image illisible) — réessayez ou saisissez manuellement.");
+      return;
+    }
+    const rapport = onResultats(resultat);
+    setMessage(rapport || `${resultat.length} ligne(s) lue(s).`);
+    setPhoto(null);
+  };
+
+  return (
+    <Card className="mb-6">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">{titre}</h3>
+      <p className="text-xs text-[var(--steel)] mb-3">{description}</p>
+      <div className="flex flex-wrap items-center gap-2">
+        {photo && <img src={photo} alt="" className="w-14 h-14 object-cover rounded-lg border border-[var(--line)]" />}
+        <label htmlFor={inputId} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-dashed border-[var(--line)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]">
+          <Camera size={16} /> {photo ? "Reprendre la photo" : "Prendre une photo / capture d'écran"}
+        </label>
+        <input id={inputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+        {photo && (
+          <Button onClick={analyser} disabled={enCours}>{enCours ? "Analyse en cours..." : boutonLabel}</Button>
+        )}
+      </div>
+      {message && <p className="text-xs text-[var(--steel)] mt-2">{message}</p>}
+    </Card>
+  );
+}
+
+function StepShell({ titre, sousTitre, children, onPrev, onNext, nextLabel = "Suivant", nextDisabled = false, hideNext = false }) {
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-1">{titre}</h3>
+      {sousTitre && <p className="text-xs text-[var(--steel)] mb-4">{sousTitre}</p>}
+      <div className="mb-5">{children}</div>
+      <div className="flex items-center justify-between pt-4 border-t border-[var(--line)]">
+        {onPrev ? <Button variant="ghost" onClick={onPrev}><ArrowLeft size={15} /> Retour</Button> : <span />}
+        {!hideNext && <Button onClick={onNext} disabled={nextDisabled}>{nextLabel}</Button>}
+      </div>
+    </Card>
+  );
+}
+
+function HuileTestModal({ titre, onConfirm, onClose }) {
+  const [photo, setPhoto] = useState(null);
+  const [decision, setDecision] = useState(null);
+
+  const choisir = (d) => {
+    setDecision(d);
+    onConfirm(photo, d);
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-md w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Protocole test huile de friture</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">« {titre} » validé.</p>
+
+        {!decision && (
+          <div>
+            <p className="text-sm text-[var(--ink)] mb-3">Photographiez la bandelette de test utilisée sur l'huile.</p>
+            <PhotoInput value={photo} onChange={setPhoto} label="Photographier la bandelette" />
+            <div className="flex gap-2 mt-5 pt-4 border-t border-[var(--line)]">
+              <Button onClick={() => choisir("Bonne")} disabled={!photo}><CheckCircle2 size={16} /> Test bon</Button>
+              <Button variant="danger" onClick={() => choisir("Pas bonne")} disabled={!photo}><XCircle size={16} /> Test non conforme</Button>
+            </div>
+          </div>
+        )}
+
+        {decision && (
+          <div>
+            <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
+              <p className="text-sm text-[var(--ink)]"><strong>N'oubliez pas :</strong> l'huile est vidée et filtrée maintenant, dans tous les cas, que le test soit bon ou non conforme.</p>
+            </Card>
+            <p className="text-xs text-[var(--steel)] mb-4">
+              {decision === "Bonne"
+                ? "Demain matin, vous serez rappelé de nettoyer la friteuse puis de remettre cette huile filtrée — elle est réutilisée."
+                : "Demain matin, vous serez rappelé de changer cette huile et de faire un nettoyage complet de la friteuse (intérieur, extérieur, tous les ustensiles, sans exception)."}
+            </p>
+            <Button onClick={onClose}>J'ai compris, terminer</Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function HuileMatinModal({ titre, onChoisir, onClose }) {
+  const [choix, setChoix] = useState(null);
+
+  const confirmer = () => {
+    onChoisir(choix);
+    onClose();
+  };
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-md w-full p-5">
+        <button onClick={choix ? () => setChoix(null) : onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-3">
+          <ArrowLeft size={15} /> {choix ? "Revenir en arrière" : "Fermer"}
+        </button>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Processus de suivi de l'huile de friture</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">« {titre} » validé.</p>
+
+        {!choix ? (
+          <div className="flex flex-col gap-2">
+            <Button onClick={() => setChoix("filtration")}><Snowflake size={16} /> Filtration de l'huile</Button>
+            <Button variant="ghost" onClick={() => setChoix("remplacement")}>Remplacement de l'huile</Button>
+          </div>
+        ) : (
+          <div>
+            {choix === "filtration" ? (
+              <p className="text-sm text-[var(--ink)] mb-4">Huile filtrée et remise en place. Le test bandelette du soir aura lieu normalement.</p>
+            ) : (
+              <div className="mb-4">
+                <p className="text-sm text-[var(--ink)] mb-2">Huile remplacée. Pas besoin de refaire le test bandelette ce soir — il reprendra normalement demain soir.</p>
+                <div className="rounded-lg p-3 bg-[var(--warn-soft)]">
+                  <p className="text-xs font-semibold text-[var(--warn)] uppercase tracking-wide mb-1.5">Nettoyage complet de la friteuse à faire maintenant</p>
+                  <ul className="text-sm text-[var(--ink)] list-disc list-inside space-y-0.5">
+                    <li>Intérieur de la friteuse</li>
+                    <li>Extérieur de la friteuse</li>
+                    <li>Tous les ustensiles de la friteuse</li>
+                  </ul>
+                </div>
+              </div>
+            )}
+            <Button onClick={confirmer}>Confirmer — {choix === "filtration" ? "filtration" : "remplacement"}</Button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function ChampTexteOuVocal({ value, onChange, placeholder, suggestions, permettreVocal = true }) {
+  const [enEcoute, setEnEcoute] = useState(false);
+  const [erreur, setErreur] = useState(null);
+  const supporteVocal = permettreVocal && typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const listId = React.useMemo(() => `suggestions-${uid()}`, []);
+
+  const demarrerEcoute = async () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    setErreur(null);
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (err) {
+        setErreur("Impossible d'accéder au micro ici — utilisez la saisie texte, elle fait exactement la même chose.");
+        return;
+      }
+    }
+    try {
+      const reco = new SR();
+      reco.lang = "fr-FR";
+      reco.interimResults = false;
+      reco.maxAlternatives = 1;
+      reco.onresult = (e) => { onChange(e.results[0][0].transcript); };
+      reco.onend = () => setEnEcoute(false);
+      reco.onerror = () => { setEnEcoute(false); setErreur("La commande vocale n'a pas fonctionné ici — utilisez la saisie texte, elle fait exactement la même chose."); };
+      setEnEcoute(true);
+      reco.start();
+    } catch (e) {
+      setEnEcoute(false);
+      setErreur("La commande vocale n'a pas pu démarrer ici — utilisez la saisie texte.");
+    }
+  };
+
+  return (
+    <div>
+      <div className="flex items-center gap-2">
+        <input list={suggestions ? listId : undefined} className={`${inputCls} flex-1`} placeholder={placeholder} value={value} onChange={(e) => onChange(e.target.value)} />
+        {suggestions && <datalist id={listId}>{suggestions.map((s) => <option key={s} value={s} />)}</datalist>}
+        {supporteVocal && (
+          <button type="button" onClick={demarrerEcoute} disabled={enEcoute}
+            style={enEcoute ? { backgroundColor: "#C1432D", borderColor: "#C1432D", color: "#ffffff" } : undefined}
+            className={`w-11 h-11 rounded-lg flex items-center justify-center border shrink-0 ${enEcoute ? "animate-pulse" : "border-[var(--line)] text-[var(--steel)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}
+            title="Dicter à la voix">
+            <Mic size={18} />
+          </button>
+        )}
+      </div>
+      {enEcoute && <p className="text-xs text-[var(--accent)] mt-1">Je vous écoute...</p>}
+      {erreur && <p className="text-xs text-[var(--warn)] mt-1">{erreur}</p>}
+    </div>
+  );
+}
+
+function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, onDone, onCancel, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
+  const [step, setStep] = useState(1);
+  const moi = employees.find((e) => e.id === currentUserId);
+  const receptionId = React.useMemo(() => uid(), []);
+  const fournisseursConnus = [...new Set(stock.map((s) => s.fournisseur).filter(Boolean))];
+
+  const [fournisseur, setFournisseur] = useState("");
+  const [date, setDate] = useState(todayISO());
+  const [heure, setHeure] = useState(new Date().toTimeString().slice(0, 5));
+  // Une fois l'étape 1 validée ("Suivant"), la date et l'heure de livraison sont figées pour le
+  // reste de la saisie — elles ont été capturées automatiquement (ou ajustées une fois ici) et ne
+  // doivent plus pouvoir être modifiées par erreur en cours de route, même en revenant en arrière.
+  const [dateHeureVerrouillees, setDateHeureVerrouillees] = useState(false);
+  // Une ou plusieurs photos du bon de livraison — le bon peut tenir sur plusieurs pages (3, 4...)
+  // dans les DEUX paliers, pas seulement avec IA. Au palier sans IA, elles sont simplement archivées ;
+  // au palier avec IA, elles sont en plus analysées pour en extraire la liste des produits.
+  const [photosBon, setPhotosBon] = useState([]);
+  const [lignesBon, setLignesBon] = useState([]);
+  const [analyseBonEnCours, setAnalyseBonEnCours] = useState(false);
+  const [bonIllisible, setBonIllisible] = useState(false);
+
+  const [temps, setTemps] = useState({ surgele: "", frais: "", viande: "" });
+  const [tempRejets, setTempRejets] = useState({}); // { [ligneId]: { photo } }
+  const [choixTemp, setChoixTemp] = useState(null);
+
+  const [produits, setProduits] = useState([]);
+  const [analyseEnCours, setAnalyseEnCours] = useState({});
+  const [echecAnalyse, setEchecAnalyse] = useState({});
+  const [autresNC, setAutresNC] = useState(null); // null | "oui" | "non"
+
+  // Étape 4, palier sans IA : ajout d'un produit depuis le stock existant (ou manuellement).
+  const [ajoutStockId, setAjoutStockId] = useState("");
+  const [ajoutQuantite, setAjoutQuantite] = useState("");
+  const [ajoutManuelNom, setAjoutManuelNom] = useState("");
+  const [ajoutManuelOuvert, setAjoutManuelOuvert] = useState(false);
+
+  // Étape 5 : ajout d'un produit non conforme totalement nouveau (absent du bon/du stock).
+  const [nouveauProduitNom, setNouveauProduitNom] = useState("");
+  const [nouveauProduitQuantite, setNouveauProduitQuantite] = useState("");
+  const [nouveauProduitRaison, setNouveauProduitRaison] = useState("");
+  const [nouveauProduitPhoto, setNouveauProduitPhoto] = useState(null);
+
+  const conformeTemp = (type) => {
+    const v = parseFloat(temps[type]);
+    if (Number.isNaN(v)) return null;
+    return type === "surgele" ? v <= SEUILS_RECEPTION.surgele.max : v <= SEUILS_RECEPTION[type].max;
+  };
+
+  const CONSIGNE_ANALYSE_BON = "Tu regardes la photo d'un bon de livraison de marchandises pour un restaurant. Extrais la liste des produits avec leur quantité et, si elle est indiquée sur le bon (colonne référence/code article/code produit), la référence du produit. Réponds UNIQUEMENT avec un tableau JSON strict, sans aucun texte autour, format exact : [{\"nom\":\"...\",\"quantite\":\"...\",\"reference\":\"...\" ou null}]. Si l'écriture n'est pas lisible pour un élément, ignore-le plutôt que d'inventer.";
+
+  // Palier avec IA : le bon peut tenir sur plusieurs pages/photos — on analyse chaque photo puis on
+  // fusionne toutes les lignes obtenues en une seule liste à vérifier.
+  const analyserBon = async () => {
+    if (photosBon.length === 0) return;
+    setAnalyseBonEnCours(true);
+    const resultats = await Promise.all(photosBon.map((p) => analyserImage(p, CONSIGNE_ANALYSE_BON)));
+    setAnalyseBonEnCours(false);
+    const lignesFusionnees = [];
+    resultats.forEach((resultat) => {
+      if (Array.isArray(resultat)) {
+        resultat.forEach((l) => lignesFusionnees.push({ id: uid(), nom: l.nom || "", quantite: l.quantite || "", reference: l.reference || "" }));
+      }
+    });
+    if (lignesFusionnees.length > 0) {
+      setBonIllisible(false);
+      setLignesBon(lignesFusionnees);
+    } else {
+      setBonIllisible(true);
+      setLignesBon([]);
+    }
+  };
+
+  const updateLigne = (id, champ, val) => setLignesBon(lignesBon.map((l) => (l.id === id ? { ...l, [champ]: val } : l)));
+  const removeLigne = (id) => setLignesBon(lignesBon.filter((l) => l.id !== id));
+
+  const toggleTempRejet = (ligne) => {
+    setTempRejets((prev) => {
+      const next = { ...prev };
+      if (next[ligne.id]) delete next[ligne.id]; else next[ligne.id] = { photo: null };
+      return next;
+    });
+  };
+
+  const passerEnRevueProduits = () => {
+    setProduits(lignesBon.map((l) => (
+      tempRejets[l.id]
+        ? { id: l.id, nom: l.nom, reference: l.reference || "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: tempRejets[l.id].photo, tempRejete: true, conforme: false, raison: "Température non conforme", quantiteNC: l.quantite, photoNC: tempRejets[l.id].photo }
+        : { id: l.id, nom: l.nom, reference: l.reference || "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: null, tempRejete: false, conforme: true, raison: "", quantiteNC: "", photoNC: null }
+    )));
+    setStep(4);
+  };
+
+  const updateProduit = (id, patch) => setProduits(produits.map((p) => (p.id === id ? { ...p, ...patch } : p)));
+
+  // Palier sans IA, étape 4 : ajout d'un produit depuis le stock existant (ou manuellement si absent
+  // du stock) — jamais de lot/DLC saisi ici, ce palier ne les collecte pas. Ajouté "conforme" par
+  // défaut ; l'employé bascule ensuite sur "Non conforme" directement sur la ligne si besoin.
+  const ajouterProduitSansIA = (nom) => {
+    const nomPropre = (nom || "").trim();
+    const qte = ajoutQuantite;
+    if (!nomPropre || !String(qte).trim()) return;
+    setProduits((prev) => [...prev, {
+      id: uid(), nom: nomPropre, reference: "", quantite: qte, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "",
+      photo: null, tempRejete: false, conforme: true, raison: "", quantiteNC: "", photoNC: null,
+    }]);
+    setAjoutStockId(""); setAjoutManuelNom(""); setAjoutQuantite(""); setAjoutManuelOuvert(false);
+  };
+
+  // Étape 5 : un produit non conforme totalement nouveau, qui n'apparaissait ni sur le bon ni dans
+  // le stock (ex : produit livré en trop, non commandé). Motif pré-rempli par défaut si rien saisi.
+  const ajouterNouveauProduitNC = () => {
+    const nomPropre = nouveauProduitNom.trim();
+    if (!nomPropre) return;
+    const qte = nouveauProduitQuantite || "0";
+    setProduits((prev) => [...prev, {
+      id: uid(), nom: nomPropre, reference: "", quantite: qte, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "",
+      photo: null, tempRejete: false, conforme: false, raison: nouveauProduitRaison.trim() || "Produit non commandé",
+      quantiteNC: qte, photoNC: nouveauProduitPhoto,
+    }]);
+    setNouveauProduitNom(""); setNouveauProduitQuantite(""); setNouveauProduitRaison(""); setNouveauProduitPhoto(null);
+  };
+
+  const analyserProduit = async (p) => {
+    if (!p.photo) return;
+    setAnalyseEnCours((prev) => ({ ...prev, [p.id]: true }));
+    const resultat = await analyserImage(p.photo, "Tu regardes la photo d'un produit alimentaire reçu en cuisine professionnelle (étiquette ou emballage). Identifie si visible : le nom du produit, la référence/le code article, le numéro de lot, la date limite de consommation (DLC/DDM), les allergènes déclarés, l'origine/provenance indiquée, le délai de conservation après ouverture s'il est indiqué sur l'étiquette (ex : « à consommer sous 3 jours après ouverture », « 5 jours après ouverture »), et le numéro d'agrément sanitaire CE s'il est visible (souvent dans un ovale ou un cercle, format type FR xx.xxx.xxx CE). Réponds UNIQUEMENT en JSON strict, sans texte autour, format exact : {\"nom\": \"...\" ou null, \"reference\": \"...\" ou null, \"lot\": \"...\" ou null, \"dlc\": \"AAAA-MM-JJ\" ou null, \"allergenes\": \"...\" ou null, \"origine\": \"...\" ou null, \"dlcApresOuvertureJours\": nombre entier de jours ou null, \"agrementSanitaire\": \"...\" ou null}. Mets null si l'information n'est pas visible, n'invente jamais.");
+    setAnalyseEnCours((prev) => ({ ...prev, [p.id]: false }));
+    if (resultat && (resultat.nom || resultat.reference || resultat.lot || resultat.dlc || resultat.allergenes || resultat.origine || resultat.agrementSanitaire)) {
+      setEchecAnalyse((prev) => ({ ...prev, [p.id]: false }));
+      updateProduit(p.id, {
+        nom: resultat.nom || p.nom,
+        reference: resultat.reference || p.reference,
+        lot: resultat.lot || p.lot,
+        dlc: resultat.dlc || p.dlc,
+        allergenes: resultat.allergenes || p.allergenes,
+        origine: resultat.origine || p.origine,
+        agrementSanitaire: resultat.agrementSanitaire || p.agrementSanitaire,
+      });
+      // Mise à jour en temps réel des fiches allergènes/origine/délai après ouverture dès la lecture
+      // de l'étiquette. La première fois qu'une valeur est connue pour un produit, elle devient sa
+      // "norme habituelle" (référence de l'établissement). Si un lot reçu ensuite affiche une valeur
+      // différente de cette norme (autre origine, autres allergènes, autre délai après ouverture), on
+      // l'applique quand même tout de suite (affichage, calcul de DLC...) mais SEULEMENT pour la durée
+      // de ce lot : le produit est marqué "en exception", et dès que son stock revient à 0 (le lot est
+      // entièrement consommé), le logiciel revient tout seul à la norme habituelle — voir l'effet
+      // dédié au niveau de l'application. Si la valeur scannée est identique à la norme, pas d'exception.
+      const nomProduitScan = (resultat.nom || p.nom || "").trim();
+      if (nomProduitScan) {
+        if (resultat.allergenes) {
+          const norme = allergenesStandard[nomProduitScan];
+          setAllergenesProduits((prev) => ({ ...prev, [nomProduitScan]: resultat.allergenes }));
+          if (norme === undefined) {
+            setAllergenesStandard((prev) => ({ ...prev, [nomProduitScan]: resultat.allergenes }));
+          } else if (norme !== resultat.allergenes) {
+            setProduitsLotException((prev) => ({ ...prev, [nomProduitScan]: true }));
+            logActivity("HACCP", "Allergènes différents de la norme habituelle — appliqué pour ce lot uniquement",
+              `${nomProduitScan} — "${resultat.allergenes}" au lieu de "${norme}" habituellement. Reviendra automatiquement à la normale une fois ce lot épuisé (stock à 0).`);
+          }
+        }
+        if (resultat.origine) {
+          const norme = origineStandard[nomProduitScan];
+          setOrigineProduits((prev) => ({ ...prev, [nomProduitScan]: resultat.origine }));
+          if (norme === undefined) {
+            setOrigineStandard((prev) => ({ ...prev, [nomProduitScan]: resultat.origine }));
+          } else if (norme !== resultat.origine) {
+            setProduitsLotException((prev) => ({ ...prev, [nomProduitScan]: true }));
+            logActivity("HACCP", "Origine différente de la norme habituelle — appliquée pour ce lot uniquement",
+              `${nomProduitScan} — "${resultat.origine}" au lieu de "${norme}" habituellement. Reviendra automatiquement à la normale une fois ce lot épuisé (stock à 0).`);
+          }
+        }
+        // Le délai de conservation après ouverture indiqué sur l'étiquette peut varier d'un lot/fournisseur
+        // à l'autre pour un même produit (ex : une nouvelle sauce tomate passée de 5 à 3 jours après
+        // ouverture). Même principe : appliqué tout de suite pour le calcul de la DLC en préparation,
+        // mais seulement le temps que ce lot soit consommé.
+        const joursApresOuverture = Number(resultat.dlcApresOuvertureJours);
+        if (resultat.dlcApresOuvertureJours != null && Number.isFinite(joursApresOuverture) && joursApresOuverture >= 0 && catalogueProduits) {
+          const nomNorm = nomProduitScan.toLowerCase();
+          const produitCatalogue = catalogueProduits.find((c) => (c.nom || "").trim().toLowerCase() === nomNorm);
+          if (produitCatalogue && Number(produitCatalogue.dlcJours) !== joursApresOuverture) {
+            const ancienDelai = produitCatalogue.dlcJours;
+            const normeJours = dlcJoursStandard[nomProduitScan];
+            setCatalogueProduits((prev) => prev.map((c) => (c.id === produitCatalogue.id ? { ...c, dlcJours: joursApresOuverture } : c)));
+            if (normeJours === undefined) {
+              setDlcJoursStandard((prev) => ({ ...prev, [nomProduitScan]: ancienDelai }));
+            } else {
+              setProduitsLotException((prev) => ({ ...prev, [nomProduitScan]: true }));
+            }
+            logActivity("HACCP", "Délai de conservation après ouverture différent — appliqué pour ce lot uniquement",
+              `${nomProduitScan} — J+${ancienDelai ?? "?"} → J+${joursApresOuverture} (lu sur l'étiquette à la réception). Reviendra automatiquement à J+${normeJours ?? ancienDelai ?? "?"} une fois ce lot épuisé (stock à 0).`);
+          }
+        }
+      }
+    } else {
+      setEchecAnalyse((prev) => ({ ...prev, [p.id]: true }));
+    }
+  };
+
+  const nbConformes = produits.filter((p) => p.conforme).length;
+  const nbNonConformes = produits.filter((p) => !p.conforme).length;
+
+  const qteAccepteeDe = (p) => (p.conforme ? (Number(p.quantite) || 0) : Math.max(0, (Number(p.quantite) || 0) - (Number(p.quantiteNC) || 0)));
+
+  // Minimum obligatoire enseigné en formation hygiène pour assurer la traçabilité : nom du produit,
+  // numéro de lot, DLC/DDM (uniquement au palier avec IA — le palier sans IA ne collecte jamais lot
+  // ni DLC, seuls le nom et la quantité sont exigés). Les produits déjà rejetés en température
+  // (tempRejete), ou entièrement non conformes (aucune quantité acceptée — rien ne rejoint le stock,
+  // donc pas besoin de lot/DLC pour eux), ne sont pas concernés par cette obligation.
+  const produitsIncomplets = produits.filter((p) => {
+    if (p.tempRejete) return false;
+    if (qteAccepteeDe(p) <= 0) return false;
+    if (!(p.nom || "").trim()) return true;
+    if (!IA_ACTIVEE) return !String(p.quantite ?? "").trim();
+    return !(p.lot || "").trim() || !(p.dlc || "").trim();
+  });
+
+  const [receptionFinalisee, setReceptionFinalisee] = useState(false);
+  const [entreesFinalisees, setEntreesFinalisees] = useState([]);
+
+  const nonConformesActuels = produits.filter((p) => !p.conforme);
+
+  const validerReception = () => {
+    let stockCourant = stock;
+    const nouvellesEntrees = [];
+    const articlesCrees = [];
+    // Filet de sécurité : si des allergènes/origine ont été saisis ou corrigés manuellement
+    // (sans repasser par le scan), on met quand même à jour les fiches produit au moment de valider.
+    const majAllergenes = {};
+    const majOrigine = {};
+    produits.forEach((p) => {
+      const nomP = (p.nom || "").trim();
+      if (nomP && p.allergenes) majAllergenes[nomP] = p.allergenes;
+      if (nomP && p.origine) majOrigine[nomP] = p.origine;
+    });
+    if (Object.keys(majAllergenes).length) setAllergenesProduits((prev) => ({ ...prev, ...majAllergenes }));
+    if (Object.keys(majOrigine).length) setOrigineProduits((prev) => ({ ...prev, ...majOrigine }));
+    // Photo(s) du bon archivées sur chaque ligne de réception, pour pouvoir toujours retrouver le
+    // bon papier d'origine depuis Contrôle & Gestion → Réception (même sur une réception conforme).
+    // Photo(s) du bon archivées sur chaque ligne — les deux paliers peuvent avoir plusieurs photos
+    // (bon sur plusieurs pages), toujours stockées dans photosBon.
+    const photosBonArchive = photosBon;
+    produits.forEach((p) => {
+      const qteAcceptee = qteAccepteeDe(p);
+      const entry = {
+        id: uid(), receptionId, date, heure, employeeId: currentUserId, fournisseur, produit: p.nom,
+        quantite: qteAcceptee, lot: p.lot, dlc: p.dlc, allergenes: p.allergenes || "", origine: p.origine || "", agrementSanitaire: p.agrementSanitaire || "", conforme: p.conforme,
+        raison: p.conforme ? "" : p.raison, quantiteNC: p.conforme ? 0 : (Number(p.quantiteNC) || 0),
+        photoNC: p.conforme ? null : p.photoNC, ecartPrix: p.conforme ? 0 : (Number(p.ecartPrix) || 0), valideChef: false,
+        photoBon: null, photosBon: photosBonArchive,
+      };
+      nouvellesEntrees.push(entry);
+      if (qteAcceptee > 0) {
+        const nomPropre = (p.nom || "").trim();
+        const refPropre = (p.reference || "").trim();
+        // La référence produit est l'identifiant fiable (elle ne change pas si le nom est mal orthographié/lu
+        // par l'IA ou légèrement différent d'un bon à l'autre) — on la teste en priorité avant le nom.
+        const existing = (refPropre && stockCourant.find((s) => (s.reference || "").trim().toLowerCase() === refPropre.toLowerCase()))
+          || stockCourant.find((s) => s.nom.trim().toLowerCase() === nomPropre.toLowerCase());
+        if (existing) {
+          stockCourant = stockCourant.map((s) => (s.id === existing.id ? { ...s, reference: s.reference || refPropre, quantite: Number(s.quantite) + qteAcceptee, lot: p.lot || s.lot, dlc: p.dlc || s.dlc, allergenes: p.allergenes || s.allergenes || "", origine: p.origine || s.origine || "", agrementSanitaire: p.agrementSanitaire || s.agrementSanitaire || "" } : s));
+        } else if (nomPropre) {
+          // Aucun article existant ne correspond (ni par référence, ni par nom) : on crée l'article
+          // plutôt que de perdre silencieusement la quantité réceptionnée.
+          const nouvelArticle = { id: uid(), reference: refPropre, nom: nomPropre, categorie: "", fournisseur, quantite: qteAcceptee, unite: "kg", cible: 0, lot: p.lot || "", dlc: p.dlc || "", allergenes: p.allergenes || "", origine: p.origine || "", agrementSanitaire: p.agrementSanitaire || "" };
+          stockCourant = [...stockCourant, nouvelArticle];
+          articlesCrees.push(nomPropre);
+        }
+      }
+    });
+    // Filet de sécurité : si aucun produit n'a été saisi (réception sans IA interrompue trop tôt,
+    // par exemple) mais qu'une photo du bon a bien été prise, on l'archive quand même via une ligne
+    // vide plutôt que de la perdre silencieusement — sinon elle ne serait visible nulle part.
+    if (nouvellesEntrees.length === 0 && photosBonArchive.length > 0) {
+      nouvellesEntrees.push({
+        id: uid(), receptionId, date, heure, employeeId: currentUserId, fournisseur, produit: "(aucun produit détaillé)",
+        quantite: 0, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", conforme: true,
+        raison: "", quantiteNC: 0, photoNC: null, ecartPrix: 0, valideChef: false,
+        photoBon: null, photosBon: photosBonArchive,
+      });
+    }
+
+    setStock(stockCourant);
+    if (articlesCrees.length > 0) {
+      logActivity("Stock", "Nouvel(aux) article(s) créé(s) automatiquement à la réception", `${articlesCrees.join(", ")} — aucune correspondance trouvée dans l'inventaire, vérifiez le nom/l'unité/la catégorie`);
+    }
+    setReceptions([...nouvellesEntrees, ...receptions]);
+    logActivity("Stock", "Réception validée", `${fournisseur} — ${nbConformes} conforme(s), ${nbNonConformes} non conforme(s)`);
+
+    if (nonConformesActuels.length > 0) {
+      const emailSujet = `Réception du ${date} — ${fournisseur} — Non-conformités`;
+      // Au palier avec IA, le message est rédigé pour être envoyé quasiment tel quel (demande
+      // explicite d'avoir/remboursement) — voir la bannière dédiée dans Contrôle & Gestion, qui
+      // prévient qu'il reste un clic à faire : l'application ne peut techniquement pas envoyer
+      // l'e-mail elle-même (pas de serveur mail côté BrigadeRestoPro), seul le lien mailto: existe.
+      const emailCorps = [
+        `Bonjour,`, ``,
+        `Réception du ${date} à ${heure}, réceptionnée par ${moi?.nom || ""}.`, ``,
+        `Les produits suivants présentent une non-conformité et sont retournés :`,
+        ...nonConformesActuels.map((p) => `- ${p.nom} — ${p.quantiteNC} — motif : ${p.raison}${p.ecartPrix ? ` — écart de prix signalé : ${p.ecartPrix} €` : ""}`),
+        ``,
+        ...(IA_ACTIVEE ? [`Merci de bien vouloir établir un avoir ou un remboursement correspondant à ces articles, et de nous confirmer la bonne prise en compte de ce retour.`, ``] : []),
+        `Photos du bon de livraison et des non-conformités jointes à ce message (bon n° ${receptionId.slice(0, 8)}, consultable dans notre application de gestion).`, ``, `Cordialement,`,
+      ].join("\n");
+      const notification = {
+        id: uid(), date, heure, employeeId: currentUserId, fournisseur, sujet: emailSujet, corps: emailCorps,
+        receptionId, photoBon: null, photosBon: photosBonArchive,
+        nonConformes: nonConformesActuels.map((p) => ({ nom: p.nom, quantiteNC: p.quantiteNC, raison: p.raison, photoNC: p.photoNC, ecartPrix: Number(p.ecartPrix) || 0 })),
+        envoyee: false, genereParIA: IA_ACTIVEE,
+      };
+      setNotificationsFournisseur([notification, ...notificationsFournisseur]);
+      logActivity("Contrôle", "Notification fournisseur envoyée au chef", `${fournisseur} — ${nonConformesActuels.length} non-conformité(s)`);
+    }
+
+    setEntreesFinalisees(nouvellesEntrees);
+    setReceptionFinalisee(true);
+  };
+
+  if (receptionFinalisee) {
+    return (
+      <Card>
+        <div className="flex items-center gap-2 mb-1">
+          <CheckCircle2 size={20} className="text-[var(--accent)]" />
+          <h3 className="font-semibold text-[var(--ink)]">Réception validée</h3>
+        </div>
+        <p className="text-sm text-[var(--steel)] mb-2">{entreesFinalisees.filter((e) => e.conforme).length} article(s) ajoutés au stock{nonConformesActuels.length ? `, ${nonConformesActuels.length} à retourner au fournisseur` : ""}.</p>
+        {nonConformesActuels.length > 0 && (
+          <p className="text-sm text-[var(--steel)] mb-5">Le chef a été notifié dans son onglet Contrôle pour la suite — vous n'avez rien d'autre à faire.</p>
+        )}
+        <Button onClick={onDone}>Terminer</Button>
+      </Card>
+    );
+  }
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={onCancel} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Annuler la réception</button>
+        <span className="text-xs text-[var(--steel)]">Étape {step} / 6</span>
+      </div>
+
+      {step === 1 && (
+        <StepShell titre="Informations générales" nextLabel="Suivant" onNext={() => { setDateHeureVerrouillees(true); setStep(2); }}>
+          <div className="grid grid-cols-2 gap-3 mb-3">
+            <Field label="Réceptionné par">
+              <div className="flex items-center gap-2 border border-[var(--line)] rounded-lg px-3 py-2 bg-[var(--bg)]">
+                <Avatar nom={moi?.nom} size={22} />
+                <span className="text-sm text-[var(--ink)]">{moi?.nom}</span>
+              </div>
+            </Field>
+            <Field label="Fournisseur">
+              <input list="fournisseurs-connus" className={inputCls} value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} placeholder="Sysco, Promocash..." />
+              <datalist id="fournisseurs-connus">{fournisseursConnus.map((f) => <option key={f} value={f} />)}</datalist>
+            </Field>
+            <Field label="Date de livraison">
+              {dateHeureVerrouillees ? (
+                <div className="border border-[var(--line)] rounded-lg px-3 py-2 bg-[var(--bg)] text-sm text-[var(--ink)]">{date}</div>
+              ) : (
+                <input className={inputCls} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+              )}
+            </Field>
+            <Field label="Heure de livraison">
+              {dateHeureVerrouillees ? (
+                <div className="border border-[var(--line)] rounded-lg px-3 py-2 bg-[var(--bg)] text-sm text-[var(--ink)]">{heure}</div>
+              ) : (
+                <input className={inputCls} type="time" value={heure} onChange={(e) => setHeure(e.target.value)} />
+              )}
+            </Field>
+          </div>
+          {dateHeureVerrouillees && <p className="text-xs text-[var(--steel)]">Date et heure figées pour cette réception — elles ne sont plus modifiables.</p>}
+        </StepShell>
+      )}
+
+      {step === 2 && IA_ACTIVEE && (
+        <StepShell titre="Bon de livraison" sousTitre="Photographiez le bon (plusieurs photos si le bon fait plusieurs pages), l'IA en extrait la liste des produits — vérifiez et corrigez avant de continuer." onPrev={() => setStep(1)} nextLabel="Suivant" onNext={() => setStep(3)} nextDisabled={lignesBon.length === 0}>
+          <div className="mb-4">
+            {photosBon.length > 0 && (
+              <div className="flex flex-wrap gap-2 mb-3">
+                {photosBon.map((p, i) => (
+                  <div key={i} className="relative">
+                    <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />
+                    <button onClick={() => setPhotosBon(photosBon.filter((_, idx) => idx !== i))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--line)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
+                  </div>
+                ))}
+              </div>
+            )}
+            <PhotoInput value={null} onChange={(v) => setPhotosBon([...photosBon, v])} label={photosBon.length > 0 ? "Ajouter une autre page du bon" : "Photographier le bon de livraison"} />
+            {photosBon.length > 0 && (
+              <Button variant="ghost" className="mt-3" onClick={analyserBon}>
+                {analyseBonEnCours ? <Loader2 size={16} className="animate-spin" /> : null} {analyseBonEnCours ? "Analyse en cours..." : `Analyser le${photosBon.length > 1 ? " bon (" + photosBon.length + " photos)" : " bon"}`}
+              </Button>
+            )}
+            {bonIllisible && (
+              <p className="text-xs text-[var(--warn)] mt-2">Aucune des photo(s) n'est assez lisible pour être analysée — reprenez la/les photo(s) (meilleure lumière, bon bien à plat, texte net) puis relancez l'analyse.</p>
+            )}
+          </div>
+          {lignesBon.length > 0 && (
+            <div className="space-y-2">
+              {lignesBon.map((l) => (
+                <div key={l.id} className="grid grid-cols-6 gap-2">
+                  <input className={`${inputCls} col-span-2`} placeholder="Produit" value={l.nom} onChange={(e) => updateLigne(l.id, "nom", e.target.value)} />
+                  <input className={`${inputCls} col-span-2`} placeholder="Référence" value={l.reference || ""} onChange={(e) => updateLigne(l.id, "reference", e.target.value)} />
+                  <input className={`${inputCls} col-span-1`} placeholder="Qté" value={l.quantite} onChange={(e) => updateLigne(l.id, "quantite", e.target.value)} />
+                  <button onClick={() => removeLigne(l.id)} className="text-[var(--steel)] hover:text-[var(--warn)] flex items-center justify-center"><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+        </StepShell>
+      )}
+
+      {step === 2 && !IA_ACTIVEE && (
+        <StepShell titre="Bon de livraison" sousTitre="Photographiez le bon (plusieurs photos si le bon fait plusieurs pages) — la ou les photos sont archivées et consultables depuis Contrôle & Gestion → Réception, même sur une réception conforme." onPrev={() => setStep(1)} nextLabel="Suivant" onNext={() => setStep(3)} nextDisabled={photosBon.length === 0}>
+          {photosBon.length > 0 && (
+            <div className="flex flex-wrap gap-2 mb-3">
+              {photosBon.map((p, i) => (
+                <div key={i} className="relative">
+                  <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />
+                  <button onClick={() => setPhotosBon(photosBon.filter((_, idx) => idx !== i))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--line)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
+                </div>
+              ))}
+            </div>
+          )}
+          <PhotoInput value={null} onChange={(v) => setPhotosBon([...photosBon, v])} label={photosBon.length > 0 ? "Ajouter une autre page du bon" : "Photographier le bon de livraison"} />
+        </StepShell>
+      )}
+
+      {step === 3 && (
+        <StepShell titre="Contrôle températures HACCP" onPrev={() => setStep(2)} hideNext>
+          <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/20 mb-4">
+            <p className="text-xs text-[var(--ink)]">
+              <strong>Rappel des normes de réception :</strong> un produit surgelé doit être à {SEUILS_RECEPTION.surgele.label}, un produit frais/laitier à {SEUILS_RECEPTION.frais.label}, une viande fraîche à {SEUILS_RECEPTION.viande.label}. Prenez la température à cœur avec la sonde, pas la température de l'air.
+            </p>
+          </Card>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
+            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande"]].map(([type, label]) => {
+              const ok = conformeTemp(type);
+              return (
+                <Field key={type} label={`${label} (${SEUILS_RECEPTION[type].label})`}>
+                  <input className={inputCls} type="number" step="0.1" value={temps[type]} onChange={(e) => setTemps({ ...temps, [type]: e.target.value })} />
+                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? "Conforme" : "Hors norme"}</span>}
+                </Field>
+              );
+            })}
+          </div>
+
+          {choixTemp === null && (
+            <div className="flex flex-wrap gap-3">
+              <Button onClick={() => setChoixTemp("conforme")}><CheckCircle2 size={16} /> Températures conformes — continuer</Button>
+              <Button variant="danger" onClick={() => setChoixTemp("non-conforme")}><XCircle size={16} /> Un produit est hors norme</Button>
+            </div>
+          )}
+
+          {choixTemp === "conforme" && (
+            <Button onClick={IA_ACTIVEE ? passerEnRevueProduits : () => setStep(4)}>Continuer vers le détail des produits</Button>
+          )}
+
+          {choixTemp === "non-conforme" && IA_ACTIVEE && (
+            <div>
+              <p className="text-sm text-[var(--ink)] mb-3">Sélectionnez le ou les produits concernés, puis photographiez chacun avec la température affichée sur le thermomètre — cette photo servira de preuve pour le retour fournisseur.</p>
+              <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
+                <p className="text-xs text-[var(--warn)] font-semibold">⚠ Température non conforme : ce ou ces produits doivent être renvoyés obligatoirement chez le fournisseur, pour le reste tout est bon.</p>
+              </Card>
+              <div className="space-y-3 mb-4">
+                {lignesBon.map((l) => (
+                  <div key={l.id} className="flex items-center justify-between border border-[var(--line)] rounded-lg p-3">
+                    <div>
+                      <div className="text-sm text-[var(--ink)] font-medium">{l.nom || "(sans nom)"}</div>
+                      {tempRejets[l.id] && <div className="mt-2"><PhotoInput small value={tempRejets[l.id].photo} onChange={(v) => setTempRejets((prev) => ({ ...prev, [l.id]: { photo: v } }))} label="Photo produit + thermomètre" /></div>}
+                    </div>
+                    <Button variant={tempRejets[l.id] ? "danger" : "ghost"} onClick={() => toggleTempRejet(l)}>
+                      {tempRejets[l.id] ? "Retirer" : "Non conforme en température"}
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              {Object.keys(tempRejets).length > 0 && (
+                <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
+                  <p className="text-xs font-semibold text-[var(--warn)] mb-1.5">Produit(s) à retourner obligatoirement au fournisseur :</p>
+                  <ul className="list-disc list-inside text-sm text-[var(--ink)]">
+                    {lignesBon.filter((l) => tempRejets[l.id]).map((l) => <li key={l.id}>{l.nom || "(sans nom)"}</li>)}
+                  </ul>
+                </Card>
+              )}
+              <Button onClick={passerEnRevueProduits}>Continuer vers le détail des produits</Button>
+            </div>
+          )}
+
+          {choixTemp === "non-conforme" && !IA_ACTIVEE && (
+            <div>
+              <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
+                <p className="text-xs text-[var(--warn)] font-semibold">⚠ Température non conforme : ce ou ces produits doivent être renvoyés obligatoirement chez le fournisseur, pour le reste tout est bon.</p>
+              </Card>
+              <p className="text-sm text-[var(--ink)] mb-3">À l'étape suivante, pour chaque produit concerné, choisissez « Non conforme — refusé » avec le motif « Température non conforme ».</p>
+              <Button onClick={() => setStep(4)}>Continuer vers le détail des produits</Button>
+            </div>
+          )}
+        </StepShell>
+      )}
+
+      {step === 4 && IA_ACTIVEE && (
+        <StepShell titre="Détail de chaque produit" sousTitre="Photographiez l'étiquette ENTIÈRE de chaque produit (pas juste le coin DLC) — l'IA propose le nom, le lot, la DLC, les allergènes, l'origine et le numéro d'agrément sanitaire ; complétez ce qui manque, indiquez la quantité reçue, puis validez ou refusez immédiatement le produit." onPrev={() => setStep(3)} nextLabel="Suivant" onNext={() => setStep(5)}>
+          <div className="space-y-4">
+            {produits.filter((p) => !p.tempRejete).map((p) => {
+              const correspondanceStock = (p.nom || "").trim() ? trouverCorrespondance(p.nom, stock, (s) => s.nom) : null;
+              return (
+                <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
+                  <div className="flex items-start gap-3 mb-3">
+                    <PhotoInput value={p.photo} onChange={(v) => updateProduit(p.id, { photo: v })} label="Photographier le produit" />
+                    {p.photo && (
+                      <Button variant="ghost" onClick={() => analyserProduit(p)}>
+                        {analyseEnCours[p.id] ? <Loader2 size={14} className="animate-spin" /> : null} {analyseEnCours[p.id] ? "Analyse..." : "Analyser"}
+                      </Button>
+                    )}
+                  </div>
+                  <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+                    <input className={inputCls} placeholder="Nom du produit" value={p.nom} onChange={(e) => updateProduit(p.id, { nom: e.target.value })} />
+                    <input className={inputCls} placeholder="Référence" value={p.reference || ""} onChange={(e) => updateProduit(p.id, { reference: e.target.value })} />
+                    <input className={inputCls} placeholder="N° de lot" value={p.lot} onChange={(e) => updateProduit(p.id, { lot: e.target.value })} />
+                    <input className={inputCls} type="date" placeholder="DLC" value={p.dlc} onChange={(e) => updateProduit(p.id, { dlc: e.target.value })} />
+                    <input className={inputCls} type="number" placeholder="Quantité reçue" value={p.quantite} onChange={(e) => updateProduit(p.id, { quantite: e.target.value })} />
+                    <input className={inputCls} placeholder="Allergènes déclarés" value={p.allergenes || ""} onChange={(e) => updateProduit(p.id, { allergenes: e.target.value })} />
+                    <input className={inputCls} placeholder="Origine / provenance" value={p.origine || ""} onChange={(e) => updateProduit(p.id, { origine: e.target.value })} />
+                    <input className={inputCls} placeholder="N° agrément sanitaire (CE)" value={p.agrementSanitaire || ""} onChange={(e) => updateProduit(p.id, { agrementSanitaire: e.target.value })} />
+                  </div>
+                  {echecAnalyse[p.id] && (
+                    <p className="text-xs text-[var(--warn)] mt-2">Photo pas assez lisible pour être analysée — complétez les champs manuellement.</p>
+                  )}
+                  {(p.nom || "").trim() && !correspondanceStock && (
+                    <p className="text-xs text-[var(--warn)] mt-2">⚠ Produit non reconnu dans le stock habituel — pour pouvoir compléter ses fiches allergènes/origine, prenez des photos détaillées : nom, n° de lot, DLC/DDM, logo CE / agrément sanitaire du fabricant, et la liste complète des ingrédients.</p>
+                  )}
+                  <div className="flex gap-2 mt-3 pt-3 border-t border-[var(--line)]">
+                    <Button variant={p.conforme ? "primary" : "ghost"} onClick={() => updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null })}><CheckCircle2 size={14} /> Valider</Button>
+                    <Button variant={!p.conforme ? "danger" : "ghost"} onClick={() => updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })}><XCircle size={14} /> Non conforme — refusé</Button>
+                  </div>
+                  {!p.conforme && (
+                    <div className="space-y-2 pt-3 mt-3 border-t border-[var(--line)]">
+                      <input className={inputCls} type="number" placeholder="Quantité non conforme" value={p.quantiteNC} onChange={(e) => updateProduit(p.id, { quantiteNC: e.target.value })} />
+                      <ChampTexteOuVocal value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} placeholder="Cause de la non-conformité (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />
+                      <input className={inputCls} type="number" step="0.01" placeholder="Écart de prix facturé (€, si produit substitué/facturé plus cher — optionnel)" value={p.ecartPrix || ""} onChange={(e) => updateProduit(p.id, { ecartPrix: e.target.value })} />
+                      <PhotoInput small value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Photo du produit" />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          {produits.filter((p) => !p.tempRejete).length > 0 && (
+            <Card className="mt-4 bg-[var(--accent-soft)] border-[var(--accent)]/20">
+              <p className="text-xs text-[var(--ink)]">
+                <strong>ℹ️ Mise à jour automatique des fiches allergènes/origine :</strong> dès qu'une étiquette est analysée ci-dessus, les allergènes et l'origine lus sont appliqués immédiatement aux fiches du produit. Si ce lot affiche une information différente de la norme habituelle de l'établissement (ex. une origine différente pour une viande), elle reste appliquée partout (fiches, étiquettes) uniquement le temps que ce lot soit en stock — dès qu'il est entièrement consommé, le logiciel revient tout seul à la norme habituelle, sans aucune action à faire.
+              </p>
+            </Card>
+          )}
+        </StepShell>
+      )}
+
+      {step === 4 && !IA_ACTIVEE && (
+        <StepShell titre="Détail de chaque produit" sousTitre="Choisissez chaque produit reçu dans la liste du stock, indiquez la quantité, puis validez ou refusez-le — aucune saisie de lot/DLC à ce palier, elle est calculée automatiquement par ailleurs." onPrev={() => setStep(3)} nextLabel="Suivant" onNext={() => setStep(5)}>
+          <Card className="mb-4">
+            <Field label="Produit (depuis le stock)">
+              <select className={inputCls} value={ajoutStockId} onChange={(e) => setAjoutStockId(e.target.value)}>
+                <option value="">— Choisir un produit —</option>
+                {stock.map((s) => <option key={s.id} value={s.id}>{s.nom}</option>)}
+              </select>
+            </Field>
+            <div className="flex gap-2 mt-2">
+              <input className={`${inputCls} flex-1`} type="number" placeholder="Quantité reçue" value={ajoutQuantite} onChange={(e) => setAjoutQuantite(e.target.value)} />
+              <Button onClick={() => ajouterProduitSansIA(stock.find((s) => s.id === ajoutStockId)?.nom || "")} disabled={!ajoutStockId || !ajoutQuantite}><Plus size={14} /> Ajouter</Button>
+            </div>
+            <button onClick={() => setAjoutManuelOuvert(!ajoutManuelOuvert)} className="text-xs text-[var(--accent)] font-medium mt-3">
+              {ajoutManuelOuvert ? "Fermer" : "+ Ajouter un produit manuellement (absent du stock)"}
+            </button>
+            {ajoutManuelOuvert && (
+              <div className="flex gap-2 mt-2">
+                <input className={`${inputCls} flex-1`} placeholder="Nom du produit" value={ajoutManuelNom} onChange={(e) => setAjoutManuelNom(e.target.value)} />
+                <input className={`${inputCls} w-24`} type="number" placeholder="Qté" value={ajoutQuantite} onChange={(e) => setAjoutQuantite(e.target.value)} />
+                <Button onClick={() => ajouterProduitSansIA(ajoutManuelNom)} disabled={!ajoutManuelNom.trim() || !ajoutQuantite}><Plus size={14} /> Ajouter</Button>
+              </div>
+            )}
+          </Card>
+
+          {produits.length > 0 && (
+            <div className="space-y-2">
+              {produits.map((p) => (
+                <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
+                  <div className="flex items-center justify-between gap-2">
+                    <div>
+                      <div className="text-sm font-medium text-[var(--ink)]">{p.nom}</div>
+                      <div className="text-xs text-[var(--steel)]">Quantité : {p.quantite}</div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant={p.conforme ? "primary" : "ghost"} onClick={() => updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null })}>Valider</Button>
+                      <Button variant={!p.conforme ? "danger" : "ghost"} onClick={() => updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })}>Non conforme — refusé</Button>
+                      <button onClick={() => setProduits(produits.filter((x) => x.id !== p.id))} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
+                    </div>
+                  </div>
+                  {!p.conforme && (
+                    <div className="space-y-2 pt-3 mt-3 border-t border-[var(--line)]">
+                      <input className={inputCls} type="number" placeholder="Quantité non conforme" value={p.quantiteNC} onChange={(e) => updateProduit(p.id, { quantiteNC: e.target.value })} />
+                      <ChampTexteOuVocal value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} placeholder="Cause de la non-conformité" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={false} />
+                      <PhotoInput small value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Photo du produit" />
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </StepShell>
+      )}
+
+      {step === 5 && (
+        <StepShell titre="Autres produits non conformes ?" sousTitre="En dehors des produits déjà rejetés en température, y a-t-il un ou plusieurs autres produits non conformes (aspect, emballage abîmé, DLC dépassée...) ?" onPrev={() => setStep(4)} hideNext>
+          {autresNC === null && (
+            <div className="flex flex-wrap gap-3">
+              <Button variant="danger" onClick={() => setAutresNC("oui")}><XCircle size={16} /> Oui, un ou plusieurs produits</Button>
+              <Button onClick={() => { setAutresNC("non"); setStep(6); }}><CheckCircle2 size={16} /> Non, tout le reste est conforme</Button>
+            </div>
+          )}
+
+          {autresNC === "oui" && (
+            <div>
+              <p className="text-sm text-[var(--ink)] mb-3">Sélectionnez le ou les produits concernés, photographiez-les, puis indiquez la cause{IA_ACTIVEE ? " — à l'écrit ou à la voix" : ""}.</p>
+              <div className="space-y-3">
+                {produits.filter((p) => !p.tempRejete).map((p) => (
+                  <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
+                    <div className="flex items-center justify-between mb-2 gap-2">
+                      <div className="text-sm font-medium text-[var(--ink)]">{p.nom}</div>
+                      <Button
+                        variant={!p.conforme ? "danger" : "ghost"}
+                        onClick={() => (p.conforme
+                          ? updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })
+                          : updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null }))}
+                      >
+                        {!p.conforme ? "Non conforme — retirer" : "Marquer non conforme"}
+                      </Button>
+                    </div>
+                    {!p.conforme && (
+                      <div className="space-y-2 pt-2 border-t border-[var(--line)]">
+                        <input className={inputCls} type="number" placeholder="Quantité non conforme" value={p.quantiteNC} onChange={(e) => updateProduit(p.id, { quantiteNC: e.target.value })} />
+                        <ChampTexteOuVocal value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} placeholder="Cause de la non-conformité (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />
+                        <input className={inputCls} type="number" step="0.01" placeholder="Écart de prix facturé (€, si produit substitué/facturé plus cher — optionnel)" value={p.ecartPrix || ""} onChange={(e) => updateProduit(p.id, { ecartPrix: e.target.value })} />
+                        <PhotoInput small value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Photo du produit" />
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+
+              <Card className="mt-4 border-dashed">
+                <p className="text-sm font-medium text-[var(--ink)] mb-2">+ Ajouter un produit non conforme absent de cette liste</p>
+                <p className="text-xs text-[var(--steel)] mb-2">Un produit livré en trop, non commandé, ou qui n'a jamais été saisi plus haut.</p>
+                <div className="space-y-2">
+                  <input className={inputCls} placeholder="Nom du produit" value={nouveauProduitNom} onChange={(e) => setNouveauProduitNom(e.target.value)} />
+                  <input className={inputCls} type="number" placeholder="Quantité" value={nouveauProduitQuantite} onChange={(e) => setNouveauProduitQuantite(e.target.value)} />
+                  <ChampTexteOuVocal value={nouveauProduitRaison} onChange={setNouveauProduitRaison} placeholder="Motif (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />
+                  <PhotoInput small value={nouveauProduitPhoto} onChange={setNouveauProduitPhoto} label="Photo du produit" />
+                  <Button variant="ghost" onClick={ajouterNouveauProduitNC} disabled={!nouveauProduitNom.trim()}><Plus size={14} /> Ajouter ce produit non conforme</Button>
+                </div>
+              </Card>
+
+              <Button className="mt-4" onClick={() => setStep(6)}>Continuer vers l'analyse finale</Button>
+            </div>
+          )}
+        </StepShell>
+      )}
+
+      {step === 6 && (
+        <StepShell titre="Analyse du bon de commande" sousTitre="Vérifiez la liste avant de valider — elle sera enregistrée telle quelle et le chef sera notifié en cas de non-conformité." onPrev={() => setStep(5)} nextLabel="Valider la réception" onNext={validerReception} nextDisabled={produitsIncomplets.length > 0}>
+          {produitsIncomplets.length > 0 && (
+            <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
+              <p className="text-xs font-semibold text-[var(--warn)] mb-1.5">Impossible de valider — {IA_ACTIVEE ? "nom, n° de lot et DLC sont obligatoires pour la traçabilité" : "le nom et la quantité sont obligatoires"} ({produitsIncomplets.length} produit(s) incomplet(s)) :</p>
+              <ul className="text-sm text-[var(--ink)] space-y-1">
+                {produitsIncomplets.map((p) => (
+                  <li key={p.id}>
+                    {p.nom || "(nom manquant)"} — manque : {(IA_ACTIVEE
+                      ? [!((p.nom || "").trim()) && "nom", !((p.lot || "").trim()) && "n° de lot", !((p.dlc || "").trim()) && "DLC"]
+                      : [!((p.nom || "").trim()) && "nom", !String(p.quantite ?? "").trim() && "quantité"]
+                    ).filter(Boolean).join(", ")}
+                  </li>
+                ))}
+              </ul>
+              <p className="text-xs text-[var(--steel)] mt-2">Revenez en arrière (bouton Retour, jusqu'à l'étape « Détail de chaque produit ») pour compléter ces champs à la main si la photo n'a pas suffi.</p>
+            </Card>
+          )}
+          {nonConformesActuels.length > 0 && (
+            <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
+              <p className="text-xs font-semibold text-[var(--warn)] mb-1.5">Produits non conformes — à retourner au fournisseur ({nonConformesActuels.length}) :</p>
+              <ul className="text-sm text-[var(--ink)] space-y-1">
+                {nonConformesActuels.map((p) => <li key={p.id}>{p.nom} — {p.quantiteNC || p.quantite} — {p.raison || "motif non précisé"}</li>)}
+              </ul>
+            </Card>
+          )}
+          <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Produits et quantités réceptionnés ({nbConformes})</p>
+          <div className="space-y-2">
+            {produits.map((p) => (
+              <div key={p.id} className="flex items-center justify-between text-sm border-b border-[var(--line)] pb-2 last:border-0 last:pb-0">
+                <div>
+                  <div className="text-[var(--ink)] font-medium">{p.nom}</div>
+                  <div className="text-xs text-[var(--steel)]">Lot {p.lot || "—"} · DLC {p.dlc || "—"}</div>
+                </div>
+                <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${p.conforme ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>
+                  {p.conforme ? `${p.quantite} reçu(s)` : `${Math.max(0, (Number(p.quantite) || 0) - (Number(p.quantiteNC) || 0))} accepté(s)`}
+                </span>
+              </div>
+            ))}
+          </div>
+        </StepShell>
+      )}
+    </div>
+  );
+}
+
+function Reception({ stock, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, enCours, setEnCours, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const [infosOuvertes, setInfosOuvertes] = useState(false);
+  const [ficheReception, setFicheReception] = useState(null);
+
+  if (enCours) {
+    return <ReceptionWizard stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivity} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} onDone={() => setEnCours(false)} onCancel={() => setEnCours(false)} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />;
+  }
+
+  return (
+    <div>
+      <SectionHeader
+        title="Réception"
+        subtitle="Réception des marchandises, contrôle HACCP et suivi des lots"
+      />
+
+      <div className="space-y-2 mb-6">
+        {[
+          { key: "reception", label: "Réception des marchandises — Normes HACCP" },
+        ].map(({ key, label }) => (
+          <button key={key} onClick={() => setFicheReception(FICHES_NORMES[key])}
+            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold border-2 text-left shadow-sm"
+            style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
+            <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
+            <span className="uppercase tracking-wide">⚠ {label}</span>
+          </button>
+        ))}
+      </div>
+      {ficheReception && <ModalInfosNormes fiche={ficheReception} onClose={() => setFicheReception(null)} />}
+
+      <button onClick={() => setEnCours(true)}
+        className="w-full flex items-center justify-center gap-2 rounded-xl font-bold shadow-sm mb-6"
+        style={{ backgroundColor: "#2F6B4F", color: "#ffffff", padding: "18px 20px", fontSize: 17 }}>
+        <Plus size={22} /> Nouvelle réception
+      </button>
+    </div>
+  );
+}
+
+function VerificationReceptions({ receptions, setReceptions, employees, onBack }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const [ecarts, setEcarts] = useStored("ecarts-reception", []);
+  const [nouvelEcart, setNouvelEcart] = useState(null); // { type: "manquant" | "en-trop" }
+
+  const ajouterEcart = (e) => {
+    setEcarts([{ id: uid(), date: todayISO(), heure: new Date().toTimeString().slice(0, 5), renvoye: false, ...e }, ...ecarts]);
+    setNouvelEcart(null);
+  };
+  const marquerRenvoye = (id) => setEcarts(ecarts.map((e) => (e.id === id ? { ...e, renvoye: true, renvoyeDate: todayISO() } : e)));
+
+  const groupes = React.useMemo(() => {
+    const map = new Map();
+    receptions.forEach((r) => {
+      const cle = r.receptionId || `${r.date}|${r.heure}|${r.fournisseur}|${r.employeeId}`;
+      if (!map.has(cle)) map.set(cle, []);
+      map.get(cle).push(r);
+    });
+    return [...map.entries()]
+      .map(([cle, lignes]) => ({ cle, lignes, date: lignes[0].date, heure: lignes[0].heure, fournisseur: lignes[0].fournisseur, employeeId: lignes[0].employeeId }))
+      .sort((a, b) => (b.date + (b.heure || "")).localeCompare(a.date + (a.heure || "")));
+  }, [receptions]);
+
+  const marquerVerifiee = (cle) => {
+    setReceptions(receptions.map((r) => {
+      const rCle = r.receptionId || `${r.date}|${r.heure}|${r.fournisseur}|${r.employeeId}`;
+      return rCle === cle ? { ...r, valideChef: true } : r;
+    }));
+  };
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Retour</button>
+        <span className="text-xs text-[var(--steel)]">{groupes.length} réception(s)</span>
+      </div>
+      <SectionHeader title="Vérification des réceptions" subtitle="Bon de livraison, produits reçus et non-conformités, réception par réception" />
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+          <h3 className="font-semibold text-[var(--ink)]">Produits manquants ou en trop</h3>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={() => setNouvelEcart({ type: "manquant" })}>+ Manquant</Button>
+            <Button variant="ghost" onClick={() => setNouvelEcart({ type: "en-trop" })}>+ En trop</Button>
+          </div>
+        </div>
+        <p className="text-xs text-[var(--steel)] mb-3">Un produit commandé mais non livré, ou livré en trop sans avoir été commandé — pour garder une trace et, si besoin, le renvoyer au fournisseur.</p>
+
+        {nouvelEcart && (
+          <div className="rounded-lg border border-[var(--line)] p-3 mb-3 space-y-2">
+            <p className="text-sm font-medium text-[var(--ink)]">{nouvelEcart.type === "manquant" ? "Nouveau produit manquant" : "Nouveau produit livré en trop"}</p>
+            <Field label="Produit"><input className={inputCls} value={nouvelEcart.produit || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, produit: e.target.value })} /></Field>
+            <Field label="Fournisseur"><input className={inputCls} value={nouvelEcart.fournisseur || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, fournisseur: e.target.value })} /></Field>
+            <Field label="Quantité"><input className={inputCls} value={nouvelEcart.quantite || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, quantite: e.target.value })} /></Field>
+            <Field label="Note (optionnel)"><input className={inputCls} value={nouvelEcart.note || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, note: e.target.value })} /></Field>
+            <div className="flex gap-2">
+              <Button onClick={() => ajouterEcart(nouvelEcart)} disabled={!nouvelEcart.produit}>Enregistrer</Button>
+              <Button variant="ghost" onClick={() => setNouvelEcart(null)}>Annuler</Button>
+            </div>
+          </div>
+        )}
+
+        {ecarts.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun écart enregistré.</p> : (
+          <ul className="divide-y divide-[var(--line)]">
+            {ecarts.map((e) => (
+              <li key={e.id} className="py-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-medium text-[var(--ink)]">{e.produit} {e.quantite ? `(${e.quantite})` : ""}</span>
+                  <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${e.type === "manquant" ? "bg-[var(--warn-soft)] text-[var(--warn)]" : "bg-[var(--accent-soft)] text-[var(--accent)]"}`}>
+                    {e.type === "manquant" ? "Manquant" : e.renvoye ? "En trop — renvoyé" : "En trop — à renvoyer"}
+                  </span>
+                </div>
+                <div className="text-xs text-[var(--steel)]">{e.date} à {e.heure}{e.fournisseur ? ` · ${e.fournisseur}` : ""}{e.note ? ` · ${e.note}` : ""}</div>
+                {e.type === "en-trop" && !e.renvoye && (
+                  <Button variant="ghost" className="mt-1" onClick={() => marquerRenvoye(e.id)}>Marquer comme renvoyé</Button>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
+      {groupes.length === 0 ? (
+        <Card><p className="text-sm text-[var(--steel)]">Aucune réception enregistrée.</p></Card>
+      ) : (
+        <div className="space-y-4">
+          {groupes.map((g) => {
+            const conformes = g.lignes.filter((l) => l.conforme);
+            const nonConformes = g.lignes.filter((l) => !l.conforme);
+            const verifiee = g.lignes.every((l) => l.valideChef);
+            return (
+              <Card key={g.cle}>
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <div className="font-semibold text-[var(--ink)]">{g.fournisseur || "Fournisseur non renseigné"}</div>
+                    <div className="text-xs text-[var(--steel)]">{g.date} à {g.heure} · réceptionné par {who(g.employeeId) || "—"}</div>
+                  </div>
+                  <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${verifiee ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--bg)] text-[var(--steel)]"}`}>
+                    {verifiee ? "✓ Vérifiée" : "À vérifier"}
+                  </span>
+                </div>
+
+                {/* Photo(s) du bon de livraison archivées — affichées pour TOUTE réception, y compris
+                    les réceptions entièrement conformes (pas seulement en cas de non-conformité),
+                    pour que le chef puisse toujours retrouver le bon papier d'origine. */}
+                {(() => {
+                  const photosBonGroupe = g.lignes[0]?.photosBon?.length ? g.lignes[0].photosBon : (g.lignes[0]?.photoBon ? [g.lignes[0].photoBon] : []);
+                  return photosBonGroupe.length > 0 ? (
+                    <div className="mb-3">
+                      <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Bon de livraison ({photosBonGroupe.length} photo{photosBonGroupe.length > 1 ? "s" : ""})</div>
+                      <div className="flex flex-wrap gap-2">
+                        {photosBonGroupe.map((p, i) => <img key={i} src={p} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--line)]" />)}
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+
+                <div className="mb-3">
+                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Produits réceptionnés ({conformes.length})</div>
+                  {conformes.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun produit conforme.</p> : (
+                    <ul className="divide-y divide-[var(--line)]">
+                      {conformes.map((l) => (
+                        <li key={l.id} className="py-1.5 text-sm text-[var(--ink)] flex items-center justify-between">
+                          <span>{l.produit}</span>
+                          <span className="text-xs text-[var(--steel)]">{l.quantite} · lot {l.lot || "—"} · DLC {l.dlc || "—"}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
+
+                {nonConformes.length > 0 && (
+                  <div className="pt-2 border-t border-[var(--line)]">
+                    <div className="text-xs font-semibold text-[var(--warn)] uppercase tracking-wide mb-1.5">Produits non conformes — retournés ({nonConformes.length})</div>
+                    <ul className="space-y-2">
+                      {nonConformes.map((l) => (
+                        <li key={l.id} className="text-sm">
+                          <div className="flex items-center justify-between">
+                            <span className="text-[var(--ink)] font-medium">{l.produit}</span>
+                            <span className="text-xs text-[var(--warn)]">{l.quantiteNC || l.quantite} non conforme(s)</span>
+                          </div>
+                          <div className="text-xs text-[var(--steel)]">{l.raison || "Motif non précisé"}</div>
+                          {l.photoNC && <img src={l.photoNC} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1.5" />}
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+
+                {!verifiee && (
+                  <Button variant="ghost" className="mt-3" onClick={() => marquerVerifiee(g.cle)}>Marquer cette réception comme vérifiée</Button>
+                )}
+              </Card>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TracabiliteChef({ preparations, produits, employees, onBack }) {
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const [recherche, setRecherche] = useState("");
+  const rechPropre = normaliserTexte(recherche.trim());
+
+  // Recherche par nom, lot OU date — même principe que côté employé (voir ChampRechercheVocale) :
+  // le chef/direction doit pouvoir retrouver une traçabilité aussi bien par produit que par jour.
+  const tracabiliteFiltree = React.useMemo(() => (
+    [...preparations]
+      .sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure))
+      .filter((p) => {
+        if (!rechPropre) return true;
+        const nom = produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || "";
+        const dateFormatee = p.date ? fmtShort(p.date) : "";
+        const haystack = normaliserTexte(`${nom} ${p.lot || ""} ${p.date || ""} ${dateFormatee}`);
+        return haystack.includes(rechPropre);
+      })
+  ), [preparations, produits, rechPropre]);
+
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Retour</button>
+        <span className="text-xs text-[var(--steel)]">{tracabiliteFiltree.length} entrée(s)</span>
+      </div>
+      <SectionHeader title="Traçabilité — historique complet" subtitle="Toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) sur les 2 derniers mois — au-delà, elles sont supprimées automatiquement." />
+      <Card>
+        <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Rechercher (produit, lot ou date)" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
+        <div className="divide-y divide-[var(--line)] mt-3">
+          {tracabiliteFiltree.length === 0 ? <p className="text-sm text-[var(--steel)] py-2">Aucune traçabilité enregistrée.</p> : tracabiliteFiltree.map((p) => {
+            const nomAffiche = produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || (p.typeEntree === "photo-simple" ? "Traçabilité par photo" : "Produit");
+            // Petit texte de lecture rapide avec toutes les infos capturées par l'IA (allergènes,
+            // origine, agrément sanitaire/code usine, délai après ouverture) quand elles existent —
+            // rien de tout ça n'existe pour une traçabilité "photo seule" (offre sans IA).
+            const detailsIA = [
+              p.allergenes ? `Allergènes : ${p.allergenes}` : null,
+              p.origine ? `Origine : ${p.origine}` : null,
+              p.codeUsine ? `Agrément ${p.codeUsine}` : null,
+              p.delaiApresOuvertureJours ? `${p.delaiApresOuvertureJours} j après ouverture` : null,
+            ].filter(Boolean);
+            return (
+              <div key={p.id} className="flex items-center justify-between py-2.5 text-sm gap-3">
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="flex gap-1 shrink-0">
+                    {(p.photos && p.photos.length > 0 ? p.photos : [p.photo, p.photoEtiquette].filter(Boolean)).map((src, i) => (
+                      <img key={i} src={src} alt="" className="w-12 h-12 object-cover rounded-lg border border-[var(--line)]" />
+                    ))}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-[var(--ink)] font-medium truncate">{nomAffiche}{p.lot ? ` — lot ${p.lot}` : ""}</div>
+                    <div className="text-xs text-[var(--steel)]">{p.date} à {p.heure}{who(p.employeeId) ? ` · ${who(p.employeeId)}` : ""}{p.dlcDate ? ` · DLC/DDM ${p.dlcDate}` : ""}{p.note ? ` · ${p.note}` : ""}</div>
+                    {detailsIA.length > 0 && <div className="text-xs text-[var(--steel)]">{detailsIA.join(" · ")}</div>}
+                  </div>
+                </div>
+                {p.typeEntree === "photo-simple" ? (
+                  <span className="text-xs bg-[var(--bg)] text-[var(--steel)] px-2 py-0.5 rounded-full shrink-0">Photo</span>
+                ) : p.dlcDate === null ? (
+                  <span className="text-xs bg-[var(--accent-soft)] text-[var(--accent)] px-2 py-0.5 rounded-full shrink-0">Note ingrédients</span>
+                ) : p.jete ? (
+                  <span className="text-xs bg-[var(--bg)] text-[var(--steel)] px-2 py-0.5 rounded-full shrink-0">{p.fini ? "Terminé" : "Jeté"} le {p.jeteDate}</span>
+                ) : (
+                  <span className="text-xs bg-[var(--warn-soft)] text-[var(--warn)] px-2 py-0.5 rounded-full shrink-0">En cours</span>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- module Agenda (Réservations) ---------- */
+
+const STATUTS_RESERVATION = ["à confirmer", "confirmée", "acompte versé"];
+const STATUT_STYLE = {
+  "à confirmer": "bg-[var(--bg)] text-[var(--steel)]",
+  "confirmée": "bg-[var(--accent-soft)] text-[var(--accent)]",
+  "acompte versé": "bg-[var(--gold-soft)] text-[var(--gold)]",
+};
+
+function ReservationRow({ r, who, onRemove, onUpdateNote }) {
+  const [editionNote, setEditionNote] = useState(false);
+  return (
+    <div className="flex items-start justify-between py-2.5 text-sm gap-3">
+      <div className="flex items-start gap-3 flex-1">
+        <Clock size={15} className="text-[var(--gold)] mt-0.5" />
+        <div className="flex-1">
+          <div className="text-[var(--ink)] font-medium flex items-center gap-2 flex-wrap">
+            {r.heure} — {r.nom} ({r.personnes} pers.)
+            {r.statut && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUT_STYLE[r.statut] || "bg-[var(--bg)] text-[var(--steel)]"}`}>{r.statut}</span>}
+          </div>
+          <div className="text-xs text-[var(--steel)] flex items-center gap-2 flex-wrap mt-0.5">
+            {r.table && <span>Table : {r.table}</span>}
+            {r.telephone && <span className="flex items-center gap-1"><PhoneCall size={11} />{r.telephone}</span>}
+            {r.notes && <span>· {r.notes}</span>}
+            {who(r.employeeId) && <span>· prise par {who(r.employeeId)}</span>}
+          </div>
+          {r.commande && r.commande.length > 0 && (
+            <ul className="mt-1.5 space-y-0.5">
+              {r.commande.map((item, i) => (
+                <li key={i} className="text-xs text-[var(--ink)] bg-[var(--bg)] rounded px-2 py-1 inline-block mr-1 mb-1">{item}</li>
+              ))}
+            </ul>
+          )}
+          {onUpdateNote && (
+            editionNote ? (
+              <input autoFocus className={`${inputCls} w-full mt-1.5`} placeholder="Ce qui a été préparé pour cette réservation..."
+                defaultValue={r.notePreparation || ""}
+                onBlur={(e) => { onUpdateNote(r.id, e.target.value); setEditionNote(false); }}
+                onKeyDown={(e) => { if (e.key === "Enter") { onUpdateNote(r.id, e.target.value); setEditionNote(false); } }} />
+            ) : (
+              <button onClick={() => setEditionNote(true)} className="text-xs text-[var(--accent)] mt-1.5 block">
+                {r.notePreparation ? `Préparé : ${r.notePreparation}` : "+ Noter ce qui a été préparé"}
+              </button>
+            )
+          )}
+        </div>
+      </div>
+      <BoutonSupprimer onConfirm={() => onRemove(r.id)} size={15} className="shrink-0" libelle={`Réservation ${r.nom} — ${r.heure}`} />
+    </div>
+  );
+}
+
+function HorlogeLive() {
+  const [heure, setHeure] = useState(new Date());
+  useEffect(() => {
+    const intervalle = setInterval(() => setHeure(new Date()), 10000);
+    return () => clearInterval(intervalle);
+  }, []);
+  return <span className="text-sm text-[var(--steel)] tabular-nums">{heure.toTimeString().slice(0, 5)}</span>;
+}
+
+function CalendarNav({ label, onPrev, onNext, avecHeure }) {
+  return (
+    <div className="flex items-center gap-2 flex-wrap w-full">
+      <button type="button" onClick={onPrev} className="w-10 h-10 shrink-0 rounded-md border border-[var(--line)] flex items-center justify-center text-[var(--steel)] hover:text-[var(--ink)] active:bg-[var(--bg)]"><ChevronLeft size={18} /></button>
+      <span className="text-sm font-medium text-[var(--ink)] text-center capitalize flex-1 min-w-0 truncate">{label}</span>
+      <button type="button" onClick={onNext} className="w-10 h-10 shrink-0 rounded-md border border-[var(--line)] flex items-center justify-center text-[var(--steel)] hover:text-[var(--ink)] active:bg-[var(--bg)]"><ChevronRight size={18} /></button>
+      {avecHeure && (
+        <div className="px-3 h-10 shrink-0 rounded-md border border-[var(--line)] flex items-center justify-center">
+          <HorlogeLive />
+        </div>
+      )}
+    </div>
+  );
+}
+
+const PLAGE_MATIN = { id: "matin", label: "Matin (9h30-15h00)", debut: 9.5, fin: 15 };
+const PLAGE_SOIR = { id: "soir", label: "Soir (18h00-23h30)", debut: 18, fin: 23.5 };
+const PLAGE_JOURNEE = { id: "journee", label: "Journée (8h-22h30)", debut: 8, fin: 22.5 };
+const AGENDA_HAUTEUR_HEURE = 44; // px par heure (pas de 15 min = 11px)
+const plageActuelle = () => { const h = new Date().getHours() + new Date().getMinutes() / 60; return h < 16 ? PLAGE_MATIN : PLAGE_SOIR; };
+
+function PlageToggle({ plage, setPlage }) {
+  return (
+    <div className="flex gap-1.5 mb-2">
+      {[PLAGE_MATIN, PLAGE_SOIR].map((p) => (
+        <button key={p.id} onClick={() => setPlage(p)}
+          style={plage.id === p.id ? { backgroundColor: "#2F6B4F", color: "#ffffff" } : undefined}
+          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border ${plage.id === p.id ? "border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+          {p.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+function AgendaGrille({ reservations, isToday, who, onRemove, plage, onUpdateNote }) {
+  const hauteurTotale = (plage.fin - plage.debut) * AGENDA_HAUTEUR_HEURE;
+  const minutesDepuisDebut = (heure) => {
+    const [h, m] = heure.split(":").map(Number);
+    return (h - plage.debut) * 60 + m;
+  };
+  const now = new Date();
+  const nowOffset = ((now.getHours() - plage.debut) * 60 + now.getMinutes()) / 60 * AGENDA_HAUTEUR_HEURE;
+  const nbQuarts = (plage.fin - plage.debut) * 4;
+  const dansLaPlage = (r) => { const [h, m] = r.heure.split(":").map(Number); const v = h + m / 60; return v >= plage.debut && v < plage.fin; };
+  const reservationsPlage = reservations.filter(dansLaPlage);
+
+  return (
+    <div>
+      <div className="relative border border-[var(--line)] rounded-lg overflow-hidden" style={{ height: hauteurTotale }}>
+        {Array.from({ length: nbQuarts }, (_, i) => {
+          const heureDecimale = plage.debut + i * 0.25;
+          const estHeurePile = Math.abs(heureDecimale - Math.round(heureDecimale)) < 0.01;
+          return (
+            <div key={i} className={`absolute left-0 right-0 border-t ${estHeurePile ? "border-[var(--line)]" : "border-[var(--line)]/40"}`} style={{ top: i * (AGENDA_HAUTEUR_HEURE / 4) }}>
+              {estHeurePile && <span className="text-[10px] text-[var(--steel)] px-1.5 -mt-2 bg-[var(--bg)] rounded absolute">{String(Math.floor(heureDecimale)).padStart(2, "0")}:00</span>}
+            </div>
+          );
+        })}
+
+        {isToday && nowOffset >= 0 && nowOffset <= hauteurTotale && (
+          <div className="absolute left-0 right-0 z-10" style={{ top: nowOffset }}>
+            <div className="border-t-2 border-[var(--warn)] relative">
+              <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-[var(--warn)]" />
+            </div>
+          </div>
+        )}
+
+        {reservationsPlage.length === 0 && (
+          <div className="absolute top-3 left-3 text-sm text-[var(--steel)]">Aucune réservation sur cette plage.</div>
+        )}
+
+        {reservationsPlage.map((r) => {
+          const top = (minutesDepuisDebut(r.heure) / 60) * AGENDA_HAUTEUR_HEURE;
+          const duree = Number(r.duree) || 90;
+          const height = Math.max((duree / 60) * AGENDA_HAUTEUR_HEURE, 18);
+          return (
+            <div key={r.id} className={`absolute left-12 right-2 rounded-lg px-2 py-0.5 border-l-4 z-10 ${STATUT_STYLE[r.statut] || "bg-[var(--accent-soft)] text-[var(--accent)]"}`}
+              style={{ top, height, borderLeftColor: "currentColor" }}>
+              <div className="text-sm font-semibold text-[var(--ink)]">{r.heure} · {r.nom} ({r.personnes} pers.)</div>
+              {height > 28 && <div className="text-xs text-[var(--steel)]">{r.table || ""}</div>}
+            </div>
+          );
+        })}
+      </div>
+
+      {reservationsPlage.length > 0 && (
+        <div className="divide-y divide-[var(--line)] mt-4">
+          {reservationsPlage.map((r) => <ReservationRow key={r.id} r={r} who={who} onRemove={onRemove} onUpdateNote={onUpdateNote} />)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+const TACHES_OUVRE_FENETRE = ["Préparation culinaire", "Vérification des préparations culinaires", "Nettoyage", "Contrôle", "Nettoyage friteuse", "Contrôle obligatoire", "Contrôle et vérification"];
+
+const CONTROLE_POSTE = {
+  "Poste Chaud": {
+    midi: [
+      "Bain-marie éteint — sauces mises en refroidissement rapide (cellule ou bac de glace)",
+      "Saladette éteinte — marchandises filmées et rangées au frigo, couvercle posé",
+      "Ivario éteint et propre à l'intérieur",
+      "Friteuse éteinte — couvercle posé",
+      "Four Rational éteint",
+      "Four Atoll Speed éteint",
+      "Hotte éteinte",
+      "Plans de travail et plaque à induction désinfectés et nettoyés",
+      "Frigo viande — portes nettoyées",
+      "Frigo poste chaud — portes nettoyées",
+    ],
+    soir: [
+      "Bain-marie vidé, eau usagée jetée, intérieur et extérieur nettoyés — couvercle posé",
+      "Ivario éteint — intérieur nettoyé, couvercles fermés et nettoyés, côtés nettoyés",
+      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
+      "Frigo viande — intérieur filmé, portes et poignées nettoyés",
+      "Frigo poste chaud — intérieur et portes nettoyés",
+      "Friteuse éteinte — test huile fait, huile filtrée, couvercle posé",
+      "Four Rational en auto-lavage — dessus nettoyé, plaques au sale si besoin",
+      "Four Atoll Speed éteint — dessus nettoyé, plaques au sale si besoin",
+      "Plaque à induction et plan de travail nettoyés",
+      "Hotte éteinte",
+      "Crédence nettoyée si sale",
+      "Congélateur cuisine — produits filmés, étiquettes DLC correctes, miettes enlevées",
+    ],
+    general: [
+      "Températures du frigo viande et frigo poste chaud relevées et conformes",
+      "DLC des produits du poste vérifiées — aucun produit périmé",
+    ],
+  },
+  "Poste Pizza": {
+    midi: [
+      "Four à pizza éteint — devanture dépoussiérée",
+      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
+      "Frigo pâtons — intérieur et portes nettoyés",
+      "Frigo poste pizza — portes nettoyées",
+      "Plans de travail nettoyés et désinfectés",
+      "Pétrin nettoyé si utilisé ce matin",
+    ],
+    soir: [
+      "Four à pizza éteint — devanture dépoussiérée",
+      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
+      "Frigo pâtons — intérieur, portes et poignées nettoyés",
+      "Frigo poste pizza — intérieur, portes et poignées nettoyés",
+      "Passe-plat nettoyé et désinfecté",
+      "Pelle à pizza nettoyée",
+      "Plans de travail nettoyés — pizza, pâtons et sous le passe-plat",
+      "Pétrin nettoyé si utilisé",
+    ],
+    general: [
+      "Températures du frigo pâtons et frigo poste pizza relevées et conformes",
+      "DLC des produits du poste vérifiées — pâtons, sauces, garnitures",
+    ],
+  },
+  "Poste Froid": {
+    midi: [
+      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
+      "Frigo poste froid — portes et poignées nettoyées",
+      "Frigo réserve desserts — intérieur, portes et poignées nettoyés",
+      "Cellule de refroidissement — intérieur et porte nettoyés si utilisée",
+      "Robot batteur couvert",
+      "Plans de travail poste froid, desserts et gastro nettoyés",
+      "Chauffe-pot à Nutella — pots remplis",
+    ],
+    soir: [
+      "Saladette éteinte — nettoyage intérieur et extérieur — marchandises filmées au frigo",
+      "Frigo poste froid — intérieur, portes et poignées nettoyés",
+      "Frigo réserve desserts — portes et poignées nettoyées",
+      "Micro-ondes nettoyé intérieur et extérieur",
+      "Chauffe-pot à Nutella éteint — bouchons des pots à la plonge, pots filmés",
+      "Bol et boulier à glace lavés",
+      "Vitre congélateur à glace nettoyée — couvercles bien refermés",
+      "Plans de travail poste froid, desserts et gastro nettoyés",
+    ],
+    general: [
+      "Températures du frigo poste froid et frigo desserts relevées et conformes",
+      "DLC des desserts et produits du poste vérifiées",
+    ],
+  },
+};
+
+const CONTROLE_GENERAL_FIN = [
+  "Sol nettoyé — cuisine, réserve et plonge",
+  "Poubelles vidées et sacs changés",
+  "Plonge terminée, filtres nettoyés, éteinte",
+];
+
+// Nettoyage hebdomadaire / mensuel par poste et pour la plonge/communs — pour le Contrôle planning
+// (chef) : on ne réutilise PAS de liste inventée à part. On lit directement la vraie liste
+// `cleaning` établie par Loïc (useStored("haccp-cleaning", …), avec le vrai protocole par tâche),
+// filtrée par poste et par fréquence, et on ne montre une tâche hebdomadaire/mensuelle que si
+// `tacheDueAujourdhuiOuEnRetard` dit qu'elle tombe le jour du contrôle — jamais la liste complète
+// d'un coup. Voir ControlePlanningJour / itemsNettoyage plus haut dans le fichier.
+
+const CONTROLE_OBLIGATOIRE = {
+  midi: [
+    { section: "🔴 Poste Chaud", items: [
+      "Bain-marie éteint — sauces mises en refroidissement rapide",
+      "Saladette éteinte — marchandises filmées et rangées au frigo",
+      "Ivario éteint et propre",
+      "Friteuse éteinte — couvercle posé",
+      "Four Rational éteint",
+      "Four Atoll Speed éteint",
+      "Hotte éteinte",
+      "Plans de travail désinfectés et nettoyés",
+    ]},
+    { section: "🍕 Poste Pizza", items: [
+      "Four à pizza éteint — devanture dépoussiérée",
+      "Saladette éteinte — marchandises filmées au frigo",
+      "Frigo pâtons propre intérieur et porte",
+      "Plans de travail nettoyés",
+      "Pétrin nettoyé si utilisé ce matin",
+    ]},
+    { section: "🥗 Poste Froid", items: [
+      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
+      "Frigo poste froid propre — portes nettoyées",
+      "Cellule de refroidissement nettoyée si utilisée",
+      "Plans de travail nettoyés",
+      "Batteur couvert si non utilisé",
+    ]},
+    { section: "🌡 Températures & DLC", items: [
+      "Températures de tous les frigos et congélateurs relevées et conformes",
+      "DLC des produits utilisés ce matin vérifiées — aucun produit périmé",
+      "Aucun produit sans étiquette en chambre froide",
+    ]},
+    { section: "👁 Général", items: [
+      "Sol, poubelles et plonge — nettoyage terminé",
+      "Cuisine rangée et propre avant le service du soir",
+      "Aucune anomalie visible",
+    ]},
+  ],
+  soir: [
+    { section: "🔴 Poste Chaud", items: [
+      "Bain-marie vidé, eau usagée jetée, intérieur et extérieur nettoyés — couvercle posé",
+      "Ivario éteint — intérieur nettoyé, couvercles fermés et nettoyés, côtés nettoyés",
+      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
+      "Frigo viande — intérieur et portes nettoyés",
+      "Frigo poste chaud — intérieur et portes nettoyés",
+      "Friteuse éteinte — test huile fait, huile filtrée, couvercle posé",
+      "Four Rational éteint — auto-lavage lancé, dessus nettoyé, plaques au sale",
+      "Four Atoll Speed éteint — dessus nettoyé, plaques au sale",
+      "Plaque à induction et plan de travail nettoyés",
+      "Hotte éteinte",
+      "Crédence nettoyée si sale",
+      "Congélateur cuisine : produits filmés, étiquettes DLC correctes, miettes enlevées",
+    ]},
+    { section: "🍕 Poste Pizza", items: [
+      "Four à pizza éteint — devanture dépoussiérée",
+      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
+      "Frigo pâtons — intérieur, portes et poignées nettoyés",
+      "Frigo poste pizza — intérieur, portes et poignées nettoyés",
+      "Passe-plat nettoyé",
+      "Pelle à pizza nettoyée",
+      "Plans de travail nettoyés",
+      "Pétrin nettoyé si utilisé",
+    ]},
+    { section: "🥗 Poste Froid", items: [
+      "Saladette éteinte — nettoyage intérieur et extérieur — marchandises filmées au frigo",
+      "Frigo poste froid — intérieur, portes et poignées nettoyés",
+      "Frigo réserve desserts — portes et poignées nettoyées",
+      "Micro-ondes nettoyé intérieur et extérieur",
+      "Chauffe-pot à Nutella éteint — bouchons à la plonge, pots filmés",
+      "Bol et boulier à glace lavés",
+      "Vitre congélateur à glace nettoyée — couvercles refermés",
+    ]},
+    { section: "🌡 Températures & DLC", items: [
+      "Températures de tous les frigos et congélateurs relevées et conformes",
+      "Produits à DLC atteinte ce soir retirés et éliminés ou signalés",
+      "Chambre froide : visuel — rien à terre, tout couvert, pas de carton",
+      "Aucun produit sans étiquette DLC",
+    ]},
+    { section: "📋 Clôture et sécurité", items: [
+      "Sol cuisine, réserve et plonge nettoyés",
+      "Poubelles vidées et sacs changés",
+      "Plonge terminée, filtres nettoyés, éteinte",
+      "Torchons et lavettes au lave-linge",
+      "Bouche d'évacuation des eaux usées nettoyée",
+      "Alertes HACCP vérifiées — aucune en suspens",
+      "Contrôle de fin de service signé dans l'onglet Contrôle",
+    ]},
+  ],
+};
+
+
+function PlanningGrille({ tasks, employeeId, date, actorId, onToggle, protocolesNettoyage, plage, onOuvrirFenetre }) {
+  const hauteurTotale = (plage.fin - plage.debut) * AGENDA_HAUTEUR_HEURE;
+  const minutesDepuisDebut = (heure) => {
+    const [h, m] = heure.split(":").map(Number);
+    return (h - plage.debut) * 60 + m;
+  };
+  const now = new Date();
+  const nowOffset = ((now.getHours() - plage.debut) * 60 + now.getMinutes()) / 60 * AGENDA_HAUTEUR_HEURE;
+  const nbQuarts = (plage.fin - plage.debut) * 4;
+  const dansLaPlage = (t) => { if (!t.heure) return false; const [h, m] = t.heure.split(":").map(Number); const v = h + m / 60; return v >= plage.debut && v < plage.fin; };
+  const avecHeureDansPlage = tasks.filter(dansLaPlage);
+  const autres = tasks.filter((t) => !dansLaPlage(t));
+  const DUREE_BLOC_MIN = 15;
+
+  return (
+    <div>
+      <div className="relative border border-[var(--line)] rounded-lg overflow-hidden" style={{ height: hauteurTotale }}>
+        {Array.from({ length: nbQuarts }, (_, i) => {
+          const heureDecimale = plage.debut + i * 0.25;
+          const estHeurePile = Math.abs(heureDecimale - Math.round(heureDecimale)) < 0.01;
+          return (
+            <div key={i} className={`absolute left-0 right-0 border-t ${estHeurePile ? "border-[var(--line)]" : "border-[var(--line)]/40"}`} style={{ top: i * (AGENDA_HAUTEUR_HEURE / 4) }}>
+              {estHeurePile && <span className="text-[10px] text-[var(--steel)] px-1.5 -mt-2 bg-[var(--bg)] rounded absolute">{String(Math.floor(heureDecimale)).padStart(2, "0")}:00</span>}
+            </div>
+          );
+        })}
+
+        {nowOffset >= 0 && nowOffset <= hauteurTotale && (
+          <div className="absolute left-0 right-0 z-10" style={{ top: nowOffset }}>
+            <div className="border-t-2 border-[var(--warn)] relative">
+              <span className="absolute -left-1 -top-1 w-2 h-2 rounded-full bg-[var(--warn)]" />
+            </div>
+          </div>
+        )}
+
+        {avecHeureDansPlage.length === 0 && (
+          <div className="absolute top-3 left-3 text-sm text-[var(--steel)]">Aucune tâche avec horaire sur cette plage.</div>
+        )}
+
+        {avecHeureDansPlage.map((t) => {
+          const top = (minutesDepuisDebut(t.heure) / 60) * AGENDA_HAUTEUR_HEURE;
+          const height = Math.max(((t.duree || DUREE_BLOC_MIN) / 60) * AGENDA_HAUTEUR_HEURE, 34);
+          const done = !!t.completions?.[date]?.[employeeId];
+          const special = TACHES_OUVRE_FENETRE.some((titreSpecial) => t.titre.startsWith(titreSpecial));
+          return (
+            <button key={t.id} onClick={() => (special && onOuvrirFenetre ? onOuvrirFenetre(t) : onToggle(t, date, employeeId, actorId))}
+              className={`absolute left-12 right-2 text-left rounded-lg px-2 py-0.5 border-l-4 z-10 ${special ? "bg-[var(--gold-soft)] text-[var(--gold)] border-[var(--gold)]" : done ? "bg-[var(--bg)] text-[var(--steel)] border-[var(--steel)]" : "bg-[var(--accent-soft)] text-[var(--accent)] border-[var(--accent)]"}`}
+              style={{ top, height }}>
+              <div className={`text-sm font-semibold ${done ? "text-[var(--steel)] line-through" : special ? "text-[var(--gold)]" : "text-[var(--ink)]"}`}>{t.heure} · {t.titre}</div>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function Reservations({ reservations, setReservations, currentUserId, employees, logActivity, onBack }) {
+  const [viewMode, setViewMode] = useState("jour");
+  const [selectedDate, setSelectedDate] = useState(todayISO());
+  const [form, setForm] = useState({ date: todayISO(), heure: "", nom: "", personnes: "", telephone: "", notes: "", table: "", statut: "à confirmer", duree: "90" });
+  const [commande, setCommande] = useState([""]);
+  const who = (id) => employees.find((e) => e.id === id)?.nom;
+
+  const addLigneCommande = () => setCommande([...commande, ""]);
+  const updateLigneCommande = (i, val) => setCommande(commande.map((c, idx) => (idx === i ? val : c)));
+  const removeLigneCommande = (i) => setCommande(commande.filter((_, idx) => idx !== i));
+
+  const addReservation = () => {
+    if (!form.nom || !form.heure) return;
+    const commandePropre = commande.map((c) => c.trim()).filter((c) => c !== "");
+    setReservations([...reservations, { id: uid(), employeeId: currentUserId, ...form, commande: commandePropre }].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
+    logActivity("Réservations", "Réservation ajoutée", `${form.nom}, ${form.personnes || "?"} pers. le ${form.date} à ${form.heure}`);
+    setForm({ date: form.date, heure: "", nom: "", personnes: "", telephone: "", notes: "", table: "", statut: "à confirmer", duree: "90" });
+    setCommande([""]);
+  };
+
+  const removeReservation = (id) => setReservations(reservations.filter((r) => r.id !== id));
+
+  const goDate = (d) => { setSelectedDate(d); setForm((f) => ({ ...f, date: d })); };
+  const jumpToday = () => goDate(todayISO());
+
+  const step = () => {
+    if (viewMode === "jour") return 1;
+    if (viewMode === "semaine") return 7;
+    return null; // mois géré à part
+  };
+  const onPrev = () => {
+    if (viewMode === "mois") { const d = new Date(selectedDate + "T00:00:00"); d.setMonth(d.getMonth() - 1); goDate(toISO(d)); }
+    else goDate(addDays(selectedDate, -step()));
+  };
+  const onNext = () => {
+    if (viewMode === "mois") { const d = new Date(selectedDate + "T00:00:00"); d.setMonth(d.getMonth() + 1); goDate(toISO(d)); }
+    else goDate(addDays(selectedDate, step()));
+  };
+
+  const label =
+    viewMode === "jour" ? fmtLong(selectedDate) :
+    viewMode === "semaine" ? `Semaine du ${fmtShort(startOfWeek(selectedDate))}` :
+    fmtMonthYear(selectedDate);
+
+  const reservationsDuJour = (d) => reservations.filter((r) => r.date === d).sort((a, b) => a.heure.localeCompare(b.heure));
+
+  return (
+    <div>
+      {onBack && (
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
+      )}
+      <SectionHeader
+        title="Agenda"
+        subtitle="Réservations, saisies ici et tenues à jour manuellement"
+        action={
+          <div className="flex gap-2 bg-[var(--bg)] p-1 rounded-lg">
+            {["jour", "semaine", "mois"].map((v) => (
+              <button key={v} onClick={() => setViewMode(v)}
+                className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize ${viewMode === v ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--steel)]"}`}>
+                {v}
+              </button>
+            ))}
+          </div>
+        }
+      />
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
+          <CalendarNav label={label} onPrev={onPrev} onNext={onNext} avecHeure={viewMode === "jour"} />
+        </div>
+
+        {viewMode === "jour" && (
+          <div>
+            <AgendaGrille reservations={reservationsDuJour(selectedDate)} isToday={selectedDate === todayISO()} who={who} onRemove={removeReservation} plage={PLAGE_JOURNEE}
+              onUpdateNote={(id, note) => setReservations(reservations.map((r) => (r.id === id ? { ...r, notePreparation: note } : r)))} />
+          </div>
+        )}
+
+        {viewMode === "semaine" && (
+          <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
+            {Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(selectedDate), i)).map((d) => {
+              const list = reservationsDuJour(d);
+              const isToday = d === todayISO();
+              return (
+                <button key={d} onClick={() => { goDate(d); setViewMode("jour"); }} className="text-left">
+                  <div className={`rounded-lg border p-2.5 h-full ${isToday ? "border-[var(--accent)]" : "border-[var(--line)]"}`}>
+                    <div className="text-xs text-[var(--steel)] mb-1 capitalize">{JOURS[(new Date(d + "T00:00:00").getDay() + 6) % 7].slice(0, 3)} {d.slice(8, 10)}</div>
+                    {list.length === 0 ? (
+                      <div className="text-xs text-[var(--steel)]">—</div>
+                    ) : (
+                      <div className="space-y-1">
+                        {list.slice(0, 3).map((r) => (
+                          <div key={r.id} className="text-xs text-[var(--ink)] truncate">{r.heure} {r.nom}</div>
+                        ))}
+                        {list.length > 3 && <div className="text-xs text-[var(--accent)]">+{list.length - 3} autres</div>}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {viewMode === "mois" && (() => {
+          const start = startOfMonth(selectedDate);
+          const lead = (new Date(start + "T00:00:00").getDay() + 6) % 7;
+          const total = daysInMonth(start);
+          const cells = [...Array(lead).fill(null), ...Array.from({ length: total }, (_, i) => addDays(start, i))];
+          while (cells.length % 7 !== 0) cells.push(null);
+          return (
+            <div>
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {JOURS.map((j) => <div key={j} className="text-xs text-[var(--steel)] text-center py-1">{j.slice(0, 3)}</div>)}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {cells.map((d, i) => {
+                  if (!d) return <div key={i} />;
+                  const list = reservationsDuJour(d);
+                  const isToday = d === todayISO();
+                  return (
+                    <button key={d} onClick={() => { goDate(d); setViewMode("jour"); }}
+                      className={`aspect-square rounded-md border flex flex-col items-center justify-center gap-0.5 ${isToday ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] hover:bg-[var(--bg)]"}`}>
+                      <span className="text-xs text-[var(--ink)]">{Number(d.slice(8, 10))}</span>
+                      {list.length > 0 && <span className="text-[10px] text-[var(--gold)] font-medium">{list.length}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+      </Card>
+
+      <ImportPhotoIA
+        titre="Importer des réservations par photo"
+        description="Prends en photo un cahier de réservations papier, ou dépose une capture d'écran d'un agenda tenu ailleurs — en attendant une éventuelle connexion directe avec cet outil, ça évite de tout ressaisir à la main."
+        consigne={`Voici la photo ou capture d'écran d'un cahier ou d'un agenda de réservations de restaurant. Lis les informations visibles et réponds UNIQUEMENT avec un tableau JSON strict, sans texte autour, sans balises markdown, au format exact suivant :
+[{"date": "AAAA-MM-JJ (déduis l'année en cours si elle n'est pas précisée)", "heure": "HH:MM", "nom": "nom du client", "personnes": "nombre de personnes en chiffres", "telephone": "numéro si visible sinon chaîne vide", "notes": "toute précision utile — allergies, table demandée, occasion — sinon chaîne vide", "table": "numéro ou nom de table si précisé sinon chaîne vide"}]
+Une entrée par réservation visible. Si une information est illisible ou absente pour un champ, laisse une chaîne vide plutôt que d'inventer une valeur. Ignore complètement une ligne si la date, l'heure ou le nom du client est illisible.`}
+        onResultats={(lignes) => {
+          const nouvelles = [];
+          let ignorees = 0;
+          lignes.forEach((l) => {
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(String(l.date || "").trim()) ? String(l.date).trim() : null;
+            const heure = String(l.heure || "").trim();
+            const nom = String(l.nom || "").trim();
+            if (!date || !heure || !nom) { ignorees += 1; return; }
+            nouvelles.push({
+              id: uid(), employeeId: null, date, heure, nom,
+              personnes: String(l.personnes || "").trim(),
+              telephone: String(l.telephone || "").trim(),
+              notes: String(l.notes || "").trim(),
+              table: String(l.table || "").trim(),
+              statut: "à confirmer",
+              duree: "90",
+              commande: [],
+            });
+          });
+          if (nouvelles.length === 0) {
+            return "Aucune réservation reconnue sur cette photo — réessayez avec une photo plus nette, ou saisissez manuellement.";
+          }
+          const cles = new Set(nouvelles.map((n) => `${n.date}__${n.heure}__${n.nom}`));
+          const conservees = reservations.filter((r) => !cles.has(`${r.date}__${r.heure}__${r.nom}`));
+          setReservations([...conservees, ...nouvelles].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
+          logActivity("Réservations", "Réservations importées par photo (IA)", `${nouvelles.length} réservation(s)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
+          return `${nouvelles.length} réservation(s) importée(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s)` : ""}.`;
+        }}
+      />
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-4">Nouvelle réservation</h3>
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+          <Field label="Date"><input className={inputCls} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
+          <Field label="Heure"><input className={inputCls} type="time" value={form.heure} onChange={(e) => setForm({ ...form, heure: e.target.value })} /></Field>
+          <Field label="Nom"><input className={inputCls} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} /></Field>
+          <Field label="Personnes"><input className={inputCls} type="number" value={form.personnes} onChange={(e) => setForm({ ...form, personnes: e.target.value })} /></Field>
+          <Field label="Table"><input className={inputCls} placeholder="Table 12-14, salon privé..." value={form.table} onChange={(e) => setForm({ ...form, table: e.target.value })} /></Field>
+          <Field label="Statut">
+            <select className={inputCls} value={form.statut} onChange={(e) => setForm({ ...form, statut: e.target.value })}>
+              {STATUTS_RESERVATION.map((s) => <option key={s} value={s}>{s}</option>)}
+            </select>
+          </Field>
+          <Field label="Durée (min)"><input className={inputCls} type="number" step="15" value={form.duree} onChange={(e) => setForm({ ...form, duree: e.target.value })} /></Field>
+          <Field label="Téléphone"><input className={inputCls} value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} /></Field>
+          <Field label="Notes"><input className={inputCls} placeholder="Allergies, table préférée..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
+        </div>
+
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-medium text-[var(--steel)]">Commande (optionnel — repas de groupe, séminaire...)</span>
+            <Button variant="ghost" onClick={addLigneCommande}><Plus size={14} /> Ligne</Button>
+          </div>
+          <div className="space-y-2">
+            {commande.map((c, i) => (
+              <div key={i} className="flex gap-2">
+                <input className={`${inputCls} flex-1`} placeholder="ex. 4x Pizza chèvre-miel" value={c} onChange={(e) => updateLigneCommande(i, e.target.value)} />
+                <button onClick={() => removeLigneCommande(i)} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <Button onClick={addReservation}><Plus size={16} /> Ajouter la réservation</Button>
+      </Card>
+    </div>
+  );
+}
+
+/* ---------- module Tâches ---------- */
+
+const RECURRENCES = ["Quotidienne", "Hebdomadaire", "Mensuelle", "Une fois"];
+
+function estDernierJourDuMois(dateStr) {
+  const d = new Date(dateStr + "T00:00:00");
+  const lendemain = new Date(d);
+  lendemain.setDate(d.getDate() + 1);
+  return lendemain.getMonth() !== d.getMonth();
+}
+const CATEGORIES = ["Préparation", "Service", "Nettoyage", "Commande", "Réception"];
+const CATEGORY_ICON = { "Préparation": Soup, "Service": UtensilsCrossed, "Nettoyage": Droplets, "Commande": ShoppingCart, "Réception": Truck };
+
+function estNiemeJourSemaineDuMois(dateStr, jourNom, position) {
+  const d = new Date(dateStr + "T00:00:00");
+  if (JOURS[(d.getDay() + 6) % 7] !== jourNom) return false;
+  if (position === "dernier") {
+    const suivant = new Date(d);
+    suivant.setDate(d.getDate() + 7);
+    return suivant.getMonth() !== d.getMonth();
+  }
+  return Math.ceil(d.getDate() / 7) === Number(position);
+}
+
+function isTaskActive(task, dateStr) {
+  if (task.recurrence === "Quotidienne") return true;
+  if (task.recurrence === "Hebdomadaire") return JOURS[(new Date(dateStr + "T00:00:00").getDay() + 6) % 7] === task.jour;
+  if (task.recurrence === "Mensuelle") {
+    if (task.jourSemaineMois) return estNiemeJourSemaineDuMois(dateStr, task.jourSemaineMois, task.positionMois || 1);
+    return Number(dateStr.slice(8, 10)) === Number(task.jourDuMois || 1);
+  }
+  return task.date === dateStr;
+}
+
+function groupByCategory(list) {
+  const groups = { "Préparation": [], "Service": [], "Nettoyage": [], "Commande": [], "Réception": [] };
+  list.forEach((t) => { (groups[t.categorie] || groups["Préparation"]).push(t); });
+  return groups;
+}
+
+function sortByHeure(list) {
+  return [...list].sort((a, b) => (a.heure || "99:99").localeCompare(b.heure || "99:99"));
+}
+
+const POSTE_STYLES = [
+  { match: /chaud/i, icon: Flame, bg: "#E58A2A" },
+  { match: /froid|commis/i, icon: Snowflake, bg: "#3E8FB0" },
+  { match: /chef/i, icon: ChefHat, bg: "#2F6B4F" },
+  { match: /second/i, icon: UtensilsCrossed, bg: "#B98A2E" },
+  { match: /plonge|nettoy/i, icon: Droplets, bg: "#4A7A8C" },
+  { match: /pizza/i, icon: Soup, bg: "#C1432D" },
+];
+function posteStyle(poste = "") {
+  return POSTE_STYLES.find((p) => p.match.test(poste)) || { icon: ChefHat, bg: "#657069" };
+}
+
+function TaskItem({ task, employeeId, date, actorId, onToggle, showAssignee, employees, protocolesNettoyage }) {
+  const [protocoleOuvert, setProtocoleOuvert] = useState(false);
+  const done = !!task.completions?.[date]?.[employeeId];
+  const assigneeNom = task.assignedTo === "tous" ? "Tout le monde"
+    : task.assignedTo?.startsWith("poste:") ? `Poste ${task.assignedTo.slice(6).replace(/^./, (c) => c.toUpperCase())}`
+    : employees.find((e) => e.id === task.assignedTo)?.nom;
+  const protocole = task.lienProtocole && protocolesNettoyage ? protocolesNettoyage.find((p) => p.id === task.lienProtocole) : null;
+  return (
+    <li>
+      <div className="flex items-center gap-3 text-sm">
+        <button onClick={() => onToggle(task, date, employeeId, actorId)}>
+          {done ? <CheckCircle2 size={18} className="text-[var(--accent)]" /> : <Circle size={18} className="text-[var(--steel)]" />}
+        </button>
+        {task.heure && <span className="text-xs font-medium text-[var(--gold)] w-10 shrink-0">{task.heure}</span>}
+        <span className={`flex-1 ${done ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{task.titre}</span>
+        {protocole && (
+          <button onClick={() => setProtocoleOuvert(!protocoleOuvert)} className="text-xs text-[var(--accent)] font-medium shrink-0">
+            {protocoleOuvert ? "Masquer le protocole" : "Voir le protocole"}
+          </button>
+        )}
+        {showAssignee && <span className="text-xs text-[var(--steel)]">{assigneeNom}</span>}
+        {task.recurrence !== "Quotidienne" && (
+          <span className="text-xs text-[var(--steel)]">{task.recurrence === "Hebdomadaire" ? task.jour : task.recurrence}</span>
+        )}
+      </div>
+      {task.note && !done && <div className="ml-8 mt-0.5 text-xs text-[var(--steel)]">{task.note}</div>}
+      {protocoleOuvert && protocole && (
+        <div className="ml-8 mt-2 mb-2 p-3 rounded-lg bg-[var(--bg)] text-xs">
+          <div className="font-semibold text-[var(--ink)] mb-1.5">{protocole.nom}</div>
+          {protocole.produits.length === 0 && protocole.etapes.length === 0 ? (
+            <p className="text-[var(--steel)]">Protocole pas encore détaillé — voir Nettoyage → Protocoles de nettoyage détaillés.</p>
+          ) : (
+            <>
+              {protocole.produits.length > 0 && (
+                <div className="mb-2">
+                  <span className="text-[var(--steel)] font-medium">Produits : </span>
+                  {protocole.produits.map((p, i) => <span key={i} className="text-[var(--ink)]">{p.nom} ({p.quantite} {p.unite}){i < protocole.produits.length - 1 ? ", " : ""}</span>)}
+                </div>
+              )}
+              {protocole.etapes.length > 0 && (
+                <ol className="list-decimal list-inside space-y-0.5 text-[var(--ink)]">
+                  {protocole.etapes.map((e, i) => <li key={i}>{e}</li>)}
+                </ol>
+              )}
+            </>
+          )}
+        </div>
+      )}
+    </li>
+  );
+}
+
+function TaskCategoryBlock({ categorie, list, employeeId, date, actorId, onToggle, showAssignee, employees }) {
+  if (list.length === 0) return null;
+  const Icon = CATEGORY_ICON[categorie];
+  return (
+    <div className="mb-4 last:mb-0">
+      <div className="flex items-center gap-2 mb-2">
+        <Icon size={15} className="text-[var(--steel)]" />
+        <span className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide">{categorie}</span>
+      </div>
+      <ul className="space-y-2.5 pl-1">
+        {sortByHeure(list).map((t) => (
+          <TaskItem key={t.id} task={t} employeeId={employeeId} date={date} actorId={actorId} onToggle={onToggle} showAssignee={showAssignee} employees={employees} />
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function HorairesDuJour({ employeeId, shifts }) {
+  const jourIdx = (new Date().getDay() + 6) % 7;
+  const jour = JOURS[jourIdx];
+  const mesCreneaux = shifts.filter((s) => s.employeeId === employeeId && s.jour === jour);
+  return (
+    <div className="flex flex-wrap items-center gap-3 text-sm mb-5 pb-4 border-b border-[var(--line)]">
+      <Clock size={15} className="text-[var(--gold)] shrink-0" />
+      {mesCreneaux.length === 0 ? (
+        <span className="text-[var(--ink)] font-medium">Repos</span>
+      ) : (
+        SERVICES.map((sv) => {
+          const s = mesCreneaux.find((c) => c.service === sv);
+          if (!s) return null;
+          return <span key={sv} className="text-[var(--ink)] font-medium">{sv} {s.debut}–{s.fin}</span>;
+        })
+      )}
+      <span className="text-xs text-[var(--steel)]">(horaires Skello, saisis manuellement ici)</span>
+    </div>
+  );
+}
+
+function CommandeBar({ onCommande }) {
+  const [texte, setTexte] = useState("");
+  const [enEcoute, setEnEcoute] = useState(false);
+  const [enTraitement, setEnTraitement] = useState(false);
+  const [dernierRetour, setDernierRetour] = useState(null);
+  const [erreurVocale, setErreurVocale] = useState(null);
+
+  const supporteVocal = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  const envoyer = async (valeur) => {
+    const v = (valeur ?? texte).trim();
+    if (!v) return;
+    setEnTraitement(true);
+    setDernierRetour(null);
+    const retour = await onCommande(v);
+    setEnTraitement(false);
+    setTexte("");
+    setDernierRetour(retour || "Je n'ai pas compris cette commande — reformulez ou faites-le manuellement.");
+  };
+
+  const demarrerEcoute = async () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) return;
+    setErreurVocale(null);
+
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (err) {
+        const messagesPermission = {
+          NotAllowedError: "Micro refusé — pour l'autoriser : appuyez sur l'icône 🔒 ou ⓘ à côté de l'adresse en haut de votre navigateur, puis autorisez le micro pour ce site.",
+          NotFoundError: "Aucun micro détecté sur cet appareil.",
+          SecurityError: "Le micro n'est pas accessible dans cet environnement (bloqué au niveau de la page) — utilisez la saisie texte, elle fait exactement la même chose.",
+        };
+        setErreurVocale(messagesPermission[err.name] || "Impossible d'accéder au micro ici — utilisez la saisie texte, elle fait exactement la même chose.");
+        return;
+      }
+    }
+
+    try {
+      const reco = new SR();
+      reco.lang = "fr-FR";
+      reco.interimResults = false;
+      reco.maxAlternatives = 1;
+      reco.onresult = (e) => {
+        const dit = e.results[0][0].transcript;
+        setTexte(dit);
+        envoyer(dit);
+      };
+      reco.onend = () => setEnEcoute(false);
+      reco.onerror = (e) => {
+        setEnEcoute(false);
+        const messages = {
+          "not-allowed": "Micro refusé — autorisez l'accès au micro pour cette appli dans les réglages de votre navigateur, ou utilisez la saisie texte.",
+          "service-not-allowed": "Le micro n'est pas accessible dans cet environnement — utilisez la saisie texte, ça fonctionne à l'identique.",
+          "audio-capture": "Aucun micro détecté sur cet appareil.",
+          "no-speech": "Je n'ai rien entendu — réessayez, ou écrivez votre commande.",
+          "network": "Problème de connexion pour la reconnaissance vocale — réessayez ou utilisez la saisie texte.",
+        };
+        setErreurVocale(messages[e.error] || "La commande vocale n'a pas fonctionné dans cet environnement — utilisez la saisie texte, elle fait exactement la même chose.");
+      };
+      setEnEcoute(true);
+      reco.start();
+    } catch (e) {
+      setEnEcoute(false);
+      setErreurVocale("La commande vocale n'a pas pu démarrer ici — utilisez la saisie texte, elle fait exactement la même chose.");
+    }
+  };
+
+  return (
+    <Card className="mb-6 py-3">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Commande vocale</h3>
+      <p className="text-xs text-[var(--steel)] mb-3">Tapez ou dites ce que vous voulez faire — « réception d'une livraison », « retire-moi 2 kg de reblochon, il est tombé », « je prépare le reblochon »...</p>
+      <div className="flex flex-col gap-2">
+        <input
+          className={`${inputCls} w-full`}
+          placeholder="Écrire une commande..."
+          value={texte}
+          onChange={(e) => setTexte(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") envoyer(); }}
+        />
+        <div className="flex items-center gap-2">
+          {supporteVocal && (
+            <button
+              onClick={demarrerEcoute}
+              disabled={enEcoute}
+              style={enEcoute ? { backgroundColor: "#C1432D", borderColor: "#C1432D", color: "#ffffff" } : undefined}
+              className={`w-14 h-14 rounded-lg flex items-center justify-center border shrink-0 ${enEcoute ? "animate-pulse" : "border-[var(--line)] text-[var(--steel)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}
+              title="Commande vocale"
+            >
+              <Mic size={26} />
+            </button>
+          )}
+          <Button onClick={() => envoyer()} disabled={enTraitement || !texte.trim()} className="flex-1 justify-center">
+            {enTraitement ? <Loader2 size={16} className="animate-spin" /> : "Envoyer"}
+          </Button>
+        </div>
+      </div>
+      {enEcoute && <p className="text-xs text-[var(--accent)] mt-2">Je vous écoute...</p>}
+      {erreurVocale && <p className="text-xs text-[var(--warn)] mt-2">{erreurVocale}</p>}
+      {dernierRetour && <p className="text-xs text-[var(--steel)] mt-2">{dernierRetour}</p>}
+      {!supporteVocal && <p className="text-[10px] text-[var(--steel)] mt-2">Commande vocale non disponible sur ce navigateur — la saisie texte fonctionne normalement.</p>}
+    </Card>
+  );
+}
+
+// Bouton flottant de commande vocale, visible sur TOUS les écrans (pas seulement l'Accueil) :
+// pensé pour une personne en pleine préparation, les mains prises ou un peu grasses, qui préfère
+// appuyer une seule fois sur un bouton plutôt que de naviguer jusqu'à l'écran d'accueil pour
+// trouver la commande vocale. Un appui lance directement l'écoute (pas de clavier, pas de saisie).
+function CommandeVocaleFlottante({ onCommande }) {
+  const [enEcoute, setEnEcoute] = useState(false);
+  const [enTraitement, setEnTraitement] = useState(false);
+  const [retour, setRetour] = useState(null);
+
+  const supporteVocal = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+
+  useEffect(() => {
+    if (!retour) return;
+    const t = setTimeout(() => setRetour(null), 6000);
+    return () => clearTimeout(t);
+  }, [retour]);
+
+  const envoyer = async (valeur) => {
+    const v = (valeur || "").trim();
+    if (!v) return;
+    setEnTraitement(true);
+    setRetour(null);
+    const r = await onCommande(v);
+    setEnTraitement(false);
+    setRetour(r || "Je n'ai pas compris cette commande — réessayez.");
+  };
+
+  const demarrer = async () => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setRetour("Commande vocale non disponible sur ce navigateur."); return; }
+    if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (err) {
+        setRetour("Micro refusé — autorisez l'accès au micro pour ce site dans votre navigateur.");
+        return;
+      }
+    }
+    try {
+      const reco = new SR();
+      reco.lang = "fr-FR";
+      reco.interimResults = false;
+      reco.maxAlternatives = 1;
+      reco.onresult = (e) => envoyer(e.results[0][0].transcript);
+      reco.onend = () => setEnEcoute(false);
+      reco.onerror = (e) => {
+        setEnEcoute(false);
+        const messages = { "not-allowed": "Micro refusé — autorisez l'accès au micro.", "no-speech": "Je n'ai rien entendu — réessayez.", "network": "Problème de connexion — réessayez." };
+        setRetour(messages[e.error] || "La commande vocale n'a pas fonctionné — réessayez.");
+      };
+      setEnEcoute(true);
+      reco.start();
+    } catch (e) {
+      setEnEcoute(false);
+      setRetour("La commande vocale n'a pas pu démarrer ici.");
+    }
+  };
+
+  if (!supporteVocal) return null;
+
+  return (
+    <div className="fixed bottom-6 right-4 flex flex-col items-end gap-2 print:hidden" style={{ zIndex: 9998 }}>
+      {retour && <div className="max-w-[230px] text-xs bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">{retour}</div>}
+      {enEcoute && <div className="text-xs bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">Je vous écoute...</div>}
+      <button
+        onClick={demarrer}
+        disabled={enEcoute || enTraitement}
+        style={enEcoute ? { backgroundColor: "#C1432D" } : { backgroundColor: "#2F6B4F" }}
+        className={`w-16 h-16 rounded-full flex items-center justify-center text-white shadow-xl ${enEcoute ? "animate-pulse" : ""}`}
+        title="Commande vocale"
+      >
+        {enTraitement ? <Loader2 size={26} className="animate-spin" /> : <Mic size={28} />}
+      </button>
+    </div>
+  );
+}
+
+function ModalPreparationCulinaire({ mesProduits, fiches, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, traceImprimable, setTraceImprimable, preparerProduit, whoTaches, moi, today, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, onClose }) {
+  // whoTaches sert aussi à afficher qui a préparé/enregistré sur l'étiquette imprimable de la fiche.
+  const [ficheOuverte, setFicheOuverte] = useState(null);
+  const [ruptureSignalee, setRuptureSignalee] = useState({});
+  const [photoPreparation, setPhotoPreparation] = useState(null);
+
+  useEffect(() => {
+    if (traceImprimable) { const t = setTimeout(() => window.print(), 200); return () => clearTimeout(t); }
+  }, [traceImprimable]);
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-2xl w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        {ficheOuverte ? (
+          <FicheDetail fiche={ficheOuverte} onBack={() => setFicheOuverte(null)} onRemove={() => {}} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={whoTaches} estChef={employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction"} />
+        ) : (
+          <>
+            <div className="flex items-center justify-between mb-4">
+              <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+                <ArrowLeft size={15} /> Fermer
+              </button>
+              <h2 className="font-semibold text-[var(--ink)]">Préparation culinaire</h2>
+              <span className="w-14" />
+            </div>
+            {/poste\s*chaud/i.test(moi?.poste || "") && (
+              <p className="text-xs text-[var(--warn)] mb-3">10h00 à 10h20 : nettoyage de la friteuse + changement d'huile d'abord, puis mise en place.</p>
+            )}
+            <p className="text-xs text-[var(--steel)] mb-3">Cliquez sur « Valider » pour un produit (recette ou traçabilité selon le cas), ou sur « Rupture » s'il n'y en a plus.</p>
+            <div className="space-y-1.5 mb-3">
+              {mesProduits.map((p) => {
+                const ficheLiee = p.sansRecette ? null : trouverFicheCorrespondante(p.nom, fiches, p.ficheNom);
+                return (
+                  <div key={p.id} className={`flex items-center justify-between gap-2 px-3 py-2 rounded-lg border ${produitEnPreparation?.id === p.id ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+                    <span className="text-sm text-[var(--ink)] flex-1">{p.nom}{ficheLiee ? <span className="text-xs text-[var(--steel)]"> · {ficheLiee.nom}</span> : null}</span>
+                    {ruptureSignalee[p.id] ? (
+                      <span className="text-xs text-[var(--warn)] font-medium shrink-0">Rupture signalée</span>
+                    ) : (
+                      <div className="flex gap-1.5 shrink-0">
+                        <Button onClick={() => { if (ficheLiee) { setFicheOuverte(ficheLiee); } else { setProduitEnPreparation(p); setTraceImprimable(null); } }}>Valider</Button>
+                        <Button variant="danger" onClick={() => { onRuptureStock(p); setRuptureSignalee({ ...ruptureSignalee, [p.id]: true }); }}>Rupture</Button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+            {produitEnPreparation && !traceImprimable && (
+              <div className="border-t border-[var(--line)] pt-3">
+                <p className="text-sm text-[var(--ink)] font-medium mb-1">Traçabilité — {produitEnPreparation.nom}</p>
+                <p className="text-xs text-[var(--steel)] mb-3">DLC calculée automatiquement : {fmtShort(addDays(today, produitEnPreparation.dlcJours))} (+{produitEnPreparation.dlcJours} j)</p>
+                <PhotoInput value={photoPreparation} onChange={setPhotoPreparation} label="Photographier le produit" small />
+                <div className="flex flex-wrap items-end gap-3 mt-3">
+                  <Field label="Quantité utilisée (destockée du stock)">
+                    <input className={`${inputCls} w-28`} type="number" step="0.01" value={quantitePreparation} onChange={(e) => setQuantitePreparation(e.target.value)} autoFocus />
+                  </Field>
+                  <Button onClick={() => { const entry = preparerProduit(produitEnPreparation.id, quantitePreparation, photoPreparation); if (entry) setTraceImprimable({ ...entry, nom: produitEnPreparation.nom }); }} disabled={quantitePreparation === "" || !photoPreparation}>
+                    <CheckCircle2 size={16} /> Valider la traçabilité
+                  </Button>
+                  <Button variant="ghost" onClick={() => { setProduitEnPreparation(null); setQuantitePreparation(""); setPhotoPreparation(null); }}>Annuler</Button>
+                </div>
+                {!photoPreparation && <p className="text-xs text-[var(--steel)] mt-1.5">La photo du produit est nécessaire pour valider.</p>}
+              </div>
+            )}
+            {traceImprimable && (
+              <div className="border-t border-[var(--line)] pt-3">
+                <p className="text-sm text-[var(--accent)] font-medium mb-3">Traçabilité validée — vous pouvez imprimer l'étiquette DLC.</p>
+                <EtiquetteDlcImprimable produitNom={traceImprimable.nom} lot={traceImprimable.lot} dlcDate={traceImprimable.dlcDate} date={traceImprimable.date} heure={traceImprimable.heure} who={whoTaches} employeeId={traceImprimable.employeeId} />
+                <div className="flex gap-2 mt-3 print:hidden">
+                  <Button onClick={() => window.print()}><Printer size={16} /> Imprimer l'étiquette</Button>
+                  <Button variant="ghost" onClick={() => { setProduitEnPreparation(null); setQuantitePreparation(""); setTraceImprimable(null); setPhotoPreparation(null); }}>Produit suivant</Button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ModalVerificationPreparations({ mesProduits, preparations, today, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+            <ArrowLeft size={15} /> Fermer
+          </button>
+          <h2 className="font-semibold text-[var(--ink)]">Vérification des préparations</h2>
+          <span className="w-14" />
+        </div>
+        <p className="text-xs text-[var(--steel)] mb-3">Vérifiez que tout ce qui devait être préparé aujourd'hui l'a bien été.</p>
+        {mesProduits.length === 0 ? (
+          <p className="text-sm text-[var(--steel)]">Aucun produit à préparer pour votre poste.</p>
+        ) : (
+          <ul className="divide-y divide-[var(--line)]">
+            {mesProduits.map((p) => {
+              const entry = preparations.find((pr) => pr.date === today && (pr.produitId === p.id || pr.nomLibre === p.nom));
+              return (
+                <li key={p.id} className="flex items-center justify-between py-2 text-sm">
+                  <span className="text-[var(--ink)]">{p.nom}</span>
+                  {entry ? (
+                    <span className="text-xs text-[var(--accent)] flex items-center gap-1"><CheckCircle2 size={14} /> {entry.quantite} · {entry.heure}</span>
+                  ) : (
+                    <span className="text-xs text-[var(--warn)] flex items-center gap-1"><AlertTriangle size={14} /> Manquant</span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function ItemNettoyageLigne({ item, onToggle }) {
+  return (
+    <li className="py-2.5">
+      <div className="flex items-center gap-3 text-sm">
+        <button onClick={() => onToggle(item.id)}>
+          {item.fait ? <CheckCircle2 size={18} className="text-[var(--accent)]" /> : <Circle size={18} className="text-[var(--steel)]" />}
+        </button>
+        <span className={`flex-1 ${item.fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{item.tache}</span>
+      </div>
+      {item.note && <p className="text-xs text-[var(--steel)] italic ml-8 mt-1">{item.note}</p>}
+    </li>
+  );
+}
+
+const DEFAULT_SAUCES_BAIN_MARIE = ["Sauce Vigneronne", "Sauce Champignons & Parmesan", "Sauce au Poivre", "Sauce Cheddar", "Sauce Parmesan"];
+
+const NETTOYAGE_QUOTIDIEN_DETAIL = {
+  "Poste Chaud-midi": [
+    "Bain-marie : éteindre l'appareil, mettre les sauces en cellule de refroidissement, fermer avec le couvercle (le processus de refroidissement démarre automatiquement en cliquant Valider)",
+    "Saladette : éteindre l'appareil, ranger et filmer toutes les marchandises, les stocker au frigo, fermer avec le couvercle",
+    "Ivario Pro : éteindre l'appareil, nettoyage intérieur",
+    "Four Rational : éteindre l'appareil",
+    "Four Atoll Speed / Mery Chef : éteindre l'appareil (nettoyage complet le jeudi, voir plus bas)",
+    "Frigo viande : filmer les marchandises et nettoyer les portes",
+    "Plans de travail désinfectés et nettoyés",
+    "Frigo poste chaud : nettoyage des portes",
+    "Friteuse : éteindre l'appareil et mettre le couvercle",
+    "Hotte : éteindre",
+  ],
+  "Poste Chaud-soir": [
+    "Bain-marie : éteindre l'appareil, mettre les sauces en cellule de refroidissement, vider l'eau usagée, nettoyer l'intérieur et l'extérieur, fermer avec le couvercle (le processus de refroidissement démarre automatiquement en cliquant Valider — se fait en 2 fois avant les 2h vu la durée du service du soir)",
+    "Saladette : éteindre l'appareil, ranger et filmer toutes les marchandises, les stocker au frigo, nettoyage intérieur, extérieur et couvercles, fermer avec le couvercle",
+    "Ivario Pro : éteindre l'appareil, nettoyer l'intérieur, fermer les couvercles et les nettoyer",
+    "Four Rational : éteindre l'appareil, mettre en auto-lavage (pastilles de nettoyage adaptées), nettoyer le dessus du four, plaques de cuisson au sale si besoin",
+    "Four Atoll Speed / Mery Chef : éteindre l'appareil, nettoyer le dessus du four, plaques de cuisson au sale si besoin",
+    "Frigo viande : filmer les marchandises, nettoyer l'intérieur et les portes",
+    "Plans de travail désinfectés et nettoyés",
+    "Frigo poste chaud : nettoyage intérieur et des portes",
+    "Friteuse : éteindre l'appareil, faire le test de l'huile (photo demandée), filtrer l'huile et mettre le couvercle",
+    "Hotte : éteindre",
+    "Crédence : si sale, nettoyer rapidement",
+    "Congélateur cuisine : vérifier que toutes les boîtes sont bien fermées et les produits bien filmés, que toutes les étiquettes DLC sont correctes, enlever les miettes en bas du congélateur",
+  ],
+  "Poste Froid-midi": [
+    "Saladette : éteindre l'appareil, ranger et filmer toutes les marchandises, les stocker au frigo, fermer avec le couvercle",
+    "Plans de travail désinfectés et nettoyés : poste froid, desserts, plan de travail gastro",
+    "Frigo poste froid : nettoyer les portes et poignées",
+    "Frigo réserve desserts : nettoyage intérieur, portes et poignées de porte",
+    "Cellule de refroidissement : intérieur et porte (mise en nettoyage automatique dès la préparation de tiramisu ou mousse au chocolat)",
+    "Chauffe-pot à Nutella : remplir les pots à Nutella",
+    "Robot batteur : nettoyer tout le robot et ses ustensiles puis couvrir l'appareil (automatique si tiramisu ou mousse au chocolat préparés)",
+    "Évier lavage légumes : nettoyer l'intérieur et l'extérieur, rien ne doit traîner dessus",
+    "Congélateur à glace : refermer tous les couvercles",
+  ],
+  "Poste Froid-soir": [
+    "Plans de travail désinfectés et nettoyés : poste froid, desserts, plan de travail gastro",
+    "Saladette : éteindre l'appareil, ranger et filmer toutes les marchandises, les stocker au frigo, nettoyage intérieur et extérieur",
+    "Frigo poste froid : nettoyage intérieur, portes et poignées",
+    "Frigo réserve desserts : nettoyage des portes et poignées",
+    "Micro-ondes : nettoyer l'intérieur et l'extérieur",
+    "Chauffe-pot à Nutella : éteindre l'appareil, mettre les bouchons des pots à la plonge, filmer les pots à Nutella",
+    "Bol et boulier à glace : à laver",
+    "Congélateur à glace : vérifier les couvercles (s'ils sont sales, les mettre à laver), bien refermer tous les couvercles, nettoyer la vitre du congélateur",
+  ],
+  "Poste Pizza-midi": [
+    "Saladette : éteindre l'appareil, ranger et filmer tous les produits, les stocker dans le frigo poste pizza",
+    "Plans de travail désinfectés et nettoyés",
+    "Frigo pâtons : nettoyer l'intérieur du frigo et les portes",
+    "Pétrin : nettoyage automatique si la pâte à pizza a été faite le matin",
+    "Frigo poste pizza : nettoyage des portes",
+    "Four à pizza : éteindre l'appareil et dépoussiérer la devanture du four",
+  ],
+  "Poste Pizza-soir": [
+    "Saladette : éteindre l'appareil, ranger et filmer toutes les marchandises, les stocker au frigo, nettoyage intérieur, extérieur et couvercles, fermer avec le couvercle",
+    "Plans de travail désinfectés et nettoyés : pizza, pâtons et plan de travail sous le passe-plat",
+    "Passe-plat désinfecté et nettoyé",
+    "Frigo pâtons : nettoyage intérieur, portes et poignées de portes",
+    "Pétrin : nettoyage automatique si la pâte à pizza a été faite le matin",
+    "Frigo poste pizza : nettoyage intérieur, portes et poignées de portes",
+    "Pelle à pizza + carrelage : nettoyage",
+    "Four à pizza : éteindre l'appareil, dépoussiérer la devanture",
+  ],
+};
+
+const NETTOYAGE_QUOTIDIEN_TOUS = [
+  "Plonge : laver la vaisselle et ranger tous les ustensiles, couverts, assiettes... rien ne doit traîner. Éteindre le lave-vaisselle, nettoyer les grilles de filtre et bouchon. Nettoyer les plans de travail et l'évier",
+  "Poubelles : fermer et jeter les sacs poubelles, les remplacer",
+  "Sol : nettoyer les sols de la plonge, cuisine et réserve",
+  "Évacuation des eaux usées : nettoyer correctement l'évacuation",
+];
+const NETTOYAGE_QUOTIDIEN_TOUS_SOIR = [
+  "Mettre les torchons et lavettes au lave-linge",
+  "Nettoyer la bouche d'évacuation des eaux usées",
+];
+
+function EtapeCoche({ texte }) {
+  const [fait, setFait] = useState(false);
+  return (
+    <li className="flex items-center gap-3 text-sm py-1.5">
+      <button onClick={() => setFait(!fait)}>
+        {fait ? <CheckCircle2 size={18} className="text-[var(--accent)]" /> : <Circle size={18} className="text-[var(--steel)]" />}
+      </button>
+      <span className={fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}>{texte}</span>
+    </li>
+  );
+}
+
+function dateOccurrenceMensuelle(jourSemaineMois, positionMois, todayStr) {
+  const debut = startOfMonth(todayStr);
+  for (let i = 0; i < 31; i++) {
+    const d = addDays(debut, i);
+    if (d.slice(0, 7) !== debut.slice(0, 7)) break;
+    if (estNiemeJourSemaineDuMois(d, jourSemaineMois, positionMois)) return d;
+  }
+  return null;
+}
+
+function tacheDueAujourdhuiOuEnRetard(item, todayStr) {
+  if (item.frequence === "Hebdomadaire") {
+    const lundi = startOfWeek(todayStr);
+    const faitCetteSemaine = item.fait && item.date && item.date >= lundi;
+    if (faitCetteSemaine) return false;
+    const jourAujourdhui = JOURS[(new Date(todayStr + "T00:00:00").getDay() + 6) % 7];
+    return JOURS.indexOf(jourAujourdhui) >= JOURS.indexOf(item.jour);
+  }
+  if (item.frequence === "Mensuelle" && item.jourSemaineMois) {
+    const faitCeMois = item.fait && item.date && item.date.slice(0, 7) === todayStr.slice(0, 7);
+    if (faitCeMois) return false;
+    const occurrence = dateOccurrenceMensuelle(item.jourSemaineMois, item.positionMois, todayStr);
+    return occurrence !== null && todayStr >= occurrence;
+  }
+  return true;
+}
+
+function clePoste(nomPoste) {
+  return `poste:${(nomPoste || "").replace(/^Poste\s*/i, "").trim().toLowerCase()}`;
+}
+
+function labelFreqCleaning(c) {
+  if (c.frequence === "Hebdomadaire") return `${c.tache} (hebdomadaire — ${c.jour})`;
+  if (c.frequence === "Mensuelle") return `${c.tache} (mensuel — ${c.jourSemaineMois}, ${c.positionMois}e du mois)`;
+  return `${c.tache} (quotidien)`;
+}
+
+// Construit la liste des tâches de nettoyage du jour (quotidien + hebdo/mensuel réellement dus,
+// via tacheDueAujourdhuiOuEnRetard) à partir de la vraie liste `cleaning`, mélangée avec les
+// checklists par poste de fin de service. Partagée entre ControlePlanningJour (vue chef, tous
+// postes) et la vue Nettoyage de l'employé (son poste + Tous) pour ne jamais avoir deux listes
+// différentes qui pourraient diverger.
+function construireItemsNettoyageDuJour(cleaning, today) {
+  return [
+    ...Object.entries(CONTROLE_POSTE).flatMap(([poste, data]) => {
+      const cleaningPoste = (cleaning || []).filter((c) => c.poste === poste);
+      const quotidienPoste = cleaningPoste.filter((c) => c.frequence === "Quotidienne");
+      const hebdoPoste = cleaningPoste.filter((c) => c.frequence === "Hebdomadaire" && tacheDueAujourdhuiOuEnRetard(c, today));
+      const mensuelPoste = cleaningPoste.filter((c) => c.frequence === "Mensuelle" && tacheDueAujourdhuiOuEnRetard(c, today));
+      return [
+        ...data.midi.map((label, i) => ({ key: `nett-${poste}-midi-${i}`, groupe: poste, label: `${label} (service midi — quotidien)`, assignedTo: clePoste(poste) })),
+        ...data.soir.map((label, i) => ({ key: `nett-${poste}-soir-${i}`, groupe: poste, label: `${label} (service soir — quotidien)`, assignedTo: clePoste(poste) })),
+        ...data.general.map((label, i) => ({ key: `nett-${poste}-gen-${i}`, groupe: poste, label: `${label} (quotidien)`, assignedTo: clePoste(poste) })),
+        ...quotidienPoste.map((c) => ({ key: `nett-clean-${c.id}`, groupe: poste, label: labelFreqCleaning(c), detail: c.note, assignedTo: clePoste(poste), cleaningId: c.id })),
+        ...hebdoPoste.map((c) => ({ key: `nett-clean-${c.id}`, groupe: poste, label: labelFreqCleaning(c), detail: c.note, assignedTo: clePoste(poste), cleaningId: c.id })),
+        ...mensuelPoste.map((c) => ({ key: `nett-clean-${c.id}`, groupe: poste, label: labelFreqCleaning(c), detail: c.note, assignedTo: clePoste(poste), cleaningId: c.id })),
+      ];
+    }),
+    ...CONTROLE_GENERAL_FIN.map((label, i) => ({ key: `nett-gen-${i}`, groupe: "Plonge & communs", label: `${label} (quotidien)`, assignedTo: "tous" })),
+    ...(cleaning || [])
+      .filter((c) => c.poste === "Tous" && c.frequence === "Quotidienne")
+      .map((c) => ({ key: `nett-clean-${c.id}`, groupe: "Plonge & communs", label: labelFreqCleaning(c), detail: c.note, assignedTo: "tous", cleaningId: c.id })),
+    ...(cleaning || [])
+      .filter((c) => c.poste === "Tous" && c.frequence === "Hebdomadaire" && tacheDueAujourdhuiOuEnRetard(c, today))
+      .map((c) => ({ key: `nett-clean-${c.id}`, groupe: "Plonge & communs", label: labelFreqCleaning(c), detail: c.note, assignedTo: "tous", cleaningId: c.id })),
+    ...(cleaning || [])
+      .filter((c) => c.poste === "Tous" && c.frequence === "Mensuelle" && tacheDueAujourdhuiOuEnRetard(c, today))
+      .map((c) => ({ key: `nett-clean-${c.id}`, groupe: "Plonge & communs", label: labelFreqCleaning(c), detail: c.note, assignedTo: "tous", cleaningId: c.id })),
+  ];
+}
+
+function ModalJourDetail({ date, vueAccueil, reservations, onRemoveReservation, onUpdateNoteReservation, tasks, who, onClose }) {
+  const listeResa = reservations.filter((r) => r.date === date).sort((a, b) => a.heure.localeCompare(b.heure));
+  const listeTaches = sortByHeure(tasks);
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
+          <ArrowLeft size={15} /> Retour
+        </button>
+        <h2 className="font-semibold text-[var(--ink)] mb-3 capitalize">{fmtLong(date)}</h2>
+        {vueAccueil === "reservations" ? (
+          listeResa.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune réservation ce jour-là.</p> : (
+            <div className="divide-y divide-[var(--line)]">
+              {listeResa.map((r) => <ReservationRow key={r.id} r={r} who={who} onRemove={onRemoveReservation} onUpdateNote={onUpdateNoteReservation} />)}
+            </div>
+          )
+        ) : (
+          listeTaches.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien de prévu ce jour-là.</p> : (
+            <ul className="divide-y divide-[var(--line)]">
+              {listeTaches.map((t) => (
+                <li key={t.id} className="py-2 text-sm flex items-center gap-3">
+                  {t.heure && <span className="text-xs font-medium text-[var(--gold)] w-10 shrink-0">{t.heure}</span>}
+                  <span className="text-[var(--ink)]">{t.titre}</span>
+                </li>
+              ))}
+            </ul>
+          )
+        )}
+      </div>
+    </div>
+  );
+}
+
+
+function CarteRemarquesChef({ remarquesChef, setRemarquesChef, currentUserId, today }) {
+  const mesRemarques = (remarquesChef || []).filter((r) => r.empId === currentUserId && !r.vue && r.date === addDays(today, -1));
+  if (mesRemarques.length === 0) return null;
+  return (
+    <Card className="mb-6 border-[var(--warn)]/40 bg-[var(--warn-soft)]">
+      <div className="flex items-center gap-2 mb-3">
+        <AlertTriangle size={16} className="text-[var(--warn)]" />
+        <h3 className="font-semibold text-[var(--ink)]">Message du chef — {mesRemarques.length} remarque(s) d'hier</h3>
+      </div>
+      <div className="space-y-3">
+        {mesRemarques.map((r) => (
+          <div key={r.id} className="rounded-lg bg-white border border-[var(--warn)]/30 p-3">
+            <p className="text-sm font-medium text-[var(--ink)] mb-1">{r.taskTitre}</p>
+            <p className="text-sm text-[var(--ink)]">{r.note}</p>
+            {r.photo && <img src={r.photo} alt="Photo du chef" className="w-full max-w-xs rounded-lg border border-[var(--line)] mt-2" />}
+            <p className="text-xs text-[var(--steel)] mt-1.5">Remarque du chef — {r.date} à {r.heure}</p>
+            <button onClick={() => setRemarquesChef(remarquesChef.map((x) => (x.id === r.id ? { ...x, vue: true } : x)))}
+              className="mt-2 text-xs text-[var(--accent)] font-medium">
+              ✓ Lu et compris
+            </button>
+          </div>
+        ))}
+      </div>
+    </Card>
+  );
+}
+
+// Vue Nettoyage de l'employé — une seule liste du jour (au lieu des 3 boutons quotidien / hebdo /
+// mensuel), groupée par poste, avec Validé / Non + note par tâche, sur le même principe que
+// ControlePlanningJour (chef). Les tâches hebdo/mensuelles réelles viennent de construireItemsNettoyageDuJour
+// (même source que le Contrôle du chef) ; une tâche non validée n'est jamais marquée "fait" dans
+// `cleaning`, donc tacheDueAujourdhuiOuEnRetard la fera réapparaître automatiquement le lendemain.
+function ModalNettoyage({ moi, moment, cleaning, setCleaning, onClose, onDemarrerRefroidissementBainMarie, onOuvrirHuileTest, currentUserId, logActivity }) {
+  const today = todayISO();
+  const [bainMarieLance, setBainMarieLance] = useState(false);
+  const [statutsParJour, setStatutsParJour] = useStored("nettoyage-employe-statuts", {});
+  const [notesParJour, setNotesParJour] = useStored("nettoyage-employe-notes", {});
+  const [noteEnCours, setNoteEnCours] = useState(null); // { key, label, note }
+
+  const statuts = statutsParJour[today] || {};
+  const notesEnvoyees = notesParJour[today] || {};
+  const setStatut = (key, val) => setStatutsParJour({ ...statutsParJour, [today]: { ...statuts, [key]: val } });
+
+  const validerItem = (it) => {
+    setStatut(it.key, "ok");
+    if (it.cleaningId) setCleaning(cleaning.map((c) => (c.id === it.cleaningId ? { ...c, fait: true, date: today, employeeId: currentUserId } : c)));
+  };
+  const marquerNonFait = (it) => {
+    setStatut(it.key, "ko");
+    if (it.cleaningId) setCleaning(cleaning.map((c) => (c.id === it.cleaningId ? { ...c, fait: false, date: null, employeeId: null } : c)));
+    setNoteEnCours({ key: it.key, label: it.label, note: notesEnvoyees[it.key] || "" });
+  };
+  const annuler = (key) => setStatut(key, undefined);
+  const envoyerNote = () => {
+    if (!noteEnCours) return;
+    setNotesParJour({ ...notesParJour, [today]: { ...notesEnvoyees, [noteEnCours.key]: noteEnCours.note } });
+    if (noteEnCours.note.trim() && logActivity) {
+      logActivity("Nettoyage", "Tâche de nettoyage non faite", `${noteEnCours.label} (${moi?.poste || ""}) — ${noteEnCours.note}`);
+    }
+    setNoteEnCours(null);
+  };
+
+  const detailPosteMoment = NETTOYAGE_QUOTIDIEN_DETAIL[`${moi?.poste}-${moment}`] || [];
+  const etapeBainMarie = detailPosteMoment.find((t) => t.startsWith("Bain-marie"));
+  const etapeHuile = moment === "soir" ? detailPosteMoment.find((t) => t.startsWith("Friteuse : éteindre l'appareil, faire le test")) : null;
+  const etapesPosteRestantes = detailPosteMoment.filter((t) => t !== etapeBainMarie && t !== etapeHuile);
+  const etapesTous = moment === "soir" ? [...NETTOYAGE_QUOTIDIEN_TOUS, ...NETTOYAGE_QUOTIDIEN_TOUS_SOIR] : NETTOYAGE_QUOTIDIEN_TOUS;
+
+  // Étapes détaillées du quotidien (avec le protocole complet) + vraies tâches de nettoyage
+  // (quotidien/hebdo/mensuel) dues aujourd'hui pour le poste de l'employé et pour "Tous".
+  const itemsQuotidienDetail = [
+    ...etapesPosteRestantes.map((texte, i) => ({ key: `etape-poste-${moi?.poste}-${moment}-${i}`, groupe: moi?.poste || "Mon poste", label: texte })),
+    ...etapesTous.map((texte, i) => ({ key: `etape-tous-${moment}-${i}`, groupe: "Pour tout le monde", label: texte })),
+  ];
+  const itemsPlan = construireItemsNettoyageDuJour(cleaning, today).filter(
+    (it) => it.cleaningId && (it.assignedTo === clePoste(moi?.poste) || it.assignedTo === "tous")
+  );
+  const tousItems = [...itemsQuotidienDetail, ...itemsPlan];
+  const groupes = [...new Set(tousItems.map((it) => it.groupe))];
+  const valides = tousItems.filter((it) => statuts[it.key] === "ok").length;
+  const nonValides = tousItems.filter((it) => statuts[it.key] === "ko").length;
+  const restants = tousItems.length - valides - nonValides;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        <div className="flex items-center justify-between mb-3">
+          <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+            <ArrowLeft size={15} /> Fermer
+          </button>
+          <h2 className="font-semibold text-[var(--ink)]">Nettoyage</h2>
+          <span className="w-14" />
+        </div>
+        <p className="text-xs text-[var(--steel)] mb-4">{valides} ✓ validé(s) · {nonValides} ✗ non fait(s) · {restants} restant(s) — un point non fait peut recevoir une note, et reste à faire tant qu'il n'est pas validé.</p>
+
+        {etapeBainMarie && (
+          <div className="mb-4 pb-3 border-b border-[var(--line)]">
+            <p className="text-sm text-[var(--ink)] mb-2">{etapeBainMarie}</p>
+            {bainMarieLance ? (
+              <p className="text-xs text-[var(--accent)] font-medium">Refroidissement lancé pour les 5 sauces — suivi dans HACCP → Refroidissement, alerte avant les 2h. {moment === "soir" && "Si le service dure plus de 2h, relancez une 2e fois avant que les 2h ne soient atteintes."}</p>
+            ) : (
+              <Button onClick={() => { onDemarrerRefroidissementBainMarie(); setBainMarieLance(true); }}><Snowflake size={15} /> Valider — lancer le refroidissement des sauces</Button>
+            )}
+          </div>
+        )}
+        {etapeHuile && (
+          <div className="mb-4 pb-3 border-b border-[var(--line)]">
+            <p className="text-sm text-[var(--ink)] mb-2">{etapeHuile}</p>
+            <Button onClick={onOuvrirHuileTest}><Camera size={15} /> Valider — faire le test de l'huile</Button>
+          </div>
+        )}
+
+        {groupes.map((groupe) => (
+          <div key={groupe} className="mb-4 last:mb-0">
+            <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">{groupe}</div>
+            <ul className="space-y-2">
+              {tousItems.filter((it) => it.groupe === groupe).map((it) => {
+                const statut = statuts[it.key];
+                const enNote = noteEnCours?.key === it.key;
+                const noteEnvoyee = notesEnvoyees[it.key];
+                return (
+                  <li key={it.key} className={`rounded-lg p-2.5 border ${statut === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : statut === "ko" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
+                    <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{it.label}</p>
+                    {it.detail && <p className="text-xs text-[var(--steel)] mb-2 leading-snug">{it.detail}</p>}
+                    {!statut && !enNote && (
+                      <div className="flex gap-2">
+                        <button onClick={() => validerItem(it)} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg font-medium active:scale-[0.97] transition-transform" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
+                          <CheckCircle2 size={16} /> Validé
+                        </button>
+                        <button onClick={() => marquerNonFait(it)} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium bg-[var(--warn-soft)] active:scale-[0.97] transition-transform">
+                          <XCircle size={16} /> Non
+                        </button>
+                      </div>
+                    )}
+                    {statut === "ok" && <button onClick={() => annuler(it.key)} className="text-xs text-[var(--steel)]">Annuler</button>}
+                    {statut === "ko" && !enNote && (
+                      <div>
+                        {noteEnvoyee && <p className="text-xs text-[var(--warn)] mb-1">📝 Note : {noteEnvoyee}</p>}
+                        <div className="flex gap-2">
+                          <button onClick={() => setNoteEnCours({ key: it.key, label: it.label, note: noteEnvoyee || "" })} className="text-xs text-[var(--accent)] font-medium">{noteEnvoyee ? "Modifier la note" : "+ Ajouter une note"}</button>
+                          <button onClick={() => annuler(it.key)} className="text-xs text-[var(--steel)]">Annuler</button>
+                        </div>
+                      </div>
+                    )}
+                    {enNote && (
+                      <div className="mt-1 space-y-2">
+                        <p className="text-xs text-[var(--steel)]">Expliquez pourquoi ce n'est pas fait — le chef pourra le consulter dans le journal d'activité.</p>
+                        <textarea className={`${inputCls} w-full text-sm`} rows={2} placeholder="Ce qui n'a pas été fait ou pourquoi..." value={noteEnCours.note} onChange={(e) => setNoteEnCours({ ...noteEnCours, note: e.target.value })} autoFocus />
+                        <div className="flex gap-2">
+                          <Button onClick={envoyerNote} disabled={!noteEnCours.note.trim()}>Enregistrer la note</Button>
+                          <Button variant="ghost" onClick={() => setNoteEnCours(null)}>Annuler</Button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+        {tousItems.length === 0 && <p className="text-sm text-[var(--steel)]">Rien à nettoyer aujourd'hui.</p>}
+      </div>
+    </div>
+  );
+}
+
+function ModalNettoyageQuotidien({ moi, moment, onClose, onDemarrerRefroidissementBainMarie }) {
+  const [bainMarieLance, setBainMarieLance] = useState(false);
+  const etapesPoste = NETTOYAGE_QUOTIDIEN_DETAIL[`${moi?.poste}-${moment}`] || [];
+  const etapesTous = moment === "soir" ? [...NETTOYAGE_QUOTIDIEN_TOUS, ...NETTOYAGE_QUOTIDIEN_TOUS_SOIR] : NETTOYAGE_QUOTIDIEN_TOUS;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+            <ArrowLeft size={15} /> Fermer
+          </button>
+          <h2 className="font-semibold text-[var(--ink)]">Nettoyage quotidien — {moment === "midi" ? "fin de service midi" : "fin de service soir"}</h2>
+          <span className="w-14" />
+        </div>
+
+        {etapesPoste.length > 0 && (
+          <div className="mb-4">
+            <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">{moi?.poste}</p>
+            <ul className="divide-y divide-[var(--line)]">
+              {etapesPoste.map((texte, i) => (
+                texte.startsWith("Bain-marie") ? (
+                  <li key={i} className="py-2.5">
+                    <p className="text-sm text-[var(--ink)] mb-2">{texte}</p>
+                    {bainMarieLance ? (
+                      <p className="text-xs text-[var(--accent)] font-medium">Refroidissement lancé pour les 5 sauces — suivi dans HACCP → Refroidissement, alerte avant les 2h. {moment === "soir" && "Si le service dure plus de 2h, relancez une 2e fois avant que les 2h ne soient atteintes."}</p>
+                    ) : (
+                      <Button onClick={() => { onDemarrerRefroidissementBainMarie(); setBainMarieLance(true); }}><Snowflake size={15} /> Valider — lancer le refroidissement des sauces</Button>
+                    )}
+                  </li>
+                ) : <EtapeCoche key={i} texte={texte} />
+              ))}
+            </ul>
+          </div>
+        )}
+
+        <div>
+          <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Pour tout le monde</p>
+          <ul className="divide-y divide-[var(--line)]">
+            {etapesTous.map((texte, i) => <EtapeCoche key={i} texte={texte} />)}
+          </ul>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function labelJourNettoyage(item) {
+  if (item.jour) return item.jour;
+  if (item.jourSemaineMois) return `${item.positionMois === "dernier" ? "dernier" : `${item.positionMois}${item.positionMois === 1 ? "er" : "e"}`} ${item.jourSemaineMois} du mois`;
+  return item.frequence;
+}
+
+const APPAREILS_A_VERIFIER = {
+  "Poste Chaud": ["Ivario Pro", "Bain-marie", "Friteuse", "Four Rational", "Four Atoll Speed / Mery Chef", "Hotte"],
+  "Poste Pizza": ["Four à pizza", "Pétrin"],
+  "Poste Froid": ["Micro-ondes", "Chauffe-pot à Nutella", "Robot batteur"],
+};
+
+function ModalControlePoste({ moi, moment, onClose }) {
+  const poste = moi?.poste || "Poste Chaud";
+  const data = CONTROLE_POSTE[poste] || CONTROLE_POSTE["Poste Chaud"];
+  const items = [...(moment === "midi" ? data.midi : data.soir), ...data.general, ...CONTROLE_GENERAL_FIN];
+  const [statuts, setStatuts] = useState({});
+  const [noteEnCours, setNoteEnCours] = useState(null);
+  const [notes, setNotes] = useState({});
+
+  const valides = Object.values(statuts).filter((v) => v === "ok").length;
+  const nonValides = Object.values(statuts).filter((v) => v === "ko").length;
+  const restants = items.length - valides - nonValides;
+  const tout = restants === 0;
+
+  const setStatut = (key, val) => setStatuts((prev) => ({ ...prev, [key]: val }));
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "88vh", WebkitOverflowScrolling: "touch" }}>
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-3">
+          <ArrowLeft size={15} /> Fermer
+        </button>
+        <h2 className="font-bold text-[var(--ink)] mb-0.5">Contrôle et vérification</h2>
+        <p className="text-xs text-[var(--steel)] mb-3">{poste} — {moment === "midi" ? "fin de service midi" : "fin de service soir"} — {valides} ✓ · {nonValides} ✗ · {restants} restants</p>
+
+        <div className="w-full bg-[var(--bg)] rounded-full h-2 mb-5">
+          <div className="h-2 rounded-full transition-all" style={{ width: `${items.length > 0 ? ((valides + nonValides) / items.length) * 100 : 0}%`, backgroundColor: tout ? "#2F6B4F" : "#c0392b" }} />
+        </div>
+
+        <ul className="space-y-2">
+          {items.map((item, i) => {
+            const key = String(i);
+            const statut = statuts[key];
+            const enNote = noteEnCours?.key === key;
+            return (
+              <li key={key} className={`rounded-lg p-2.5 border ${statut === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : statut === "ko" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
+                <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{item}</p>
+                {!statut && !enNote && (
+                  <div className="flex gap-2">
+                    <button onClick={() => setStatut(key, "ok")} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg font-medium active:scale-[0.97] transition-transform" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
+                      <CheckCircle2 size={16} /> Validé
+                    </button>
+                    <button onClick={() => { setStatut(key, "ko"); setNoteEnCours({ key, note: "", photo: null }); }} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium bg-white active:scale-[0.97] transition-transform">
+                      <XCircle size={16} /> Non validé
+                    </button>
+                  </div>
+                )}
+                {statut === "ok" && <button onClick={() => setStatut(key, undefined)} className="text-xs text-[var(--steel)]">Annuler</button>}
+                {statut === "ko" && !enNote && (
+                  <div>
+                    {notes[key] && <p className="text-xs text-[var(--warn)] mb-1">📝 {notes[key].note}</p>}
+                    <div className="flex gap-2">
+                      <button onClick={() => setNoteEnCours({ key, note: notes[key]?.note || "", photo: notes[key]?.photo || null })} className="text-xs text-[var(--accent)] font-medium">{notes[key] ? "Modifier la note" : "+ Ajouter une note"}</button>
+                      <button onClick={() => setStatut(key, undefined)} className="text-xs text-[var(--steel)]">Annuler</button>
+                    </div>
+                  </div>
+                )}
+                {enNote && (
+                  <div className="mt-1 space-y-2">
+                    <textarea className={`${inputCls} w-full text-sm`} rows={2} placeholder="Ce qui n'est pas fait ou à corriger..."
+                      value={noteEnCours.note} onChange={(e) => setNoteEnCours({ ...noteEnCours, note: e.target.value })} autoFocus />
+                    <PhotoInput value={noteEnCours.photo} onChange={(photo) => setNoteEnCours({ ...noteEnCours, photo })} label="Photo (optionnel)" small />
+                    <div className="flex gap-2">
+                      <Button onClick={() => { setNotes({ ...notes, [key]: { note: noteEnCours.note, photo: noteEnCours.photo } }); setNoteEnCours(null); }} disabled={!noteEnCours.note.trim()}>Enregistrer</Button>
+                      <Button variant="ghost" onClick={() => { setStatut(key, undefined); setNoteEnCours(null); }}>Annuler</Button>
+                    </div>
+                  </div>
+                )}
+              </li>
+            );
+          })}
+        </ul>
+
+        <button onClick={onClose} className="mt-4 w-full py-3 rounded-xl font-bold text-sm"
+          style={{ backgroundColor: tout ? "#2F6B4F" : "#c0392b", color: "#fff" }}>
+          {tout ? `✓ Contrôle terminé — ${valides} validés, ${nonValides} non validés` : `Terminer (${restants} point${restants > 1 ? "s" : ""} restant${restants > 1 ? "s" : ""})`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ModalControleObligatoire({ moment, onClose }) {
+  const sections = CONTROLE_OBLIGATOIRE[moment] || CONTROLE_OBLIGATOIRE.soir;
+  const [statuts, setStatuts] = useState({}); // { key: "ok"|"ko" }
+  const [noteEnCours, setNoteEnCours] = useState(null); // { key, note, photo }
+
+  const total = sections.reduce((acc, s) => acc + s.items.length, 0);
+  const valides = Object.values(statuts).filter((v) => v === "ok").length;
+  const nonValides = Object.values(statuts).filter((v) => v === "ko").length;
+  const restants = total - valides - nonValides;
+  const tout = restants === 0;
+
+  const setStatut = (key, val) => setStatuts((prev) => ({ ...prev, [key]: val }));
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "88vh", WebkitOverflowScrolling: "touch" }}>
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-3">
+          <ArrowLeft size={15} /> Fermer
+        </button>
+        <h2 className="font-bold text-[var(--ink)] mb-0.5">Contrôle obligatoire</h2>
+        <p className="text-xs text-[var(--steel)] mb-3">{moment === "midi" ? "Fin de service du midi" : "Fin de service du soir"} — {valides} ✓ · {nonValides} ✗ · {restants} restants</p>
+
+        <div className="w-full bg-[var(--bg)] rounded-full h-2 mb-5">
+          <div className="h-2 rounded-full transition-all" style={{ width: `${total > 0 ? ((valides + nonValides) / total) * 100 : 0}%`, backgroundColor: tout ? "#2F6B4F" : "#c0392b" }} />
+        </div>
+
+        {sections.map((s, si) => (
+          <div key={si} className="mb-5">
+            <p className="text-sm font-bold text-[var(--ink)] mb-2 pb-1 border-b border-[var(--line)]">{s.section}</p>
+            <ul className="space-y-2">
+              {s.items.map((item, ii) => {
+                const key = `${si}-${ii}`;
+                const statut = statuts[key];
+                const enNote = noteEnCours?.key === key;
+                return (
+                  <li key={key} className={`rounded-lg p-2.5 border ${statut === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : statut === "ko" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
+                    <p className={`text-sm mb-2 ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{item}</p>
+                    {!statut && !enNote && (
+                      <div className="flex gap-2">
+                        <button onClick={() => setStatut(key, "ok")}
+                          className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg font-medium active:scale-[0.97] transition-transform"
+                          style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
+                          <CheckCircle2 size={16} /> Validé
+                        </button>
+                        <button onClick={() => { setStatut(key, "ko"); setNoteEnCours({ key, note: "", photo: null }); }}
+                          className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium bg-white active:scale-[0.97] transition-transform">
+                          <XCircle size={16} /> Non validé
+                        </button>
+                      </div>
+                    )}
+                    {statut === "ok" && (
+                      <button onClick={() => setStatut(key, undefined)} className="text-xs text-[var(--steel)] hover:text-[var(--warn)]">Annuler</button>
+                    )}
+                    {statut === "ko" && !enNote && (
+                      <div>
+                        {noteEnCours?.key !== key && statuts[key] === "ko" && (
+                          <div>
+                            {noteEnCours?.savedKey === key ? (
+                              <p className="text-xs text-[var(--warn)]">📝 {noteEnCours.note}</p>
+                            ) : null}
+                            <div className="flex gap-2 mt-1">
+                              <button onClick={() => setNoteEnCours({ key, note: "", photo: null })} className="text-xs text-[var(--accent)] font-medium">+ Ajouter une note</button>
+                              <button onClick={() => setStatut(key, undefined)} className="text-xs text-[var(--steel)]">Annuler</button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {enNote && (
+                      <div className="mt-1 space-y-2">
+                        <textarea className={`${inputCls} w-full text-sm`} rows={2} placeholder="Ce qui n'est pas fait ou doit être corrigé..."
+                          value={noteEnCours.note} onChange={(e) => setNoteEnCours({ ...noteEnCours, note: e.target.value })} autoFocus />
+                        <PhotoInput value={noteEnCours.photo} onChange={(photo) => setNoteEnCours({ ...noteEnCours, photo })} label="Photo (optionnel)" small />
+                        <div className="flex gap-2">
+                          <Button onClick={() => setNoteEnCours(null)} disabled={!noteEnCours.note.trim()}>Enregistrer</Button>
+                          <Button variant="ghost" onClick={() => { setStatut(key, undefined); setNoteEnCours(null); }}>Annuler</Button>
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+          </div>
+        ))}
+
+        <button onClick={onClose}
+          className="mt-2 w-full py-3 rounded-xl font-bold text-sm"
+          style={{ backgroundColor: tout ? "#2F6B4F" : "#c0392b", color: "#fff" }}>
+          {tout ? `✓ Contrôle terminé — ${valides} validés, ${nonValides} non validés` : `Terminer (${restants} point${restants > 1 ? "s" : ""} restant${restants > 1 ? "s" : ""})`}
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ModalControleChef({ tasks, employees, preparations, produits, stock, equipementsFroid, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
+  const today = todayISO();
+  // Même checklist, mêmes données, que "Gestion et contrôle" → tuile Planning côté chef — voir
+  // ControlePlanningJour. Ici on ne fait qu'ajouter l'habillage modal (fermer / PDF / signer).
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 print:static print:bg-white print:block print:p-0">
+      <div className="bg-white rounded-xl max-w-2xl w-full p-5 overflow-y-auto overscroll-contain print:!max-h-none print:!overflow-visible print:shadow-none print:rounded-none print:max-w-full print:w-full" style={{ maxHeight: "88vh", WebkitOverflowScrolling: "touch" }}>
+        <div className="flex items-center justify-between mb-3 print:hidden">
+          <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+            <ArrowLeft size={15} /> Fermer
+          </button>
+          <h2 className="font-bold text-[var(--ink)]">Contrôle de fin de service — {fmtLong(today)}</h2>
+          <button onClick={() => window.print()} className="flex items-center gap-1.5 text-sm text-[var(--accent)] font-medium">
+            <Printer size={15} /> PDF
+          </button>
+        </div>
+        <h2 className="font-bold text-[var(--ink)] mb-3 hidden print:block">Contrôle de fin de service — {fmtLong(today)}</h2>
+
+        <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
+
+        <button onClick={() => { onSigner(); onClose(); }} className="mt-4 w-full py-3 rounded-xl font-bold text-sm print:hidden" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
+          Terminer le contrôle
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function ModalDetailNettoyage({ item, onToggle, onClose }) {
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
+          <ArrowLeft size={15} /> Fermer
+        </button>
+        <h2 className="font-semibold text-[var(--ink)] mb-1">{item.tache}</h2>
+        <p className="text-xs text-[var(--gold)] font-medium mb-3">{labelJourNettoyage(item)}</p>
+        {item.note && <p className="text-sm text-[var(--ink)] mb-4">{item.note}</p>}
+        <Button onClick={() => onToggle(item.id)}>
+          {item.fait ? <><CheckCircle2 size={16} /> Fait</> : "Marquer comme fait"}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
+function CarteImportExcelReservations({ reservations, setReservations, logActivity }) {
+  const [importMsg, setImportMsg] = useState(null);
+  const [importEnCours, setImportEnCours] = useState(false);
+
+  const dateDepuisValeur = (v) => {
+    if (v instanceof Date) return toISO(v);
+    const texte = String(v || "").trim();
+    if (/^\d{4}-\d{2}-\d{2}$/.test(texte)) return texte;
+    const d = new Date(texte);
+    return Number.isNaN(d.getTime()) ? null : toISO(d);
+  };
+  const heureDepuisValeur = (v) => {
+    if (v instanceof Date) return `${String(v.getHours()).padStart(2, "0")}:${String(v.getMinutes()).padStart(2, "0")}`;
+    return String(v || "").trim();
+  };
+
+  const importerExcel = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportEnCours(true);
+    setImportMsg(null);
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      const nouvelles = [];
+      let ignorees = 0;
+      rows.forEach((r) => {
+        const date = dateDepuisValeur(r["Date"]);
+        const heure = heureDepuisValeur(r["Heure"]);
+        const nom = String(r["Nom"] || "").trim();
+        const personnes = String(r["Personnes"] || r["Pers."] || "").trim();
+        if (!date || !heure || !nom) { ignorees += 1; return; }
+        nouvelles.push({
+          id: uid(), employeeId: null, date, heure, nom, personnes,
+          telephone: String(r["Téléphone"] || r["Telephone"] || "").trim(),
+          notes: String(r["Notes"] || "").trim(),
+          table: String(r["Table"] || "").trim(),
+          statut: STATUTS_RESERVATION.includes(String(r["Statut"] || "").trim()) ? String(r["Statut"]).trim() : "à confirmer",
+          duree: String(r["Durée"] || r["Duree"] || "90").trim(),
+          commande: [],
+        });
+      });
+
+      if (nouvelles.length === 0) {
+        setImportMsg("Aucune ligne reconnue — vérifiez les colonnes (Date, Heure, Nom, Personnes, Table, Statut, Téléphone, Notes).");
+      } else {
+        const cles = new Set(nouvelles.map((n) => `${n.date}__${n.heure}__${n.nom}`));
+        const conservees = reservations.filter((r) => !cles.has(`${r.date}__${r.heure}__${r.nom}`));
+        setReservations([...conservees, ...nouvelles].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
+        logActivity("Réservations", "Réservations importées depuis Excel", `${nouvelles.length} réservation(s)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
+        setImportMsg(`${nouvelles.length} réservation(s) importée(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s)` : ""}.`);
+      }
+    } catch (err) {
+      setImportMsg("Le fichier n'a pas pu être lu. Vérifiez qu'il s'agit bien d'un .xlsx.");
+    } finally {
+      setImportEnCours(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <Card className="mb-4">
+      <p className="text-sm text-[var(--ink)] mb-1">Importer ou mettre à jour les réservations depuis un fichier Excel.</p>
+      <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues : <strong>Date, Heure, Nom, Personnes, Table, Statut, Téléphone, Notes</strong>. Une ligne = une réservation ; une ligne avec la même date/heure/nom qu'une réservation existante la remplace.</p>
+      <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--line)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
+        <Plus size={16} /> {importEnCours ? "Import en cours..." : "Importer un fichier .xlsx"}
+        <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
+      </label>
+      {importMsg && <p className="text-xs text-[var(--steel)] mt-2">{importMsg}</p>}
+    </Card>
+  );
+}
+
+function CarteGestionHorairesDirection({ employees, shifts, setShifts, logActivity, setTab }) {
+  const [importMsg, setImportMsg] = useState(null);
+  const [importEnCours, setImportEnCours] = useState(false);
+
+  const jourDepuisValeur = (v) => {
+    if (v instanceof Date) return JOURS[(v.getDay() + 6) % 7];
+    const texte = String(v || "").trim();
+    const trouve = JOURS.find((j) => j.toLowerCase() === texte.toLowerCase() || j.toLowerCase().startsWith(texte.toLowerCase().slice(0, 3)));
+    if (trouve) return trouve;
+    const d = new Date(texte);
+    if (!Number.isNaN(d.getTime())) return JOURS[(d.getDay() + 6) % 7];
+    return null;
+  };
+  const heureDepuisValeur = (v) => {
+    if (v instanceof Date) return `${String(v.getHours()).padStart(2, "0")}:${String(v.getMinutes()).padStart(2, "0")}`;
+    return String(v || "").trim();
+  };
+
+  const importerExcel = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportEnCours(true);
+    setImportMsg(null);
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      const nouveaux = [];
+      let ignorees = 0;
+      rows.forEach((r) => {
+        const nomBrut = String(r["Employé"] || r["Employe"] || r["Nom"] || "").trim();
+        const emp = trouverCorrespondance(nomBrut, employees, (e) => e.nom);
+        const jour = jourDepuisValeur(r["Jour"] || r["Date"]);
+        const service = String(r["Service"] || "Midi").trim().toLowerCase().startsWith("s") ? "Soir" : "Midi";
+        const debut = heureDepuisValeur(r["Début"] || r["Debut"] || r["Heure début"]);
+        const fin = heureDepuisValeur(r["Fin"] || r["Heure fin"]);
+        if (!emp || !jour || !debut || !fin) { ignorees += 1; return; }
+        nouveaux.push({ id: uid(), employeeId: emp.id, jour, service, debut, fin });
+      });
+
+      if (nouveaux.length === 0) {
+        setImportMsg("Aucune ligne reconnue — vérifiez les colonnes (Employé, Jour, Service, Début, Fin) et que les noms correspondent à l'équipe déjà enregistrée.");
+      } else {
+        const cles = new Set(nouveaux.map((n) => `${n.employeeId}__${n.jour}__${n.service}`));
+        const conserves = shifts.filter((s) => !cles.has(`${s.employeeId}__${s.jour}__${s.service}`));
+        setShifts([...conserves, ...nouveaux]);
+        logActivity("Planning", "Planning importé depuis Excel", `${nouveaux.length} créneau(x)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
+        setImportMsg(`${nouveaux.length} créneau(x) importé(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s) (nom ou horaire non reconnu)` : ""}.`);
+      }
+    } catch (err) {
+      setImportMsg("Le fichier n'a pas pu être lu. Vérifiez qu'il s'agit bien d'un .xlsx.");
+    } finally {
+      setImportEnCours(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div>
+      <p className="text-sm text-[var(--ink)] mb-1">En tant que Direction, gérez ici les horaires de toute l'équipe.</p>
+      <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues dans le fichier : <strong>Employé, Jour, Service (Midi/Soir), Début, Fin</strong>. Une ligne = un créneau — les noms sont reconnus même approximatifs.</p>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--line)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
+          <Plus size={16} /> {importEnCours ? "Import en cours..." : "Importer un planning .xlsx"}
+          <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
+        </label>
+        <Button variant="ghost" onClick={() => setTab("horaires")}>Modifier la grille horaire →</Button>
+      </div>
+      {importMsg && <p className="text-xs text-[var(--steel)]">{importMsg}</p>}
+    </div>
+  );
+}
+
+function ModalNettoyagePeriodique({ frequence, cleaning, setCleaning, moi, onClose }) {
+  const toggle = (id) => setCleaning(cleaning.map((c) => (c.id === id ? { ...c, fait: !c.fait } : c)));
+  const mesTaches = cleaning.filter((c) => c.poste === moi?.poste && c.frequence === frequence);
+  const tachesTous = cleaning.filter((c) => c.poste === "Tous" && c.frequence === frequence);
+  const titre = frequence === "Hebdomadaire" ? "Nettoyage hebdomadaire" : "Nettoyage mensuel";
+
+  const Ligne = ({ item }) => (
+    <li className="py-2.5">
+      <div className="flex items-center justify-between gap-2 text-sm">
+        <span className={`flex-1 ${item.fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{item.tache}</span>
+        <span className="text-xs text-[var(--gold)] font-medium shrink-0">{labelJourNettoyage(item)}</span>
+        <Button variant={item.fait ? "ghost" : "primary"} onClick={() => toggle(item.id)}>{item.fait ? <><CheckCircle2 size={14} /> Fait</> : "Valider"}</Button>
+      </div>
+      {item.note && <p className="text-xs text-[var(--steel)] italic mt-1">{item.note}</p>}
+    </li>
+  );
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        <div className="flex items-center justify-between mb-4">
+          <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
+            <ArrowLeft size={15} /> Fermer
+          </button>
+          <h2 className="font-semibold text-[var(--ink)]">{titre}</h2>
+          <span className="w-14" />
+        </div>
+
+        <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">À votre poste ({moi?.poste})</p>
+        {mesTaches.length === 0 ? <p className="text-sm text-[var(--steel)] mb-4">Rien pour le moment.</p> : (
+          <ul className="divide-y divide-[var(--line)] mb-4">{mesTaches.map((item) => <Ligne key={item.id} item={item} />)}</ul>
+        )}
+
+        <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Pour tout le monde</p>
+        {tachesTous.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien pour le moment.</p> : (
+          <ul className="divide-y divide-[var(--line)]">{tachesTous.map((item) => <Ligne key={item.id} item={item} />)}</ul>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, remarquesChef, setRemarquesChef }) {
+  const today = todayISO();
+  const [form, setForm] = useState({ titre: "", heure: "", categorie: "Préparation", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", jourDuMois: 1, date: today, declencheHuile: false, declencheChangementHuile: false, declencheTracabilite: false, declencheRefroidissement: false });
+  const [expanded, setExpanded] = useState(null);
+  const [resolutionEnCours, setResolutionEnCours] = useState(null);
+  const [quantiteJeteeSaisie, setQuantiteJeteeSaisie] = useState("");
+  const [traceImprimable, setTraceImprimable] = useState(null);
+  const [protocoleAffiche, setProtocoleAffiche] = useState(null);
+  const [vueAccueil, setVueAccueil] = useState("planning");
+  const [plage, setPlage] = useState(plageActuelle());
+  const [vueTemps, setVueTemps] = useState("jour");
+  const [dateSelectionnee, setDateSelectionnee] = useState(todayISO());
+  const decalerDateMois = (dateStr, delta) => { const d = new Date(dateStr + "T00:00:00"); d.setMonth(d.getMonth() + delta); return toISO(d); };
+  const [jourDetailOuvert, setJourDetailOuvert] = useState(null);
+  const [modalOuvert, setModalOuvert] = useState(null);
+  const [modalCollegue, setModalCollegue] = useState(null);
+  const moi = employees.find((e) => e.id === currentUserId);
+
+  const addTask = () => {
+    if (!form.titre) return;
+    createTask({ titre: form.titre, heure: form.heure, categorie: form.categorie, assignedTo: form.assignedTo, recurrence: form.recurrence, jour: form.jour, jourDuMois: form.jourDuMois, date: form.date, declencheHuile: form.declencheHuile, declencheChangementHuile: form.declencheChangementHuile, declencheTracabilite: form.declencheTracabilite, declencheRefroidissement: form.declencheRefroidissement });
+    setForm({ ...form, titre: "", heure: "", declencheHuile: false, declencheChangementHuile: false, declencheTracabilite: false, declencheRefroidissement: false });
+  };
+
+  const updateAssignation = (id, assignedTo) => updateTask(id, { assignedTo });
+
+  const appliesToDate = (t, employeeId, dateStr) => {
+    // Le contrôle de fin de service ne doit apparaître dans le planning de PERSONNE — il n'est
+    // accessible que par le chef via "Gestion et contrôle" (ControlePlanningJour, hors de cet écran).
+    if (t.titre === "Contrôle") return false;
+    // Le chef a déjà "Contrôle obligatoire" qui couvre tout — pas besoin du contrôle par poste en double
+    if (t.titre === "Contrôle et vérification" && employees.find((e) => e.id === employeeId)?.estChef) return false;
+    return taskAppliesTo(t, employees.find((e) => e.id === employeeId)) && isTaskActive(t, dateStr);
+  };
+  const tasksFor = (employeeId) => tasks.filter((t) => appliesToDate(t, employeeId, today));
+  const tasksForDate = (employeeId, dateStr) => tasks.filter((t) => appliesToDate(t, employeeId, dateStr));
+
+  const autres = employees.filter((e) => e.id !== currentUserId);
+  const resasAujourdhui = reservations.filter((r) => r.date === today).sort((a, b) => a.heure.localeCompare(b.heure));
+  const whoTaches = (id) => employees.find((e) => e.id === id)?.nom;
+  const mesProduits = produits.filter((p) => new RegExp(p.poste.replace(/^Poste\s*/i, "").trim(), "i").test(moi?.poste || ""));
+  const aJeterCeSoir = preparations.filter((p) => p.employeeId === currentUserId && !p.jete && p.dlcDate <= today);
+
+  const jourIdx = (new Date().getDay() + 6) % 7;
+  const jeTravailleCeSoir = shifts.some((s) => s.employeeId === currentUserId && s.jour === JOURS[jourIdx] && s.service === "Soir");
+  const aucunHoraireCeJour = !shifts.some((s) => s.jour === JOURS[jourIdx]);
+  const stockDlcAujourdhui = stock.filter((s) => s.dlc && s.dlc <= today && Number(s.quantite) > 0);
+
+  return (
+    <div>
+      {currentUserId !== "direction" && <CarteRemarquesChef remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} today={today} />}
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
+          <div className="flex gap-1.5">
+            <button onClick={() => setVueAccueil("planning")}
+              style={vueAccueil === "planning" ? { backgroundColor: "#2F6B4F", color: "#ffffff" } : undefined}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${vueAccueil === "planning" ? "border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+              Mon planning
+            </button>
+            <button onClick={() => setVueAccueil("reservations")}
+              style={vueAccueil === "reservations" ? { backgroundColor: "#2F6B4F", color: "#ffffff" } : undefined}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${vueAccueil === "reservations" ? "border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+              Réservations
+            </button>
+          </div>
+          {vueAccueil === "reservations" ? (
+            <button onClick={() => setTab("reservations")} className="text-xs text-[var(--accent)] font-medium">Voir tout l'agenda →</button>
+          ) : currentUserId === "direction" ? (
+            <button onClick={() => setTab("horaires")} className="text-xs text-[var(--accent)] font-medium">Modifier les horaires de la semaine →</button>
+          ) : null}
+        </div>
+
+        {currentUserId !== "direction" && (
+          <div className="mb-3">
+            <div className="flex gap-2 bg-[var(--bg)] p-1 rounded-lg mb-2 w-fit">
+              {["jour", "semaine", "mois"].map((v) => (
+                <button key={v} onClick={() => setVueTemps(v)}
+                  className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize ${vueTemps === v ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--steel)]"}`}>
+                  {v}
+                </button>
+              ))}
+            </div>
+            {vueTemps === "jour" && (
+              <div>
+                <CalendarNav
+                  label={fmtLong(dateSelectionnee)}
+                  onPrev={() => setDateSelectionnee((d) => addDays(d, -1))}
+                  onNext={() => setDateSelectionnee((d) => addDays(d, 1))}
+                  avecHeure={true}
+                />
+                {dateSelectionnee !== todayISO() && (
+                  <p className="text-xs text-[var(--accent)] font-medium mt-1">
+                    {dateSelectionnee === addDays(todayISO(), 1) ? "→ Demain" : dateSelectionnee === addDays(todayISO(), -1) ? "→ Hier" : `→ ${dateSelectionnee > todayISO() ? "Dans le futur" : "Dans le passé"}`}
+                  </p>
+                )}
+              </div>
+            )}
+            {vueTemps === "semaine" && (
+              <CalendarNav
+                label={`Semaine du ${fmtShort(startOfWeek(dateSelectionnee))}`}
+                onPrev={() => setDateSelectionnee((d) => addDays(d, -7))}
+                onNext={() => setDateSelectionnee((d) => addDays(d, 7))}
+              />
+            )}
+            {vueTemps === "mois" && (
+              <CalendarNav
+                label={fmtMonthYear(dateSelectionnee)}
+                onPrev={() => setDateSelectionnee((d) => decalerDateMois(d, -1))}
+                onNext={() => setDateSelectionnee((d) => decalerDateMois(d, 1))}
+              />
+            )}
+          </div>
+        )}
+
+        {vueTemps === "jour" && vueAccueil === "planning" && !(vueAccueil === "planning" && currentUserId === "direction") && <PlageToggle plage={plage} setPlage={setPlage} />}
+
+        {vueTemps === "jour" && vueAccueil === "reservations" && currentUserId === "direction" && (
+          <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
+        )}
+        {vueTemps === "jour" && vueAccueil === "reservations" && (
+          <AgendaGrille reservations={reservations.filter((r) => r.date === dateSelectionnee).sort((a, b) => a.heure.localeCompare(b.heure))} isToday={dateSelectionnee === todayISO()} who={whoTaches} onRemove={(id) => setReservations(reservations.filter((r) => r.id !== id))} plage={PLAGE_JOURNEE}
+            onUpdateNote={(id, note) => setReservations(reservations.map((r) => (r.id === id ? { ...r, notePreparation: note } : r)))} />
+        )}
+        {vueTemps === "jour" && vueAccueil === "planning" && currentUserId === "direction" && (
+          <CarteGestionHorairesDirection employees={employees} shifts={shifts} setShifts={setShifts} logActivity={logActivity} setTab={setTab} />
+        )}
+        {vueTemps === "jour" && vueAccueil === "planning" && currentUserId !== "direction" && (
+          <div>
+            <HorairesDuJour employeeId={currentUserId} shifts={shifts} />
+            <PlanningGrille tasks={tasksForDate(currentUserId, dateSelectionnee)} employeeId={currentUserId} date={dateSelectionnee} actorId={currentUserId} onToggle={toggleTask} protocolesNettoyage={protocolesNettoyage} plage={plage}
+              onOuvrirFenetre={(t) => {
+                if (t.titre === "Contrôle") { setModalOuvert("controle-chef"); return; }
+                if (t.titre === "Contrôle obligatoire") { setModalOuvert(`controle-obligatoire-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
+                if (t.titre === "Contrôle et vérification") { setModalOuvert(`controle-poste-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
+                if (t.titre === "Nettoyage friteuse") { onOuvrirHuileMatin(t); return; }
+                if (t.titre === "Nettoyage") { setModalOuvert(`nettoyage-${t.heure === "13:30" ? "midi" : "soir"}`); return; }
+                setModalOuvert(
+                  t.titre === "Préparation culinaire" ? "preparation"
+                  : "verification"
+                );
+              }} />
+          </div>
+        )}
+
+        {vueTemps === "semaine" && (
+          <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
+            {Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(dateSelectionnee), i)).map((d) => {
+              const list = vueAccueil === "reservations"
+                ? reservations.filter((r) => r.date === d).sort((a, b) => a.heure.localeCompare(b.heure)).map((r) => `${r.heure} ${r.nom}`)
+                : sortByHeure(tasksForDate(currentUserId, d)).map((t) => `${t.heure || ""} ${t.titre}`.trim());
+              const isToday = d === todayISO();
+              return (
+                <button key={d} onClick={() => setJourDetailOuvert(d)} className="text-left">
+                  <div className={`rounded-lg border p-2.5 h-full ${isToday ? "border-[var(--accent)]" : "border-[var(--line)]"}`}>
+                    <div className="text-xs text-[var(--steel)] mb-1 capitalize">{JOURS[(new Date(d + "T00:00:00").getDay() + 6) % 7].slice(0, 3)} {d.slice(8, 10)}</div>
+                    {list.length === 0 ? <div className="text-xs text-[var(--steel)]">—</div> : (
+                      <div className="space-y-1">
+                        {list.slice(0, 3).map((txt, i) => <div key={i} className="text-xs text-[var(--ink)] truncate">{txt}</div>)}
+                        {list.length > 3 && <div className="text-xs text-[var(--accent)]">+{list.length - 3} autres</div>}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {vueTemps === "mois" && (() => {
+          const start = startOfMonth(dateSelectionnee);
+          const lead = (new Date(start + "T00:00:00").getDay() + 6) % 7;
+          const total = daysInMonth(start);
+          const cells = [...Array(lead).fill(null), ...Array.from({ length: total }, (_, i) => addDays(start, i))];
+          while (cells.length % 7 !== 0) cells.push(null);
+          return (
+            <div>
+              <div className="grid grid-cols-7 gap-1 mb-1">
+                {JOURS.map((j) => <div key={j} className="text-xs text-[var(--steel)] text-center py-1">{j.slice(0, 3)}</div>)}
+              </div>
+              <div className="grid grid-cols-7 gap-1">
+                {cells.map((d, i) => {
+                  if (!d) return <div key={i} />;
+                  const count = vueAccueil === "reservations" ? reservations.filter((r) => r.date === d).length : tasksForDate(currentUserId, d).length;
+                  const isToday = d === todayISO();
+                  return (
+                    <button key={d} onClick={() => setJourDetailOuvert(d)}
+                      className={`aspect-square rounded-md border flex flex-col items-center justify-center gap-0.5 ${isToday ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] hover:bg-[var(--bg)]"}`}>
+                      <span className="text-xs text-[var(--ink)]">{Number(d.slice(8, 10))}</span>
+                      {count > 0 && <span className="text-[10px] text-[var(--gold)] font-medium">{count}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          );
+        })()}
+      </Card>
+
+      {jourDetailOuvert && (
+        <ModalJourDetail
+          date={jourDetailOuvert} vueAccueil={vueAccueil}
+          reservations={reservations} onRemoveReservation={(id) => setReservations(reservations.filter((r) => r.id !== id))}
+          onUpdateNoteReservation={(id, note) => setReservations(reservations.map((r) => (r.id === id ? { ...r, notePreparation: note } : r)))}
+          tasks={tasksForDate(currentUserId, jourDetailOuvert)} who={whoTaches}
+          onClose={() => setJourDetailOuvert(null)}
+        />
+      )}
+
+      {modalOuvert === "preparation" && (() => {
+        const cible = modalCollegue || moi;
+        const produitsCible = produits.filter((p) => new RegExp(p.poste.replace(/^Poste\s*/i, "").trim(), "i").test(cible?.poste || ""));
+        return (
+          <ModalPreparationCulinaire
+            mesProduits={produitsCible} fiches={fiches} today={today}
+            produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation}
+            quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation}
+            traceImprimable={traceImprimable} setTraceImprimable={setTraceImprimable}
+            preparerProduit={preparerProduit} whoTaches={whoTaches} moi={cible}
+            onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onRuptureStock={onRuptureStock} onTracabiliteIngredients={onTracabiliteIngredients}
+            onClose={() => { setModalOuvert(null); setModalCollegue(null); setProduitEnPreparation(null); setQuantitePreparation(""); setTraceImprimable(null); }}
+          />
+        );
+      })()}
+
+      {modalOuvert === "verification" && (() => {
+        const cible = modalCollegue || moi;
+        const produitsCible = produits.filter((p) => new RegExp(p.poste.replace(/^Poste\s*/i, "").trim(), "i").test(cible?.poste || ""));
+        return (
+          <ModalVerificationPreparations
+            mesProduits={produitsCible} preparations={preparations} today={today} whoTaches={whoTaches}
+            onClose={() => { setModalOuvert(null); setModalCollegue(null); }}
+          />
+        );
+      })()}
+
+      {modalOuvert === "controle-chef" && (
+        <ModalControleChef tasks={tasks} employees={employees} preparations={preparations} produits={produits} stock={stock} equipementsFroid={equipementsFroid} currentUserId={currentUserId} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} logActivity={logActivity} cleaning={cleaning}
+          onSigner={() => logActivity("Contrôle", "Contrôle de fin de service signé", `Par ${employees.find((e) => e.id === currentUserId)?.nom || ""}`)}
+          onClose={() => { setModalOuvert(null); setModalCollegue(null); }} />
+      )}
+
+      {(modalOuvert === "nettoyage-midi" || modalOuvert === "nettoyage-soir") && (
+        <ModalNettoyage moi={modalCollegue || moi} moment={modalOuvert === "nettoyage-midi" ? "midi" : "soir"} cleaning={cleaning} setCleaning={setCleaning}
+          currentUserId={currentUserId} logActivity={logActivity}
+          onClose={() => { setModalOuvert(null); setModalCollegue(null); }} onDemarrerRefroidissementBainMarie={onDemarrerRefroidissementBainMarie}
+          onOuvrirHuileTest={() => { setModalOuvert(null); setModalCollegue(null); onOuvrirHuileTest(); }} />
+      )}
+
+      {modalOuvert?.startsWith("controle-obligatoire-") && (
+        <ModalControleObligatoire
+          moment={modalOuvert.endsWith("midi") ? "midi" : "soir"}
+          onClose={() => setModalOuvert(null)}
+        />
+      )}
+
+      {modalOuvert?.startsWith("controle-poste-") && (
+        <ModalControlePoste
+          moi={modalCollegue || moi}
+          moment={modalOuvert.endsWith("midi") ? "midi" : "soir"}
+          onClose={() => { setModalOuvert(null); setModalCollegue(null); }}
+        />
+      )}
+
+      {currentUserId !== "direction" && (() => {
+        const demain = addDays(today, 1);
+        const refroidsEnCours = refroidissements.filter((r) => r.statut === "en-cours");
+        const maintienEnCours = entriesMaintienChaud.filter((e) => e.statut === "en-cours");
+        const dlcDemain = preparations.filter((p) => !p.jete && p.dlcDate === demain);
+        const stockDlcDemain = stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0);
+        const dlcCeSoir = preparations.filter((p) => !p.jete && p.dlcDate <= today);
+        const stockDlc = stockDlcAujourdhui;
+        const hebdoDus = cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && c.frequence === "Hebdomadaire" && tacheDueAujourdhuiOuEnRetard(c, today));
+        const mensuelsDus = cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && c.frequence === "Mensuelle" && tacheDueAujourdhuiOuEnRetard(c, today));
+        const rien = refroidsEnCours.length === 0 && maintienEnCours.length === 0 && dlcDemain.length === 0 && stockDlcDemain.length === 0 && dlcCeSoir.length === 0 && stockDlc.length === 0 && hebdoDus.length === 0 && mensuelsDus.length === 0;
+        if (rien) return null;
+
+        return (
+          <Card className="mb-6">
+            <h3 className="font-semibold text-[var(--ink)] mb-3">Infos du jour</h3>
+
+            {(dlcDemain.length > 0 || stockDlcDemain.length > 0) && (
+              <div className="mb-3 -mx-1 px-3 py-2.5 rounded-lg" style={{ backgroundColor: "#fff5f5", border: "2px solid #c0392b" }}>
+                <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "#c0392b" }}>⚠ DLC demain — à utiliser en priorité ou à jeter ce soir</p>
+                {dlcDemain.map((p) => {
+                  const produit = produits.find((pr) => pr.id === p.produitId);
+                  return (
+                    <div key={p.id} className="flex items-center justify-between text-sm py-1">
+                      <span className="font-semibold" style={{ color: "#c0392b" }}>{produit?.nom || p.nomLibre} — {p.quantite}</span>
+                      <span className="text-xs font-medium" style={{ color: "#c0392b" }}>DLC {demain}</span>
+                    </div>
+                  );
+                })}
+                {stockDlcDemain.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between text-sm py-1">
+                    <span className="font-semibold" style={{ color: "#c0392b" }}>{s.nom} — {s.quantite} {s.unite}</span>
+                    <span className="text-xs font-medium" style={{ color: "#c0392b" }}>DLC {demain}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {refroidsEnCours.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Refroidissement en cours</p>
+                {refroidsEnCours.map((r) => {
+                  const dureeMin = Math.floor((Date.now() - r.debutTs) / 60000);
+                  const restant = normeRefroidissement(r.type).dureeMaxMin - dureeMin;
+                  return (
+                    <div key={r.id} className={`flex items-center justify-between text-sm py-1 ${restant <= 0 ? "text-[var(--warn)]" : restant <= 15 ? "text-[var(--gold)]" : "text-[var(--ink)]"}`}>
+                      <span>{r.type === "negatif" ? "❄ " : ""}{r.produit}</span>
+                      <span className="text-xs font-medium">{restant <= 0 ? "⚠ Dépassé" : `${restant} min restantes`}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {maintienEnCours.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Maintien au chaud en cours</p>
+                {maintienEnCours.map((e) => {
+                  const dureeMin = Math.floor((Date.now() - e.debutTs) / 60000);
+                  return (
+                    <div key={e.id} className="flex items-center justify-between text-sm py-1 text-[var(--ink)]">
+                      <span>{e.nom}</span>
+                      <span className="text-xs font-medium text-[var(--steel)]">en cours depuis {dureeMin} min</span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {dlcCeSoir.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">DLC atteinte — à retirer en fin de service</p>
+                {dlcCeSoir.map((p) => {
+                  const produit = produits.find((pr) => pr.id === p.produitId);
+                  const enResolution = resolutionEnCours === p.id;
+                  return (
+                    <div key={p.id} className="py-1.5">
+                      <div className="flex items-center justify-between text-sm">
+                        <span className="text-[var(--warn)]">{produit?.nom || p.nomLibre} — {p.quantite}</span>
+                        {!enResolution && (
+                          <div className="flex gap-1.5">
+                            <Button variant="danger" onClick={() => { setResolutionEnCours(p.id); setQuantiteJeteeSaisie(p.quantite); }}>Jeter</Button>
+                            <Button variant="ghost" onClick={() => jeterPreparation(p.id, { fini: true })}>Fini</Button>
+                          </div>
+                        )}
+                      </div>
+                      {enResolution && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <input className={`${inputCls} w-24`} value={quantiteJeteeSaisie} onChange={(e) => setQuantiteJeteeSaisie(e.target.value)} autoFocus />
+                          <Button variant="danger" onClick={() => { jeterPreparation(p.id, { quantiteJetee: quantiteJeteeSaisie }); setResolutionEnCours(null); }}>OK</Button>
+                          <Button variant="ghost" onClick={() => setResolutionEnCours(null)}>Annuler</Button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+
+            {stockDlc.length > 0 && (
+              <div className="mb-3">
+                <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Stock à DLC aujourd'hui</p>
+                {stockDlc.map((s) => (
+                  <div key={s.id} className="flex items-center justify-between py-1 text-sm">
+                    <span className="text-[var(--warn)]">{s.nom} — {s.quantite} {s.unite}</span>
+                    <Button variant="danger" onClick={() => jeterStock(s.id)}>Jeter</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {(hebdoDus.length > 0 || mensuelsDus.length > 0) && (
+              <div>
+                <button onClick={() => setModalOuvert(new Date().getHours() < 16 ? "nettoyage-midi" : "nettoyage-soir")} className="w-full flex items-center justify-between text-sm py-2 rounded-lg hover:bg-[var(--bg)] px-2">
+                  <div className="flex items-center gap-2">
+                    <Sparkles size={15} className="text-[var(--gold)]" />
+                    <span className="font-medium text-[var(--ink)]">Nettoyage</span>
+                    <span className="text-xs text-[var(--steel)]">{hebdoDus.filter((c) => !c.fait).length + mensuelsDus.filter((c) => !c.fait).length} à faire</span>
+                  </div>
+                  <ChevronRight size={15} className="text-[var(--steel)]" />
+                </button>
+              </div>
+            )}
+          </Card>
+        );
+      })()}
+
+      {currentUserId !== "direction" && autres.length > 0 && (
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">Planning des autres employés</h3>
+          <p className="text-xs text-[var(--steel)] mb-3 -mt-2">Cliquez sur une tâche d'un collègue pour la gérer à sa place.</p>
+          <div className="space-y-3">
+            {autres.map((emp) => {
+              const empTasks = tasksFor(emp.id);
+              const empMoi = employees.find((e) => e.id === emp.id);
+              const isOpen = expanded === emp.id;
+              return (
+                <Card key={emp.id}>
+                  <button onClick={() => setExpanded(isOpen ? null : emp.id)} className="w-full flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <Avatar nom={emp.nom} size={32} tone="gold" />
+                      <div className="text-left">
+                        <div className="font-medium text-[var(--ink)] text-sm">{emp.nom}</div>
+                        <div className="text-xs text-[var(--steel)]">{empTasks.length} tâche{empTasks.length !== 1 ? "s" : ""} aujourd'hui</div>
+                      </div>
+                    </div>
+                    {isOpen ? <ChevronUp size={16} className="text-[var(--steel)]" /> : <ChevronDown size={16} className="text-[var(--steel)]" />}
+                  </button>
+                  {isOpen && (
+                    <div className="mt-4 pt-4 border-t border-[var(--line)]">
+                      <HorairesDuJour employeeId={emp.id} shifts={shifts} />
+                      {empTasks.length === 0 ? (
+                        <p className="text-sm text-[var(--steel)]">Aucune tâche pour {emp.nom} aujourd'hui.</p>
+                      ) : (
+                        <PlanningGrille
+                          tasks={empTasks} employeeId={emp.id} date={today} actorId={currentUserId}
+                          onToggle={toggleTask} protocolesNettoyage={protocolesNettoyage} plage={plage}
+                          onOuvrirFenetre={(t) => {
+                            setModalCollegue(empMoi);
+                            if (t.titre === "Contrôle") { setModalOuvert("controle-chef"); return; }
+                            if (t.titre === "Contrôle et vérification") { setModalOuvert(`controle-poste-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
+                            if (t.titre === "Nettoyage friteuse") { onOuvrirHuileMatin(t); return; }
+                            if (t.titre === "Nettoyage") { setModalOuvert(`nettoyage-${t.heure === "13:30" ? "midi" : "soir"}`); return; }
+                            setModalOuvert(t.titre === "Préparation culinaire" ? "preparation" : "verification");
+                          }}
+                        />
+                      )}
+                    </div>
+                  )}
+                </Card>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+
+/* ---------- module Horaires (heures de travail) ---------- */
+
+function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onBack }) {
+  const [name, setName] = useState("");
+  const [role, setRole] = useState("");
+  const [code, setCode] = useState("");
+  const [picker, setPicker] = useState(null); // { employeeId, jour, service }
+
+  const addEmployee = () => {
+    if (!name) return;
+    setEmployees([...employees, { id: uid(), nom: name, poste: role, code: code.trim() || null }]);
+    logActivity("Équipe", "Employé ajouté", `${name} (${role || "poste non précisé"})`);
+    setName(""); setRole(""); setCode("");
+  };
+
+  const removeEmployee = (id) => {
+    const emp = employees.find((e) => e.id === id);
+    setEmployees(employees.filter((e) => e.id !== id));
+    setShifts(shifts.filter((s) => s.employeeId !== id));
+    if (emp) logActivity("Équipe", "Employé retiré", emp.nom);
+  };
+
+  // Code personnel : sert uniquement sur le téléphone personnel d'un employé (voir PersonalCodeGate) —
+  // la tablette de cuisine, elle, ne le demande jamais. Le retirer (champ vide) révoque
+  // immédiatement l'accès de cet employé sur son téléphone, sans toucher aux autres.
+  const setEmployeeCode = (id, nouveauCode) => {
+    const emp = employees.find((e) => e.id === id);
+    setEmployees(employees.map((e) => (e.id === id ? { ...e, code: nouveauCode.trim() || null } : e)));
+    if (emp) logActivity("Équipe", "Code personnel modifié", emp.nom);
+  };
+
+  const shiftFor = (employeeId, jour, service) => shifts.find((s) => s.employeeId === employeeId && s.jour === jour && s.service === service);
+
+  const saveShift = (employeeId, jour, service, debut, fin) => {
+    const existing = shiftFor(employeeId, jour, service);
+    const empNom = employees.find((e) => e.id === employeeId)?.nom || "";
+    if (!debut && !fin) {
+      setShifts(shifts.filter((s) => !(s.employeeId === employeeId && s.jour === jour && s.service === service)));
+      if (existing) logActivity("Planning", "Créneau supprimé", `${empNom} — ${jour} ${service}`);
+    } else if (existing) {
+      setShifts(shifts.map((s) => (s === existing ? { ...s, debut, fin } : s)));
+      logActivity("Planning", "Créneau modifié", `${empNom} — ${jour} ${service} ${debut}-${fin}`);
+    } else {
+      setShifts([...shifts, { id: uid(), employeeId, jour, service, debut, fin }]);
+      logActivity("Planning", "Créneau programmé", `${empNom} — ${jour} ${service} ${debut}-${fin}`);
+    }
+    setPicker(null);
+  };
+
+  const buildStandard = (employeeId) => {
+    const nouveaux = [];
+    JOURS.forEach((jour) => {
+      (HORAIRES_STANDARD[jour] || []).forEach((c) => nouveaux.push({ id: uid(), employeeId, jour, service: c.service, debut: c.debut, fin: c.fin }));
+    });
+    return nouveaux;
+  };
+
+  const applyStandard = (employeeId) => {
+    const empNom = employees.find((e) => e.id === employeeId)?.nom || "";
+    setShifts([...shifts.filter((s) => s.employeeId !== employeeId), ...buildStandard(employeeId)]);
+    logActivity("Planning", "Horaires standards appliqués", `${empNom} — semaine type (repos le lundi)`);
+  };
+
+  const applyStandardAll = () => {
+    const employeeIds = new Set(employees.map((e) => e.id));
+    const conserves = shifts.filter((s) => !employeeIds.has(s.employeeId));
+    const nouveaux = employees.flatMap((e) => buildStandard(e.id));
+    setShifts([...conserves, ...nouveaux]);
+    logActivity("Planning", "Horaires standards appliqués", "Toute l'équipe — semaine type (repos le lundi)");
+  };
+
+  const totalHeures = (employeeId) =>
+    shifts.filter((s) => s.employeeId === employeeId).reduce((sum, s) => {
+      if (!s.debut || !s.fin) return sum;
+      const [h1, m1] = s.debut.split(":").map(Number);
+      const [h2, m2] = s.fin.split(":").map(Number);
+      return sum + (h2 * 60 + m2 - (h1 * 60 + m1)) / 60;
+    }, 0);
+
+  const [importMsg, setImportMsg] = useState(null);
+  const [importEnCours, setImportEnCours] = useState(false);
+
+  const jourDepuisValeur = (v) => {
+    if (v instanceof Date) return JOURS[(v.getDay() + 6) % 7];
+    const texte = String(v || "").trim();
+    const trouve = JOURS.find((j) => j.toLowerCase() === texte.toLowerCase() || j.toLowerCase().startsWith(texte.toLowerCase().slice(0, 3)));
+    if (trouve) return trouve;
+    const d = new Date(texte);
+    if (!Number.isNaN(d.getTime())) return JOURS[(d.getDay() + 6) % 7];
+    return null;
+  };
+  const heureDepuisValeur = (v) => {
+    if (v instanceof Date) return `${String(v.getHours()).padStart(2, "0")}:${String(v.getMinutes()).padStart(2, "0")}`;
+    return String(v || "").trim();
+  };
+
+  const importerExcel = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImportEnCours(true);
+    setImportMsg(null);
+    try {
+      const XLSX = await import("xlsx");
+      const buf = await file.arrayBuffer();
+      const wb = XLSX.read(buf, { type: "array", cellDates: true });
+      const sheet = wb.Sheets[wb.SheetNames[0]];
+      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
+
+      const nouveaux = [];
+      let ignorees = 0;
+      rows.forEach((r) => {
+        const nomBrut = String(r["Employé"] || r["Employe"] || r["Nom"] || "").trim();
+        const emp = trouverCorrespondance(nomBrut, employees, (e) => e.nom);
+        const jour = jourDepuisValeur(r["Jour"] || r["Date"]);
+        const service = String(r["Service"] || "Midi").trim().toLowerCase().startsWith("s") ? "Soir" : "Midi";
+        const debut = heureDepuisValeur(r["Début"] || r["Debut"] || r["Heure début"]);
+        const fin = heureDepuisValeur(r["Fin"] || r["Heure fin"]);
+        if (!emp || !jour || !debut || !fin) { ignorees += 1; return; }
+        nouveaux.push({ id: uid(), employeeId: emp.id, jour, service, debut, fin });
+      });
+
+      if (nouveaux.length === 0) {
+        setImportMsg("Aucune ligne reconnue — vérifiez les colonnes (Employé, Jour, Service, Début, Fin) et que les noms correspondent à l'équipe déjà enregistrée.");
+      } else {
+        // remplace, pour chaque employé/jour/service importé, le créneau existant
+        const cles = new Set(nouveaux.map((n) => `${n.employeeId}__${n.jour}__${n.service}`));
+        const conserves = shifts.filter((s) => !cles.has(`${s.employeeId}__${s.jour}__${s.service}`));
+        setShifts([...conserves, ...nouveaux]);
+        logActivity("Planning", "Planning importé depuis Excel", `${nouveaux.length} créneau(x)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
+        setImportMsg(`${nouveaux.length} créneau(x) importé(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s) (nom ou horaire non reconnu)` : ""}.`);
+      }
+    } catch (err) {
+      setImportMsg("Le fichier n'a pas pu être lu. Vérifiez qu'il s'agit bien d'un .xlsx.");
+    } finally {
+      setImportEnCours(false);
+      e.target.value = "";
+    }
+  };
+
+  return (
+    <div>
+      {onBack && (
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
+      )}
+      <SectionHeader
+        title="Horaires"
+        subtitle="Semaine type : 9h30–14h30 et 18h–20h30 en semaine, jusqu'à 23h30 vendredi et samedi, repos le lundi"
+        action={<Button variant="ghost" onClick={applyStandardAll}>Appliquer à toute l'équipe</Button>}
+      />
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-4">Ajouter un employé</h3>
+        <div className="flex flex-wrap gap-3 items-end">
+          <Field label="Nom"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
+          <Field label="Poste"><input className={inputCls} placeholder="Cuisinier, plonge..." value={role} onChange={(e) => setRole(e.target.value)} /></Field>
+          <Field label="Code personnel (optionnel)"><input className={`${inputCls} w-32`} placeholder="Ex. 4821" value={code} onChange={(e) => setCode(e.target.value)} /></Field>
+          <Button onClick={addEmployee}><Plus size={16} /> Ajouter</Button>
+        </div>
+        <p className="text-xs text-[var(--steel)] mt-2">Le code personnel n'est utile que si cet employé installe l'appli sur son propre téléphone (voir plus bas) — pas besoin d'en donner un si seule la tablette de la cuisine est utilisée.</p>
+      </Card>
+
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Importer un planning depuis Excel</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues : <strong>Employé, Jour, Service (Midi/Soir), Début, Fin</strong>. Une ligne = un créneau — les noms sont reconnus même approximatifs, une ligne non reconnue est simplement ignorée.</p>
+        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--line)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
+          <Plus size={16} /> {importEnCours ? "Import en cours..." : "Choisir un fichier .xlsx"}
+          <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
+        </label>
+        {importMsg && <p className="text-xs text-[var(--steel)] mt-2">{importMsg}</p>}
+      </Card>
+
+      <ImportPhotoIA
+        titre="Importer un planning par photo"
+        description="Prends en photo un planning papier existant, ou dépose une capture d'écran d'un planning fait ailleurs (tableur, autre logiciel) — en attendant une éventuelle connexion directe avec cet outil, ça évite de tout ressaisir à la main."
+        consigne={`Voici la photo ou capture d'écran d'un planning d'équipe de restaurant (grille horaire du personnel). Lis les informations visibles et réponds UNIQUEMENT avec un tableau JSON strict, sans texte autour, sans balises markdown, au format exact suivant :
+[{"employe": "nom tel qu'écrit sur le planning", "jour": "un jour EXACT parmi Lundi, Mardi, Mercredi, Jeudi, Vendredi, Samedi, Dimanche", "service": "Midi ou Soir", "debut": "HH:MM", "fin": "HH:MM"}]
+Une entrée par créneau de travail visible — si un même employé travaille midi ET soir le même jour, crée deux entrées séparées. Si une information est illisible ou absente pour une ligne, ignore cette ligne plutôt que d'inventer une valeur.`}
+        onResultats={(lignes) => {
+          const nouveaux = [];
+          let ignorees = 0;
+          lignes.forEach((l) => {
+            const emp = trouverCorrespondance(String(l.employe || "").trim(), employees, (e) => e.nom);
+            const jour = JOURS.includes(l.jour) ? l.jour : null;
+            const service = String(l.service || "").trim().toLowerCase().startsWith("s") ? "Soir" : "Midi";
+            const debut = String(l.debut || "").trim();
+            const fin = String(l.fin || "").trim();
+            if (!emp || !jour || !debut || !fin) { ignorees += 1; return; }
+            nouveaux.push({ id: uid(), employeeId: emp.id, jour, service, debut, fin });
+          });
+          if (nouveaux.length === 0) {
+            return "Aucun créneau reconnu sur cette photo — vérifiez que les noms correspondent à l'équipe déjà enregistrée, ou saisissez manuellement.";
+          }
+          const cles = new Set(nouveaux.map((n) => `${n.employeeId}__${n.jour}__${n.service}`));
+          const conserves = shifts.filter((s) => !cles.has(`${s.employeeId}__${s.jour}__${s.service}`));
+          setShifts([...conserves, ...nouveaux]);
+          logActivity("Planning", "Planning importé par photo (IA)", `${nouveaux.length} créneau(x)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
+          return `${nouveaux.length} créneau(x) importé(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s) (nom ou horaire non reconnu)` : ""}.`;
+        }}
+      />
+
+      <Card className="overflow-x-auto">
+        {employees.length === 0 ? (
+          <p className="text-sm text-[var(--steel)]">Aucun employé enregistré.</p>
+        ) : (
+          <table className="w-full text-sm min-w-[820px]">
+            <thead>
+              <tr className="text-left text-[var(--steel)] border-b border-[var(--line)]">
+                <th className="py-2 pr-3 font-medium">Employé</th>
+                {JOURS.map((j) => <th key={j} className="py-2 px-2 font-medium">{j.slice(0, 3)}</th>)}
+                <th className="py-2 pl-2 font-medium">Total</th>
+                <th></th>
+              </tr>
+            </thead>
+            <tbody>
+              {employees.map((emp) => (
+                <tr key={emp.id} className="border-b border-[var(--line)] last:border-0">
+                  <td className="py-2.5 pr-3 align-top">
+                    <div className="font-medium text-[var(--ink)]">{emp.nom}</div>
+                    <div className="text-xs text-[var(--steel)]">{emp.poste}</div>
+                    <button onClick={() => applyStandard(emp.id)} className="text-[10px] text-[var(--accent)] font-medium mt-1">Appliquer standard</button>
+                    <div className="mt-1.5 flex items-center gap-1">
+                      <label className="text-[10px] text-[var(--steel)]">Code tel.</label>
+                      <input
+                        className="text-[11px] border border-[var(--line)] rounded px-1.5 py-1 w-16 min-h-[28px]"
+                        placeholder="—"
+                        defaultValue={emp.code || ""}
+                        onBlur={(e) => setEmployeeCode(emp.id, e.target.value)}
+                      />
+                    </div>
+                  </td>
+                  {JOURS.map((jour) => (
+                    <td key={jour} className="py-2 px-2 align-top space-y-1">
+                      {SERVICES.map((service) => {
+                        const s = shiftFor(emp.id, jour, service);
+                        const isPicking = picker && picker.employeeId === emp.id && picker.jour === jour && picker.service === service;
+                        return isPicking ? (
+                          <ShiftEditor
+                            key={service}
+                            initial={s}
+                            onSave={(debut, fin) => saveShift(emp.id, jour, service, debut, fin)}
+                            onCancel={() => setPicker(null)}
+                          />
+                        ) : (
+                          <button
+                            key={service}
+                            onClick={() => setPicker({ employeeId: emp.id, jour, service })}
+                            className={`w-full text-[11px] rounded-md px-1.5 py-1 border ${s ? "bg-[var(--gold-soft)] text-[var(--ink)] border-[var(--gold)]/30" : "border-dashed border-[var(--line)] text-[var(--steel)]"}`}
+                          >
+                            {s ? `${service} ${s.debut}–${s.fin}` : `${service} —`}
+                          </button>
+                        );
+                      })}
+                    </td>
+                  ))}
+                  <td className="py-2.5 pl-2 font-medium text-[var(--ink)] align-top">{totalHeures(emp.id).toFixed(1)}h</td>
+                  <td className="align-top"><BoutonSupprimer onConfirm={() => removeEmployee(emp.id)} size={15} libelle={emp.nom} /></td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+function ShiftEditor({ initial, onSave, onCancel }) {
+  const [debut, setDebut] = useState(initial?.debut || "");
+  const [fin, setFin] = useState(initial?.fin || "");
+  return (
+    <div className="bg-white border border-[var(--line)] rounded-md p-2 space-y-1.5 shadow-sm">
+      <input type="time" value={debut} onChange={(e) => setDebut(e.target.value)} className="w-full text-xs border border-[var(--line)] rounded px-1.5 py-1" />
+      <input type="time" value={fin} onChange={(e) => setFin(e.target.value)} className="w-full text-xs border border-[var(--line)] rounded px-1.5 py-1" />
+      <div className="flex justify-between gap-1">
+        <button onClick={() => onSave(debut, fin)} style={{ backgroundColor: "#2F6B4F", color: "#ffffff" }} className="flex-1 text-xs rounded px-1.5 py-1">OK</button>
+        <button onClick={onCancel} className="text-xs text-[var(--steel)] px-1.5"><X size={12} /></button>
+      </div>
+    </div>
+  );
+}
+
+function DeviceTypeGate({ onChoisir }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6" style={{
+      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+      "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA",
+      backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
+    }}>
+      <div className="w-full max-w-md">
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <ChefHat size={26} className="text-[var(--accent)]" />
+          <span className="text-xl font-semibold text-[var(--ink)] tracking-tight">Ma Cuisine</span>
+        </div>
+        <p className="text-center text-sm text-[var(--steel)] mb-6">Quel est cet appareil ? (Cette question ne sera posée qu'une seule fois, à l'installation.)</p>
+        <div className="space-y-3">
+          <button onClick={() => onChoisir("tablette")} className="w-full text-left">
+            <Card className="hover:border-[var(--accent)] transition-colors">
+              <div className="font-semibold text-[var(--ink)] mb-1">Tablette commune de la cuisine</div>
+              <div className="text-xs text-[var(--steel)]">Reste toujours ouverte au poste, partagée par toute l'équipe — pas de code demandé, juste choisir son nom.</div>
+            </Card>
+          </button>
+          <button onClick={() => onChoisir("telephone")} className="w-full text-left">
+            <Card className="hover:border-[var(--accent)] transition-colors">
+              <div className="font-semibold text-[var(--ink)] mb-1">Mon téléphone personnel</div>
+              <div className="text-xs text-[var(--steel)]">Appareil d'un seul employé — un code personnel sera demandé une fois par jour.</div>
+            </Card>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PersonalCodeGate({ employees, onValide }) {
+  const [code, setCode] = useState("");
+  const [erreur, setErreur] = useState("");
+
+  const valider = (e) => {
+    e.preventDefault();
+    const emp = employees.find((em) => em.code && em.code === code.trim());
+    if (!emp) {
+      setErreur("Code incorrect, ou pas encore attribué par le chef/directeur.");
+      setCode("");
+      return;
+    }
+    enregistrerSessionCode(emp.id);
+    onValide(emp.id);
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6" style={{
+      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+      "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA",
+      backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
+    }}>
+      <div className="w-full max-w-sm">
+        <div className="flex items-center justify-center gap-2 mb-6">
+          <ChefHat size={26} className="text-[var(--accent)]" />
+          <span className="text-xl font-semibold text-[var(--ink)] tracking-tight">Ma Cuisine</span>
+        </div>
+        <Card>
+          <p className="text-sm text-[var(--ink)] font-medium mb-1">Votre code personnel</p>
+          <p className="text-xs text-[var(--steel)] mb-3">Demandé une fois par jour (jusqu'à 9h demain). Donné par le chef ou le directeur.</p>
+          <form onSubmit={valider}>
+            <input
+              className={`${inputCls} w-full text-center text-lg tracking-widest`}
+              value={code}
+              onChange={(e) => { setCode(e.target.value); setErreur(""); }}
+              inputMode="numeric"
+              autoFocus
+            />
+            {erreur && <p className="text-xs text-[var(--warn)] mt-2">{erreur}</p>}
+            <Button type="submit" className="w-full justify-center mt-3">Valider</Button>
+          </form>
+        </Card>
+        <button onClick={() => { effacerTypeAppareil(); window.location.reload(); }} className="w-full text-center text-xs text-[var(--steel)] mt-4">
+          Ce n'est pas votre téléphone personnel ? Changer le type d'appareil
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function LoginGate({ employees, lastUserId, onSelect }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6" style={{
+      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+      "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--gold": "#B98A2E", "--gold-soft": "#F5ECD8",
+      backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
+    }}>
+      <div className="w-full max-w-md">
+        <div className="flex items-center justify-center gap-2 mb-8">
+          <ChefHat size={26} className="text-[var(--accent)]" />
+          <span className="text-xl font-semibold text-[var(--ink)] tracking-tight">Ma Cuisine</span>
+        </div>
+        <p className="text-center text-sm text-[var(--steel)] mb-6">Qui êtes-vous ? Tout ce que vous ferez sera enregistré sous votre nom.</p>
+        <div className="grid grid-cols-2 gap-3">
+          {employees.map((emp) => (
+            <button key={emp.id} onClick={() => onSelect(emp.id)} className="text-left">
+              <Card className="hover:border-[var(--accent)] transition-colors flex flex-col items-center text-center gap-2 py-6">
+                <Avatar nom={emp.nom} size={52} />
+                <div>
+                  <div className="font-semibold text-[var(--ink)]">{emp.nom}</div>
+                  <div className="text-xs text-[var(--steel)]">{emp.poste}</div>
+                </div>
+                {emp.id === lastUserId && <span className="text-[10px] text-[var(--accent)] font-medium">Dernière connexion</span>}
+              </Card>
+            </button>
+          ))}
+          <button onClick={() => onSelect("direction")} className="text-left col-span-2">
+            <Card className="hover:border-[var(--ink)] transition-colors flex items-center justify-center text-center gap-3 py-4" style={{ backgroundColor: "#1D2321" }}>
+              <span className="w-11 h-11 rounded-full flex items-center justify-center text-white font-semibold shrink-0" style={{ backgroundColor: "#3C4658" }}>D</span>
+              <div className="text-left">
+                <div className="font-semibold text-white">Direction</div>
+                <div className="text-xs" style={{ color: "#B7BEC2" }}>Planning &amp; contrôles hygiène</div>
+              </div>
+              {lastUserId === "direction" && <span className="text-[10px] text-white/70 font-medium ml-auto">Dernière connexion</span>}
+            </Card>
+          </button>
+        </div>
+        <button onClick={() => { effacerTypeAppareil(); window.location.reload(); }} className="w-full text-center text-xs text-[var(--steel)] mt-5">
+          Ce n'est pas la tablette de la cuisine ? Changer le type d'appareil
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/* ---------- accès restreint (consentement refusé) ---------- */
+
+function consentementAccorde() {
+  // true = formule Complète validée. false = refusée (accès restreint : ces
+  // fonctionnalités nécessitent que les données soient conservées pour exister).
+  return window.MC_CONSENTEMENT !== "refuse";
+}
+
+function AccesRestreint({ titre }) {
+  return (
+    <Card className="mb-6">
+      <div className="flex flex-col items-center text-center gap-3 py-10 px-4">
+        <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl" style={{ background: "#FBE8E3" }}>
+          🔒
+        </div>
+        <div className="font-semibold text-[15px]" style={{ color: "#1c1917" }}>{titre} — non disponible</div>
+        <div className="text-sm max-w-md" style={{ color: "#78716c" }}>
+          Cette fonctionnalité nécessite la conservation de vos données. Vous avez refusé le consentement à l'ouverture du logiciel.
+          Vous pouvez revenir sur ce choix à tout moment depuis les réglages.
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+/* ---------- app racine ---------- */
+
+function KitchenApp() {
+  const [tab, setTab] = useState("accueil");
+  const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
+  const [sessionActive, setSessionActive] = useState(false);
+  const [receptionActive, setReceptionActive] = useState(false);
+  const [produitEnPreparation, setProduitEnPreparation] = useState(null);
+  const [quantitePreparation, setQuantitePreparation] = useState("");
+  // Ouverture directe d'une fiche technique depuis l'extérieur de l'écran "Fiches techniques"
+  // (utilisé par la commande vocale : "je prépare la bolognaise" saute direct sur la fiche).
+  const [ficheAutoOuvrirId, setFicheAutoOuvrirId] = useState(null);
+  // Déconnexion automatique sur tablette partagée (jamais sur téléphone personnel) : après 2 minutes
+  // sans la moindre interaction (clic, appui, touche, défilement...), un bandeau d'avertissement de
+  // 10 secondes s'affiche avant le verrouillage réel — toute interaction pendant ces 10 secondes
+  // annule le verrouillage et relance le délai de 2 minutes, donc un travail en cours (étiquette
+  // ouverte, saisie non confirmée...) ne peut jamais être perdu tant que quelqu'un reste présent.
+  const [avertissementDeconnexion, setAvertissementDeconnexion] = useState(false);
+  // Au bout du délai, on ne renvoie plus à l'écran de choix du compte (ce qui perdrait l'écran
+  // en cours) : on verrouille simplement par-dessus, l'écran de la personne reste intact en
+  // dessous — en reprenant la tablette, elle retrouve exactement où elle en était, comme en
+  // déverrouillant un téléphone.
+  const [verrouille, setVerrouille] = useState(false);
+  const [refroidissementSuggere, setRefroidissementSuggere] = useState(null);
+  const [cuissonSuggere, setCuissonSuggere] = useState(null);
+  const [maintienChaudSuggere, setMaintienChaudSuggere] = useState(null);
+  const [huileTestActif, setHuileTestActif] = useState(null);
+  const [huileMatinActif, setHuileMatinActif] = useState(null);
+  const [etiquetteRapideDemandee, setEtiquetteRapideDemandee] = useState(null); // tableau de noms de produits — voir proposerEtiquetteRapide
+
+  const [employees, setEmployees] = useStored("planning-employees", DEFAULT_EMPLOYEES);
+  const [currentUserId, setCurrentUserId, currentUserLoaded] = useStored("current-user-id", null);
+  // Type d'appareil (tablette partagée ou téléphone personnel) : propre à CET appareil, jamais
+  // partagé — voir les fonctions lireTypeAppareil / PersonalCodeGate plus haut dans le fichier.
+  const [typeAppareil, setTypeAppareil] = useState(() => lireTypeAppareil());
+  const [activityLog, setActivityLog] = useStored("activity-log", []);
+
+  const [tempLogs, setTempLogs] = useStored("haccp-temps", []);
+  const [equipementsFroid, setEquipementsFroid] = useStored("equipements-froid", DEFAULT_EQUIPEMENTS_FROID);
+  const [catalogueMaintienChaud, setCatalogueMaintienChaud] = useStored("catalogue-maintien-chaud", DEFAULT_PRODUITS_MAINTIEN_CHAUD);
+  // Plats à cuisson chronométrée (durée connue par la fiche technique) — pizzas et burgers en
+  // sont volontairement exclus (cuisson courte, surveillée en direct, pas besoin de chrono avec
+  // alarme). Sauce bolognaise et lasagne pré-remplies avec la durée réellement documentée sur
+  // leur fiche technique (FT SAUCE 04 : mijotée 1h ; FT plat-02-lasagne : Rational 180°C, 35-45 min,
+  // on prend le milieu 40 min) — modifiable à tout moment depuis l'écran Cuisson.
+  const [catalogueCuisson, setCatalogueCuisson] = useStored("catalogue-cuisson-chronometree", [
+    { nom: "Sauce bolognaise", dureeMin: 60, famille: "viandeHachee" },
+    { nom: "Lasagne", dureeMin: 40, famille: "viandeHachee" },
+  ]);
+  const [entriesMaintienChaud, setEntriesMaintienChaud] = useStored("entries-maintien-chaud", []);
+  const [relevesFroid, setRelevesFroid] = useStored("releves-froid", []);
+  const [surveillancesFroid, setSurveillancesFroid] = useStored("surveillances-froid", []);
+  const [cleaning, setCleaning] = useStored("haccp-cleaning", [
+    // Tous
+    { id: uid(), tache: "Sol cuisine", poste: "Tous", frequence: "Quotidienne", note: "Nettoyant désinfectant, eau chaude <60°C, 5 à 10 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Bouche d'évacuation des eaux usées", poste: "Tous", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Poubelles", poste: "Tous", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Désinfection plans de travail", poste: "Tous", frequence: "Quotidienne", note: "Nettoyant désinfectant après chaque utilisation, eau chaude <60°C, 5 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Plonge — plus aucun ustensile ni assiette sur les étagères", poste: "Tous", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Plonge — vider et nettoyer les bacs à couverts si besoin", poste: "Tous", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Lavettes souillées jetées, lavettes/torchons au bac à linge prévu", poste: "Tous", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Plonge — éteindre, vider et nettoyer", poste: "Tous", frequence: "Quotidienne", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Chambre froide — sol", poste: "Tous", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Chambre froide — étagères et parois", poste: "Tous", frequence: "Hebdomadaire", jour: "Mardi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Inclut portes, poignées, joints et étagères. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Chambre froide — nettoyage complet (vidée, désinfectée)", poste: "Tous", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 2, note: "Nettoyant désinfectant, eau chaude <60°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Carrelage murs — zones de cuisson (friteuse, plancha, four)", poste: "Tous", frequence: "Hebdomadaire", jour: "Jeudi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Carrelage murs — zones hors cuisson", poste: "Tous", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 1, note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Congélateur frites", poste: "Tous", frequence: "Mensuelle", jourSemaineMois: "Vendredi", positionMois: 3, note: "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Congélateur haut 1", poste: "Tous", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 3, note: "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Congélateur haut 2", poste: "Tous", frequence: "Mensuelle", jourSemaineMois: "Mardi", positionMois: 4, note: "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Congélateur du personnel", poste: "Tous", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 4, note: "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    // Poste Chaud
+    { id: uid(), tache: "Ivario Pro", poste: "Poste Chaud", frequence: "Quotidienne", note: "Produit dégraissant, surface chaude à 60°C, 15 min, rinçage efficace à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Bain-marie", poste: "Poste Chaud", frequence: "Quotidienne", note: "Nettoyant désinfectant après chaque service, eau chaude <60°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Four Rational", poste: "Poste Chaud", frequence: "Quotidienne", note: "Produit dégraissant, surface chaude à 60°C, 15 min, rinçage efficace à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Four Atoll Speed / Mery Chef", poste: "Poste Chaud", frequence: "Quotidienne", note: "Produit dégraissant, surface chaude à 60°C, 15 min, rinçage efficace à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Four Atoll Speed / Mery Chef — nettoyage complet (intérieur, extérieur, portes)", poste: "Poste Chaud", frequence: "Hebdomadaire", jour: "Jeudi", note: "Produit dégraissant, surface chaude à 60°C, 15 min, rinçage efficace à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    // Friteuse : pas de créneau hebdomadaire fixe — son nettoyage est quotidien et piloté par le test d'huile du soir
+    // (voir confirmerTestHuile / addTaskShared "poste:chaud" 09:30 : nettoyage rapide si huile bonne, nettoyage complet + remplacement si huile mauvaise).
+    { id: uid(), tache: "Frigo viande — portes et intérieur", poste: "Poste Chaud", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Frigo viande — nettoyage complet (joints compris)", poste: "Poste Chaud", frequence: "Hebdomadaire", jour: "Vendredi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Inclut joints de porte. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Frigo poste chaud — portes et intérieur", poste: "Poste Chaud", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Frigo poste chaud — nettoyage complet (joints compris)", poste: "Poste Chaud", frequence: "Hebdomadaire", jour: "Samedi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Inclut joints de porte. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Saladette poste chaud — portes et intérieur", poste: "Poste Chaud", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Saladette poste chaud — nettoyage complet (joints compris)", poste: "Poste Chaud", frequence: "Hebdomadaire", jour: "Dimanche", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Inclut joints de porte. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Hotte", poste: "Poste Chaud", frequence: "Hebdomadaire", jour: "Mardi", note: "Produit dégraissant, trempage à l'eau chaude à 70°C, 30 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Crédence (grande plaque inox, pas de carrelage)", poste: "Poste Chaud", frequence: "Hebdomadaire", jour: "Jeudi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Étagère", poste: "Poste Chaud", frequence: "Hebdomadaire", jour: "Jeudi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    // Poste Pizza
+    { id: uid(), tache: "Étagère", poste: "Poste Pizza", frequence: "Hebdomadaire", jour: "Mardi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Frigo pâtons à pizza — portes et intérieur", poste: "Poste Pizza", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Frigo pâtons à pizza — nettoyage complet (joints compris)", poste: "Poste Pizza", frequence: "Hebdomadaire", jour: "Mercredi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Inclut joints de porte. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Frigo poste pizza — portes et intérieur", poste: "Poste Pizza", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Frigo poste pizza — nettoyage complet (joints compris)", poste: "Poste Pizza", frequence: "Hebdomadaire", jour: "Jeudi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Inclut joints de porte. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Saladette poste pizza — portes et intérieur", poste: "Poste Pizza", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Saladette poste pizza — nettoyage complet (joints compris)", poste: "Poste Pizza", frequence: "Hebdomadaire", jour: "Vendredi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Inclut joints de porte. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Pétrin — nettoyage", poste: "Poste Pizza", frequence: "À chaque utilisation", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Pelle à pizza — nettoyage", poste: "Poste Pizza", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Four à pizza — hotte, façade, vitre", poste: "Poste Pizza", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 1, note: "Produit dégraissant, surface chaude à 60°C, 15 min, rinçage efficace à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    // Poste Froid
+    { id: uid(), tache: "Frigo poste froid — portes et intérieur", poste: "Poste Froid", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Frigo poste froid — nettoyage complet (joints compris)", poste: "Poste Froid", frequence: "Hebdomadaire", jour: "Mardi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Inclut joints de porte. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Étagère", poste: "Poste Froid", frequence: "Hebdomadaire", jour: "Jeudi", note: "Nettoyant désinfectant, eau chaude <60°C, 5 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Micro-ondes — intérieur et extérieur", poste: "Poste Froid", frequence: "Quotidienne", note: "Produit désinfectant, parois à l'eau tiède à 35°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Chauffe-pot à Nutella", poste: "Poste Froid", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Robot batteur", poste: "Poste Froid", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Congélateur à glace", poste: "Poste Froid", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 2, note: "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
+    { id: uid(), tache: "Évier — lavage des légumes", poste: "Poste Froid", frequence: "Quotidienne", note: "Double bac eau froide. Ajouter le produit : eau de Javel 2,6% (60ml pour 100L d'eau, laisser tremper 5 min) ou vinaigre blanc 6% (laisser tremper 10 min). Ne pas utiliser d'eau de Javel sur les végétaux poreux ou à couches. Produits et quantité à déterminer (dosage exact du produit réellement utilisé).", fait: false, date: null, employeeId: null },
+  ]);
+  const [protocolesNettoyage, setProtocolesNettoyage] = useStored("protocoles-nettoyage", [
+    { id: "friteuse-complet", nom: "Nettoyage complet friteuse (intérieur, extérieur, ustensiles)", produits: [], etapes: [] },
+  ]);
+  // Zones de nettoyage du plan de nettoyage (PMS) : liste éditable par le chef (ajout/suppression),
+  // au départ les 3 postes de cuisine + "Tous". "Tous" ne peut pas être supprimée (tâches communes).
+  const [zonesNettoyage, setZonesNettoyage] = useStored("haccp-zones-nettoyage", ["Tous", "Poste Chaud", "Poste Pizza", "Poste Froid"]);
+  const [stock, setStock] = useStored("stock-items", DEFAULT_STOCK);
+  const [receptions, setReceptions] = useStored("stock-receptions", []);
+  const [commandesHistorique, setCommandesHistorique] = useStored("commandes-historique", []);
+  const [notificationsFournisseur, setNotificationsFournisseur] = useStored("notifications-fournisseur", []);
+  // Carnet d'adresses e-mail fournisseur — { [nomFournisseur]: "email@..." } — permet de pré-remplir
+  // le destinataire du mailto: de notification de non-conformité. Enregistré/modifié directement
+  // depuis la carte NotificationFournisseur (au moment où on en a besoin) ou depuis l'écran Fournisseur.
+  const [emailsFournisseurs, setEmailsFournisseurs] = useStored("emails-fournisseurs", {});
+  const [alertesControle, setAlertesControle] = useStored("alertes-controle", []);
+  const [remarquesChef, setRemarquesChef] = useStored("remarques-chef", []);
+  // Fiches techniques : le socle FICHES_TECHNIQUES (données de référence, fournies par le fichier
+  // Excel du chef) reste statique, mais le chef peut désormais créer ses propres fiches depuis
+  // l'icône "Créer une fiche technique" (Gestion) — elles sont stockées à part puis fusionnées ici.
+  const [fichesCustom, setFichesCustom] = useStored("fiches-custom", []);
+  const fiches = React.useMemo(() => [...FICHES_TECHNIQUES, ...fichesCustom], [fichesCustom]);
+  const [reservations, setReservations] = useStored("reservations", []);
+  const [shifts, setShifts] = useStored("planning-shifts", []);
+  const [tasks, setTasks] = useStored("taches", DEFAULT_TASKS_POSTE_CHAUD);
+  const [produits, setProduits] = useStored("produits-catalogue", DEFAULT_PRODUITS);
+  const [preparations, setPreparations] = useStored("preparations", []);
+  const [huileTests, setHuileTests] = useStored("huile-tests", []);
+  const [refroidissements, setRefroidissements] = useStored("refroidissements", []);
+  const [cuissons, setCuissons] = useStored("cuissons", []);
+  const [dernierControleRappelConso, setDernierControleRappelConso] = useStored("dernier-controle-rappelconso", null);
+  const [alertesRappelConso, setAlertesRappelConso] = useStored("alertes-rappelconso", []);
+  const [rappelConsoEnCours, setRappelConsoEnCours] = useState(false);
+  const [allergenesPlats, setAllergenesPlats] = useStored("allergenes-plats", {});
+  const [allergenesProduits, setAllergenesProduits] = useStored("allergenes-produits", {});
+  const [origineProduits, setOrigineProduits] = useStored("origine-produits", {});
+  // Valeur "normale" de l'établissement pour chaque produit (origine, allergènes, délai de
+  // conservation après ouverture) — enregistrée une première fois, puis gardée comme référence à
+  // laquelle revenir automatiquement après un lot exceptionnel. produitsLotException liste les
+  // produits actuellement sur une valeur différente de leur norme (un lot reçu avec une origine,
+  // des allergènes ou un délai après ouverture différent de d'habitude) ; dès que le stock de ce
+  // produit revient à 0 (le lot exceptionnel est entièrement consommé), on revient automatiquement
+  // à la valeur normale — voir l'effet juste après la définition de tous ces états.
+  const [allergenesStandard, setAllergenesStandard] = useStored("allergenes-standard", {});
+  const [origineStandard, setOrigineStandard] = useStored("origine-standard", {});
+  const [dlcJoursStandard, setDlcJoursStandard] = useStored("dlcjours-standard", {});
+  const [produitsLotException, setProduitsLotException] = useStored("produits-lot-exception", {});
+  const [declarationsTiac, setDeclarationsTiac] = useStored("declarations-tiac", []);
+
+  useEffect(() => {
+    const verifier = () => {
+      const maintenant = Date.now();
+      let alerteAJouer = false;
+      setRefroidissements((prev) => {
+        let modifie = false;
+        const next = prev.map((r) => {
+          if (r.statut !== "en-cours" || r.alarmeAcquittee) return r;
+          const minutes = (maintenant - r.debutTs) / 60000;
+          if (minutes < normeRefroidissement(r.type).dureeMaxMin) return r;
+          const derniere = r.derniereAlerte || 0;
+          if (maintenant - derniere >= 60000) {
+            alerteAJouer = true;
+            modifie = true;
+            return { ...r, derniereAlerte: maintenant };
+          }
+          return r;
+        });
+        return modifie ? next : prev;
+      });
+      if (alerteAJouer) {
+        try {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)();
+          [0, 350, 700].forEach((delai) => {
+            setTimeout(() => {
+              const osc = ctx.createOscillator();
+              const gain = ctx.createGain();
+              osc.type = "sine"; osc.frequency.value = 880;
+              gain.gain.value = 0.15;
+              osc.connect(gain); gain.connect(ctx.destination);
+              osc.start(); osc.stop(ctx.currentTime + 0.25);
+            }, delai);
+          });
+        } catch (e) { /* audio indisponible */ }
+      }
+    };
+    const intervalle = setInterval(verifier, 30000);
+    verifier();
+    return () => clearInterval(intervalle);
+  }, [setRefroidissements]);
+
+  // "Arrêter l'alarme" sur la bannière rouge : ne dispense pas de finir le protocole (le produit
+  // reste affiché comme dépassé dans son écran tant qu'il n'est pas réellement terminé), ça coupe
+  // juste le bip/vibration répétés une fois que la personne a vu l'alerte et va s'en occuper.
+  const arreterAlarmeRefroidissement = useCallback(() => {
+    setRefroidissements((prev) => prev.map((r) => (r.statut === "en-cours" && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin ? { ...r, alarmeAcquittee: true } : r)));
+  }, [setRefroidissements]);
+  const arreterAlarmeCuisson = useCallback(() => {
+    setCuissons((prev) => prev.map((c) => (c.statut === "en-cours" && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin ? { ...c, alarmeAcquittee: true } : c)));
+  }, [setCuissons]);
+  const arreterAlarmeTemp = useCallback(() => {
+    setSurveillancesFroid((prev) => prev.map((s) => (s.statut === "attente" && Date.now() >= s.rappelTs ? { ...s, alarmeAcquittee: true } : s)));
+  }, [setSurveillancesFroid]);
+
+  // Propose la création d'une étiquette DLC pour un produit donné (ouvre une petite fenêtre :
+  // quantité utilisée + nombre d'étiquettes, lot et DLC/DDM calculés automatiquement) — utilisé
+  // en fin de chaîne d'un protocole HACCP (refroidissement notamment) pour qu'on n'ait pas à s'en
+  // souvenir plus tard.
+  const proposerEtiquetteRapide = useCallback((nom) => {
+    // Si une sélection d'étiquettes est déjà ouverte, on ajoute ce produit à la liste au lieu
+    // d'en reperdre une autre déjà en cours de saisie (utile si la commande vocale ou un deuxième
+    // protocole HACCP propose un nouveau produit pendant que la fenêtre est déjà ouverte).
+    setEtiquetteRapideDemandee((prev) => {
+      const liste = prev || [];
+      if (liste.some((n) => n.trim().toLowerCase() === nom.trim().toLowerCase())) return liste;
+      return [...liste, nom];
+    });
+  }, []);
+
+  // Pré-alerte à 10 min de l'échéance : on acquitte le produit le plus urgent (celui qui sonne)
+  // et, pour le refroidissement, on enchaîne directement sur la proposition d'étiquette DLC —
+  // c'est la dernière étape du protocole, pas la peine d'attendre que ça soit fini pour la faire.
+  const arreterPreAlarmeRefroidissement = useCallback(() => {
+    const candidats = refroidissements.filter((r) => { const n = normeRefroidissement(r.type); const m = (Date.now() - r.debutTs) / 60000; return r.statut === "en-cours" && !r.preAlarmeAcquittee && m >= n.dureeMaxMin - n.alerteAvantMin && m < n.dureeMaxMin; });
+    const plusUrgent = candidats.sort((a, b) => a.debutTs - b.debutTs)[0];
+    if (!plusUrgent) return;
+    setRefroidissements((prev) => prev.map((r) => (r.id === plusUrgent.id ? { ...r, preAlarmeAcquittee: true } : r)));
+    proposerEtiquetteRapide(plusUrgent.produit);
+  }, [refroidissements, setRefroidissements, proposerEtiquetteRapide]);
+  const arreterPreAlarmeCuisson = useCallback(() => {
+    const candidats = cuissons.filter((c) => c.statut === "en-cours" && !c.preAlarmeAcquittee && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin - CUISSON_ALERTE_AVANT_MIN && (Date.now() - c.debutTs) / 60000 < c.dureeAttendueMin);
+    const plusUrgent = candidats.sort((a, b) => a.debutTs - b.debutTs)[0];
+    if (!plusUrgent) return;
+    setCuissons((prev) => prev.map((c) => (c.id === plusUrgent.id ? { ...c, preAlarmeAcquittee: true } : c)));
+  }, [cuissons, setCuissons]);
+
+  const logActivitySafe = useCallback((module, action, detail) => {
+    const entry = { id: uid(), employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), module, action, detail };
+    setActivityLog([entry, ...activityLog]);
+  }, [currentUserId, activityLog, setActivityLog]);
+
+  // Retour automatique à la norme de l'établissement (origine, allergènes, délai de conservation
+  // après ouverture) dès que le stock d'un produit en exception revient à 0 — c'est-à-dire dès que
+  // le lot reçu avec une info différente de d'habitude est entièrement consommé. Tant qu'il reste
+  // du stock de ce lot, la valeur exceptionnelle reste affichée partout (fiches allergènes/origine,
+  // calcul de la DLC en préparation) ; une fois à 0, on revient tout seul à la valeur habituelle.
+  useEffect(() => {
+    const nomsProduitsEnException = Object.keys(produitsLotException);
+    if (nomsProduitsEnException.length === 0) return;
+    const nomsStockAZero = new Set(stock.filter((s) => Number(s.quantite) <= 0).map((s) => (s.nom || "").trim().toLowerCase()));
+    nomsProduitsEnException.forEach((nom) => {
+      if (!nomsStockAZero.has(nom.trim().toLowerCase())) return;
+      if (allergenesStandard[nom] !== undefined) setAllergenesProduits((prev) => ({ ...prev, [nom]: allergenesStandard[nom] }));
+      if (origineStandard[nom] !== undefined) setOrigineProduits((prev) => ({ ...prev, [nom]: origineStandard[nom] }));
+      if (dlcJoursStandard[nom] !== undefined) {
+        const nomNorm = nom.trim().toLowerCase();
+        setProduits((prev) => prev.map((c) => ((c.nom || "").trim().toLowerCase() === nomNorm ? { ...c, dlcJours: dlcJoursStandard[nom] } : c)));
+      }
+      setProduitsLotException((prev) => { const next = { ...prev }; delete next[nom]; return next; });
+      logActivitySafe("HACCP", "Retour à la norme habituelle de l'établissement", `${nom} — lot exceptionnel épuisé (stock à 0) : origine, allergènes et délai après ouverture repassés aux valeurs habituelles.`);
+    });
+  }, [stock, produitsLotException, allergenesStandard, origineStandard, dlcJoursStandard, setAllergenesProduits, setOrigineProduits, setProduits, setProduitsLotException, logActivitySafe]);
+
+  // Vérification automatique des rappels officiels (RappelConso / DGCCRF) — jeudi et dimanche
+  // (juste après les livraisons), croisés avec les produits reçus au cours des 60 derniers jours.
+  const verifierRappelConso = useCallback(async (manuel = false) => {
+    if (rappelConsoEnCours) return;
+    setRappelConsoEnCours(true);
+    try {
+      const noms = [...new Set([...stock.map((s) => s.nom), ...produits.map((p) => p.nom)].filter(Boolean))].slice(0, 60);
+      const trouves = [];
+      for (const nom of noms) {
+        try {
+          const url = `https://data.economie.gouv.fr/api/records/1.0/search/?dataset=rappelconso-v2-gtin-trie&q=${encodeURIComponent(nom)}&rows=3&sort=-date_de_publication`;
+          const res = await fetch(url);
+          if (!res.ok) continue;
+          const data = await res.json();
+          (data.records || []).forEach((r) => {
+            const f = r.fields || {};
+            const dateRappel = f.date_de_publication || f.date_publication || "";
+            if (dateRappel && (Date.now() - new Date(dateRappel).getTime()) / 86400000 > 60) return;
+            trouves.push({
+              id: r.recordid || uid(),
+              produit: nom,
+              titre: f.noms_des_modeles_ou_references || f.nom_de_la_marque_du_produit || f.categorie_de_produit || "Produit rappelé — voir la fiche officielle",
+              motif: f.motif_du_rappel || f.risques_encourus_par_le_consommateur || "Détail disponible sur la fiche officielle",
+              date: dateRappel,
+              lien: r.recordid ? `https://rappel.conso.gouv.fr/fiche-rappel/${r.recordid}/Interne` : "https://rappel.conso.gouv.fr/",
+            });
+          });
+        } catch (e) { /* ce produit n'a pas pu être vérifié, on continue avec les suivants */ }
+      }
+      // On garde le statut "traité" des alertes déjà connues (même id) — une alerte validée et
+      // corrigée par quelqu'un ne doit pas réapparaître en bloquant tout le monde au contrôle suivant.
+      setAlertesRappelConso((prev) => {
+        const anciennesParId = new Map(prev.map((a) => [a.id, a]));
+        return trouves.map((t) => {
+          const ancienne = anciennesParId.get(t.id);
+          return ancienne ? { ...t, traite: ancienne.traite, traiteParId: ancienne.traiteParId, traiteDate: ancienne.traiteDate } : { ...t, traite: false };
+        });
+      });
+      setDernierControleRappelConso(todayISO());
+      if (trouves.length > 0) logActivitySafe("Sécurité", "Alerte RappelConso", `${trouves.length} correspondance(s) trouvée(s) avec des rappels officiels récents`);
+      else if (manuel) logActivitySafe("Sécurité", "Vérification RappelConso", "Aucune correspondance — rien à signaler");
+    } catch (e) {
+      /* pas de réseau ou API indisponible : on retentera automatiquement au prochain jour de contrôle */
+    } finally {
+      setRappelConsoEnCours(false);
+    }
+  }, [stock, produits, rappelConsoEnCours, setAlertesRappelConso, setDernierControleRappelConso, logActivitySafe]);
+
+  // Marquer une alerte RappelConso comme vérifiée et corrigée (produit retiré du stock, jeté ou
+  // confirmé non concerné) — l'alerte plein écran disparaît alors pour tout le monde.
+  const traiterAlerteRappelConso = useCallback((id) => {
+    setAlertesRappelConso((prev) => prev.map((a) => (a.id === id ? { ...a, traite: true, traiteParId: currentUserId, traiteDate: todayISO() } : a)));
+    logActivitySafe("Sécurité", "Alerte RappelConso traitée", id);
+  }, [setAlertesRappelConso, currentUserId, logActivitySafe]);
+
+  useEffect(() => {
+    const jour = new Date().getDay(); // 0 = dimanche, 4 = jeudi
+    if (jour !== 4 && jour !== 0) return;
+    if (dernierControleRappelConso === todayISO()) return;
+    verifierRappelConso(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dernierControleRappelConso]);
+
+  useEffect(() => {
+    const seuil = subMonths(todayISO(), 2);
+    setPreparations((prev) => {
+      const conservees = prev.filter((p) => p.date >= seuil);
+      if (conservees.length === prev.length) return prev;
+      logActivitySafe("HACCP", "Purge automatique de la traçabilité", `${prev.length - conservees.length} entrée(s) de plus de 2 mois supprimée(s)`);
+      return conservees;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  useEffect(() => {
+    setProduits((prev) => {
+      const nomsExistants = new Set(prev.map((p) => p.nom));
+      const manquants = DEFAULT_PRODUITS.filter((p) => !nomsExistants.has(p.nom));
+      if (manquants.length === 0) return prev;
+      logActivitySafe("HACCP", "Catalogue des préparations mis à jour", `${manquants.length} nouveau(x) produit(s) ajouté(s) automatiquement`);
+      return [...prev, ...manquants];
+    });
+    setTasks((prev) => {
+      const cleStable = (t) => `${t.titre}__${t.assignedTo}__${t.jour || ""}__${t.jourDuMois || ""}__${Number((t.heure || "0").split(":")[0]) < 16 ? "matin" : "soir"}`;
+      const parCle = new Map(prev.map((t) => [cleStable(t), t]));
+      const ajouts = [];
+      let miseAJour = prev;
+      let changements = 0;
+      DEFAULT_TASKS_POSTE_CHAUD.forEach((def) => {
+        const existant = parCle.get(cleStable(def));
+        if (!existant) {
+          ajouts.push(def);
+          changements++;
+        } else if (existant.heure !== def.heure || existant.duree !== def.duree || !!existant.declencheHuile !== !!def.declencheHuile || !!existant.declencheChangementHuile !== !!def.declencheChangementHuile) {
+          miseAJour = miseAJour.map((t) => (t.id === existant.id ? { ...t, heure: def.heure, duree: def.duree, declencheHuile: def.declencheHuile, declencheChangementHuile: def.declencheChangementHuile } : t));
+          changements++;
+        }
+      });
+      if (changements === 0) return prev;
+      logActivitySafe("Planning", "Tâches du planning mises à jour", `${changements} tâche(s) ajoutée(s) ou réajustée(s) automatiquement`);
+      return [...miseAJour, ...ajouts];
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  const addTaskShared = useCallback((taskData) => {
+    setTasks([...tasks, { id: uid(), completions: {}, ...taskData }]);
+    const who = taskData.assignedTo === "tous" ? "tout le monde" : taskData.assignedTo?.startsWith("poste:") ? `Poste ${taskData.assignedTo.slice(6)}` : employees.find((e) => e.id === taskData.assignedTo)?.nom;
+    logActivitySafe("Tâches", "Tâche créée", `${taskData.titre} (${taskData.categorie}) — ${who}`);
+  }, [tasks, setTasks, employees, logActivitySafe]);
+
+  // Fin de refroidissement : plus d'alarme sonore pour le nettoyage de cellule — on l'ajoute
+  // simplement sur le planning de la personne, en fin de service, comme une tâche normale à
+  // valider (moins intrusif, et ça sera fait au bon moment sans avoir à couper une alarme).
+  const ajouterTacheNettoyageCellule = useCallback((refroidissement) => {
+    addTaskShared({
+      titre: `Nettoyer la cellule de refroidissement — ${refroidissement.produit}`,
+      heure: "22:00",
+      categorie: "Nettoyage",
+      assignedTo: refroidissement.employeeId || "tous",
+      recurrence: "Une fois",
+      jour: JOURS[(new Date().getDay() + 6) % 7],
+      date: todayISO(),
+      refroidissementCelluleId: refroidissement.id,
+    });
+  }, [addTaskShared]);
+
+  const removeTaskShared = useCallback((id) => setTasks(tasks.filter((t) => t.id !== id)), [tasks, setTasks]);
+  const updateTaskShared = useCallback((id, patch) => setTasks(tasks.map((t) => (t.id === id ? { ...t, ...patch } : t))), [tasks, setTasks]);
+
+  const toggleTaskShared = useCallback((task, date, employeeId, actorId) => {
+    const dejaFait = !!task.completions?.[date]?.[employeeId];
+    setTasks(tasks.map((t) => {
+      if (t.id !== task.id) return t;
+      const completions = { ...t.completions };
+      const dayMap = { ...(completions[date] || {}) };
+      const willBeDone = !dayMap[employeeId];
+      if (willBeDone) dayMap[employeeId] = true; else delete dayMap[employeeId];
+      completions[date] = dayMap;
+      return { ...t, completions };
+    }));
+    const empNom = employees.find((e) => e.id === employeeId)?.nom;
+    const actorNom = employees.find((e) => e.id === actorId)?.nom;
+    const detail = actorId !== employeeId ? `${task.titre} — pour ${empNom}, fait par ${actorNom} (remplacement)` : task.titre;
+    logActivitySafe("Tâches", "Tâche effectuée", detail);
+
+    if (!dejaFait && task.declencheChangementHuile) {
+      setHuileMatinActif({ titre: task.titre });
+    }
+
+    if (!dejaFait && task.declencheHuile) {
+      const dejaRemplaceeCeMatin = huileTests.some((h) => h.date === date && h.resultat === "Remplacement (matin)");
+      if (dejaRemplaceeCeMatin) {
+        logActivitySafe("HACCP", "Test huile du soir non nécessaire", "Huile déjà remplacée ce matin");
+      } else {
+        setHuileTestActif({ titre: task.titre });
+      }
+    }
+
+    if (!dejaFait && task.declencheTracabilite) {
+      const item = trouverCorrespondance(task.titre, produits, (p) => p.nom);
+      if (item) {
+        setProduitEnPreparation(item);
+        setQuantitePreparation("");
+        setTab("taches");
+      }
+    }
+
+    if (!dejaFait && task.declencheRefroidissement) {
+      setRefroidissementSuggere(task.titre);
+      setTab("haccpRefroid");
+    }
+
+    // Tâche de nettoyage de cellule créée automatiquement à la fin d'un refroidissement (voir
+    // ajouterTacheNettoyageCellule) : la valider ici vaut aussi validation du nettoyage côté HACCP,
+    // sans repasser par un bouton dédié.
+    if (!dejaFait && task.refroidissementCelluleId) {
+      setRefroidissements((prev) => prev.map((r) => (r.id === task.refroidissementCelluleId ? { ...r, cellNettoyee: true } : r)));
+    }
+  }, [tasks, setTasks, employees, logActivitySafe, produits, setTab, huileTests, setHuileTests, setRefroidissements]);
+
+  const preparerProduit = useCallback((produitId, qte, photo) => {
+    const produit = produits.find((p) => p.id === produitId);
+    if (!produit || qte === "" || qte === null || Number.isNaN(Number(qte))) return null;
+    const stockItem = trouverCorrespondance(produit.nom, stock, (s) => s.nom);
+    const dlcDate = produit.dlcSource === "reception" ? (stockItem?.dlc || todayISO()) : addDays(todayISO(), produit.dlcJours);
+    const entry = { id: uid(), produitId, employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), quantite: qte, dlcDate, jete: false, jeteDate: null, photo: photo || null };
+    setPreparations((prev) => [entry, ...prev]);
+    if (stockItem) setStock(stock.map((s) => (s.id === stockItem.id ? { ...s, quantite: Math.max(0, Number(s.quantite) - (Number(qte) || 0)) } : s)));
+    logActivitySafe("HACCP", "Traçabilité — préparation enregistrée", `${produit.nom} — ${qte} — DLC ${dlcDate}${produit.dlcSource === "reception" ? " (DDM réception)" : ""}`);
+    return entry;
+  }, [produits, currentUserId, stock, setStock, setPreparations, logActivitySafe]);
+
+  const demarrerRefroidissementDepuisFiche = useCallback((nom, mode) => {
+    setRefroidissementSuggere(mode === "negatif" ? { nom, mode: "negatif" } : nom);
+    setTab("haccpRefroid");
+  }, [setTab]);
+
+  const demarrerRefroidissementBainMarie = useCallback(() => {
+    const now = new Date();
+    const nouveaux = DEFAULT_SAUCES_BAIN_MARIE.map((nom) => ({
+      id: uid(), date: todayISO(), employeeId: currentUserId, produit: nom, heureDebut: now.toTimeString().slice(0, 5), debutTs: Date.now(),
+      tempDebut: REFROIDISSEMENT_NORME.debutMin, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null,
+    }));
+    setRefroidissements((prev) => [...nouveaux, ...prev]);
+    logActivitySafe("HACCP", "Refroidissement bain-marie lancé", `${DEFAULT_SAUCES_BAIN_MARIE.length} sauces (${DEFAULT_SAUCES_BAIN_MARIE.join(", ")})`);
+  }, [currentUserId, setRefroidissements, logActivitySafe]);
+
+  const demarrerCuissonDepuisFiche = useCallback((nom, dureeMin, famille) => {
+    setCuissonSuggere({ nom, dureeMin, famille });
+    setTab("haccpCuisson");
+  }, [setTab]);
+
+  const demarrerMaintienChaudDepuisFiche = useCallback((nom) => {
+    setMaintienChaudSuggere(nom);
+    setTab("haccpChaud");
+  }, [setTab]);
+
+  const enregistrerTracabiliteIngredients = useCallback((fiche, { photo, note }) => {
+    const entry = { id: uid(), produitId: null, nomLibre: `${fiche.nom} — ingrédients utilisés`, employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), quantite: null, dlcDate: null, jete: true, jeteDate: null, photo: photo || null, note: note || null };
+    setPreparations((prev) => [entry, ...prev]);
+    logActivitySafe("HACCP", "Traçabilité des ingrédients enregistrée", `${fiche.nom}${note ? ` — ${note}` : ""}`);
+    return entry;
+  }, [currentUserId, setPreparations, logActivitySafe]);
+
+  const enregistrerTracabiliteFiche = useCallback((fiche, quantite, photo, ingredientsUtilises) => {
+    if (!quantite) return null;
+    const dlcDate = addDays(todayISO(), fiche.dlcJours ?? 0);
+    // Mêmes recherches que creerEtiquetteDlc, pour que les étiquettes/traçabilité créées depuis
+    // une fiche technique portent aussi les mentions cuisson / refroidissement / maintien au chaud.
+    const nomPropre = (fiche.nom || "").trim().toLowerCase();
+    const derniereCuisson = cuissons.filter((c) => (c.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
+    const dernierRefroidissement = refroidissements.filter((r) => (r.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
+    const dernierMaintien = entriesMaintienChaud.filter((e) => (e.nom || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || b.heureDebut || "")).localeCompare(a.date + (a.heureFin || a.heureDebut || "")))[0] || null;
+    const entry = {
+      id: uid(), produitId: null, nomLibre: fiche.nom, employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), quantite, dlcDate, jete: false, jeteDate: null,
+      heureRefroidissement: dernierRefroidissement?.heureFin || null, photo: photo || null,
+      cuissonInfo: derniereCuisson ? { heureDebut: derniereCuisson.heureDebut, heureFin: derniereCuisson.heureFin, temperature: derniereCuisson.temperature, conforme: derniereCuisson.conforme } : null,
+      refroidissementInfo: dernierRefroidissement ? { heureDebut: dernierRefroidissement.heureDebut, heureFin: dernierRefroidissement.heureFin, tempDebut: dernierRefroidissement.tempDebut, tempFin: dernierRefroidissement.tempFin, conforme: dernierRefroidissement.conforme } : null,
+      maintienInfo: dernierMaintien ? { heureDebut: dernierMaintien.heureDebut, heureFin: dernierMaintien.heureFin, appareil: dernierMaintien.appareil } : null,
+    };
+    setPreparations((prev) => [entry, ...prev]);
+    // Destockage des ingrédients confirmés par l'employé (voir la checklist dans FicheDetail) —
+    // recherche par correspondance floue, comme partout ailleurs dans l'appli.
+    if (ingredientsUtilises && ingredientsUtilises.length > 0) {
+      setStock((prevStock) => {
+        let next = prevStock;
+        ingredientsUtilises.forEach((ing) => {
+          const qte = Number(ing.quantite) || 0;
+          if (qte <= 0) return;
+          const stockItem = trouverCorrespondance(ing.nom, next, (s) => s.nom);
+          if (stockItem) next = next.map((s) => (s.id === stockItem.id ? { ...s, quantite: Math.max(0, Number(s.quantite) - qte) } : s));
+        });
+        return next;
+      });
+      logActivitySafe("Stock", "Destockage automatique depuis une fiche technique", `${fiche.nom} — ${ingredientsUtilises.map((i) => `${i.nom} (${i.quantite})`).join(", ")}`);
+    }
+    logActivitySafe("HACCP", "Traçabilité — fiche technique enregistrée", `${fiche.nom} — ${quantite} — DLC ${dlcDate}`);
+    return entry;
+  }, [currentUserId, setPreparations, logActivitySafe, cuissons, refroidissements, entriesMaintienChaud, setStock]);
+
+  const signalerRuptureStock = useCallback((produit) => {
+    // Une rupture de stock, c'est d'abord un fait : il n'y en a plus, le chiffre de stock doit
+    // refléter ça (mis à 0) pour que ça remonte correctement dans le prochain bon de commande —
+    // que le produit ait une fiche technique (on le fabrique nous-même) ou non (on l'achète tel
+    // quel). Les deux actions se cumulent désormais, elles ne sont plus exclusives l'une de
+    // l'autre : mise à 0 du stock ET, en plus si une fiche existe, préparation programmée demain.
+    const ficheLiee = trouverFicheCorrespondante(produit.nom, fiches, produit.ficheNom);
+    const posteVersAssignedTo = { "Poste Chaud": "poste:chaud", "Poste Pizza": "poste:pizza", "Poste Froid": "poste:froid" };
+
+    const stockItem = trouverCorrespondance(produit.nom, stock, (s) => s.nom);
+    if (stockItem) {
+      setStock((prev) => prev.map((s) => (s.id === stockItem.id ? { ...s, quantite: 0 } : s)));
+    }
+
+    if (ficheLiee) {
+      const demain = addDays(todayISO(), 1);
+      const jourDemain = JOURS[(new Date(demain + "T00:00:00").getDay() + 6) % 7];
+      addTaskShared({ titre: `Préparation obligatoire : ${produit.nom}`, heure: "09:00", categorie: "Préparation", assignedTo: posteVersAssignedTo[produit.poste] || "tous", recurrence: "Une fois", jour: jourDemain, date: demain });
+      logActivitySafe("Stock", "Rupture de stock signalée (recette)", `${produit.nom} — mis à 0${stockItem ? "" : " (aucun article de stock correspondant trouvé)"}, préparation obligatoire programmée demain matin`);
+    } else if (stockItem) {
+      logActivitySafe("Stock", "Rupture de stock signalée", `${produit.nom} — mis à 0, apparaîtra dans le bon de commande`);
+    } else {
+      logActivitySafe("Stock", "Rupture de stock signalée", `${produit.nom} — aucun article de stock correspondant trouvé, à vérifier manuellement`);
+    }
+  }, [fiches, addTaskShared, stock, setStock, logActivitySafe]);
+
+  const creerEtiquetteDlc = useCallback(({ produitNom, lot, dlcDate, photo, photos, quantiteUtilisee, nbEtiquettes, photoEtiquette, allergenes, origine, codeUsine, delaiApresOuvertureJours, decongelationInfo }) => {
+    if (!dlcDate) return null;
+    // Info cuisson / refroidissement la plus récente pour ce produit, à faire apparaître sur
+    // l'étiquette (le produit a-t-il été cuit ou refroidi lors de sa préparation ?).
+    const nomPropre = (produitNom || "").trim().toLowerCase();
+    const derniereCuisson = cuissons.filter((c) => (c.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
+    const dernierRefroidissement = refroidissements.filter((r) => (r.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
+    // Idem pour le maintien au chaud, à faire apparaître sur l'étiquette au même titre que la
+    // cuisson et le refroidissement — un produit qui a été maintenu au chaud doit le mentionner.
+    const dernierMaintien = entriesMaintienChaud.filter((e) => (e.nom || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || b.heureDebut || "")).localeCompare(a.date + (a.heureFin || a.heureDebut || "")))[0] || null;
+    // Si l'employé n'a pas renseigné de lot (ex : rupture en plein service, pas eu le temps),
+    // on ne bloque pas l'étiquette : tous les produits ont fait l'objet d'une traçabilité à la
+    // réception, donc on récupère le dernier numéro de lot enregistré pour ce produit en stock.
+    const stockCorrespondant = stock.find((s) => (s.nom || "").trim().toLowerCase() === nomPropre);
+    const lotFinal = lot || (stockCorrespondant && stockCorrespondant.lot) || null;
+    // Une à plusieurs photos (nom, DLC, logo fabricant... pas toujours au même endroit sur
+    // l'emballage) : "photos" porte le tableau complet, "photo" reste le premier cliché pour la
+    // compatibilité avec les écrans qui n'affichent qu'une vignette.
+    const photosFinal = photos && photos.length ? photos : (photo ? [photo] : []);
+    const entry = {
+      id: uid(), produitId: null, nomLibre: produitNom, employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5),
+      quantite: quantiteUtilisee || "1", dlcDate, jete: false, jeteDate: null, lot: lotFinal, photo: photosFinal[0] || null,
+      nbEtiquettes: Number(nbEtiquettes) || 1,
+      // Capturées uniquement par la traçabilité en photo avec IA (allergènes, origine, agrément
+      // sanitaire/code usine, délai de conservation après ouverture) — servent à la lecture rapide
+      // dans le contrôle traçabilité du chef/direction. Depuis la confirmation côté écran de
+      // traçabilité, ces valeurs mettent aussi à jour la fiche standard du produit (voir
+      // AjoutTracabilitePhotoIA) — ici, elles restent de toute façon jointes à CE lot précis.
+      photos: photosFinal,
+      photoEtiquette: photoEtiquette || null,
+      allergenes: allergenes || null,
+      origine: origine || null,
+      codeUsine: codeUsine || null,
+      delaiApresOuvertureJours: delaiApresOuvertureJours || null,
+      cuissonInfo: derniereCuisson ? { heureDebut: derniereCuisson.heureDebut, heureFin: derniereCuisson.heureFin, temperature: derniereCuisson.temperature, conforme: derniereCuisson.conforme } : null,
+      refroidissementInfo: dernierRefroidissement ? { heureDebut: dernierRefroidissement.heureDebut, heureFin: dernierRefroidissement.heureFin, tempDebut: dernierRefroidissement.tempDebut, tempFin: dernierRefroidissement.tempFin, conforme: dernierRefroidissement.conforme } : null,
+      maintienInfo: dernierMaintien ? { heureDebut: dernierMaintien.heureDebut, heureFin: dernierMaintien.heureFin, appareil: dernierMaintien.appareil } : null,
+      decongelationInfo: decongelationInfo || null,
+    };
+    setPreparations((prev) => [entry, ...prev]);
+    // Si une quantité utilisée est renseignée et qu'un article de stock du même nom existe, on la retire du stock.
+    if (quantiteUtilisee) {
+      setStock((prev) => prev.map((s) => (s.nom.trim().toLowerCase() === nomPropre ? { ...s, quantite: Math.max(0, Number(s.quantite) - Number(quantiteUtilisee)) } : s)));
+    }
+    logActivitySafe("HACCP", "Étiquette DLC créée", `${produitNom}${lotFinal ? ` — lot ${lotFinal}` : ""} — DLC/DDM ${dlcDate}${quantiteUtilisee ? ` — ${quantiteUtilisee} retiré(s) du stock` : ""}`);
+    return entry;
+  }, [currentUserId, setPreparations, logActivitySafe, cuissons, refroidissements, entriesMaintienChaud, setStock, stock]);
+
+  // Traçabilité la plus simple possible (offre SANS IA) : une ou plusieurs photos de l'étiquette
+  // (pas limité à une seule — devant/dos de l'emballage si besoin), qui montrent déjà elles-mêmes le
+  // nom, la DLC et le numéro de lot du produit — on ne redemande rien à l'employé, rien à taper. Les
+  // photos datées et nommées par qui les a prises SONT la traçabilité ; conservées 2 mois, elles se
+  // retrouvent dans le contrôle traçabilité du chef/direction par date.
+  const enregistrerTracabilitePhotoSimple = useCallback((photos) => {
+    const photosFinal = Array.isArray(photos) ? photos : (photos ? [photos] : []);
+    const entry = {
+      id: uid(), produitId: null, nomLibre: null, employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5),
+      quantite: null, dlcDate: null, jete: false, jeteDate: null, lot: null, photo: photosFinal[0] || null, photos: photosFinal, typeEntree: "photo-simple",
+    };
+    setPreparations((prev) => [entry, ...prev]);
+    logActivitySafe("HACCP", "Traçabilité enregistrée (photo)", `${photosFinal.length} photo(s) de l'étiquette conservée(s) — offre sans IA.`);
+    return entry;
+  }, [currentUserId, setPreparations, logActivitySafe]);
+
+  const jeterPreparation = useCallback((prepId, options = {}) => {
+    const prep = preparations.find((p) => p.id === prepId);
+    if (!prep) return;
+    const produit = produits.find((p) => p.id === prep.produitId);
+    const fini = !!options.fini;
+    const quantiteJetee = fini ? 0 : (options.quantiteJetee ?? prep.quantite);
+    setPreparations(preparations.map((p) => (p.id === prepId ? { ...p, jete: true, jeteDate: todayISO(), quantiteJetee, fini } : p)));
+    const demain = addDays(todayISO(), 1);
+    addTaskShared({ titre: `Refaire : ${produit?.nom || prep.nomLibre || "produit"}`, heure: "", categorie: "Préparation", assignedTo: prep.employeeId, recurrence: "Une fois", jour: JOURS[(new Date(demain + "T00:00:00").getDay() + 6) % 7], date: demain });
+    logActivitySafe("HACCP", fini ? "Produit terminé avant la DLC (aucune perte)" : "Produit jeté (fin de DLC)", `${produit?.nom || prep.nomLibre || ""} — ${fini ? "épuisé" : `${quantiteJetee} jeté(s)`} — remis au planning du ${demain}`);
+  }, [preparations, produits, setPreparations, logActivitySafe, addTaskShared]);
+
+  const ajouterAlerteControle = useCallback((entry) => {
+    setAlertesControle((prev) => [{ vue: false, ...entry }, ...prev]);
+  }, [setAlertesControle]);
+
+  const confirmerTestHuile = useCallback((photo, decision) => {
+    const now = new Date();
+    const entry = { id: uid(), employeeId: currentUserId, date: todayISO(), heure: now.toTimeString().slice(0, 5), valeur: "Test bandelette", resultat: decision, photo };
+    setHuileTests((prev) => [entry, ...prev]);
+    logActivitySafe("HACCP", "Test huile de friture", decision);
+    const demain = addDays(todayISO(), 1);
+    const jourDemain = JOURS[(new Date(demain + "T00:00:00").getDay() + 6) % 7];
+    if (decision === "Bonne") {
+      addTaskShared({ titre: "Friteuse : retirer les résidus, nettoyage rapide et remettre l'huile filtrée", note: "Huile testée bonne hier soir : retirer les résidus à l'intérieur de la cuve, faire un nettoyage propre et rapide de la friteuse, puis remettre l'huile filtrée.", heure: "10:00", categorie: "Nettoyage", assignedTo: "poste:chaud", recurrence: "Une fois", jour: jourDemain, date: demain });
+    } else {
+      addTaskShared({ titre: "Friteuse : remplacer l'huile et nettoyage complet (intérieur, extérieur, ustensiles)", note: "Huile testée mauvaise hier soir : remplacer l'huile de friture et faire un nettoyage complet et minutieux de la friteuse — intérieur, parois extérieures et tous les ustensiles.", heure: "10:00", categorie: "Nettoyage", assignedTo: "poste:chaud", recurrence: "Une fois", jour: jourDemain, date: demain, lienProtocole: "friteuse-complet" });
+      ajouterAlerteControle({
+        id: uid(), date: todayISO(), heure: now.toTimeString().slice(0, 5), type: "Huile de friture", employeeId: currentUserId,
+        titre: "Huile de friture non conforme", detail: "Remplacement de l'huile et nettoyage complet de la friteuse programmés demain matin.", conforme: false,
+      });
+    }
+  }, [currentUserId, setHuileTests, logActivitySafe, addTaskShared, ajouterAlerteControle]);
+
+  const confirmerHuileMatin = useCallback((choix) => {
+    const now = new Date();
+    const resultat = choix === "filtration" ? "Filtration (matin)" : "Remplacement (matin)";
+    const entry = { id: uid(), employeeId: currentUserId, date: todayISO(), heure: now.toTimeString().slice(0, 5), valeur: "Décision matin", resultat, photo: null };
+    setHuileTests((prev) => [entry, ...prev]);
+    logActivitySafe("HACCP", "Décision huile de friture (matin)", resultat);
+    if (huileMatinActif?.taskId) {
+      const date = todayISO();
+      setTasks((prev) => prev.map((t) => {
+        if (t.id !== huileMatinActif.taskId) return t;
+        const completions = { ...t.completions };
+        const dayMap = { ...(completions[date] || {}), [currentUserId]: true };
+        completions[date] = dayMap;
+        return { ...t, completions };
+      }));
+    }
+    if (choix === "remplacement") {
+      ajouterAlerteControle({
+        id: uid(), date: todayISO(), heure: now.toTimeString().slice(0, 5), type: "Huile de friture", employeeId: currentUserId,
+        titre: "Huile de friture remplacée (décision du matin)", detail: "L'huile a été remplacée ce matin, avant le test bandelette du soir.", conforme: true,
+      });
+    }
+  }, [currentUserId, setHuileTests, logActivitySafe, ajouterAlerteControle, huileMatinActif, setTasks]);
+
+  const jeterStock = useCallback((stockId) => {
+    const item = stock.find((s) => s.id === stockId);
+    if (!item) return;
+    setStock(stock.map((s) => (s.id === stockId ? { ...s, quantite: 0, dlc: "" } : s)));
+    logActivitySafe("HACCP", "Article de stock jeté (fin de DLC)", `${item.nom} — repasse dans la commande fournisseur`);
+  }, [stock, setStock, logActivitySafe]);
+
+  const mouvementStockShared = useCallback((stockId, delta, motif) => {
+    const s = stock.find((x) => x.id === stockId);
+    if (!s) return;
+    setStock(stock.map((x) => (x.id === stockId ? { ...x, quantite: Math.max(0, Number(x.quantite) + delta) } : x)));
+    logActivitySafe("Stock", delta > 0 ? "Entrée de stock (commande rapide)" : "Sortie de stock (commande rapide)", `${s.nom} : ${delta > 0 ? "+" : ""}${delta} ${s.unite}${motif ? ` — ${motif}` : ""}`);
+  }, [stock, setStock, logActivitySafe]);
+
+  const executerCommande = useCallback(async (texte) => {
+    const interpretation = await interpreterCommande(texte);
+    if (!interpretation) return "Je n'ai pas pu interpréter la commande — réessayez ou faites-le manuellement.";
+    const { action, produit, quantite, motif, cible } = interpretation;
+
+    if (action === "ouvrir_reception") {
+      setReceptionActive(true);
+      setTab("reception");
+      return "Réception ouverte.";
+    }
+
+    if (action === "retirer_stock") {
+      const item = trouverCorrespondance(produit, stock, (s) => s.nom);
+      if (!item) return `Produit « ${produit} » introuvable dans le stock — faites-le manuellement.`;
+      const qte = Math.abs(Number(quantite)) || 1;
+      mouvementStockShared(item.id, -qte, motif || "");
+      return `Stock mis à jour : -${qte} ${item.unite} de ${item.nom}${motif ? ` (${motif})` : ""}.`;
+    }
+
+    if (action === "preparer_produit") {
+      // D'abord une recette (fiche technique) : si trouvée, on ouvre directement sa fiche avec
+      // tous les boutons d'action prêts (cuisson, refroidissement, maintien au chaud, étiquette...)
+      // — les relevés de température restent un geste physique volontaire, jamais automatisé.
+      const fiche = trouverFicheCorrespondante(produit, fiches, null);
+      if (fiche) {
+        setTab("fiches");
+        setFicheAutoOuvrirId(fiche.id);
+        return `Fiche « ${fiche.nom} » ouverte — les boutons de préparation sont prêts.`;
+      }
+      // Sinon, un produit simple du catalogue DLC (acheté, portionné...) : on ouvre directement
+      // la petite fenêtre d'étiquette rapide (lot et DLC/DDM déjà calculés automatiquement) —
+      // il ne reste qu'à indiquer la quantité utilisée et le nombre d'étiquettes, et confirmer.
+      const item = trouverCorrespondance(produit, produits, (p) => p.nom);
+      if (!item) return `Produit « ${produit} » introuvable — ni dans les fiches techniques, ni dans le catalogue des étiquettes DLC.`;
+      proposerEtiquetteRapide(item.nom);
+      return `Étiquette DLC de « ${item.nom} » prête — indiquez vous-même le nombre d'étiquettes, puis confirmez.`;
+    }
+
+    // Démarrage d'une étape HACCP précise à la voix : on ouvre l'écran correspondant et on
+    // pré-sélectionne le produit, exactement comme le bouton équivalent sur la fiche technique.
+    // Le relevé de température reste ensuite un geste manuel de l'employé — jamais automatisé.
+    if (action === "demarrer_cuisson") {
+      const fiche = trouverFicheCorrespondante(produit, fiches, null);
+      if (!fiche) return `Fiche « ${produit} » introuvable — impossible de démarrer la cuisson.`;
+      demarrerCuissonDepuisFiche(fiche.nom);
+      return `Cuisson de « ${fiche.nom} » ouverte — reste à relever la température.`;
+    }
+    if (action === "demarrer_refroidissement") {
+      const fiche = trouverFicheCorrespondante(produit, fiches, null);
+      if (!fiche) return `Fiche « ${produit} » introuvable — impossible de démarrer le refroidissement.`;
+      demarrerRefroidissementDepuisFiche(fiche.nom);
+      return `Refroidissement de « ${fiche.nom} » ouvert — reste à relever la température.`;
+    }
+    if (action === "demarrer_maintien_chaud") {
+      const fiche = trouverFicheCorrespondante(produit, fiches, null);
+      if (!fiche) return `Fiche « ${produit} » introuvable — impossible de démarrer le maintien au chaud.`;
+      demarrerMaintienChaudDepuisFiche(fiche.nom);
+      return `Maintien au chaud de « ${fiche.nom} » ouvert — reste à relever la température.`;
+    }
+
+    if (action === "naviguer" && NAV.some((n) => n.id === cible)) {
+      setTab(cible);
+      return "C'est fait.";
+    }
+
+    return "Je n'ai pas compris cette commande — reformulez ou faites-le manuellement.";
+  }, [stock, produits, fiches, setTab, mouvementStockShared, proposerEtiquetteRapide, demarrerCuissonDepuisFiche, demarrerRefroidissementDepuisFiche, demarrerMaintienChaudDepuisFiche]);
+
+  const goToEmployee = (id) => { setSelectedEmployeeId(id); setTab("equipe"); };
+  const switchAccount = () => setSessionActive(false);
+
+  // Verrouillage automatique (tablette commune uniquement) : voir le commentaire de
+  // avertissementDeconnexion/verrouille plus haut pour le principe général. Tant que l'écran est
+  // verrouillé, on n'arme plus le compte à rebours (pas la peine) : il repart de zéro au déverrouillage.
+  useEffect(() => {
+    if (typeAppareil !== "tablette" || !sessionActive || verrouille) { setAvertissementDeconnexion(false); return; }
+    const DELAI_AVANT_AVERTISSEMENT_MS = 2 * 60 * 1000; // 2 minutes sans la moindre interaction
+    const DUREE_AVERTISSEMENT_MS = 10 * 1000; // 10 secondes pour réagir avant le verrouillage réel
+    let timerAvertissement = null;
+    let timerDeconnexion = null;
+
+    const reinitialiserDelai = () => {
+      setAvertissementDeconnexion(false);
+      clearTimeout(timerAvertissement);
+      clearTimeout(timerDeconnexion);
+      timerAvertissement = setTimeout(() => {
+        setAvertissementDeconnexion(true);
+        timerDeconnexion = setTimeout(() => { setVerrouille(true); }, DUREE_AVERTISSEMENT_MS);
+      }, DELAI_AVANT_AVERTISSEMENT_MS);
+    };
+
+    const evenementsActivite = ["click", "touchstart", "keydown", "mousemove", "scroll"];
+    evenementsActivite.forEach((ev) => window.addEventListener(ev, reinitialiserDelai, { passive: true }));
+    reinitialiserDelai();
+
+    return () => {
+      evenementsActivite.forEach((ev) => window.removeEventListener(ev, reinitialiserDelai));
+      clearTimeout(timerAvertissement);
+      clearTimeout(timerDeconnexion);
+    };
+  }, [typeAppareil, sessionActive, verrouille]);
+  const selectAccount = (id) => { setCurrentUserId(id); setSessionActive(true); };
+
+  const alertesTemp = tempLogs.filter((l) => l.date === todayISO() && !isTempOk(l.type, l.valeur)).length + relevesFroid.filter((r) => r.date === todayISO() && !r.conforme).length;
+  const alertesStock = stock.filter((s) => Number(s.quantite) < Number(s.cible)).length;
+  const badges = { haccp: alertesTemp, stock: alertesStock };
+
+  const moi = currentUserId === "direction"
+    ? { id: "direction", nom: "Direction", poste: "Direction", estChef: true }
+    : employees.find((e) => e.id === currentUserId);
+  // Le contrôle de fin de service ("Gestion et contrôle") est réservé au chef (estChef) et à la
+  // Direction — plus d'accès de secours pour un autre employé les jours de repos du chef : voir
+  // aussi Taches / appliesToDate pour la tâche "Contrôle" elle-même.
+  const navItems = NAV.filter((n) => !n.chefOnly || moi?.estChef);
+
+  useEffect(() => {
+    if (tab === "controle" && moi && !moi.estChef) setTab("taches");
+  }, [tab, moi, currentUserId]);
+
+  // Téléphone personnel : si un code valable a déjà été entré aujourd'hui (avant 9h demain), on
+  // reconnecte automatiquement l'employé sans lui redemander ni son code ni son nom. useLayoutEffect
+  // (plutôt que useEffect) pour que ça se fasse avant l'affichage, sans montrer l'écran de code
+  // une fraction de seconde inutilement à chaque réouverture de l'appli dans la même journée.
+  useLayoutEffect(() => {
+    if (typeAppareil === "telephone" && !sessionActive) {
+      const idValide = sessionCodeValide();
+      if (idValide && employees.some((e) => e.id === idValide)) selectAccount(idValide);
+    }
+    // Volontairement limité à ces deux dépendances : on ne veut vérifier qu'au chargement de
+    // l'appareil (ou si son type change), pas à chaque nouvelle donnée employé reçue.
+  }, [typeAppareil, sessionActive]);
+
+  if (!typeAppareil) {
+    return <DeviceTypeGate onChoisir={(t) => { ecrireTypeAppareil(t); setTypeAppareil(t); }} />;
+  }
+
+  if (!currentUserLoaded) return null;
+
+  if (!sessionActive) {
+    if (typeAppareil === "telephone") {
+      return <PersonalCodeGate employees={employees} onValide={(id) => selectAccount(id)} />;
+    }
+    return <LoginGate employees={employees} lastUserId={currentUserId} onSelect={selectAccount} />;
+  }
+
+  if (tab === "controle" && !moi?.estChef) {
+    return null;
+  }
+
+  // Alertes "10 min avant l'échéance" (refroidissement / maintien au chaud / cuisson) : s'il y a
+  // plusieurs produits dans la fenêtre en même temps, on ne fait sonner l'escalade que sur le
+  // plus urgent (celui qui a commencé le plus tôt) — les autres restent affichés dès qu'il est traité.
+  const plusUrgentRefroidissementPreAlarme = refroidissements
+    .filter((r) => { const n = normeRefroidissement(r.type); const m = (Date.now() - r.debutTs) / 60000; return r.statut === "en-cours" && !r.preAlarmeAcquittee && m >= n.dureeMaxMin - n.alerteAvantMin && m < n.dureeMaxMin; })
+    .sort((a, b) => a.debutTs - b.debutTs)[0];
+  const plusUrgentCuissonPreAlarme = cuissons
+    .filter((c) => c.statut === "en-cours" && !c.preAlarmeAcquittee && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin - CUISSON_ALERTE_AVANT_MIN && (Date.now() - c.debutTs) / 60000 < c.dureeAttendueMin)
+    .sort((a, b) => a.debutTs - b.debutTs)[0];
+
+  return (
+    <div className="min-h-screen flex flex-col md:flex-row" style={{
+      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+      "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
+      "--gold": "#B98A2E", "--gold-soft": "#F5ECD8",
+      backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
+    }}>
+      {/* Alerte RappelConso — visible par TOUT LE MONDE (y compris la direction), au-dessus de
+          n'importe quel écran de l'application, tant qu'elle n'a pas été vérifiée et corrigée. */}
+      {alertesRappelConso.some((a) => !a.traite) && (
+        <AlerteBloquante
+          zIndex={10000}
+          titre="Rappel produit officiel (RappelConso) — produit en stock"
+          sousTitre="Visible par toute l'équipe, y compris la direction, jusqu'à vérification et correction."
+          items={alertesRappelConso.filter((a) => !a.traite)}
+          renderItem={(a) => (
+            <div key={a.id} className="border-b border-[var(--line)] pb-4 last:border-0 last:pb-0">
+              <div className="font-semibold text-[var(--ink)]">{a.produit} — {a.titre}</div>
+              <div className="text-xs text-[var(--steel)] mt-1">{a.motif}{a.date ? ` — publié le ${a.date}` : ""}</div>
+              <a href={a.lien} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] font-medium block mt-1">Voir la fiche officielle →</a>
+              <div className="mt-2.5">
+                <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Produit vérifié / retiré — marquer comme traité</Button>
+              </div>
+            </div>
+          )}
+        />
+      )}
+
+      {/* Bandeau d'avertissement avant verrouillage automatique (tablette commune uniquement) :
+          n'importe quel clic, appui écran ou touche annule le compte à rebours (voir l'effet
+          d'inactivité plus haut), donc ce bandeau ne coupe jamais un travail en cours tant que
+          quelqu'un est encore devant l'écran. */}
+      {avertissementDeconnexion && (
+        <div className="fixed bottom-0 left-0 right-0 flex items-center justify-between gap-3 px-4 py-3 print:hidden" style={{ zIndex: 10002, backgroundColor: "#1D2321", color: "#ffffff" }}>
+          <span className="text-sm">Verrouillage dans 10 secondes — touchez l'écran pour rester connecté.</span>
+          <Button onClick={() => setAvertissementDeconnexion(false)}>Je suis toujours là</Button>
+        </div>
+      )}
+
+      {/* Écran de verrouillage (tablette commune, après 2 min d'inactivité) : contrairement à
+          une vraie déconnexion, tout l'écran en cours reste intact en dessous — en reprenant la
+          tablette, la personne retrouve exactement où elle en était, comme en déverrouillant un
+          téléphone. Un simple appui sur "Reprendre" suffit si c'est bien elle ; sinon "Ce n'est
+          pas moi" passe par la vraie déconnexion (choix du compte), pour ne jamais laisser une
+          autre personne continuer sous un nom qui n'est pas le sien. */}
+      {verrouille && (
+        <div className="fixed inset-0 flex items-center justify-center p-6 print:hidden" style={{ zIndex: 10003, backgroundColor: "rgba(29,35,33,0.97)" }}>
+          <div className="w-full max-w-sm text-center">
+            <div className="w-16 h-16 rounded-full flex items-center justify-center text-2xl mx-auto mb-4" style={{ background: "#3C4658" }}>🔒</div>
+            <div className="text-white font-semibold text-lg mb-1">Session verrouillée</div>
+            <div className="text-white/70 text-sm mb-6">{moi?.nom || "Votre session"} — tout est resté exactement comme vous l'avez laissé.</div>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => setVerrouille(false)}>Reprendre — c'est moi</Button>
+              <button onClick={() => { setVerrouille(false); switchAccount(); }} className="text-xs text-white/60 mt-1">Ce n'est pas moi — changer de compte</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Alerte d'action HACCP (température, refroidissement, cuisson, huile...) — visible
+          uniquement par la personne qui a lancé l'action concernée, au-dessus de n'importe
+          quel écran, tant qu'elle n'a pas été validée. */}
+      {alertesControle.some((a) => !a.vue && a.employeeId === currentUserId) && (
+        <AlerteBloquante
+          zIndex={9999}
+          titre="Alerte HACCP — action à corriger"
+          sousTitre="Cette fenêtre reste affichée tant que l'action n'est pas validée."
+          items={alertesControle.filter((a) => !a.vue && a.employeeId === currentUserId)}
+          renderItem={(a) => (
+            <div key={a.id} className="border-b border-[var(--line)] pb-4 last:border-0 last:pb-0">
+              <div className="font-semibold text-[var(--ink)]">{a.titre}</div>
+              <div className="text-xs text-[var(--steel)] mt-1">{a.detail}</div>
+              <div className="text-xs text-[var(--steel)] mt-1">{a.date} à {a.heure} · {a.type}{a.conforme === false ? " · non conforme" : a.conforme === true ? " · accepté" : ""}</div>
+              <div className="mt-2.5">
+                <Button variant="danger" onClick={() => setAlertesControle((prev) => prev.map((x) => (x.id === a.id ? { ...x, vue: true } : x)))}>Validé et corrigé</Button>
+              </div>
+            </div>
+          )}
+        />
+      )}
+
+      {/* Remarque(s) du chef non lues (contrôle de fin de service) — s'ouvre automatiquement à la
+          connexion de l'employé concerné, impossible à manquer (contrairement à la simple carte
+          CarteRemarquesChef dans le planning). Reste tant que ce n'est pas explicitement acquitté ;
+          réapparaît si une NOUVELLE remarque non lue arrive. */}
+      {currentUserId !== "direction" && (remarquesChef || []).some((r) => r.empId === currentUserId && !r.vue) && (
+        <AlerteBloquante
+          zIndex={9998}
+          titre="Message du chef — contrôle de fin de service"
+          sousTitre="Point(s) relevé(s) par le chef lors du contrôle — à lire avant de continuer."
+          items={(remarquesChef || []).filter((r) => r.empId === currentUserId && !r.vue)}
+          renderItem={(r) => (
+            <div key={r.id} className="border-b border-[var(--line)] pb-4 last:border-0 last:pb-0">
+              <div className="font-semibold text-[var(--ink)]">{r.taskTitre}</div>
+              <div className="text-sm text-[var(--ink)] mt-1">{r.note}</div>
+              {r.photo && <img src={r.photo} alt="Photo du chef" className="w-full max-w-xs rounded-lg border border-[var(--line)] mt-2" />}
+              <div className="text-xs text-[var(--steel)] mt-1.5">Remarque du {r.date} à {r.heure}</div>
+              <div className="mt-2.5">
+                <Button variant="danger" onClick={() => setRemarquesChef((remarquesChef || []).map((x) => (x.id === r.id ? { ...x, vue: true } : x)))}>J'ai lu et compris</Button>
+              </div>
+            </div>
+          )}
+        />
+      )}
+
+      {/* nav desktop */}
+      <aside className="hidden md:flex md:flex-col w-60 shrink-0 border-r border-[var(--line)] bg-white p-5">
+        <button onClick={() => setTab("accueil")} className="flex items-center gap-2 mb-6 px-1 text-left">
+          <ChefHat size={22} className="text-[var(--accent)]" />
+          <span className="font-semibold text-[var(--ink)] tracking-tight">Ma Cuisine</span>
+        </button>
+
+        <button onClick={switchAccount} className="flex items-center gap-2.5 mb-6 px-1 text-left w-full group">
+          <Avatar nom={moi?.nom} size={36} />
+          <div className="min-w-0 flex-1">
+            <div className="text-sm font-medium text-[var(--ink)] truncate">{moi?.nom}</div>
+            <div className="text-xs text-[var(--steel)] group-hover:text-[var(--accent)]">Changer de compte</div>
+          </div>
+        </button>
+
+        <nav className="flex flex-col gap-1">
+          {navItems.map((n) => (
+            <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
+              className={`flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium text-left transition-colors ${
+                tab === n.id ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--steel)] hover:bg-[var(--bg)]"
+              }`}>
+              <n.icon size={17} />
+              {n.label}
+              {badges[n.id] > 0 && (
+                <span className="ml-auto text-[10px] rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#C1432D", color: "#ffffff" }}>{badges[n.id]}</span>
+              )}
+            </button>
+          ))}
+        </nav>
+      </aside>
+
+      {/* header mobile */}
+      <header className="md:hidden flex items-center justify-between gap-2 px-4 py-3 bg-white border-b border-[var(--line)]">
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="min-w-0">
+            <div className="font-semibold text-[var(--ink)] truncate leading-tight">Bonjour {moi?.nom?.split(" ")[0] || ""}</div>
+            <div className="text-xs text-[var(--steel)] capitalize truncate leading-tight">{fmtLong(todayISO())}</div>
+          </div>
+          <HorlogeCompacte />
+        </div>
+        {typeAppareil === "tablette" && (
+          <button onClick={switchAccount} className="flex items-center gap-2 shrink-0">
+            <Avatar nom={moi?.nom} size={28} />
+            <span className="text-xs text-[var(--ink)] font-medium">{moi?.nom}</span>
+          </button>
+        )}
+      </header>
+
+      {tab !== "accueil" && (
+        <div className="md:hidden px-4 pt-3 bg-white">
+          <button onClick={() => setTab("accueil")}
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--line)] text-[var(--steel)] bg-white">
+            <ChevronLeft size={14} />
+            Retour Accueil
+          </button>
+        </div>
+      )}
+
+      <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-8 max-w-6xl">
+        <IndicateurHorsLigne />
+        {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin) && (
+          <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement}>Un refroidissement ou une surgélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
+        )}
+        {plusUrgentRefroidissementPreAlarme && (
+          <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterPreAlarmeRefroidissement} escaladeDebutTs={plusUrgentRefroidissementPreAlarme.debutTs + (normeRefroidissement(plusUrgentRefroidissementPreAlarme.type).dureeMaxMin - normeRefroidissement(plusUrgentRefroidissementPreAlarme.type).alerteAvantMin) * 60000}>
+            {plusUrgentRefroidissementPreAlarme.type === "negatif" ? "Une surgélation approche de sa durée max" : "Un refroidissement approche des 2h"} ({plusUrgentRefroidissementPreAlarme.produit}) — sortez-le et terminez-le dans Refroidissement rapide.
+          </AlerteBanniere>
+        )}
+        {surveillancesFroid.some((s) => s.statut === "attente" && Date.now() >= s.rappelTs && !s.alarmeAcquittee) && (
+          <AlerteBanniere label="Frigo / congélateur" onClick={() => setTab("haccpTemp")} onArreterAlarme={arreterAlarmeTemp}>Un frigo/congélateur est à recontrôler — Température frigo & congélateur.</AlerteBanniere>
+        )}
+        {cuissons.some((c) => c.statut === "en-cours" && !c.alarmeAcquittee && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin) && (
+          <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterAlarmeCuisson}>Une cuisson a atteint sa durée attendue — vérifiez la température à cœur maintenant (Gestion des cuissons).</AlerteBanniere>
+        )}
+        {plusUrgentCuissonPreAlarme && (
+          <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterPreAlarmeCuisson} escaladeDebutTs={plusUrgentCuissonPreAlarme.debutTs + (plusUrgentCuissonPreAlarme.dureeAttendueMin - CUISSON_ALERTE_AVANT_MIN) * 60000}>
+            Une cuisson approche de sa durée attendue ({plusUrgentCuissonPreAlarme.produit}) — préparez-vous à vérifier la température à cœur (Gestion des cuissons).
+          </AlerteBanniere>
+        )}
+        {/* Commande vocale accessible depuis n'importe quel écran (pas seulement l'Accueil) :
+            un seul bouton à presser, pensé pour quelqu'un en pleine préparation qui ne veut pas
+            manipuler l'écran avec les mains prises. Sur l'Accueil, la carte complète ci-dessous
+            (avec saisie texte) reste affichée en plus — ce bouton flottant est donc masqué là-bas
+            pour ne pas doubler l'affichage. */}
+        {tab !== "accueil" && consentementAccorde() && <CommandeVocaleFlottante onCommande={executerCommande} />}
+
+        {tab === "accueil" && (
+          <div>
+            {consentementAccorde()
+              ? <CommandeBar onCommande={executerCommande} />
+              : <AccesRestreint titre="Commande vocale" />}
+            <div className="grid grid-cols-2 gap-3 mb-6">
+              {ORDRE_TUILES_ACCUEIL
+                .map((id) => NAV.find((n) => n.id === id))
+                .filter((n) => n && (!n.chefOnly || moi?.estChef))
+                .map((n) => {
+                  const couleur = TUILE_COULEURS[n.id] || TUILE_COULEURS.default;
+                  const Icon = n.icon;
+                  return (
+                    <button
+                      key={n.id}
+                      onClick={() => { setTab(n.id); setSelectedEmployeeId(null); }}
+                      style={{ background: couleur.fond, boxShadow: `0 8px 20px ${couleur.ombre}` }}
+                      className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform"
+                    >
+                      <Icon size={34} color="#ffffff" strokeWidth={2} />
+                      <span className="text-sm font-bold text-white leading-tight line-clamp-2">{n.label}</span>
+                    </button>
+                  );
+                })}
+            </div>
+          </div>
+        )}
+        {tab === "taches" && (
+          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} />
+        )}
+        {tab === "stock" && (
+          consentementAccorde()
+            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} />
+            : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
+        )}
+        {tab === "reception" && (
+          consentementAccorde()
+            ? <Reception stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
+            : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
+        )}
+        {tab === "etiquettes" && (
+          consentementAccorde()
+            ? <EtiquettesDlc stock={stock} jeterStock={jeterStock} preparations={preparations} jeterPreparation={jeterPreparation} currentUserId={currentUserId} logActivity={logActivitySafe} creerEtiquetteDlc={creerEtiquetteDlc} employees={employees} produits={produits} setProduits={setProduits} />
+            : <AccesRestreint titre="Lecture automatique des étiquettes par IA" />
+        )}
+        {tab === "tracabilite" && (
+          consentementAccorde()
+            ? <TracabilitePage preparations={preparations} creerEtiquetteDlc={creerEtiquetteDlc} enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} employees={employees} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={produits} setCatalogueProduits={setProduits} setProduitsLotException={setProduitsLotException} />
+            : <AccesRestreint titre="Lecture automatique des photos par IA" />
+        )}
+        {tab === "haccpTemp" && (
+          <HaccpTempPage tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} />
+        )}
+        {tab === "haccpRefroid" && (
+          <HaccpRefroidPage refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+        )}
+        {tab === "haccpHuile" && (
+          <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} />
+        )}
+        {tab === "haccpChaud" && (
+          <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} />
+        )}
+        {tab === "haccpCuisson" && (
+          <HaccpCuissonPage cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
+        )}
+        {tab === "fiches" && (
+          <FichesTechniquesMenu
+            fichesProps={{ fiches, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef }}
+            creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
+            consentementAccorde={consentementAccorde}
+            ouvrirIdAuto={ficheAutoOuvrirId}
+            onConsommeOuvrirIdAuto={() => setFicheAutoOuvrirId(null)}
+          />
+        )}
+        {tab === "controle" && (
+          <Controle employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} />
+        )}
+        {tab === "reservations" && (
+          <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
+        )}
+        {tab === "equipe" && (
+          <Equipe employees={employees} shifts={shifts} activityLog={activityLog} tasks={tasks} toggleTask={toggleTaskShared} currentUserId={currentUserId} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} />
+        )}
+        {tab === "horaires" && (
+          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
+        )}
+      </main>
+      {/* La barre d'onglets mobile du bas a été retirée : la navigation se fait maintenant
+          depuis les grandes tuiles de la page d'accueil, avec un bouton "maison" dans l'en-tête
+          pour y revenir depuis n'importe quel écran. */}
+
+      {huileTestActif && (
+        <HuileTestModal titre={huileTestActif.titre} onConfirm={confirmerTestHuile} onClose={() => setHuileTestActif(null)} />
+      )}
+      {huileMatinActif && (
+        <HuileMatinModal titre={huileMatinActif.titre} onChoisir={confirmerHuileMatin} onClose={() => setHuileMatinActif(null)} />
+      )}
+      {etiquetteRapideDemandee && (
+        <SelectionEtiquettesModal
+          produitsInitiaux={etiquetteRapideDemandee}
+          produits={produits}
+          creerEtiquetteDlc={creerEtiquetteDlc}
+          employees={employees}
+          onClose={() => setEtiquetteRapideDemandee(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+export default KitchenApp;
