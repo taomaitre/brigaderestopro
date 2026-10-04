@@ -2,6 +2,7 @@ import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import EspaceTestMultiEtablissement from './EspaceTestMultiEtablissement.jsx';
+import ConnexionReelle from './ConnexionReelle.jsx';
 import './index.css';
 
 const h = React.createElement;
@@ -11,6 +12,13 @@ const h = React.createElement;
 // "?test-multi=1" à la fin — jamais autrement. Rien ne change pour l'usage quotidien habituel.
 const AFFICHER_TEST_MULTI = (() => {
   try { return new URLSearchParams(window.location.search).get("test-multi") === "1"; }
+  catch (e) { return false; }
+})();
+
+// Prévisualisation de l'écran de connexion réel (établissement + code employé), même principe
+// d'isolation stricte : visible UNIQUEMENT avec "?nouveau-login=1" à la fin de l'adresse.
+const AFFICHER_NOUVEAU_LOGIN = (() => {
+  try { return new URLSearchParams(window.location.search).get("nouveau-login") === "1"; }
   catch (e) { return false; }
 })();
 
@@ -53,7 +61,12 @@ window.addEventListener("unhandledrejection", (ev) => { if (!document.getElement
 const container = document.getElementById("root");
 const root = ReactDOM.createRoot(container);
 try {
-  root.render(h(ErrorBoundaryApp, null, h(AFFICHER_TEST_MULTI ? EspaceTestMultiEtablissement : App, null)));
+  const ComposantAAfficher = AFFICHER_TEST_MULTI
+    ? EspaceTestMultiEtablissement
+    : AFFICHER_NOUVEAU_LOGIN
+      ? ConnexionReelle
+      : App;
+  root.render(h(ErrorBoundaryApp, null, h(ComposantAAfficher, null)));
 } catch (e) {
   afficherErreurFatale(e);
 }

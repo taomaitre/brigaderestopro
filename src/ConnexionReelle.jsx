@@ -1,0 +1,210 @@
+import React, { useState } from 'react';
+import { createClient } from '@supabase/supabase-js';
+
+/* =========================================================================================
+   PRÉVISUALISATION — Écran de connexion réel (établissement + code employé)
+   =========================================================================================
+   Ce fichier est volontairement SÉPARÉ de App.jsx : il ne remplace rien de l'application que
+   tu utilises tous les jours, il ne touche à aucune de ses données, et il n'apparaît JAMAIS
+   sauf si on ouvre l'adresse avec "?nouveau-login=1" à la fin (voir main.jsx).
+
+   But : montrer à quoi ressemblera le VRAI écran de connexion une fois branché dans
+   l'application normale (présentation proche de l'appli, pas le formulaire brut de la page
+   de test technique EspaceTestMultiEtablissement.jsx), et vérifier que l'enchaînement complet
+   fonctionne : connexion établissement → saisie du code employé → employé identifié.
+
+   Ici on ne crée pas de compte établissement (ça reste dans la page de test technique) : on se
+   connecte avec un établissement déjà existant (ex. "Établissement Démo" créé précédemment).
+   ========================================================================================= */
+
+const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
+const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
+const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
+
+const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
+
+async function appelerEmployes(jeton, action, payload) {
+  const reponse = await fetch(URL_FONCTION_EMPLOYES, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: CLE_PUBLIQUE, Authorization: `Bearer ${jeton}` },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const data = await reponse.json().catch(() => null);
+  if (!reponse.ok || !data || data.ok !== true) {
+    throw new Error((data && data.erreur) || `Erreur serveur (${reponse.status})`);
+  }
+  return data;
+}
+
+const styleFond = {
+  "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+  "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn-soft": "#FBE8E3", "--warn": "#C1432D",
+  backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
+};
+
+const inputCls = "w-full border border-[var(--line)] rounded-md px-3 py-2 text-sm";
+
+function Carte({ children }) {
+  return (
+    <div className="bg-white border border-[var(--line)] rounded-xl p-5 shadow-sm">
+      {children}
+    </div>
+  );
+}
+
+function EnTete({ sousTitre }) {
+  return (
+    <div className="flex flex-col items-center mb-6">
+      <div className="flex items-center gap-2 mb-1">
+        <span style={{ fontSize: 22 }}>🍳</span>
+        <span className="text-xl font-semibold text-[var(--ink)] tracking-tight">Ma Cuisine</span>
+      </div>
+      {sousTitre && <p className="text-center text-sm text-[var(--steel)]">{sousTitre}</p>}
+    </div>
+  );
+}
+
+export default function ConnexionReelle() {
+  const [etape, setEtape] = useState("etablissement"); // "etablissement" | "code" | "connecte"
+  const [email, setEmail] = useState("demo@brigaderestopro.fr");
+  const [motDePasse, setMotDePasse] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const [erreur, setErreur] = useState("");
+
+  const [session, setSession] = useState(null); // { token, etablissement: { id, nom } }
+  const [code, setCode] = useState("");
+  const [employeIdentifie, setEmployeIdentifie] = useState(null);
+
+  async function seConnecterEtablissement(e) {
+    e.preventDefault();
+    setEnCours(true); setErreur("");
+    try {
+      const { data, error } = await supabasePublic.auth.signInWithPassword({ email, password: motDePasse });
+      if (error) throw error;
+      const meta = data.user.user_metadata || {};
+      setSession({
+        token: data.session.access_token,
+        etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" },
+      });
+      setEtape("code");
+    } catch (e2) {
+      setErreur("Connexion impossible : " + e2.message);
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  async function validerCode(e) {
+    e.preventDefault();
+    if (code.length !== 4) return;
+    setEnCours(true); setErreur("");
+    try {
+      const data = await appelerEmployes(session.token, "verifier", { code });
+      setEmployeIdentifie(data.employe);
+      setEtape("connecte");
+    } catch (e2) {
+      setErreur("Code incorrect, ou pas encore attribué.");
+      setCode("");
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  async function seDeconnecter() {
+    try { await supabasePublic.auth.signOut(); } catch (e) { /* pas grave */ }
+    setSession(null); setEmployeIdentifie(null); setCode(""); setErreur("");
+    setEtape("etablissement");
+  }
+
+  if (etape === "connecte") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6" style={styleFond}>
+        <div className="w-full max-w-sm">
+          <EnTete sousTitre={session.etablissement.nom} />
+          <Carte>
+            <p className="text-sm text-[var(--steel)] mb-1">Connecté en tant que</p>
+            <p className="text-lg font-semibold text-[var(--ink)] mb-4">{employeIdentifie.nom}</p>
+            <p className="text-xs text-[var(--steel)] mb-4">
+              {employeIdentifie.role}{employeIdentifie.poste ? ` — ${employeIdentifie.poste}` : ""}
+            </p>
+            <p className="text-xs text-[var(--steel)] mb-4">
+              (Ceci est une prévisualisation : la suite de l'application — plan de nettoyage, températures, etc. —
+              n'est pas encore branchée ici. Elle arrivera une fois les écrans migrés un par un.)
+            </p>
+            <button onClick={seDeconnecter} className="text-sm text-[var(--accent)] font-medium">
+              Se déconnecter
+            </button>
+          </Carte>
+        </div>
+      </div>
+    );
+  }
+
+  if (etape === "code") {
+    return (
+      <div className="min-h-screen flex items-center justify-center p-6" style={styleFond}>
+        <div className="w-full max-w-sm">
+          <EnTete sousTitre={`Établissement : ${session.etablissement.nom}`} />
+          <Carte>
+            <p className="text-sm text-[var(--ink)] font-medium mb-1">Votre code personnel</p>
+            <p className="text-xs text-[var(--steel)] mb-3">Code à 4 chiffres donné par le chef ou le directeur.</p>
+            <form onSubmit={validerCode}>
+              <input
+                className={`${inputCls} text-center text-lg tracking-widest mb-3`}
+                value={code}
+                onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 4)); setErreur(""); }}
+                inputMode="numeric"
+                maxLength={4}
+                autoFocus
+              />
+              {erreur && <p className="text-xs mb-3" style={{ color: "var(--warn)" }}>{erreur}</p>}
+              <button
+                type="submit"
+                disabled={enCours || code.length !== 4}
+                className="w-full rounded-md px-3 py-2 text-sm font-semibold text-white"
+                style={{ backgroundColor: "var(--accent)", opacity: enCours || code.length !== 4 ? 0.6 : 1 }}
+              >
+                Valider le code
+              </button>
+            </form>
+            <button onClick={seDeconnecter} className="text-xs text-[var(--steel)] mt-4">
+              ← Changer d'établissement
+            </button>
+          </Carte>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex items-center justify-center p-6" style={styleFond}>
+      <div className="w-full max-w-sm">
+        <EnTete sousTitre="Connexion de l'établissement" />
+        <Carte>
+          <form onSubmit={seConnecterEtablissement}>
+            <label className="block mb-3">
+              <span className="block mb-1 text-sm font-medium text-[var(--ink)]">Email de l'établissement</span>
+              <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </label>
+            <label className="block mb-3">
+              <span className="block mb-1 text-sm font-medium text-[var(--ink)]">Mot de passe</span>
+              <input className={inputCls} type="password" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} required />
+            </label>
+            {erreur && <p className="text-xs mb-3" style={{ color: "var(--warn)" }}>{erreur}</p>}
+            <button
+              type="submit"
+              disabled={enCours}
+              className="w-full rounded-md px-3 py-2 text-sm font-semibold text-white"
+              style={{ backgroundColor: "var(--accent)", opacity: enCours ? 0.6 : 1 }}
+            >
+              Se connecter
+            </button>
+          </form>
+        </Carte>
+        <p className="text-center text-xs text-[var(--steel)] mt-4">
+          Prévisualisation technique — pas encore l'application normale.
+        </p>
+      </div>
+    </div>
+  );
+}
