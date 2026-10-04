@@ -24,6 +24,12 @@ const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
 const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
 const URL_FONCTION_AUTH = `${URL_PROJET}/functions/v1/auth-etablissement`;
 
+// Client Supabase "normal" (anonyme), utilisé pour la création de compte (via la fonction
+// serveur) ET pour la connexion elle-même — depuis le correctif du 04/10, la connexion
+// utilise directement le vrai système d'authentification Supabase (supabase.auth), qui gère
+// lui-même la signature du jeton. On n'a plus besoin de fonction serveur pour se connecter.
+const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
+
 async function appelerAuth(action, payload) {
   const reponse = await fetch(URL_FONCTION_AUTH, {
     method: "POST",
@@ -98,9 +104,15 @@ export default function EspaceTestMultiEtablissement() {
   async function seConnecter() {
     setEnCours(true); setMessage(null);
     try {
-      const data = await appelerAuth("login", { email, password: motDePasse });
-      setSession(data);
-      setMessage({ type: "ok", texte: `Connecté en tant que « ${data.etablissement.nom} ».` });
+      const { data, error } = await supabasePublic.auth.signInWithPassword({ email, password: motDePasse });
+      if (error) throw error;
+      const meta = data.user.user_metadata || {};
+      const infosSession = {
+        token: data.session.access_token,
+        etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" },
+      };
+      setSession(infosSession);
+      setMessage({ type: "ok", texte: `Connecté en tant que « ${infosSession.etablissement.nom} ».` });
     } catch (e) {
       setMessage({ type: "erreur", texte: e.message });
     } finally {
@@ -139,7 +151,8 @@ export default function EspaceTestMultiEtablissement() {
     }
   }
 
-  function seDeconnecter() {
+  async function seDeconnecter() {
+    try { await supabasePublic.auth.signOut(); } catch (e) { /* pas grave pour ce test */ }
     setSession(null);
     setFournisseurs(null);
     setMessage(null);
