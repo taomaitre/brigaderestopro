@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import KitchenApp from './App.jsx';
 
 /* =========================================================================================
    PRÉVISUALISATION — Écran de connexion réel (établissement + code employé)
@@ -74,6 +75,7 @@ export default function ConnexionReelle() {
   const [session, setSession] = useState(null); // { token, etablissement: { id, nom } }
   const [code, setCode] = useState("");
   const [employeIdentifie, setEmployeIdentifie] = useState(null);
+  const [voirAppliReelle, setVoirAppliReelle] = useState(false);
 
   const [equipe, setEquipe] = useState(null);
   const [afficherAjout, setAfficherAjout] = useState(false);
@@ -154,6 +156,38 @@ export default function ConnexionReelle() {
     setEtape("etablissement");
   }
 
+  if (etape === "connecte" && voirAppliReelle) {
+    const identiteExterne = {
+      employeId: employeIdentifie.id,
+      employeNom: employeIdentifie.nom,
+      employePoste: employeIdentifie.poste,
+      employeRole: employeIdentifie.role,
+      estChef: /chef|direction/i.test(employeIdentifie.role || ""),
+    };
+    return (
+      <div>
+        <div
+          style={{
+            position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
+            background: "#1D2321", color: "white", fontSize: 12,
+            padding: "6px 12px", display: "flex", justifyContent: "space-between", alignItems: "center",
+          }}
+        >
+          <span>
+            Prévisualisation — vraie application, connecté en tant que <strong>{employeIdentifie.nom}</strong>
+            {" "}({session.etablissement.nom}). Les écrans autres que la connexion utilisent encore l'ancien stockage.
+          </span>
+          <button onClick={() => setVoirAppliReelle(false)} style={{ color: "white", textDecoration: "underline" }}>
+            ← Revenir à la prévisualisation
+          </button>
+        </div>
+        <div style={{ paddingTop: 32 }}>
+          <KitchenApp identiteExterne={identiteExterne} />
+        </div>
+      </div>
+    );
+  }
+
   if (etape === "connecte") {
     return (
       <div className="min-h-screen flex items-center justify-center p-6" style={styleFond}>
@@ -166,9 +200,12 @@ export default function ConnexionReelle() {
               {employeIdentifie.role}{employeIdentifie.poste ? ` — ${employeIdentifie.poste}` : ""}
             </p>
             <p className="text-xs text-[var(--steel)] mb-4">
-              (Ceci est une prévisualisation : la suite de l'application — plan de nettoyage, températures, etc. —
-              n'est pas encore branchée ici. Elle arrivera une fois les écrans migrés un par un.)
+              (La suite de l'application — plan de nettoyage, températures, etc. — utilise encore l'ancien
+              stockage pour l'instant ; seul l'écran de connexion est déjà branché sur la nouvelle base.)
             </p>
+            <button onClick={() => setVoirAppliReelle(true)} className="text-sm font-semibold text-white rounded-md px-3 py-2 mb-2 block w-full text-center" style={{ backgroundColor: "var(--accent)" }}>
+              Essayer la vraie application avec cette identité →
+            </button>
             <button onClick={seDeconnecter} className="text-sm text-[var(--accent)] font-medium">
               Se déconnecter
             </button>

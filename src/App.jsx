@@ -12553,7 +12553,16 @@ function AccesRestreint({ titre }) {
 
 /* ---------- app racine ---------- */
 
-function KitchenApp() {
+function KitchenApp({ identiteExterne } = {}) {
+  // identiteExterne (optionnel) : utilisé UNIQUEMENT par la prévisualisation isolée
+  // src/ConnexionReelle.jsx (adresse "?nouveau-login=1"), jamais par l'application normale (qui
+  // appelle toujours <KitchenApp /> sans argument — voir main.jsx). Quand présent, on saute les
+  // écrans "Quel est cet appareil ?" / connexion / code personnel habituels, déjà validés par la
+  // vraie connexion établissement + code employé, et on identifie directement la personne avec
+  // ces informations plutôt qu'avec la liste locale `employees`. Tout le reste de l'application
+  // (plannings, stock, HACCP...) continue pour l'instant de lire/écrire l'ancien stockage local,
+  // comme avant — ce n'est pas encore migré, voir le document de suivi infrastructure.
+  const modeExterne = !!identiteExterne;
   const [tab, setTab] = useState("accueil");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [sessionActive, setSessionActive] = useState(false);
@@ -13351,9 +13360,11 @@ function KitchenApp() {
   const alertesStock = stock.filter((s) => Number(s.quantite) < Number(s.cible)).length;
   const badges = { haccp: alertesTemp, stock: alertesStock };
 
-  const moi = currentUserId === "direction"
-    ? { id: "direction", nom: "Direction", poste: "Direction", estChef: true }
-    : employees.find((e) => e.id === currentUserId);
+  const moi = modeExterne
+    ? { id: identiteExterne.employeId, nom: identiteExterne.employeNom, poste: identiteExterne.employePoste, estChef: !!identiteExterne.estChef }
+    : currentUserId === "direction"
+      ? { id: "direction", nom: "Direction", poste: "Direction", estChef: true }
+      : employees.find((e) => e.id === currentUserId);
   // Le contrôle de fin de service ("Gestion et contrôle") est réservé au chef (estChef) et à la
   // Direction — plus d'accès de secours pour un autre employé les jours de repos du chef : voir
   // aussi Taches / appliesToDate pour la tâche "Contrôle" elle-même.
@@ -13376,17 +13387,19 @@ function KitchenApp() {
     // l'appareil (ou si son type change), pas à chaque nouvelle donnée employé reçue.
   }, [typeAppareil, sessionActive]);
 
-  if (!typeAppareil) {
-    return <DeviceTypeGate onChoisir={(t) => { ecrireTypeAppareil(t); setTypeAppareil(t); }} />;
-  }
-
-  if (!currentUserLoaded) return null;
-
-  if (!sessionActive) {
-    if (typeAppareil === "telephone") {
-      return <PersonalCodeGate employees={employees} onValide={(id) => selectAccount(id)} />;
+  if (!modeExterne) {
+    if (!typeAppareil) {
+      return <DeviceTypeGate onChoisir={(t) => { ecrireTypeAppareil(t); setTypeAppareil(t); }} />;
     }
-    return <LoginGate employees={employees} lastUserId={currentUserId} onSelect={selectAccount} />;
+
+    if (!currentUserLoaded) return null;
+
+    if (!sessionActive) {
+      if (typeAppareil === "telephone") {
+        return <PersonalCodeGate employees={employees} onValide={(id) => selectAccount(id)} />;
+      }
+      return <LoginGate employees={employees} lastUserId={currentUserId} onSelect={selectAccount} />;
+    }
   }
 
   if (tab === "controle" && !moi?.estChef) {
