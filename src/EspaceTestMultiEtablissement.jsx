@@ -23,6 +23,7 @@ import { createClient } from '@supabase/supabase-js';
 const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
 const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
 const URL_FONCTION_AUTH = `${URL_PROJET}/functions/v1/auth-etablissement`;
+const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
 
 // Client Supabase "normal" (anonyme), utilisé pour la création de compte (via la fonction
 // serveur) ET pour la connexion elle-même — depuis le correctif du 04/10, la connexion
@@ -34,6 +35,21 @@ async function appelerAuth(action, payload) {
   const reponse = await fetch(URL_FONCTION_AUTH, {
     method: "POST",
     headers: { "Content-Type": "application/json", apikey: CLE_PUBLIQUE },
+    body: JSON.stringify({ action, ...payload }),
+  });
+  const data = await reponse.json().catch(() => null);
+  if (!reponse.ok || !data || data.ok !== true) {
+    throw new Error((data && data.erreur) || `Erreur serveur (${reponse.status})`);
+  }
+  return data;
+}
+
+// Même principe que appelerAuth, mais avec le jeton établissement en plus (requis par la
+// fonction code-employe pour savoir de quel établissement il s'agit).
+async function appelerEmployes(jeton, action, payload) {
+  const reponse = await fetch(URL_FONCTION_EMPLOYES, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: CLE_PUBLIQUE, Authorization: `Bearer ${jeton}` },
     body: JSON.stringify({ action, ...payload }),
   });
   const data = await reponse.json().catch(() => null);
@@ -83,6 +99,14 @@ export default function EspaceTestMultiEtablissement() {
   const [session, setSession] = useState(null); // { token, etablissement }
   const [fournisseurs, setFournisseurs] = useState(null);
   const [nouveauFournisseur, setNouveauFournisseur] = useState("");
+
+  const [nomEmploye, setNomEmploye] = useState("Julie Martin");
+  const [posteEmploye, setPosteEmploye] = useState("Chaud");
+  const [roleEmploye, setRoleEmploye] = useState("cuisinier");
+  const [codeEmploye, setCodeEmploye] = useState("1234");
+  const [employes, setEmployes] = useState(null);
+  const [codeSaisi, setCodeSaisi] = useState("");
+  const [employeIdentifie, setEmployeIdentifie] = useState(null);
 
   const sbAvecJeton = (jeton) =>
     createClient(URL_PROJET, CLE_PUBLIQUE, {
@@ -155,7 +179,50 @@ export default function EspaceTestMultiEtablissement() {
     try { await supabasePublic.auth.signOut(); } catch (e) { /* pas grave pour ce test */ }
     setSession(null);
     setFournisseurs(null);
+    setEmployes(null);
+    setEmployeIdentifie(null);
     setMessage(null);
+  }
+
+  async function creerEmploye() {
+    if (!session) return;
+    setEnCours(true); setMessage(null);
+    try {
+      await appelerEmployes(session.token, "creer", { nom: nomEmploye, poste: posteEmploye, role: roleEmploye, code: codeEmploye });
+      setMessage({ type: "ok", texte: `Employé « ${nomEmploye} » créé avec le code ${codeEmploye}.` });
+      await chargerEmployes();
+    } catch (e) {
+      setMessage({ type: "erreur", texte: e.message });
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  async function chargerEmployes() {
+    if (!session) return;
+    setEnCours(true); setMessage(null);
+    try {
+      const data = await appelerEmployes(session.token, "lister", {});
+      setEmployes(data.employes || []);
+    } catch (e) {
+      setMessage({ type: "erreur", texte: e.message });
+    } finally {
+      setEnCours(false);
+    }
+  }
+
+  async function verifierCode() {
+    if (!session) return;
+    setEnCours(true); setMessage(null); setEmployeIdentifie(null);
+    try {
+      const data = await appelerEmployes(session.token, "verifier", { code: codeSaisi });
+      setEmployeIdentifie(data.employe);
+      setMessage({ type: "ok", texte: `Code reconnu : ${data.employe.nom} (${data.employe.role}).` });
+    } catch (e) {
+      setMessage({ type: "erreur", texte: e.message });
+    } finally {
+      setEnCours(false);
+    }
   }
 
   return (
@@ -204,6 +271,44 @@ export default function EspaceTestMultiEtablissement() {
               </div>
             </div>
           )}
+
+          <div style={{ marginTop: 24, paddingTop: 20, borderTop: "1px solid #bbf7d0" }}>
+            <h3 style={{ fontSize: 14, fontWeight: 600, marginBottom: 10 }}>Employés — code personnel à 4 chiffres</h3>
+
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+              <input value={nomEmploye} onChange={(e) => setNomEmploye(e.target.value)} placeholder="Nom"
+                style={{ flex: "1 1 140px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
+              <input value={posteEmploye} onChange={(e) => setPosteEmploye(e.target.value)} placeholder="Poste"
+                style={{ flex: "1 1 100px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
+              <input value={roleEmploye} onChange={(e) => setRoleEmploye(e.target.value)} placeholder="Rôle (cuisinier, chef...)"
+                style={{ flex: "1 1 140px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
+              <input value={codeEmploye} onChange={(e) => setCodeEmploye(e.target.value)} placeholder="Code à 4 chiffres" maxLength={4}
+                style={{ flex: "0 1 110px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
+            </div>
+            <div style={{ marginBottom: 16 }}>
+              <Bouton onClick={creerEmploye} disabled={enCours}>Créer cet employé</Bouton>
+              <Bouton onClick={chargerEmployes} disabled={enCours}>Voir les employés</Bouton>
+            </div>
+
+            {employes !== null && (
+              <ul style={{ fontSize: 13, marginBottom: 16, paddingLeft: 18 }}>
+                {employes.length === 0 && <li style={{ color: "#64748b" }}>Aucun employé pour l'instant.</li>}
+                {employes.map((e) => <li key={e.id}>{e.nom} — {e.poste || "(poste non précisé)"} — {e.role}</li>)}
+              </ul>
+            )}
+
+            <h4 style={{ fontSize: 13, fontWeight: 600, marginBottom: 6 }}>Tester la saisie d'un code (comme sur la tablette/le téléphone)</h4>
+            <div style={{ display: "flex", gap: 8 }}>
+              <input value={codeSaisi} onChange={(e) => setCodeSaisi(e.target.value)} placeholder="1234" maxLength={4}
+                style={{ flex: 1, padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
+              <Bouton onClick={verifierCode} disabled={enCours || codeSaisi.length !== 4}>Valider le code</Bouton>
+            </div>
+            {employeIdentifie && (
+              <p style={{ fontSize: 13, marginTop: 8, color: "#065f46" }}>
+                Identifié : <strong>{employeIdentifie.nom}</strong> ({employeIdentifie.role}{employeIdentifie.poste ? `, ${employeIdentifie.poste}` : ""})
+              </p>
+            )}
+          </div>
         </div>
       )}
 
