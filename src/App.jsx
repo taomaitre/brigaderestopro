@@ -704,7 +704,25 @@ const DEFAULT_STOCK = [
 // Pour les fourchettes (ex. J+3–J+5), la valeur la plus prudente (la plus courte) a été retenue par défaut.
 // Fiches techniques transcrites depuis le classeur cuisine (FT-01 à FT-11). FT-12 (récapitulatif/mémo) non repris tel quel :
 // son contenu (barèmes, réflexes quotidiens) est déjà couvert par les fiches individuelles ci-dessous.
-const FICHES_TECHNIQUES = JSON.parse(document.getElementById("fiches-data-json").textContent);
+// Correctif du 04/10 : lors du portage de l'artifact d'origine vers Vite, ce bloc lisait des
+// données depuis une balise <script id="fiches-data-json"> qui n'a jamais été reprise dans le
+// nouvel index.html (elle n'existe dans aucun commit de ce dépôt). Résultat : cette ligne plantait
+// systématiquement au chargement (page blanche), y compris dans l'application normale, pas
+// seulement sur la page de test. On évite maintenant le plantage avec une valeur de repli vide ;
+// les ~130 fiches techniques de référence d'origine restent à retrouver et à réintégrer
+// séparément (voir échange avec Loïc du 04/10) — rien n'est perdu côté base de données, seulement
+// ce socle de données fourni directement dans le code.
+let FICHES_TECHNIQUES = [];
+try {
+  const elementDonneesFiches = document.getElementById("fiches-data-json");
+  if (elementDonneesFiches) {
+    FICHES_TECHNIQUES = JSON.parse(elementDonneesFiches.textContent);
+  } else {
+    console.warn("[Ma Cuisine] Socle FICHES_TECHNIQUES introuvable (balise #fiches-data-json absente) — démarrage avec 0 fiche de référence intégrée. Les fiches créées depuis l'application restent, elles, intactes.");
+  }
+} catch (e) {
+  console.warn("[Ma Cuisine] Erreur de lecture du socle FICHES_TECHNIQUES, démarrage avec 0 fiche de référence intégrée :", e);
+}
 
 
 const DEFAULT_PRODUITS = [
