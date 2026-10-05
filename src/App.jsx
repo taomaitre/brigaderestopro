@@ -8888,7 +8888,7 @@ function StepShell({ titre, sousTitre, children, onPrev, onNext, nextLabel = "Su
   );
 }
 
-function HuileTestModal({ titre, onConfirm, onClose }) {
+function HuileTestModal({ titre, onConfirm, onClose, onAnnuler }) {
   const [photo, setPhoto] = useState(null);
   const [decision, setDecision] = useState(null);
 
@@ -8900,6 +8900,11 @@ function HuileTestModal({ titre, onConfirm, onClose }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-md w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
+        {!decision && onAnnuler && (
+          <button onClick={onAnnuler} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-3">
+            <ArrowLeft size={15} /> Fermer sans faire le test
+          </button>
+        )}
         <h3 className="font-semibold text-[var(--ink)] mb-1">Protocole test huile de friture</h3>
         <p className="text-xs text-[var(--steel)] mb-4">« {titre} » validé.</p>
 
@@ -14010,7 +14015,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpRefroidPage refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpHuile" && (
-          <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onFaireTest={modeExterne ? () => setHuileTestActif({ titre: "Test d'huile de friture" }) : undefined} onDecisionMatin={modeExterne ? () => setHuileMatinActif({ titre: "Huile de friture" }) : undefined} />
+          <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onFaireTest={modeExterne ? () => setHuileTestActif({ titre: "Test d'huile de friture", manuel: true }) : undefined} onDecisionMatin={modeExterne ? () => setHuileMatinActif({ titre: "Huile de friture" }) : undefined} />
         )}
         {tab === "haccpChaud" && (
           <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} />
@@ -14045,7 +14050,7 @@ function KitchenApp({ identiteExterne } = {}) {
           pour y revenir depuis n'importe quel écran. */}
 
       {huileTestActif && (
-        <HuileTestModal titre={huileTestActif.titre} onConfirm={confirmerTestHuile} onClose={() => setHuileTestActif(null)} />
+        <HuileTestModal titre={huileTestActif.titre} onConfirm={confirmerTestHuile} onClose={() => setHuileTestActif(null)} onAnnuler={huileTestActif.manuel ? () => setHuileTestActif(null) : undefined} />
       )}
       {huileMatinActif && (
         <HuileMatinModal titre={huileMatinActif.titre} onChoisir={confirmerHuileMatin} onClose={() => setHuileMatinActif(null)} />
