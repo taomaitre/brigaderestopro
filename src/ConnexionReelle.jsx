@@ -473,7 +473,7 @@ export default function ConnexionReelle() {
         const { data, error } = await supabasePublic.from("produits").insert({
           etablissement_id: etab, nom: String(e.produit).trim(), reference: e.reference || null, unite: "kg",
           fournisseur_id: idFournisseur, quantite_stock: qte, quantite_cible: 0,
-          conservation: e.conservation || null, categorie: (e.categorie || "").trim() || ({ surgele: "Surgelés", viande: "Viandes", poisson: "Poissons", frais: "Frais / laitier", sec: "Épicerie sèche", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autres" }[e.conservation] || null),
+          conservation: e.conservation || null, categorie: (e.categorie || "").trim() || ({ surgele: "Surgelés", viande: "Viandes", poisson: "Poissons", legume: "Fruits et légumes", frais: "Frais / laitier", sec: "Épicerie sèche", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autres" }[e.conservation] || null),
         }).select("id").single();
         if (error) throw error;
         c = { id: data.id, nom: String(e.produit).trim(), reference: e.reference || "", conservation: e.conservation || "", quantite: qte };

@@ -8910,6 +8910,7 @@ const CONSERVATIONS = [
   { v: "frais", l: "Frais / laitier" },
   { v: "viande", l: "Viande fraîche" },
   { v: "poisson", l: "Poisson / viande hachée / plat cuisiné" },
+  { v: "legume", l: "Fruits et légumes frais / herbes" },
   { v: "surgele", l: "Surgelé" },
   { v: "sec", l: "Sec / épicerie" },
   { v: "boisson", l: "Boissons" },
@@ -8917,7 +8918,7 @@ const CONSERVATIONS = [
   { v: "entretien", l: "Produits d'entretien / ménagers" },
   { v: "autre", l: "Autre (non alimentaire)" },
 ];
-const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", poisson: "Poisson / haché", surgele: "Surgelé", sec: "Sec", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autre" };
+const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", poisson: "Poisson / haché", legume: "Fruits & légumes", surgele: "Surgelé", sec: "Sec", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autre" };
 
 // Date saisie à la main (JJ/MM/AAAA, JJMMAAAA ou MM/AAAA — pour une DDM lointaine) OU choisie dans le calendrier.
 // La valeur échangée est toujours au format AAAA-MM-JJ ("" si vide). Pour MM/AAAA, on prend le dernier jour du mois.
@@ -10360,6 +10361,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             </div>
           )}
 
+          {!tempNC && b.conservation && !alimentaire && <p className="text-xs text-[var(--steel)] mt-3">Lot et DLC facultatifs pour ce type de produit : notez-les seulement s'ils sont indiqués (ex. sachet de salade, menthe fraîche). Sinon, le nom et la quantité suffisent.</p>}
           {!tempNC && (
             <div className="grid grid-cols-2 gap-3 mt-3">
               <div>
