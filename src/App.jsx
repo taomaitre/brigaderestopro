@@ -1563,7 +1563,7 @@ function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFou
       <div className="flex items-center justify-between mb-2">
         <div>
           <div className="font-medium text-[var(--ink)] text-sm">{notif.fournisseur || "Fournisseur non renseigné"}</div>
-          <div className="text-xs text-[var(--steel)]">{notif.date} à {notif.heure} · réceptionné par {who(notif.employeeId) || "—"} · {notif.nonConformes.length} article(s) à retourner{notif.receptionId ? ` · bon n° ${notif.receptionId.slice(0, 8)}` : ""}</div>
+          <div className="text-xs text-[var(--steel)]">{notif.date} à {notif.heure} · réceptionné par {who(notif.employeeId) || notif.parNom || "—"} · {notif.nonConformes.length} article(s) à retourner{notif.receptionId ? ` · bon n° ${notif.receptionId.slice(0, 8)}` : ""}</div>
         </div>
         {notif.envoyee ? (
           <span className="text-xs bg-[var(--accent-soft)] text-[var(--accent)] px-2 py-0.5 rounded-full">{notif.modeTraitement === "telephone" ? "Traité par téléphone" : "Envoyé"}</span>
@@ -8795,7 +8795,7 @@ function BoutonInfosNormes({ ficheKey, onClick, label }) {
   );
 }
 
-function PhotoInput({ value, onChange, label = "Prendre la photo", small = false }) {
+function PhotoInput({ value, onChange, label = "Prendre la photo", small = false, grand = false }) {
   const inputId = "photo-" + Math.random().toString(36).slice(2, 9);
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -8810,7 +8810,7 @@ function PhotoInput({ value, onChange, label = "Prendre la photo", small = false
           <label htmlFor={inputId} className="text-xs text-[var(--accent)] font-medium cursor-pointer">Reprendre</label>
         </div>
       ) : (
-        <label htmlFor={inputId} className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-dashed border-[var(--line)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]">
+        <label htmlFor={inputId} style={grand ? { backgroundColor: "#C1432D", color: "#ffffff", borderColor: "#C1432D" } : undefined} className={`inline-flex items-center gap-1.5 ${grand ? "px-5 py-3.5 text-base font-semibold border-solid" : "px-3 py-1.5 text-xs font-medium border-dashed"} rounded-lg border border-[var(--line)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]`}>
           <Camera size={14} /> {label}
         </label>
       )}
@@ -8912,8 +8912,12 @@ const CONSERVATIONS = [
   { v: "poisson", l: "Poisson / viande hachée / plat cuisiné" },
   { v: "surgele", l: "Surgelé" },
   { v: "sec", l: "Sec / épicerie" },
+  { v: "boisson", l: "Boissons" },
+  { v: "emballage", l: "Emballages / jetables / consommables" },
+  { v: "entretien", l: "Produits d'entretien / ménagers" },
+  { v: "autre", l: "Autre (non alimentaire)" },
 ];
-const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", poisson: "Poisson / haché", surgele: "Surgelé", sec: "Sec" };
+const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", poisson: "Poisson / haché", surgele: "Surgelé", sec: "Sec", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autre" };
 
 // Date saisie à la main (JJ/MM/AAAA, JJMMAAAA ou MM/AAAA — pour une DDM lointaine) OU choisie dans le calendrier.
 // La valeur échangée est toujours au format AAAA-MM-JJ ("" si vide). Pour MM/AAAA, on prend le dernier jour du mois.
@@ -9420,7 +9424,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       // l'e-mail elle-même (pas de serveur mail côté BrigadeRestoPro), seul le lien mailto: existe.
     const emailCorps = [
         `Bonjour,`, ``,
-        `Réception du ${date} à ${heure}, réceptionnée par ${moi?.nom || ""}.`, ``,
+        `Réception du ${date} à ${heure}, réceptionnée par ${moi?.nom || (optionsExterne && optionsExterne.moiNom) || ""}.`, ``,
         ...(nonConformesActuels.some((p) => !p.manquant) ? [`Les produits suivants présentent une non-conformité et sont retournés :`] : []),
         ...nonConformesActuels.filter((p) => !p.manquant).map((p) => `- ${p.nom} — ${p.quantiteNC} — motif : ${p.raison}${p.tempNC && temps[p.conservation] !== "" && temps[p.conservation] != null ? ` (température relevée : ${temps[p.conservation]} °C)` : ""}${p.ecartPrix ? ` — écart de prix signalé : ${p.ecartPrix} €` : ""}`),
         ...(nonConformesActuels.some((p) => !p.manquant) ? [``] : []),
@@ -9499,7 +9503,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       try {
         const mailNC = nonConformesActuels.length > 0 ? construireMailNC() : null;
         await optionsExterne.enregistrer(nouvellesEntrees, photosBonArchive, {
-          fournisseur, date, heure,
+          fournisseur, date, heure, receptionIdLocal: receptionId, parNom: moi?.nom || (optionsExterne && optionsExterne.moiNom) || "",
           notification: mailNC ? { sujet: mailNC.sujet, corps: mailNC.corps, ecartPrix: nonConformesActuels.reduce((t, p) => t + (Number(p.ecartPrix) || 0), 0), nonConformes: nonConformesActuels.map((p) => ({ nom: p.nom, quantiteNC: p.quantiteNC, raison: p.raison, manquant: !!p.manquant, photoNC: p.photoNC || null, ecartPrix: Number(p.ecartPrix) || 0 })) } : null,
         });
       } catch (e) {
@@ -9561,8 +9565,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
           <div className="grid grid-cols-2 gap-3 mb-3">
             <Field label="Réceptionné par">
               <div className="flex items-center gap-2 border border-[var(--line)] rounded-lg px-3 py-2 bg-[var(--bg)]">
-                <Avatar nom={moi?.nom} size={22} />
-                <span className="text-sm text-[var(--ink)]">{moi?.nom}</span>
+                <Avatar nom={moi?.nom || (optionsExterne && optionsExterne.moiNom)} size={22} />
+                <span className="text-sm text-[var(--ink)]">{moi?.nom || (optionsExterne && optionsExterne.moiNom)}</span>
               </div>
             </Field>
             <Field label="Fournisseur">
@@ -9757,9 +9761,10 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                       <div className="text-sm font-semibold text-[var(--ink)]">{p.nom} — {p.quantite}</div>
                       <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ backgroundColor: "var(--warn)" }}>NON CONFORME</span>
                     </div>
-                    <p className="text-xs font-semibold text-[var(--warn)] mb-2">Température relevée : {temps[p.conservation]} °C (hors norme). Prenez une photo du produit avec sa température affichée sur le thermomètre. Retour obligatoire chez le fournisseur.</p>
-                    <PhotoInput small value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Photo du produit + thermomètre (obligatoire)" />
-                    {!p.photoNC && <p className="text-xs text-[var(--warn)] mt-1">Photo obligatoire pour continuer.</p>}
+                    <p className="text-base font-semibold text-[var(--warn)] mb-3">Température relevée : {temps[p.conservation]} °C (hors norme). Ce produit doit être renvoyé au fournisseur.</p>
+                    <p className="text-base text-[var(--ink)] mb-3"><strong>Photo obligatoire :</strong> photographiez le produit avec la température affichée sur le thermomètre.</p>
+                    <PhotoInput grand value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Prendre la photo (obligatoire)" />
+                    {!p.photoNC && <p className="text-base font-semibold text-[var(--warn)] mt-3">⚠ Sans cette photo, vous ne pouvez pas passer à l'étape suivante.</p>}
                   </div>
                 );
               }
@@ -9786,12 +9791,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                         {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
                       </select>
                     )}
-                    {modeManuel && !correspondanceStock && (
-                      <>
-                        <input className={inputCls} list="categories-stock" placeholder="Catégorie du stock (ex. Surgelés)" value={p.categorie || ""} onChange={(e) => updateProduit(p.id, { categorie: e.target.value })} />
-                        <datalist id="categories-stock">{[...new Set(stock.map((x) => x.categorie).filter(Boolean))].map((c) => <option key={c} value={c} />)}</datalist>
-                      </>
-                    )}
+
                     <input className={inputCls} placeholder="Allergènes déclarés" value={p.allergenes || ""} onChange={(e) => updateProduit(p.id, { allergenes: e.target.value })} />
                     <input className={inputCls} placeholder="Origine / provenance" value={p.origine || ""} onChange={(e) => updateProduit(p.id, { origine: e.target.value })} />
                     <input className={inputCls} placeholder="N° agrément sanitaire (CE)" value={p.agrementSanitaire || ""} onChange={(e) => updateProduit(p.id, { agrementSanitaire: e.target.value })} />
@@ -9817,12 +9817,12 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                   {echecAnalyse[p.id] && (
                     <p className="text-xs text-[var(--warn)] mt-2">Photo pas assez lisible pour être analysée — complétez les champs manuellement.</p>
                   )}
-                  {(p.nom || "").trim() && !correspondanceStock && (
+                  {!modeManuel && (p.nom || "").trim() && !correspondanceStock && (
                     <p className="text-xs text-[var(--warn)] mt-2">⚠ Produit non reconnu dans le stock habituel — pour pouvoir compléter ses fiches allergènes/origine, prenez des photos détaillées : nom, n° de lot, DLC/DDM, logo CE / agrément sanitaire du fabricant, et la liste complète des ingrédients.</p>
                   )}
                   <div className="flex gap-2 mt-3 pt-3 border-t border-[var(--line)]">
-                    <Button variant={p.conforme ? "primary" : "ghost"} onClick={() => updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null })}><CheckCircle2 size={14} /> Valider</Button>
-                    <Button variant={!p.conforme ? "danger" : "ghost"} onClick={() => updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })}><XCircle size={14} /> Non conforme — refusé</Button>
+                    <Button variant={p.conforme ? "primary" : "ghost"} style={modeManuel && !p.conforme ? { borderColor: "#2F6B4F", color: "#2F6B4F" } : undefined} onClick={() => updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null })}><CheckCircle2 size={14} /> {modeManuel ? (p.conforme ? "Accepté ✓" : "Accepter") : "Valider"}</Button>
+                    <Button variant={!p.conforme ? "danger" : "ghost"} style={modeManuel ? (!p.conforme ? { backgroundColor: "#C1432D", color: "#ffffff" } : { borderColor: "#C1432D", color: "#C1432D" }) : undefined} onClick={() => updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })}><XCircle size={14} /> {modeManuel ? (!p.conforme ? "Refusé ✗" : "Refuser (non conforme)") : "Non conforme — refusé"}</Button>
                   </div>
                   {!p.conforme && (
                     <div className="space-y-2 pt-3 mt-3 border-t border-[var(--line)]">
@@ -10027,6 +10027,15 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                 <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Mail prêt pour le fournisseur « {fournisseur} »</p>
                 <p className="text-xs text-[var(--steel)] mb-2">À la validation, il est transmis au <strong>chef et au directeur</strong> : ce sont eux qui le vérifient et l'envoient (ou traitent le retour par téléphone). Vous n'avez rien à envoyer vous-même.</p>
                 <div className="bg-[var(--bg)] rounded-lg p-3 text-xs text-[var(--ink)] whitespace-pre-wrap"><div className="font-semibold mb-1">Objet : {m.sujet}</div>{m.corps}</div>
+                {(photosBon.length > 0 || nonConformesActuels.some((p) => p.photoNC)) && (
+                  <div className="mt-3">
+                    <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Photos jointes au dossier (visibles par le chef et le directeur) :</p>
+                    <div className="flex flex-wrap gap-2">
+                      {photosBon.map((ph, i) => <img key={"b" + i} src={ph} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--line)]" />)}
+                      {nonConformesActuels.filter((p) => p.photoNC).map((p) => <img key={p.id} src={p.photoNC} alt={p.nom} className="w-20 h-20 object-cover rounded-lg border-2" style={{ borderColor: "var(--warn)" }} />)}
+                    </div>
+                  </div>
+                )}
               </Card>
             );
           })()}
@@ -14307,7 +14316,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "reception" && (
           consentementAccorde()
-            ? <Reception optionsExterne={modeExterne && identiteExterne.gestionReceptions ? { enregistrer: identiteExterne.gestionReceptions.enregistrer, fournisseurs: (identiteExterne.fournisseurs || []).map((f) => f.nom) } : undefined} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
+            ? <Reception optionsExterne={modeExterne && identiteExterne.gestionReceptions ? { enregistrer: identiteExterne.gestionReceptions.enregistrer, fournisseurs: (identiteExterne.fournisseurs || []).map((f) => f.nom), moiNom: identiteExterne.employeNom } : undefined} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
             : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
         )}
         {tab === "etiquettes" && (

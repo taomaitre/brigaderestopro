@@ -302,7 +302,7 @@ export default function ConnexionReelle() {
       const photos = (r.receptions_photos_bon || []).slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0)).map((x) => x.url_photo);
       return {
         id: n.id, date: r.date_livraison || (n.created_at || "").slice(0, 10), heure: (r.heure_livraison || "").slice(0, 5),
-        employeeId: r.receptionne_par || null, fournisseur: r.fournisseur_nom || d.fournisseur || "", sujet: n.sujet || "", corps: n.corps || "",
+        employeeId: r.receptionne_par || null, parNom: d.parNom || "", fournisseur: r.fournisseur_nom || d.fournisseur || "", sujet: n.sujet || "", corps: n.corps || "",
         receptionId: n.reception_id, photoBon: null, photosBon: photos, nonConformes: d.nonConformes || [],
         envoyee: n.statut === "envoye", genereParIA: false, modeTraitement: n.mode_traitement || "", traiteParId: n.traite_par || null, traiteLe: n.traite_le || null,
       };
@@ -473,7 +473,7 @@ export default function ConnexionReelle() {
         const { data, error } = await supabasePublic.from("produits").insert({
           etablissement_id: etab, nom: String(e.produit).trim(), reference: e.reference || null, unite: "kg",
           fournisseur_id: idFournisseur, quantite_stock: qte, quantite_cible: 0,
-          conservation: e.conservation || null, categorie: (e.categorie || "").trim() || (e.conservation === "surgele" ? "Surgelés" : null),
+          conservation: e.conservation || null, categorie: (e.categorie || "").trim() || ({ surgele: "Surgelés", viande: "Viandes", poisson: "Poissons", frais: "Frais / laitier", sec: "Épicerie sèche", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autres" }[e.conservation] || null),
         }).select("id").single();
         if (error) throw error;
         c = { id: data.id, nom: String(e.produit).trim(), reference: e.reference || "", conservation: e.conservation || "", quantite: qte };
@@ -531,8 +531,8 @@ export default function ConnexionReelle() {
     if (meta.notification) {
       const nt = meta.notification;
       const { error } = await supabasePublic.from("notifications_fournisseurs").insert({
-        reception_id: rec.id, fournisseur_id: idFournisseur, sujet: nt.sujet || null, corps: nt.corps || null, statut: "en_attente",
-        ecart_prix: Number(nt.ecartPrix) || 0, donnees: { fournisseur: meta.fournisseur || "", nonConformes: nt.nonConformes || [] },
+        reception_id: rec.id, fournisseur_id: idFournisseur, sujet: nt.sujet || null, corps: (nt.corps && meta.receptionIdLocal ? nt.corps.split(String(meta.receptionIdLocal).slice(0, 8)).join(rec.id.slice(0, 8)) : nt.corps) || null, statut: "en_attente",
+        ecart_prix: Number(nt.ecartPrix) || 0, donnees: { fournisseur: meta.fournisseur || "", parNom: meta.parNom || "", nonConformes: nt.nonConformes || [] },
       });
       if (error) throw error;
     }
