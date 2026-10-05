@@ -474,6 +474,17 @@ export default function ConnexionReelle() {
     };
   }
 
+  // Demande d'ajout à la liste de l'éditeur (ex. appareil de cuisson saisi à la main) : enregistrée pour être traitée lors d'une mise à jour.
+  async function signalerAjout(type, valeur, contexte) {
+    try {
+      const { error } = await supabasePublic.from("demandes_ajout").insert({
+        etablissement_id: session.etablissement.id, type, valeur, contexte: contexte || null,
+        demande_par: employeIdentifie && EST_UUID.test(employeIdentifie.id || "") ? employeIdentifie.id : null,
+      });
+      if (error) console.error("Demande d'ajout non enregistrée :", error);
+    } catch (e) { console.error("Demande d'ajout non enregistrée :", e); }
+  }
+
   // Modifications faites sur la liste des réceptions (validation par le chef) ; les ajouts passent par enregistrerReception.
   async function persisterReceptions(avant, apres) {
     const mapAvant = new Map(avant.map((x) => [x.id, x]));
@@ -746,6 +757,7 @@ export default function ConnexionReelle() {
       gestionCatalogue: catalogue ? { enregistrer: enregistrerCatalogue } : undefined,
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
       gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
+      signalerAjout,
       listes: listesFroid || undefined,
       gestionListes: listesFroid ? {
         equipements: { persister: fabriquerPersisterFroid("equipements") },

@@ -3799,7 +3799,7 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
   );
 }
 
-function HaccpCuissonPage({ cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle }) {
+function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -3807,7 +3807,7 @@ function HaccpCuissonPage({ cuissons, setCuissons, currentUserId, employees, log
     <div>
       <SectionHeader title="Gestion des cuissons" subtitle="Suivi des cuissons et températures à cœur" />
       <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" />
-      <HaccpCuisson cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
+      <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -6434,7 +6434,7 @@ const CUISSON_FAMILLES = [
 const cuissonSeuilMin = (familleId) => (CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0]).seuil;
 const CUISSON_ALERTE_AVANT_MIN = 10;
 
-function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle }) {
+function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle }) {
   const [selectionEnCours, setSelectionEnCours] = useState([]);
   const [temperatureSaisie, setTemperatureSaisie] = useState({});
   const [selection, setSelection] = useState([]);
@@ -6444,6 +6444,7 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
   const [selectionRefroid, setSelectionRefroid] = useState([]);
   const [tempDebutRefroid, setTempDebutRefroid] = useState({});
   const [appareilProgramme, setAppareilProgramme] = useState("Four à pizza");
+  const [appareilAutre, setAppareilAutre] = useState("");
   const [produitProgramme, setProduitProgramme] = useState("");
   const [dureeProgrammee, setDureeProgrammee] = useState("");
   const [heureDebutProgramme, setHeureDebutProgramme] = useState(new Date().toTimeString().slice(0, 5));
@@ -6492,10 +6493,15 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
   // de la même alarme (pré-alerte 10 min avant, puis bannière + bip/vibration à l'échéance).
   const demarrerCuissonProgrammee = () => {
     if (!produitProgramme || !(Number(dureeProgrammee) > 0)) return;
-    const entry = { id: uid(), produit: produitProgramme, famille: familleProgramme, appareil: appareilProgramme, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutProgramme, debutTs: Date.now(), dureeAttendueMin: Number(dureeProgrammee), heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
+    const appareilFinal = appareilProgramme === "Autre appareil" ? appareilAutre.trim() : appareilProgramme;
+    if (!appareilFinal) return;
+    // Appareil saisi à la main : on prévient l'éditeur pour qu'il l'ajoute à la liste lors d'une prochaine mise à jour.
+    if (appareilProgramme === "Autre appareil" && signalerAjout) signalerAjout("appareil_cuisson", appareilFinal, produitProgramme);
+    const entry = { id: uid(), produit: produitProgramme, famille: familleProgramme, appareil: appareilFinal, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutProgramme, debutTs: Date.now(), dureeAttendueMin: Number(dureeProgrammee), heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
     setCuissons([entry, ...cuissons]);
-    logActivity("HACCP", "Cuisson programmée démarrée", `${produitProgramme} — ${appareilProgramme}, ${dureeProgrammee} min, à ${heureDebutProgramme}`);
+    logActivity("HACCP", "Cuisson programmée démarrée", `${produitProgramme} — ${appareilFinal}, ${dureeProgrammee} min, à ${heureDebutProgramme}`);
     setProduitProgramme("");
+    setAppareilAutre("");
     setDureeProgrammee("");
   };
 
@@ -6593,6 +6599,9 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
               <option value="Autre appareil">Autre appareil</option>
             </select>
           </Field>
+          {appareilProgramme === "Autre appareil" && (
+            <Field label="Nom de l'appareil"><input className={inputCls} value={appareilAutre} onChange={(e) => setAppareilAutre(e.target.value)} placeholder="Ex. Sauteuse basculante" /></Field>
+          )}
           <Field label="Plat / programme"><input className={inputCls} value={produitProgramme} onChange={(e) => setProduitProgramme(e.target.value)} placeholder="Ex. Pizza margherita, prog. 3" /></Field>
           <Field label="Famille (seuil HACCP)">
             <select className={inputCls} value={familleProgramme} onChange={(e) => setFamilleProgramme(e.target.value)}>
@@ -6602,7 +6611,7 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
           <Field label="Durée (min)"><input className={inputCls} type="number" value={dureeProgrammee} onChange={(e) => setDureeProgrammee(e.target.value)} /></Field>
           <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDebutProgramme} onChange={(e) => setHeureDebutProgramme(e.target.value)} /></Field>
         </div>
-        <Button onClick={demarrerCuissonProgrammee} disabled={!produitProgramme || !(Number(dureeProgrammee) > 0)}>Démarrer la cuisson</Button>
+        <Button onClick={demarrerCuissonProgrammee} disabled={!produitProgramme || !(Number(dureeProgrammee) > 0) || (appareilProgramme === "Autre appareil" && !appareilAutre.trim())}>Démarrer la cuisson</Button>
       </Card>
 
       {enCours.length > 0 && (
@@ -15034,7 +15043,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} />
         )}
         {tab === "haccpCuisson" && (
-          <HaccpCuissonPage cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
+          <HaccpCuissonPage signalerAjout={identiteExterne && identiteExterne.signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
