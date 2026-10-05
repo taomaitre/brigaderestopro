@@ -12827,7 +12827,11 @@ function KitchenApp({ identiteExterne } = {}) {
   const [employeesExternes, setEmployeesExternes] = useState(() => (identiteExterne && identiteExterne.equipe) || []);
   const employees = modeExterne ? employeesExternes : employeesStockes;
   const setEmployees = modeExterne ? setEmployeesExternes : setEmployeesStockes;
-  const [currentUserId, setCurrentUserId, currentUserLoaded] = useStored("current-user-id", null);
+  const [currentUserIdStocke, setCurrentUserIdStocke, currentUserLoaded] = useStored("current-user-id", null);
+  // En prévisualisation « nouvelle base » : l'utilisateur courant est UNIQUEMENT l'employé identifié par son
+  // code (jamais l'ancien état mémorisé dans le navigateur, qui pouvait faire passer n'importe qui pour « Direction »).
+  const currentUserId = modeExterne ? identiteExterne.employeId : currentUserIdStocke;
+  const setCurrentUserId = modeExterne ? () => {} : setCurrentUserIdStocke;
   // Type d'appareil (tablette partagée ou téléphone personnel) : propre à CET appareil, jamais
   // partagé — voir les fonctions lireTypeAppareil / PersonalCodeGate plus haut dans le fichier.
   const [typeAppareil, setTypeAppareil] = useState(() => lireTypeAppareil());

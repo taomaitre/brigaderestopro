@@ -382,7 +382,7 @@ export default function ConnexionReelle() {
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
-        id: e.id, nom: e.nom, poste: e.poste || "", estChef: estChefOuDirecteur(e.role),
+        id: e.id, nom: e.nom, poste: e.poste || "", estChef: estChefOuDirecteur(e.role), estDirection: e.role === "directeur",
       })),
     };
     return (
