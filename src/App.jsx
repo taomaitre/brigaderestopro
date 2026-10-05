@@ -6934,16 +6934,26 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
   };
 
   const majNb = (nom, val) => setPanier((prev) => prev.map((it) => (it.nom === nom ? { ...it, nbEtiquettes: val } : it)));
+  const majJours = (nom, val) => setPanier((prev) => prev.map((it) => (it.nom === nom ? { ...it, jours: val } : it)));
   const retirer = (nom) => setPanier((prev) => prev.filter((it) => it.nom !== nom));
 
+  // Produit absent du catalogue (préparation maison, par ex.) : la durée de conservation est saisie ici.
+  const dlcDuProduit = (it) => {
+    const pc = trouverCorrespondance(it.nom, produits, (p) => p.nom);
+    const calc = pc ? dlcCalculeeProduit(pc) : null;
+    if (calc) return calc;
+    const j = parseInt(it.jours, 10);
+    return Number.isNaN(j) || j < 0 ? null : addDays(todayISO(), j);
+  };
+
   const totalEtiquettes = panier.reduce((s, it) => s + (Number(it.nbEtiquettes) || 0), 0);
-  const pretAValider = panier.length > 0 && panier.every((it) => Number(it.nbEtiquettes) > 0);
+  const pretAValider = panier.length > 0 && panier.every((it) => Number(it.nbEtiquettes) > 0 && dlcDuProduit(it));
+  const manques = [panier.some((it) => !(Number(it.nbEtiquettes) > 0)) && "le nombre d'étiquettes", panier.some((it) => !dlcDuProduit(it)) && "la durée de conservation (en jours) des produits inconnus"].filter(Boolean);
 
   const confirmer = () => {
     const entrees = [];
     panier.forEach((it) => {
-      const produitCatalogue = trouverCorrespondance(it.nom, produits, (p) => p.nom);
-      const dlcDate = produitCatalogue ? dlcCalculeeProduit(produitCatalogue) : null;
+      const dlcDate = dlcDuProduit(it);
       if (!dlcDate) return;
       const lot = genererLot(it.nom);
       const entry = creerEtiquetteDlc({ produitNom: it.nom, lot, dlcDate, photo: null, quantiteUtilisee: "", nbEtiquettes: it.nbEtiquettes });
@@ -6986,12 +6996,17 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
         <div className="space-y-2 mb-3">
           {panier.map((it) => {
             const produitCatalogue = trouverCorrespondance(it.nom, produits, (p) => p.nom);
-            const dlcDate = produitCatalogue ? dlcCalculeeProduit(produitCatalogue) : null;
+            const connu = !!(produitCatalogue && dlcCalculeeProduit(produitCatalogue));
+            const dlcDate = dlcDuProduit(it);
             return (
               <div key={it.nom} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--line)]">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-[var(--ink)] truncate">{it.nom}</div>
-                  <div className="text-[10px] text-[var(--steel)]">{dlcDate ? `DLC/DDM ${dlcDate}` : "Introuvable dans le catalogue DLC"}</div>
+                  {connu
+                    ? <div className="text-[10px] text-[var(--steel)]">DLC/DDM {dlcDate}</div>
+                    : <div className="flex items-center gap-1 text-[10px] text-[var(--steel)]">Pas dans le catalogue — conservation :
+                        <input type="number" min="0" className={`${inputCls} w-14 text-center !py-0.5`} placeholder="jours" value={it.jours || ""} onChange={(e) => majJours(it.nom, e.target.value)} /> j{dlcDate ? ` → DLC ${dlcDate}` : ""}
+                      </div>}
                 </div>
                 <input type="number" min="1" className={`${inputCls} w-20 text-center`} placeholder="Nb" value={it.nbEtiquettes} onChange={(e) => majNb(it.nom, e.target.value)} />
                 <button onClick={() => retirer(it.nom)} className="text-[var(--warn)] shrink-0" title="Retirer"><X size={16} /></button>
@@ -7004,6 +7019,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
           <p className="text-xs text-[var(--steel)] mb-3 font-medium">Total : {totalEtiquettes} étiquette{totalEtiquettes > 1 ? "s" : ""} à imprimer.</p>
         )}
 
+        {panier.length > 0 && !pretAValider && <p className="text-xs mb-2" style={{ color: "#C1432D" }}>Pour valider, indiquez : {manques.join(" et ")}.</p>}
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={onClose}>Plus tard</Button>
           <Button onClick={confirmer} disabled={!pretAValider}>Valider et imprimer</Button>
