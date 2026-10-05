@@ -2010,7 +2010,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
   );
 }
 
-function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom }) {
+function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -2163,7 +2163,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
   }
 
   if (referentielActif) {
-    return <ReferentielProduits stock={stock} onBack={() => setReferentielActif(false)} />;
+    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} onBack={() => setReferentielActif(false)} />;
   }
 
   if (verifReceptionsActif) {
@@ -2821,8 +2821,9 @@ const ENTRETIEN_REF = [
   { titre: "Produits d'entretien — Salle", note: "Hygiène des mains, nettoyants WC/urinoirs, désinfection éviers, entretien sols et surfaces. Aucune référence encore renseignée — à remplir dès réception des fiches techniques ou photos d'étiquettes." },
 ];
 
-function ReferentielProduits({ stock, onBack }) {
+function ReferentielProduits({ stock, fournisseurs, onBack }) {
   const [catOuverte, setCatOuverte] = useState(null);
+  const [fournisseurOuvert, setFournisseurOuvert] = useState(null);
 
   const parCategorie = stock.reduce((acc, s) => { (acc[s.categorie] = acc[s.categorie] || []).push(s); return acc; }, {});
   const categories = Object.keys(parCategorie);
@@ -2833,6 +2834,33 @@ function ReferentielProduits({ stock, onBack }) {
         <ArrowLeft size={15} /> Retour au contrôle
       </button>
       <SectionHeader title="Référentiel produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
+
+      {fournisseurs && fournisseurs.length > 0 && (
+        <div className="mb-5">
+          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-2">Fournisseurs</div>
+          <div className="space-y-2">
+            {fournisseurs.map((f) => (
+              <Card key={f.id} className="!p-0 overflow-hidden">
+                <button onClick={() => setFournisseurOuvert((c) => (c === f.id ? null : f.id))} className="w-full flex items-center justify-between px-4 py-3 text-left">
+                  <span className="font-medium text-[var(--ink)] text-sm">{f.nom}</span>
+                  <span className="text-xs text-[var(--steel)]">{f.jours_livraison ? `Livraison : ${f.jours_livraison} ` : ""}{fournisseurOuvert === f.id ? "▲" : "▼"}</span>
+                </button>
+                {fournisseurOuvert === f.id && (
+                  <div className="px-4 pb-3 text-xs text-[var(--steel)] space-y-0.5">
+                    {f.contact_nom && <div>Contact : {f.contact_nom}</div>}
+                    {f.telephone && <div>Téléphone : {f.telephone}</div>}
+                    {f.email && <div>E-mail : {f.email}</div>}
+                    {f.adresse && <div>Adresse : {f.adresse}</div>}
+                    {f.numero_client && <div>N° client : {f.numero_client}</div>}
+                    {f.note && <div className="italic">{f.note}</div>}
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mt-5 mb-2">Produits</div>
+        </div>
+      )}
 
       {(
         <div className="space-y-2">
@@ -13672,7 +13700,7 @@ function KitchenApp({ identiteExterne } = {}) {
           />
         )}
         {tab === "controle" && (
-          <Controle employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} />
+          <Controle employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} />
         )}
         {tab === "reservations" && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />

@@ -87,6 +87,33 @@ export default function ConnexionReelle() {
   const [enregistrement, setEnregistrement] = useState(false);
   const [erreurEquipe, setErreurEquipe] = useState("");
 
+  const [catalogue, setCatalogue] = useState(null);
+  const [fournisseursCat, setFournisseursCat] = useState(null);
+
+  // Catalogue (fournisseurs + produits) lu depuis la nouvelle base, en LECTURE SEULE, mis au format
+  // attendu par l'écran « Référentiel produits » de l'application.
+  async function chargerCatalogue() {
+    try {
+      const [rf, rp] = await Promise.all([
+        supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note").order("nom"),
+        supabasePublic.from("produits").select("id, nom, reference, categorie, unite, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
+      ]);
+      if (rf.error) throw rf.error;
+      if (rp.error) throw rp.error;
+      setFournisseursCat(rf.data || []);
+      setCatalogue((rp.data || []).map((p) => ({
+        id: p.id, nom: p.nom, categorie: p.categorie || "Autres",
+        fournisseur: (p.fournisseurs && p.fournisseurs.nom) || "",
+        reference: p.reference || "", conditionnement: p.conditionnement || "",
+        prixUnitaire: p.prix_achat != null ? `${Number(p.prix_achat).toFixed(2).replace(".", ",")} ${p.prix_unite || "€"}` : "",
+        poidsParPiece: p.poids_par_piece || "", referenceVerifiee: !!p.reference_verifiee, note: p.note || "",
+        quantite: 0, cible: 0, unite: p.unite || "",
+      })));
+    } catch (e2) {
+      setErreurEquipe("Impossible de charger le catalogue : " + (e2.message || e2));
+    }
+  }
+
   async function chargerEquipe(jeton) {
     try {
       const data = await appelerEmployes(jeton, "lister", {});
@@ -142,6 +169,7 @@ export default function ConnexionReelle() {
       setEmployeIdentifie(data.employe);
       setEtape("connecte");
       chargerEquipe(session.token);
+      chargerCatalogue();
     } catch (e2) {
       setErreur("Code incorrect, ou pas encore attribué.");
       setCode("");
@@ -164,6 +192,8 @@ export default function ConnexionReelle() {
       employePoste: employeIdentifie.poste,
       employeRole: employeIdentifie.role,
       estChef: estChefOuDirecteur(employeIdentifie.role),
+      catalogue: catalogue || undefined,
+      fournisseurs: fournisseursCat || undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
         id: e.id, nom: e.nom, poste: e.poste || "", estChef: estChefOuDirecteur(e.role),
