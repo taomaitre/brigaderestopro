@@ -2906,7 +2906,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
                         {s.prixUnitaire && <div className="text-xs text-[var(--steel)]">{s.prixUnitaire}</div>}
                       </div>
                       <div className="text-xs text-[var(--steel)] mt-0.5">
-                        {s.reference ? `${s.fournisseur} · Réf. ${s.reference}` : `${s.fournisseur} (hors Sysco)`}{s.conditionnement ? ` · ${s.conditionnement}` : ""}
+                        {s.reference ? `${s.fournisseur} · Réf. ${s.reference}` : (gestion ? (s.fournisseur || "Sans fournisseur") : `${s.fournisseur} (hors Sysco)`)}{s.conditionnement ? ` · ${s.conditionnement}` : ""}
                       </div>
                       {s.poidsParPiece && <div className="text-xs text-[var(--accent)] mt-0.5">Poids/pièce calculé : {s.poidsParPiece}</div>}
                       {s.note && <div className="text-xs text-[var(--steel)] italic mt-0.5">{s.note}</div>}
@@ -2953,7 +2953,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   const champTexte = (cle, label, requis) => (
     <label key={cle} className="block text-xs text-[var(--steel)]">
       {label}{requis ? " *" : ""}
-      <input value={v[cle] == null ? "" : v[cle]} onChange={(e) => maj(cle, e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
+      <input autoComplete="off" value={v[cle] == null ? "" : v[cle]} onChange={(e) => maj(cle, e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
     </label>
   );
   const valider = () => {
@@ -2995,7 +2995,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 {[...new Set([...categories, ...(v.categorie && !categories.includes(v.categorie) && !categorieNouvelle ? [v.categorie] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}
                 <option value="__nouvelle__">+ Nouvelle catégorie…</option>
               </select>
-              {categorieNouvelle && <input value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
+              {categorieNouvelle && <input autoComplete="off" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
             </label>
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
