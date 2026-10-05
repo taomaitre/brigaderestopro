@@ -137,7 +137,7 @@ export default function ConnexionReelle() {
     try {
       const [rf, rp, rl] = await Promise.all([
         supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note, coordonnees_a_completer").order("nom"),
-        supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, type_date, delai_jours_dlc, delai_apres_ouverture_jours, fournisseurs(nom)").order("nom"),
+        supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, type_date, delai_jours_dlc, delai_apres_ouverture_jours, allergenes_norme, origine_norme, fournisseurs(nom)").order("nom"),
         supabasePublic.from("lots_produits").select("produit_id, numero_lot, dlc, quantite_restante, date_reception").order("date_reception", { ascending: false }).limit(1000),
       ]);
       if (rf.error) throw rf.error;
@@ -153,6 +153,7 @@ export default function ConnexionReelle() {
         reference: p.reference || "", conditionnement: p.conditionnement || "",
         prixUnitaire: p.prix_achat != null ? `${Number(p.prix_achat).toFixed(2).replace(".", ",")} ${p.prix_unite || "€"}` : "",
         poidsParPiece: p.poids_par_piece || "", referenceVerifiee: !!p.reference_verifiee, note: p.note || "",
+        allergenesNorme: (p.allergenes_norme || []).join(", "), origineNorme: p.origine_norme || "",
         quantite: Number(p.quantite_stock) || 0, cible: Number(p.quantite_cible) || 0, unite: p.unite || "",
         lot: (dernierLot.get(p.id) || {}).numero_lot || "", dlc: (dernierLot.get(p.id) || {}).dlc || "",
         brut: p, // valeurs de la base, pour le formulaire de modification
@@ -240,6 +241,15 @@ export default function ConnexionReelle() {
         nom_libre: x.nomLibre || null, dlc: /^\d{4}-\d{2}-\d{2}$/.test(x.dlcDate || "") ? x.dlcDate : null,
         nb_etiquettes: Number(x.nbEtiquettes) || 1, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null,
         jete: !!x.jete, decongele: !!x.decongelationInfo, donnees: x,
+      }),
+    },
+    fiches: {
+      table: "fiches_techniques",
+      aDb: (x) => ({
+        code: x.code || null, nom: x.nom || "Fiche sans nom", sous_titre: x.sousTitre || null, categorie: x.categorie || null, poste: x.poste || null,
+        type: /sous/i.test(x.type || "") ? "sous_recette" : "plat",
+        duree_conservation_jours: Number.isFinite(Number(x.dlcJours)) ? Math.round(Number(x.dlcJours)) : null,
+        donnees: x,
       }),
     },
     cuissons: {
@@ -377,7 +387,7 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
@@ -389,7 +399,9 @@ export default function ConnexionReelle() {
         supabasePublic.from("cuissons").select("*").order("heure_depart", { ascending: false }).limit(300),
         supabasePublic.from("refroidissements").select("*").order("heure_depart", { ascending: false }).limit(300),
         supabasePublic.from("maintiens_chaud").select("*").order("heure_debut", { ascending: false }).limit(300),
+        supabasePublic.from("fiches_techniques").select("*").order("created_at", { ascending: true }).limit(500),
       ]);
+      if (rfi.error) throw rfi.error;
       if (rcu.error) throw rcu.error;
       if (rrf.error) throw rrf.error;
       if (rmc.error) throw rmc.error;
@@ -419,6 +431,7 @@ export default function ConnexionReelle() {
         cuissons: (rcu.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         refroidissements: (rrf.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         maintiens: (rmc.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
+        fiches: (rfi.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         huileTests: (rh.data || []).map((r) => ({
           id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
           valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
@@ -483,6 +496,16 @@ export default function ConnexionReelle() {
       });
       if (error) console.error("Demande d'ajout non enregistrée :", error);
     } catch (e) { console.error("Demande d'ajout non enregistrée :", e); }
+  }
+
+  // Allergènes / origine « norme » d'un produit (écran Contrôle & Gestion) : enregistrés dans la fiche du produit.
+  async function enregistrerNormeProduit(nom, champ, valeur) {
+    const v = (valeur || "").trim();
+    const maj = champ === "allergenes"
+      ? { allergenes_norme: v ? v.split(/[,;]+/).map((x) => x.trim()).filter(Boolean) : [] }
+      : { origine_norme: v || null };
+    const { error } = await supabasePublic.from("produits").update(maj).eq("nom", nom).eq("etablissement_id", session.etablissement.id);
+    if (error) throw error;
   }
 
   // Modifications faites sur la liste des réceptions (validation par le chef) ; les ajouts passent par enregistrerReception.
@@ -758,6 +781,7 @@ export default function ConnexionReelle() {
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
       gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
       signalerAjout,
+      gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,
       gestionListes: listesFroid ? {
         equipements: { persister: fabriquerPersisterFroid("equipements") },
@@ -770,6 +794,7 @@ export default function ConnexionReelle() {
         cuissons: { persister: fabriquerPersisterFroid("cuissons") },
         refroidissements: { persister: fabriquerPersisterFroid("refroidissements") },
         maintiens: { persister: fabriquerPersisterFroid("maintiens") },
+        fiches: { persister: fabriquerPersisterFroid("fiches") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.

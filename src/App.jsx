@@ -13902,13 +13902,13 @@ function KitchenApp({ identiteExterne } = {}) {
   const [equipementsFroidExternes, setEquipementsFroidExternes] = useListeExterne(identiteExterne, "equipements");
   const equipementsFroid = modeExterne ? equipementsFroidExternes : equipementsFroidStockes;
   const setEquipementsFroid = modeExterne ? setEquipementsFroidExternes : setEquipementsFroidStockes;
-  const [catalogueMaintienChaud, setCatalogueMaintienChaud] = useStoredOuMemoire("catalogue-maintien-chaud", DEFAULT_PRODUITS_MAINTIEN_CHAUD, modeExterne, []);
+  const [catalogueMaintienChaudBase, setCatalogueMaintienChaudBase] = useStoredOuMemoire("catalogue-maintien-chaud", DEFAULT_PRODUITS_MAINTIEN_CHAUD, modeExterne, []);
   // Plats à cuisson chronométrée (durée connue par la fiche technique) — pizzas et burgers en
   // sont volontairement exclus (cuisson courte, surveillée en direct, pas besoin de chrono avec
   // alarme). Sauce bolognaise et lasagne pré-remplies avec la durée réellement documentée sur
   // leur fiche technique (FT SAUCE 04 : mijotée 1h ; FT plat-02-lasagne : Rational 180°C, 35-45 min,
   // on prend le milieu 40 min) — modifiable à tout moment depuis l'écran Cuisson.
-  const [catalogueCuisson, setCatalogueCuisson] = useStoredOuMemoire("catalogue-cuisson-chronometree", [
+  const [catalogueCuissonBase, setCatalogueCuissonBase] = useStoredOuMemoire("catalogue-cuisson-chronometree", [
     { nom: "Sauce bolognaise", dureeMin: 60, famille: "viandeHachee" },
     { nom: "Lasagne", dureeMin: 40, famille: "viandeHachee" },
   ], modeExterne, []);
@@ -14049,8 +14049,21 @@ function KitchenApp({ identiteExterne } = {}) {
   // Fiches techniques : le socle FICHES_TECHNIQUES (données de référence, fournies par le fichier
   // Excel du chef) reste statique, mais le chef peut désormais créer ses propres fiches depuis
   // l'icône "Créer une fiche technique" (Gestion) — elles sont stockées à part puis fusionnées ici.
-  const [fichesCustom, setFichesCustom] = useStored("fiches-custom", []);
-  const fiches = React.useMemo(() => [...FICHES_TECHNIQUES, ...fichesCustom], [fichesCustom]);
+  // En prévisualisation : uniquement les fiches de la nouvelle base (jamais le socle intégré ni l'ancien stockage).
+  const [fichesCustomStockees, setFichesCustomStockees] = useStored("fiches-custom", []);
+  const [fichesExternes, setFichesExternes] = useListeExterne(identiteExterne, "fiches");
+  const fichesCustom = modeExterne ? fichesExternes : fichesCustomStockees;
+  const setFichesCustom = modeExterne ? setFichesExternes : setFichesCustomStockees;
+  const fiches = React.useMemo(() => (modeExterne ? fichesExternes : [...FICHES_TECHNIQUES, ...fichesCustomStockees]), [modeExterne, fichesExternes, fichesCustomStockees]);
+  // Prévisualisation : les cuissons pré-programmées et les produits du maintien au chaud viennent des fiches techniques (nouvelle base).
+  const catalogueCuissonFiches = React.useMemo(() => fichesExternes
+    .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
+    .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "" })), [fichesExternes]);
+  const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
+  const catalogueCuisson = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
+  const setCatalogueCuisson = modeExterne ? (() => {}) : setCatalogueCuissonBase;
+  const catalogueMaintienChaud = React.useMemo(() => (modeExterne ? [...new Set([...catalogueMaintienFiches, ...catalogueMaintienChaudBase])] : catalogueMaintienChaudBase), [modeExterne, catalogueMaintienFiches, catalogueMaintienChaudBase]);
+  const setCatalogueMaintienChaud = setCatalogueMaintienChaudBase;
   // Réservations : en prévisualisation, en mémoire seulement (jamais l'ancien stockage réel) — pas encore migrées.
   const [reservationsStockees, setReservationsStockees] = useStored("reservations", []);
   const [reservationsExternes, setReservationsExternes] = useState([]);
@@ -14109,7 +14122,32 @@ function KitchenApp({ identiteExterne } = {}) {
   const [dernierControleRappelConso, setDernierControleRappelConso] = useStored("dernier-controle-rappelconso", null);
   const [alertesRappelConso, setAlertesRappelConso] = useStored("alertes-rappelconso", []);
   const [rappelConsoEnCours, setRappelConsoEnCours] = useState(false);
-  const [allergenesPlats, setAllergenesPlats] = useStored("allergenes-plats", {});
+  const [allergenesPlatsStockes, setAllergenesPlatsStockes] = useStored("allergenes-plats", {});
+  // Prévisualisation : les allergènes d'un plat sont enregistrés dans sa fiche technique (nouvelle base).
+  const [allergenesPlatsMemoire, setAllergenesPlatsMemoire] = useState({});
+  const allergenesPlatsRef = useRef({});
+  const minuteriePlats = useRef({});
+  useEffect(() => {
+    if (!modeExterne) return;
+    const derive = {};
+    fichesExternes.forEach((f) => { const t = f.allergenesTexte != null ? f.allergenesTexte : (f.allergenes || []).join(", "); if (t) derive[f.nom] = t; });
+    setAllergenesPlatsMemoire((prev) => { const next = { ...derive, ...prev }; allergenesPlatsRef.current = next; return next; });
+  }, [modeExterne, fichesExternes]);
+  const setAllergenesPlatsExterne = useCallback((maj) => {
+    const prev = allergenesPlatsRef.current;
+    const next = typeof maj === "function" ? maj(prev) : maj;
+    allergenesPlatsRef.current = next;
+    setAllergenesPlatsMemoire(next);
+    Object.keys(next).forEach((nom) => {
+      if ((next[nom] || "") === (prev[nom] || "")) return;
+      clearTimeout(minuteriePlats.current[nom]);
+      minuteriePlats.current[nom] = setTimeout(() => {
+        setFichesExternes((liste) => liste.map((f) => (f.nom === nom ? { ...f, allergenesTexte: next[nom] || "" } : f)));
+      }, 700);
+    });
+  }, [setFichesExternes]);
+  const allergenesPlats = modeExterne ? allergenesPlatsMemoire : allergenesPlatsStockes;
+  const setAllergenesPlats = modeExterne ? setAllergenesPlatsExterne : setAllergenesPlatsStockes;
   const [allergenesProduits, setAllergenesProduits] = useStoredOuMemoire("allergenes-produits", {}, modeExterne);
   const [origineProduits, setOrigineProduits] = useStoredOuMemoire("origine-produits", {}, modeExterne);
   // Valeur "normale" de l'établissement pour chaque produit (origine, allergènes, délai de
@@ -14119,8 +14157,37 @@ function KitchenApp({ identiteExterne } = {}) {
   // des allergènes ou un délai après ouverture différent de d'habitude) ; dès que le stock de ce
   // produit revient à 0 (le lot exceptionnel est entièrement consommé), on revient automatiquement
   // à la valeur normale — voir l'effet juste après la définition de tous ces états.
-  const [allergenesStandard, setAllergenesStandard] = useStoredOuMemoire("allergenes-standard", {}, modeExterne);
-  const [origineStandard, setOrigineStandard] = useStoredOuMemoire("origine-standard", {}, modeExterne);
+  const [allergenesStandard, setAllergenesStandardBase] = useStoredOuMemoire("allergenes-standard", {}, modeExterne);
+  const [origineStandard, setOrigineStandardBase] = useStoredOuMemoire("origine-standard", {}, modeExterne);
+  // Prévisualisation : la « norme » d'un produit (allergènes, origine) est enregistrée dans sa fiche produit (nouvelle base).
+  const gestionNormesRef = useRef(null);
+  gestionNormesRef.current = modeExterne && identiteExterne ? identiteExterne.gestionNormes : null;
+  const minuteriesNormes = useRef({});
+  const persisterNorme = useCallback((champ, nom, valeur) => {
+    const g = gestionNormesRef.current;
+    if (!g) return;
+    const k = champ + "|" + nom;
+    clearTimeout(minuteriesNormes.current[k]);
+    minuteriesNormes.current[k] = setTimeout(() => { g.produit(nom, champ, valeur).catch((e) => console.error("Norme non enregistrée :", e)); }, 700);
+  }, []);
+  const fabriquerSetterNorme = (setBase, champ) => (maj) => {
+    setBase((prev) => {
+      const next = typeof maj === "function" ? maj(prev) : maj;
+      if (gestionNormesRef.current) Object.keys(next).forEach((nom) => { if ((next[nom] || "") !== (prev[nom] || "")) persisterNorme(champ, nom, next[nom] || ""); });
+      return next;
+    });
+  };
+  const setAllergenesStandard = React.useMemo(() => fabriquerSetterNorme(setAllergenesStandardBase, "allergenes"), [setAllergenesStandardBase, persisterNorme]);
+  const setOrigineStandard = React.useMemo(() => fabriquerSetterNorme(setOrigineStandardBase, "origine"), [setOrigineStandardBase, persisterNorme]);
+  useEffect(() => {
+    if (!modeExterne || !catalogueExterne) return;
+    const all = {}; const ori = {};
+    catalogueExterne.forEach((p) => { if (p.allergenesNorme) all[p.nom] = p.allergenesNorme; if (p.origineNorme) ori[p.nom] = p.origineNorme; });
+    setAllergenesStandardBase((prev) => ({ ...all, ...prev }));
+    setOrigineStandardBase((prev) => ({ ...ori, ...prev }));
+    setAllergenesProduits((prev) => ({ ...all, ...prev }));
+    setOrigineProduits((prev) => ({ ...ori, ...prev }));
+  }, [modeExterne, catalogueExterne]);
   const [dlcJoursStandard, setDlcJoursStandard] = useStoredOuMemoire("dlcjours-standard", {}, modeExterne);
   const [produitsLotException, setProduitsLotException] = useStoredOuMemoire("produits-lot-exception", {}, modeExterne);
   const [declarationsTiac, setDeclarationsTiac] = useStored("declarations-tiac", []);
