@@ -132,7 +132,7 @@ export default function ConnexionReelle() {
     try {
       const [rf, rp, rl] = await Promise.all([
         supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note").order("nom"),
-        supabasePublic.from("produits").select("id, nom, reference, categorie, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
+        supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
         supabasePublic.from("lots_produits").select("produit_id, numero_lot, dlc, quantite_restante, date_reception").order("date_reception", { ascending: false }).limit(1000),
       ]);
       if (rf.error) throw rf.error;
@@ -142,7 +142,7 @@ export default function ConnexionReelle() {
       (rl.data || []).forEach((l) => { if (!dernierLot.has(l.produit_id)) dernierLot.set(l.produit_id, l); });
       setFournisseursCat(rf.data || []);
       const liste = (rp.data || []).map((p) => ({
-        id: p.id, nom: p.nom, categorie: p.categorie || "Autres",
+        id: p.id, nom: p.nom, categorie: p.categorie || "Autres", conservation: p.conservation || "",
         fournisseur: (p.fournisseurs && p.fournisseurs.nom) || "",
         reference: p.reference || "", conditionnement: p.conditionnement || "",
         prixUnitaire: p.prix_achat != null ? `${Number(p.prix_achat).toFixed(2).replace(".", ",")} ${p.prix_unite || "€"}` : "",
@@ -281,6 +281,7 @@ export default function ConnexionReelle() {
           agrementSanitaire: l.agrement_sanitaire || "", conforme: l.conforme !== false, raison: l.motif_non_conformite || "",
           quantiteNC: Number(l.quantite_nc) || 0, photoNC: l.photo_nc_url || null, ecartPrix: Number(l.ecart_prix) || 0,
           valideChef: !!l.valide_chef, photoBon: null, photosBon: photos,
+          conservation: l.conservation || "", temperature: l.temperature_controlee == null ? null : Number(l.temperature_controlee),
         });
       });
     });
@@ -391,8 +392,17 @@ export default function ConnexionReelle() {
     const norm = (t) => String(t || "").trim().toLowerCase();
     const fournisseur = (fournisseursCat || []).find((f) => norm(f.nom) === norm(meta.fournisseur));
     const idFournisseur = fournisseur ? fournisseur.id : null;
-    const catalogueCourant = (catalogue || []).map((c) => ({ id: c.id, nom: c.nom, reference: c.reference, quantite: Number(c.quantite) || 0 }));
-    const trouver = (e) => catalogueCourant.find((c) => e.reference && norm(c.reference) === norm(e.reference)) || catalogueCourant.find((c) => norm(c.nom) === norm(e.produit));
+    const catalogueCourant = (catalogue || []).map((c) => ({ id: c.id, nom: c.nom, reference: c.reference, conservation: c.conservation || "", quantite: Number(c.quantite) || 0 }));
+    // Même référence → même produit. Sinon même nom ET même type (un produit frais et le même surgelé sont deux articles distincts) ;
+    // un article déjà existant sans type précisé adopte celui de la réception.
+    const trouver = (e) => {
+      const parRef = e.reference && catalogueCourant.find((c) => norm(c.reference) === norm(e.reference));
+      if (parRef) return parRef;
+      const memeNom = catalogueCourant.filter((c) => norm(c.nom) === norm(e.produit));
+      if (!e.conservation) return memeNom[0];
+      return memeNom.find((c) => c.conservation === e.conservation) || memeNom.find((c) => !c.conservation);
+    };
+    const adoptions = new Map();
 
     // 1. Stock : on ajoute la quantité acceptée à chaque produit (ou on le crée s'il est inconnu).
     const idProduitParLigne = {};
@@ -404,20 +414,22 @@ export default function ConnexionReelle() {
       if (c) {
         c.quantite += qte;
         modifies.add(c.id);
+        if (!c.conservation && e.conservation) { c.conservation = e.conservation; adoptions.set(c.id, e.conservation); }
       } else {
         const { data, error } = await supabasePublic.from("produits").insert({
           etablissement_id: etab, nom: String(e.produit).trim(), reference: e.reference || null, unite: "kg",
           fournisseur_id: idFournisseur, quantite_stock: qte, quantite_cible: 0,
+          conservation: e.conservation || null, categorie: (e.categorie || "").trim() || (e.conservation === "surgele" ? "Surgelés" : null),
         }).select("id").single();
         if (error) throw error;
-        c = { id: data.id, nom: String(e.produit).trim(), reference: e.reference || "", quantite: qte };
+        c = { id: data.id, nom: String(e.produit).trim(), reference: e.reference || "", conservation: e.conservation || "", quantite: qte };
         catalogueCourant.push(c);
       }
       idProduitParLigne[e.id] = c.id;
     }
     for (const id of modifies) {
       const c = catalogueCourant.find((x) => x.id === id);
-      const { error } = await supabasePublic.from("produits").update({ quantite_stock: c.quantite }).eq("id", id);
+      const { error } = await supabasePublic.from("produits").update(adoptions.has(id) ? { quantite_stock: c.quantite, conservation: adoptions.get(id) } : { quantite_stock: c.quantite }).eq("id", id);
       if (error) throw error;
     }
 
@@ -450,6 +462,7 @@ export default function ConnexionReelle() {
       allergenes: e.allergenes || null, origine: e.origine || null, agrement_sanitaire: e.agrementSanitaire || null,
       conforme: e.conforme !== false, motif_non_conformite: e.raison || null, quantite_nc: Number(e.quantiteNC) || 0,
       ecart_prix: Number(e.ecartPrix) || 0, photo_nc_url: e.photoNC || null, valide_chef: false,
+      conservation: e.conservation || null, temperature_controlee: e.temperature == null || Number.isNaN(Number(e.temperature)) ? null : Number(e.temperature),
     }));
     if (lignes.length) {
       const { error } = await supabasePublic.from("receptions_lignes").insert(lignes);

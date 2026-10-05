@@ -3082,7 +3082,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     if (!String(v.nom || "").trim()) return;
     const sortie = {};
     const cles = estProduit
-      ? ["nom", "reference", "categorie", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note"]
+      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note"]
       : CHAMPS_FOURNISSEUR.map((c) => c.cle);
     cles.forEach((c) => {
       let val = v[c];
@@ -3118,6 +3118,12 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 <option value="__nouvelle__">+ Nouvelle catégorie…</option>
               </select>
               {categorieNouvelle && <input autoComplete="off" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
+            </label>
+            <label className="block text-xs text-[var(--steel)]">Type de produit (frais, surgelé…)
+              <select value={v.conservation || ""} onChange={(e) => maj("conservation", e.target.value || null)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+                <option value="">— Non précisé —</option>
+                {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+              </select>
             </label>
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
@@ -7754,7 +7760,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                       <div key={s.id} className="flex items-center justify-between py-2 text-sm">
                         <label className="flex items-center gap-2 flex-1">
                           <input type="checkbox" checked={inclusPour(s)} onChange={(e) => setACommander({ ...aCommander, [s.id]: { ...aCommander[s.id], inclus: e.target.checked, quantite: quantitePour(s) } })} />
-                          <span className="text-[var(--ink)]">{s.nom}</span>
+                          <span className="text-[var(--ink)]">{s.nom}</span>{s.conservation && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] align-middle">{LIBELLE_CONSERVATION[s.conservation] || s.conservation}</span>}
                           <span className="text-xs text-[var(--steel)]">({s.quantite} → {s.cible} {s.unite})</span>
                         </label>
                         <input
@@ -8881,6 +8887,64 @@ function ImportPhotoIA({ titre, description, consigne, onResultats, boutonLabel 
   );
 }
 
+// Conservation d'un produit à la réception : détermine la température à relever et la "case" du stock.
+const CONSERVATIONS = [
+  { v: "frais", l: "Frais / laitier" },
+  { v: "viande", l: "Viande fraîche" },
+  { v: "surgele", l: "Surgelé" },
+  { v: "sec", l: "Sec / épicerie" },
+];
+const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", surgele: "Surgelé", sec: "Sec" };
+
+// Date saisie à la main (JJ/MM/AAAA, JJMMAAAA ou MM/AAAA — pour une DDM lointaine) OU choisie dans le calendrier.
+// La valeur échangée est toujours au format AAAA-MM-JJ ("" si vide). Pour MM/AAAA, on prend le dernier jour du mois.
+function analyserDateSaisie(texte) {
+  const t = String(texte || "").trim();
+  if (!t) return "";
+  const p2 = (n) => String(n).padStart(2, "0");
+  const valide = (a, m, j) => {
+    const d = new Date(a, m - 1, j);
+    return d.getFullYear() === a && d.getMonth() === m - 1 && d.getDate() === j ? `${a}-${p2(m)}-${p2(j)}` : null;
+  };
+  let m = t.match(/^(\d{1,2})[\/\-. ](\d{1,2})[\/\-. ](\d{2}|\d{4})$/) || t.match(/^(\d{2})(\d{2})(\d{4})$/);
+  if (m) {
+    const a = m[3].length === 2 ? 2000 + Number(m[3]) : Number(m[3]);
+    return valide(a, Number(m[2]), Number(m[1]));
+  }
+  m = t.match(/^(\d{1,2})[\/\-. ](\d{4})$/) || t.match(/^(\d{2})(\d{4})$/);
+  if (m) {
+    const mois = Number(m[1]), a = Number(m[2]);
+    if (mois < 1 || mois > 12) return null;
+    return valide(a, mois, new Date(a, mois, 0).getDate());
+  }
+  return null;
+}
+function ChampDateSaisie({ value, onChange, placeholder = "JJ/MM/AAAA ou MM/AAAA" }) {
+  const versTexte = (iso) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : "");
+  const [texte, setTexte] = useState(() => versTexte(value));
+  const refDate = useRef(null);
+  useEffect(() => {
+    if ((analyserDateSaisie(texte) || "") !== (value || "")) setTexte(versTexte(value));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [value]);
+  const invalide = texte.trim() !== "" && analyserDateSaisie(texte) === null;
+  return (
+    <div>
+      <div className="flex gap-1">
+        <input
+          className={`${inputCls} flex-1 min-w-0`} inputMode="numeric" autoComplete="off" placeholder={placeholder} value={texte}
+          style={invalide ? { borderColor: "var(--warn)" } : undefined}
+          onChange={(e) => { setTexte(e.target.value); const iso = analyserDateSaisie(e.target.value); if (iso !== null) onChange(iso); }}
+        />
+        <button type="button" title="Choisir dans le calendrier" onClick={() => { try { refDate.current && (refDate.current.showPicker ? refDate.current.showPicker() : refDate.current.click()); } catch (e) { refDate.current && refDate.current.click(); } }}
+          className="border border-[var(--line)] rounded-lg px-2 text-[var(--steel)] hover:text-[var(--accent)]"><CalendarDays size={16} /></button>
+        <input ref={refDate} type="date" tabIndex={-1} value={value || ""} onChange={(e) => { onChange(e.target.value); setTexte(versTexte(e.target.value)); }} style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 0, height: 0 }} />
+      </div>
+      {invalide && <span className="text-xs text-[var(--warn)] block mt-0.5">Date non reconnue (ex. 25/12/2027 ou 12/2027)</span>}
+    </div>
+  );
+}
+
 function StepShell({ titre, sousTitre, children, onPrev, onNext, nextLabel = "Suivant", nextDisabled = false, hideNext = false }) {
   return (
     <Card>
@@ -9098,6 +9162,10 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
     if (Number.isNaN(v)) return null;
     return type === "surgele" ? v <= SEUILS_RECEPTION.surgele.max : v <= SEUILS_RECEPTION[type].max;
   };
+  // Prévisualisation : on ne demande que les températures des types de produits présents sur le bon (frais, viande, surgelé).
+  const typesATemperature = [...new Set(lignesBon.map((l) => l.conservation).filter((c) => c === "frais" || c === "viande" || c === "surgele"))];
+  const tempsPretes = typesATemperature.every((t) => !Number.isNaN(parseFloat(temps[t])));
+  const tempsNonConformes = typesATemperature.some((t) => conformeTemp(t) === false);
 
   const CONSIGNE_ANALYSE_BON = "Tu regardes la photo d'un bon de livraison de marchandises pour un restaurant. Extrais la liste des produits avec leur quantité et, si elle est indiquée sur le bon (colonne référence/code article/code produit), la référence du produit. Réponds UNIQUEMENT avec un tableau JSON strict, sans aucun texte autour, format exact : [{\"nom\":\"...\",\"quantite\":\"...\",\"reference\":\"...\" ou null}]. Si l'écriture n'est pas lisible pour un élément, ignore-le plutôt que d'inventer.";
 
@@ -9137,8 +9205,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   const passerEnRevueProduits = () => {
     setProduits(lignesBon.map((l) => (
       tempRejets[l.id]
-        ? { id: l.id, nom: l.nom, reference: l.reference || "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: tempRejets[l.id].photo, tempRejete: true, conforme: false, raison: "Température non conforme", quantiteNC: l.quantite, photoNC: tempRejets[l.id].photo }
-        : { id: l.id, nom: l.nom, reference: l.reference || "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: null, tempRejete: false, conforme: true, raison: "", quantiteNC: "", photoNC: null }
+        ? { id: l.id, nom: l.nom, reference: l.reference || "", conservation: l.conservation || "", categorie: "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: tempRejets[l.id].photo, tempRejete: true, conforme: false, raison: "Température non conforme", quantiteNC: l.quantite, photoNC: tempRejets[l.id].photo }
+        : { id: l.id, nom: l.nom, reference: l.reference || "", conservation: l.conservation || "", categorie: "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: null, tempRejete: false, conforme: true, raison: "", quantiteNC: "", photoNC: null }
     )));
     setStep(4);
   };
@@ -9263,6 +9331,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
     if (qteAccepteeDe(p) <= 0) return false;
     if (!(p.nom || "").trim()) return true;
     if (!IA_ACTIVEE) return !String(p.quantite ?? "").trim();
+    if (modeManuel && (!p.conservation || !(Number(p.quantite) > 0))) return true;
     return !(p.lot || "").trim() || !(p.dlc || "").trim();
   });
 
@@ -9300,7 +9369,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         raison: p.conforme ? "" : p.raison, quantiteNC: p.conforme ? 0 : (Number(p.quantiteNC) || 0),
         photoNC: p.conforme ? null : p.photoNC, ecartPrix: p.conforme ? 0 : (Number(p.ecartPrix) || 0), valideChef: false,
         photoBon: null, photosBon: photosBonArchive,
-        ...(modeManuel ? { reference: (p.reference || "").trim() } : {}),
+        ...(modeManuel ? { reference: (p.reference || "").trim(), conservation: p.conservation || "", categorie: (p.categorie || "").trim(), temperature: p.conservation && temps[p.conservation] !== "" && temps[p.conservation] != null ? Number(temps[p.conservation]) : null } : {}),
       };
       nouvellesEntrees.push(entry);
       if (qteAcceptee > 0) {
@@ -9438,7 +9507,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 2 && IA_ACTIVEE && (
-        <StepShell titre="Bon de livraison" sousTitre="Photographiez le bon (plusieurs photos si le bon fait plusieurs pages), l'IA en extrait la liste des produits — vérifiez et corrigez avant de continuer." onPrev={() => setStep(1)} nextLabel="Suivant" onNext={() => setStep(3)} nextDisabled={lignesBon.length === 0}>
+        <StepShell titre="Bon de livraison" sousTitre="Photographiez le bon (plusieurs photos si le bon fait plusieurs pages), l'IA en extrait la liste des produits — vérifiez et corrigez avant de continuer." onPrev={() => setStep(1)} nextLabel="Suivant" onNext={() => setStep(3)} nextDisabled={lignesBon.length === 0 || (modeManuel && lignesBon.some((l) => !(l.nom || "").trim() || !l.conservation || !String(l.quantite ?? "").trim()))}>
           <div className="mb-4">
             {photosBon.length > 0 && (
               <div className="flex flex-wrap gap-2 mb-3">
@@ -9458,8 +9527,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             )}
             {modeManuel && (
               <div className="mt-3">
-                <Button variant="ghost" onClick={() => setLignesBon([...lignesBon, { id: uid(), nom: "", quantite: "", reference: "" }])}>+ Ajouter un produit du bon</Button>
-                <p className="text-xs text-[var(--steel)] mt-2">Recopiez les lignes du bon : produit, référence (facultatif) et quantité. L'analyse automatique par IA viendra plus tard.</p>
+                <Button variant="ghost" onClick={() => setLignesBon([...lignesBon, { id: uid(), nom: "", quantite: "", reference: "", conservation: "" }])}>+ Ajouter un produit du bon</Button>
+                <p className="text-xs text-[var(--steel)] mt-2">Recopiez les lignes du bon : produit, référence (facultatif), quantité et <strong>type de produit</strong> (frais, viande, surgelé ou sec) — le type décide de la température à relever et de la case du stock. L'analyse automatique par IA viendra plus tard.</p>
               </div>
             )}
             {bonIllisible && !modeManuel && (
@@ -9469,10 +9538,16 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
           {lignesBon.length > 0 && (
             <div className="space-y-2">
               {lignesBon.map((l) => (
-                <div key={l.id} className="grid grid-cols-6 gap-2">
-                  <input className={`${inputCls} col-span-2`} placeholder="Produit" value={l.nom} onChange={(e) => updateLigne(l.id, "nom", e.target.value)} />
-                  <input className={`${inputCls} col-span-2`} placeholder="Référence" value={l.reference || ""} onChange={(e) => updateLigne(l.id, "reference", e.target.value)} />
+                <div key={l.id} className={modeManuel ? "grid grid-cols-2 sm:grid-cols-7 gap-2" : "grid grid-cols-6 gap-2"}>
+                  <input className={`${inputCls} ${modeManuel ? "col-span-2" : "col-span-2"}`} placeholder="Produit" value={l.nom} onChange={(e) => updateLigne(l.id, "nom", e.target.value)} />
+                  <input className={`${inputCls} col-span-1 sm:col-span-1`} placeholder="Référence" value={l.reference || ""} onChange={(e) => updateLigne(l.id, "reference", e.target.value)} />
                   <input className={`${inputCls} col-span-1`} placeholder="Qté" value={l.quantite} onChange={(e) => updateLigne(l.id, "quantite", e.target.value)} />
+                  {modeManuel && (
+                    <select className={`${inputCls} col-span-1`} value={l.conservation || ""} onChange={(e) => updateLigne(l.id, "conservation", e.target.value)}>
+                      <option value="">Type…</option>
+                      {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+                    </select>
+                  )}
                   <button onClick={() => removeLigne(l.id)} className="text-[var(--steel)] hover:text-[var(--warn)] flex items-center justify-center"><X size={14} /></button>
                 </div>
               ))}
@@ -9505,7 +9580,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             </p>
           </Card>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande"]].map(([type, label]) => {
+            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande"]].filter(([type]) => !modeManuel || typesATemperature.includes(type)).map(([type, label]) => {
               const ok = conformeTemp(type);
               return (
                 <Field key={type} label={`${label} (${SEUILS_RECEPTION[type].label})`}>
@@ -9516,9 +9591,12 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             })}
           </div>
 
+          {modeManuel && typesATemperature.length === 0 && <p className="text-xs text-[var(--steel)] mb-3">Aucun produit frais, viande ou surgelé sur ce bon : pas de température à relever.</p>}
+          {modeManuel && typesATemperature.length > 0 && !tempsPretes && <p className="text-xs text-[var(--warn)] mb-3">Relevez la température de chaque type de produit présent sur le bon pour continuer.</p>}
+          {modeManuel && tempsPretes && tempsNonConformes && <p className="text-xs text-[var(--warn)] mb-3">Une température est hors norme : utilisez « Un produit est hors norme » pour désigner le ou les produits à renvoyer.</p>}
           {choixTemp === null && (
             <div className="flex flex-wrap gap-3">
-              <Button onClick={() => setChoixTemp("conforme")}><CheckCircle2 size={16} /> Températures conformes — continuer</Button>
+              <Button onClick={() => setChoixTemp("conforme")} disabled={modeManuel && (!tempsPretes || tempsNonConformes)}><CheckCircle2 size={16} /> Températures conformes — continuer</Button>
               <Button variant="danger" onClick={() => setChoixTemp("non-conforme")}><XCircle size={16} /> Un produit est hors norme</Button>
             </div>
           )}
@@ -9589,8 +9667,20 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                     <input className={inputCls} placeholder="Nom du produit" value={p.nom} onChange={(e) => updateProduit(p.id, { nom: e.target.value })} />
                     <input className={inputCls} placeholder="Référence" value={p.reference || ""} onChange={(e) => updateProduit(p.id, { reference: e.target.value })} />
                     <input className={inputCls} placeholder="N° de lot" value={p.lot} onChange={(e) => updateProduit(p.id, { lot: e.target.value })} />
-                    <input className={inputCls} type="date" placeholder="DLC" value={p.dlc} onChange={(e) => updateProduit(p.id, { dlc: e.target.value })} />
+                    {modeManuel ? <ChampDateSaisie value={p.dlc} onChange={(v) => updateProduit(p.id, { dlc: v })} placeholder="DLC / DDM : JJ/MM/AAAA ou MM/AAAA" /> : <input className={inputCls} type="date" placeholder="DLC" value={p.dlc} onChange={(e) => updateProduit(p.id, { dlc: e.target.value })} />}
                     <input className={inputCls} type="number" placeholder="Quantité reçue" value={p.quantite} onChange={(e) => updateProduit(p.id, { quantite: e.target.value })} />
+                    {modeManuel && (
+                      <select className={inputCls} value={p.conservation || ""} onChange={(e) => updateProduit(p.id, { conservation: e.target.value })}>
+                        <option value="">Type de produit…</option>
+                        {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+                      </select>
+                    )}
+                    {modeManuel && !correspondanceStock && (
+                      <>
+                        <input className={inputCls} list="categories-stock" placeholder="Catégorie du stock (ex. Surgelés)" value={p.categorie || ""} onChange={(e) => updateProduit(p.id, { categorie: e.target.value })} />
+                        <datalist id="categories-stock">{[...new Set(stock.map((x) => x.categorie).filter(Boolean))].map((c) => <option key={c} value={c} />)}</datalist>
+                      </>
+                    )}
                     <input className={inputCls} placeholder="Allergènes déclarés" value={p.allergenes || ""} onChange={(e) => updateProduit(p.id, { allergenes: e.target.value })} />
                     <input className={inputCls} placeholder="Origine / provenance" value={p.origine || ""} onChange={(e) => updateProduit(p.id, { origine: e.target.value })} />
                     <input className={inputCls} placeholder="N° agrément sanitaire (CE)" value={p.agrementSanitaire || ""} onChange={(e) => updateProduit(p.id, { agrementSanitaire: e.target.value })} />
@@ -9682,7 +9772,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 5 && (
-        <StepShell titre="Autres produits non conformes ?" sousTitre="En dehors des produits déjà rejetés en température, y a-t-il un ou plusieurs autres produits non conformes (aspect, emballage abîmé, DLC dépassée...) ?" onPrev={() => setStep(4)} hideNext>
+        <StepShell titre="Autres produits non conformes ?" sousTitre="En dehors des produits déjà rejetés en température, y a-t-il un ou plusieurs autres produits non conformes (aspect, emballage abîmé, DLC dépassée...) ?" onPrev={() => { setAutresNC(null); setStep(4); }} hideNext>
           {autresNC === null && (
             <div className="flex flex-wrap gap-3">
               <Button variant="danger" onClick={() => setAutresNC("oui")}><XCircle size={16} /> Oui, un ou plusieurs produits</Button>
@@ -9738,7 +9828,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 6 && (
-        <StepShell titre="Analyse du bon de commande" sousTitre="Vérifiez la liste avant de valider — elle sera enregistrée telle quelle et le chef sera notifié en cas de non-conformité." onPrev={() => setStep(5)} nextLabel={enregistrementEnCours ? "Enregistrement…" : "Valider la réception"} onNext={validerReception} nextDisabled={produitsIncomplets.length > 0 || enregistrementEnCours}>
+        <StepShell titre="Analyse du bon de commande" sousTitre="Vérifiez la liste avant de valider — elle sera enregistrée telle quelle et le chef sera notifié en cas de non-conformité." onPrev={() => { setAutresNC(null); setStep(5); }} nextLabel={enregistrementEnCours ? "Enregistrement…" : "Valider la réception"} onNext={validerReception} nextDisabled={produitsIncomplets.length > 0 || enregistrementEnCours}>
           {erreurEnregistrement && <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4"><p className="text-xs text-[var(--warn)]">{erreurEnregistrement}</p></Card>}
           {produitsIncomplets.length > 0 && (
             <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
@@ -9747,7 +9837,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                 {produitsIncomplets.map((p) => (
                   <li key={p.id}>
                     {p.nom || "(nom manquant)"} — manque : {(IA_ACTIVEE
-                      ? [!((p.nom || "").trim()) && "nom", !((p.lot || "").trim()) && "n° de lot", !((p.dlc || "").trim()) && "DLC"]
+                      ? [!((p.nom || "").trim()) && "nom", !((p.lot || "").trim()) && "n° de lot", !((p.dlc || "").trim()) && "DLC", modeManuel && !(Number(p.quantite) > 0) && "quantité", modeManuel && !p.conservation && "type de produit"]
                       : [!((p.nom || "").trim()) && "nom", !String(p.quantite ?? "").trim() && "quantité"]
                     ).filter(Boolean).join(", ")}
                   </li>
@@ -9947,7 +10037,7 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
                       {conformes.map((l) => (
                         <li key={l.id} className="py-1.5 text-sm text-[var(--ink)] flex items-center justify-between">
                           <span>{l.produit}</span>
-                          <span className="text-xs text-[var(--steel)]">{l.quantite} · lot {l.lot || "—"} · DLC {l.dlc || "—"}</span>
+                          <span className="text-xs text-[var(--steel)]">{l.quantite} · lot {l.lot || "—"} · DLC {l.dlc || "—"}{l.conservation ? ` · ${LIBELLE_CONSERVATION[l.conservation] || l.conservation}` : ""}{l.temperature != null ? ` ${l.temperature} °C` : ""}</span>
                         </li>
                       ))}
                     </ul>
