@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import KitchenApp from './App.jsx';
+import { QRCode, NIVEAU_CORRECTION_M } from './qrVendor.js';
 import { POSTES, STATUTS_EQUIPE, estChefOuDirecteur } from './listesEquipe.js';
 
 /* =========================================================================================
@@ -22,6 +23,7 @@ import { POSTES, STATUTS_EQUIPE, estChefOuDirecteur } from './listesEquipe.js';
 const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
 const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
 const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
+const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`;
 
 const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
 
@@ -36,6 +38,35 @@ async function appelerEmployes(jeton, action, payload) {
     throw new Error(((data && data.erreur) || `Erreur serveur (${reponse.status})`) + (data && data.detail ? ` — ${data.detail}` : ""));
   }
   return data;
+}
+
+async function appelerInvitation(jeton, action, payload) {
+  const entetes = { "Content-Type": "application/json", apikey: CLE_PUBLIQUE };
+  if (jeton) entetes.Authorization = `Bearer ${jeton}`;
+  const reponse = await fetch(URL_FONCTION_INVITATION, { method: "POST", headers: entetes, body: JSON.stringify({ action, ...payload }) });
+  const data = await reponse.json().catch(() => null);
+  if (!reponse.ok || !data || data.ok !== true) {
+    throw new Error(((data && data.erreur) || `Erreur serveur (${reponse.status})`) + (data && data.detail ? ` — ${data.detail}` : ""));
+  }
+  return data;
+}
+
+// Un lien d'invitation ne s'utilise qu'une fois : on évite de l'échanger deux fois (rechargement du composant).
+let invitationDejaTraitee = false;
+
+// QR code dessiné en SVG (aucun service externe : le lien ne sort jamais de l'application).
+function QrSvg({ texte, taille = 180 }) {
+  const qr = new QRCode(-1, NIVEAU_CORRECTION_M);
+  qr.addData(texte);
+  qr.make();
+  const n = qr.getModuleCount();
+  const cases = [];
+  for (let r = 0; r < n; r++) for (let c = 0; c < n; c++) if (qr.isDark(r, c)) cases.push(<rect key={r * n + c} x={c + 4} y={r + 4} width="1.02" height="1.02" fill="#000" />);
+  return (
+    <svg viewBox={`0 0 ${n + 8} ${n + 8}`} width={taille} height={taille} style={{ background: "#fff", display: "block" }} shapeRendering="crispEdges">
+      {cases}
+    </svg>
+  );
 }
 
 const styleFond = {
@@ -87,6 +118,10 @@ export default function ConnexionReelle() {
   const [nouvelEmail, setNouvelEmail] = useState("");
   const [enregistrement, setEnregistrement] = useState(false);
   const [erreurEquipe, setErreurEquipe] = useState("");
+  const [invitation, setInvitation] = useState(null); // { employe, lien, expire } | { employe, erreur }
+  const [invitationEnCours, setInvitationEnCours] = useState(false);
+  const [lienCopie, setLienCopie] = useState(false);
+  const [arriveeParLien, setArriveeParLien] = useState(false);
 
   const [catalogue, setCatalogue] = useState(null);
   const [fournisseursCat, setFournisseursCat] = useState(null);
@@ -321,6 +356,51 @@ export default function ConnexionReelle() {
     }
   }
 
+  // Arrivée par un lien d'invitation (?rejoindre=...) : ouvre la session de l'établissement sans mot de passe.
+  useEffect(() => {
+    let jetonInvitation = null;
+    try { jetonInvitation = new URLSearchParams(window.location.search).get("rejoindre"); } catch (e) { /* ignore */ }
+    if (!jetonInvitation || invitationDejaTraitee) return;
+    invitationDejaTraitee = true;
+    setArriveeParLien(true); setEnCours(true);
+    (async () => {
+      try {
+        const rep = await appelerInvitation(null, "echanger", { token: jetonInvitation });
+        const { data, error } = await supabasePublic.auth.verifyOtp({ token_hash: rep.token_hash, type: rep.type });
+        if (error) throw error;
+        const meta = data.user.user_metadata || {};
+        setSession({
+          token: data.session.access_token,
+          etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" },
+        });
+        setEtape("code");
+        try { window.history.replaceState(null, "", window.location.pathname + "?nouveau-login=1"); } catch (e) { /* ignore */ }
+      } catch (e2) {
+        setErreur("Invitation impossible : " + e2.message);
+      } finally {
+        setEnCours(false);
+      }
+    })();
+  }, []);
+
+  async function creerInvitation(emp) {
+    setInvitationEnCours(true); setLienCopie(false);
+    setInvitation({ employe: emp, chargement: true });
+    try {
+      const rep = await appelerInvitation(session.token, "creer", { code, employe_id: emp.id });
+      const lien = `${window.location.origin}${window.location.pathname}?nouveau-login=1&rejoindre=${rep.token}`;
+      setInvitation({ employe: emp, lien, expire: rep.expire_le });
+    } catch (e2) {
+      setInvitation({ employe: emp, erreur: e2.message });
+    } finally {
+      setInvitationEnCours(false);
+    }
+  }
+
+  async function copierLien() {
+    try { await navigator.clipboard.writeText(invitation.lien); setLienCopie(true); } catch (e) { window.prompt("Copiez ce lien :", invitation.lien); }
+  }
+
   async function modifierEmailEmploye(emp) {
     const saisie = window.prompt(`Adresse e-mail de ${emp.nom} (laisser vide pour effacer) :`, emp.email || "");
     if (saisie === null) return;
@@ -467,13 +547,52 @@ export default function ConnexionReelle() {
                           </button>
                         )}
                       </span>
-                      <span className="text-[var(--steel)] text-xs">{e.role}{e.poste ? ` — ${e.poste}` : ""}</span>
+                      <span className="text-[var(--steel)] text-xs text-right">
+                        {e.role}{e.poste ? ` — ${e.poste}` : ""}
+                        {estChefOuDirecteur(employeIdentifie.role) && (
+                          <button type="button" onClick={() => creerInvitation(e)} disabled={invitationEnCours} className="block ml-auto text-[var(--accent)] font-medium">
+                            Inviter (QR / lien)
+                          </button>
+                        )}
+                      </span>
                     </li>
                   ))}
                 </ul>
               )}
 
               {erreurEquipe && <p className="text-xs mb-2" style={{ color: "var(--warn)" }}>{erreurEquipe}</p>}
+
+              {invitation && (
+                <div className="mb-3 p-3 rounded-md" style={{ background: "var(--accent-soft)" }}>
+                  <p className="text-sm font-semibold text-[var(--ink)] mb-1">Invitation pour {invitation.employe.nom}</p>
+                  {invitation.chargement && <p className="text-xs text-[var(--steel)]">Création du lien…</p>}
+                  {invitation.erreur && <p className="text-xs" style={{ color: "var(--warn)" }}>{invitation.erreur}</p>}
+                  {invitation.lien && (
+                    <>
+                      <p className="text-xs text-[var(--steel)] mb-2">
+                        À scanner avec le téléphone, ou à envoyer. Valable 7 jours, une seule utilisation. L'employé tapera ensuite son code personnel.
+                      </p>
+                      <div className="flex justify-center mb-2"><QrSvg texte={invitation.lien} /></div>
+                      <input className={inputCls} readOnly value={invitation.lien} onFocus={(ev) => ev.target.select()} />
+                      <div className="flex flex-wrap gap-3 mt-2">
+                        <button type="button" onClick={copierLien} className="text-sm text-[var(--accent)] font-medium">{lienCopie ? "Lien copié ✓" : "Copier le lien"}</button>
+                        {typeof navigator !== "undefined" && navigator.share && (
+                          <button type="button" onClick={() => navigator.share({ title: "Ma Cuisine", text: "Votre invitation à rejoindre Ma Cuisine :", url: invitation.lien }).catch(() => {})} className="text-sm text-[var(--accent)] font-medium">Partager…</button>
+                        )}
+                        {invitation.employe.email && (
+                          <a
+                            className="text-sm text-[var(--accent)] font-medium"
+                            href={`mailto:${invitation.employe.email}?subject=${encodeURIComponent("Votre accès à Ma Cuisine")}&body=${encodeURIComponent(`Bonjour ${invitation.employe.nom},\n\nVoici votre lien pour accéder à Ma Cuisine sur votre téléphone (valable 7 jours, une seule utilisation) :\n${invitation.lien}\n\nVous taperez ensuite votre code personnel à 4 chiffres.`)}`}
+                          >
+                            Envoyer par e-mail
+                          </a>
+                        )}
+                      </div>
+                    </>
+                  )}
+                  <button type="button" onClick={() => setInvitation(null)} className="text-xs text-[var(--steel)] mt-2">Fermer</button>
+                </div>
+              )}
 
               {!afficherAjout && (
                 <button onClick={() => setAfficherAjout(true)} className="text-sm text-[var(--accent)] font-medium">
@@ -571,6 +690,7 @@ export default function ConnexionReelle() {
       <div className="w-full max-w-sm">
         <EnTete sousTitre="Connexion de l'établissement" />
         <Carte>
+          {arriveeParLien && enCours && <p className="text-sm text-[var(--steel)] mb-3">Ouverture de votre invitation…</p>}
           <form onSubmit={seConnecterEtablissement}>
             <label className="block mb-3">
               <span className="block mb-1 text-sm font-medium text-[var(--ink)]">Email de l'établissement</span>
