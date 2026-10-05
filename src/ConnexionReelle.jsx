@@ -288,15 +288,57 @@ export default function ConnexionReelle() {
     return liste;
   }
 
+  // Notifications fournisseur (retours de marchandise) : à traiter par le chef/directeur.
+  async function lireNotifications() {
+    const { data, error } = await supabasePublic
+      .from("notifications_fournisseurs")
+      .select("id, reception_id, sujet, corps, statut, donnees, mode_traitement, traite_par, traite_le, created_at, receptions(fournisseur_nom, date_livraison, heure_livraison, receptionne_par, receptions_photos_bon(url_photo, ordre))")
+      .order("created_at", { ascending: false })
+      .limit(100);
+    if (error) throw error;
+    return (data || []).map((n) => {
+      const r = n.receptions || {};
+      const d = n.donnees || {};
+      const photos = (r.receptions_photos_bon || []).slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0)).map((x) => x.url_photo);
+      return {
+        id: n.id, date: r.date_livraison || (n.created_at || "").slice(0, 10), heure: (r.heure_livraison || "").slice(0, 5),
+        employeeId: r.receptionne_par || null, fournisseur: r.fournisseur_nom || d.fournisseur || "", sujet: n.sujet || "", corps: n.corps || "",
+        receptionId: n.reception_id, photoBon: null, photosBon: photos, nonConformes: d.nonConformes || [],
+        envoyee: n.statut === "envoye", genereParIA: false, modeTraitement: n.mode_traitement || "", traiteParId: n.traite_par || null, traiteLe: n.traite_le || null,
+      };
+    });
+  }
+
+  async function persisterNotifications(avant, apres) {
+    const mapAvant = new Map(avant.map((x) => [x.id, x]));
+    let modifie = false;
+    for (const x of apres) {
+      const o = mapAvant.get(x.id);
+      if (o && !o.envoyee && x.envoyee) {
+        const { error } = await supabasePublic.from("notifications_fournisseurs").update({
+          statut: "envoye", mode_traitement: x.modeTraitement || "mail",
+          traite_par: EST_UUID.test(x.traiteParId || "") ? x.traiteParId : null, traite_le: x.traiteLe || new Date().toISOString(),
+        }).eq("id", x.id);
+        if (error) throw error;
+        modifie = true;
+      }
+    }
+    if (!modifie) return null;
+    const lues = await lireNotifications();
+    setListesFroid((prev) => (prev ? { ...prev, notifications: lues } : prev));
+    return lues;
+  }
+
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
         supabasePublic.from("planning_creneaux").select("*"),
         supabasePublic.from("huile_friture_tests").select("*").order("date", { ascending: false }).order("heure", { ascending: false }).limit(300),
         lireReceptions(),
+        lireNotifications().catch(() => []),
       ]);
       if (rh.error) throw rh.error;
       if (rp.error) throw rp.error;
@@ -318,6 +360,7 @@ export default function ConnexionReelle() {
           return { id: r.id, equipementId: r.appareil_id, valeur: Number(r.valeur), date: dl.date, heure: dl.heure, employeeId: r.employe_id, conforme: r.conforme, manuel: true, note: r.note || "" };
         }),
         receptions: receptionsLues,
+        notifications: notificationsLues,
         huileTests: (rh.data || []).map((r) => ({
           id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
           valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
@@ -484,10 +527,21 @@ export default function ConnexionReelle() {
       if (error) throw error;
     }
 
-    // 4. Rechargement : le stock (quantités, lot, DLC) et la liste des réceptions.
+    // Notification de retour fournisseur, destinée au chef et au directeur.
+    if (meta.notification) {
+      const nt = meta.notification;
+      const { error } = await supabasePublic.from("notifications_fournisseurs").insert({
+        reception_id: rec.id, fournisseur_id: idFournisseur, sujet: nt.sujet || null, corps: nt.corps || null, statut: "en_attente",
+        ecart_prix: Number(nt.ecartPrix) || 0, donnees: { fournisseur: meta.fournisseur || "", nonConformes: nt.nonConformes || [] },
+      });
+      if (error) throw error;
+    }
+
+    // 4. Rechargement : le stock (quantités, lot, DLC), la liste des réceptions et les notifications.
     await chargerCatalogue();
     const lues = await lireReceptions();
-    setListesFroid((prev) => (prev ? { ...prev, receptions: lues } : prev));
+    const notifs = await lireNotifications().catch(() => null);
+    setListesFroid((prev) => (prev ? { ...prev, receptions: lues, ...(notifs ? { notifications: notifs } : {}) } : prev));
   }
 
   // Pour un chef/directeur (codeDirection fourni), la liste contient aussi les e-mails.
@@ -641,6 +695,7 @@ export default function ConnexionReelle() {
         surveillances: { persister: fabriquerPersisterFroid("surveillances") },
         huileTests: { persister: fabriquerPersisterFroid("huileTests") },
         receptions: { persister: persisterReceptions },
+        notifications: { persister: persisterNotifications },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.

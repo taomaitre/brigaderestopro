@@ -1552,9 +1552,9 @@ function Equipe({ employees, shifts, activityLog, tasks, toggleTask, currentUser
 
 /* ---------- module Contrôle (vue chef) ---------- */
 
-function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFournisseurs = {}, onEnregistrerEmail }) {
+function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFournisseurs = {}, onEnregistrerEmail, fiche }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
-  const emailConnu = (emailsFournisseurs || {})[notif.fournisseur] || "";
+  const emailConnu = (emailsFournisseurs || {})[notif.fournisseur] || (fiche && fiche.email) || "";
   const [editionEmail, setEditionEmail] = useState(false);
   const [emailSaisi, setEmailSaisi] = useState(emailConnu);
   const mailtoHref = `mailto:${encodeURIComponent(emailConnu)}?subject=${encodeURIComponent(notif.sujet)}&body=${encodeURIComponent(notif.corps)}`;
@@ -1566,12 +1566,14 @@ function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFou
           <div className="text-xs text-[var(--steel)]">{notif.date} à {notif.heure} · réceptionné par {who(notif.employeeId) || "—"} · {notif.nonConformes.length} article(s) à retourner{notif.receptionId ? ` · bon n° ${notif.receptionId.slice(0, 8)}` : ""}</div>
         </div>
         {notif.envoyee ? (
-          <span className="text-xs bg-[var(--accent-soft)] text-[var(--accent)] px-2 py-0.5 rounded-full">Envoyé</span>
+          <span className="text-xs bg-[var(--accent-soft)] text-[var(--accent)] px-2 py-0.5 rounded-full">{notif.modeTraitement === "telephone" ? "Traité par téléphone" : "Envoyé"}</span>
         ) : (
           <span className="text-xs bg-[var(--warn-soft)] text-[var(--warn)] px-2 py-0.5 rounded-full">À envoyer</span>
         )}
       </div>
 
+      {notif.envoyee && notif.traiteLe && <p className="text-xs text-[var(--steel)] mb-2">{notif.modeTraitement === "telephone" ? "Traité par téléphone" : "Envoyé par e-mail"} par {who(notif.traiteParId) || "—"} le {String(notif.traiteLe).slice(0, 10)}.</p>}
+      {!notif.envoyee && !emailConnu && <p className="text-xs text-[var(--warn)] mb-2">Ce fournisseur n'a pas d'e-mail enregistré{fiche && fiche.telephone ? <> : appelez-le au <strong>{fiche.telephone}</strong> puis cliquez « Traité par téléphone »</> : " : ajoutez son e-mail ci-dessous ou traitez le retour par téléphone"}.</p>}
       <div className="mb-3">
         {!editionEmail ? (
           <div className="flex items-center gap-2 text-xs">
@@ -1596,7 +1598,8 @@ function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFou
       </div>
       <div className="flex flex-wrap gap-2">
         <a href={mailtoHref}><Button variant="ghost"><Mail size={16} /> Ouvrir dans l'appli mail</Button></a>
-        {!notif.envoyee && <Button onClick={() => onMarquerEnvoyee(notif.id)}>Marquer comme envoyé</Button>}
+        {!notif.envoyee && <Button onClick={() => onMarquerEnvoyee(notif.id, "mail")}>Marquer comme envoyé</Button>}
+        {!notif.envoyee && <Button variant="ghost" onClick={() => onMarquerEnvoyee(notif.id, "telephone")}><PhoneCall size={16} /> Traité par téléphone</Button>}
       </div>
     </Card>
   );
@@ -2251,7 +2254,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
     setSousEcran(id);
   };
 
-  const marquerEnvoyee = (id) => setNotificationsFournisseur(notificationsFournisseur.map((n) => (n.id === id ? { ...n, envoyee: true } : n)));
+  const marquerEnvoyee = (id, mode) => setNotificationsFournisseur(notificationsFournisseur.map((n) => (n.id === id ? { ...n, envoyee: true, modeTraitement: mode || "mail", traiteParId: currentUserId, traiteLe: new Date().toISOString() } : n)));
   const enregistrerEmailFournisseur = (fournisseur, email) => {
     if (!fournisseur) return;
     setEmailsFournisseurs((prev) => ({ ...prev, [fournisseur]: email }));
@@ -2407,8 +2410,8 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
             <p className="text-xs text-[var(--steel)] mb-3">Total des écarts de prix signalés en {anneeCourante} (produits substitués/facturés plus cher que commandé) : <span className="font-semibold text-[var(--ink)]">{totalEcartPrixAnnee.toFixed(2)} €</span></p>
           )}
           <div className="space-y-3">
-            {enAttente.map((n) => <NotificationFournisseur key={n.id} notif={n} employees={employees} onMarquerEnvoyee={marquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} />)}
-            {envoyees.slice(0, 5).map((n) => <NotificationFournisseur key={n.id} notif={n} employees={employees} onMarquerEnvoyee={marquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} />)}
+            {enAttente.map((n) => <NotificationFournisseur key={n.id} notif={n} employees={employees} onMarquerEnvoyee={marquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} fiche={(fournisseursCatalogue || []).find((f) => f.nom === n.fournisseur)} />)}
+            {envoyees.slice(0, 5).map((n) => <NotificationFournisseur key={n.id} notif={n} employees={employees} onMarquerEnvoyee={marquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} fiche={(fournisseursCatalogue || []).find((f) => f.nom === n.fournisseur)} />)}
           </div>
         </div>
       )}
@@ -9072,6 +9075,23 @@ function HuileMatinModal({ titre, onChoisir, onClose }) {
 }
 
 
+// Cause d'une non-conformité : liste de causes courantes + « Autre » pour écrire librement à la main.
+const CAUSES_NON_CONFORMITE = ["Manque d'étiquette", "DLC absente ou illisible", "DLC trop courte", "Produit abîmé", "Emballage ouvert / abîmé", "Produit non commandé", "Produit substitué / facturé plus cher que commandé", "Température non conforme"];
+function ChampCauseNC({ value, onChange }) {
+  const [autre, setAutre] = useState(() => !!value && !CAUSES_NON_CONFORMITE.includes(value));
+  const valeurSelect = autre ? "__autre__" : (CAUSES_NON_CONFORMITE.includes(value) ? value : "");
+  return (
+    <div className="space-y-1.5">
+      <select className={inputCls} value={valeurSelect} onChange={(e) => { if (e.target.value === "__autre__") { setAutre(true); onChange(""); } else { setAutre(false); onChange(e.target.value); } }}>
+        <option value="">Cause de la non-conformité…</option>
+        {CAUSES_NON_CONFORMITE.map((c) => <option key={c} value={c}>{c}</option>)}
+        <option value="__autre__">Autre (à écrire à la main)</option>
+      </select>
+      {autre && <input autoComplete="off" className={inputCls} placeholder="Écrivez la cause" value={value} onChange={(e) => onChange(e.target.value)} />}
+    </div>
+  );
+}
+
 function ChampTexteOuVocal({ value, onChange, placeholder, suggestions, permettreVocal = true }) {
   const [enEcoute, setEnEcoute] = useState(false);
   const [erreur, setErreur] = useState(null);
@@ -9224,7 +9244,9 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
 
   const passerEnRevueProduits = () => {
     setProduits(lignesBon.map((l) => (
-      tempRejets[l.id]
+      modeManuel && conformeTemp(l.conservation) === false
+        ? { id: l.id, nom: l.nom, reference: l.reference || "", conservation: l.conservation || "", categorie: "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: null, tempRejete: false, tempNC: true, conforme: false, raison: "Température non conforme", quantiteNC: l.quantite, photoNC: null }
+        : tempRejets[l.id]
         ? { id: l.id, nom: l.nom, reference: l.reference || "", conservation: l.conservation || "", categorie: "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: tempRejets[l.id].photo, tempRejete: true, conforme: false, raison: "Température non conforme", quantiteNC: l.quantite, photoNC: tempRejets[l.id].photo }
         : { id: l.id, nom: l.nom, reference: l.reference || "", conservation: l.conservation || "", categorie: "", quantite: l.quantite, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: null, tempRejete: false, conforme: true, raison: "", quantiteNC: "", photoNC: null }
     )));
@@ -9372,6 +9394,25 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
 
   const nonConformesActuels = produits.filter((p) => !p.conforme);
 
+  // Texte du mail de retour fournisseur (aperçu à l'étape 6 et notification enregistrée).
+  const construireMailNC = () => {
+    const emailSujet = `Réception du ${date} — ${fournisseur} — Non-conformités`;
+      // Au palier avec IA, le message est rédigé pour être envoyé quasiment tel quel (demande
+      // explicite d'avoir/remboursement) — voir la bannière dédiée dans Contrôle & Gestion, qui
+      // prévient qu'il reste un clic à faire : l'application ne peut techniquement pas envoyer
+      // l'e-mail elle-même (pas de serveur mail côté BrigadeRestoPro), seul le lien mailto: existe.
+    const emailCorps = [
+        `Bonjour,`, ``,
+        `Réception du ${date} à ${heure}, réceptionnée par ${moi?.nom || ""}.`, ``,
+        `Les produits suivants présentent une non-conformité et sont retournés :`,
+        ...nonConformesActuels.map((p) => `- ${p.nom} — ${p.quantiteNC} — motif : ${p.raison}${p.tempNC && temps[p.conservation] !== "" && temps[p.conservation] != null ? ` (température relevée : ${temps[p.conservation]} °C)` : ""}${p.ecartPrix ? ` — écart de prix signalé : ${p.ecartPrix} €` : ""}`),
+        ``,
+        ...(IA_ACTIVEE ? [`Merci de bien vouloir établir un avoir ou un remboursement correspondant à ces articles, et de nous confirmer la bonne prise en compte de ce retour.`, ``] : []),
+        `Photos du bon de livraison et des non-conformités jointes à ce message (bon n° ${receptionId.slice(0, 8)}, consultable dans notre application de gestion).`, ``, `Cordialement,`,
+      ].join("\n");
+    return { sujet: emailSujet, corps: emailCorps };
+  };
+
   const validerReception = async () => {
     if (enregistrementEnCours) return;
     let stockCourant = stock;
@@ -9438,7 +9479,11 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       // Nouvelle base : le stock, les lots, l'en-tête et les lignes de la réception sont enregistrés ensemble.
       setEnregistrementEnCours(true); setErreurEnregistrement("");
       try {
-        await optionsExterne.enregistrer(nouvellesEntrees, photosBonArchive, { fournisseur, date, heure });
+        const mailNC = nonConformesActuels.length > 0 ? construireMailNC() : null;
+        await optionsExterne.enregistrer(nouvellesEntrees, photosBonArchive, {
+          fournisseur, date, heure,
+          notification: mailNC ? { sujet: mailNC.sujet, corps: mailNC.corps, ecartPrix: nonConformesActuels.reduce((t, p) => t + (Number(p.ecartPrix) || 0), 0), nonConformes: nonConformesActuels.map((p) => ({ nom: p.nom, quantiteNC: p.quantiteNC, raison: p.raison, photoNC: p.photoNC || null, ecartPrix: Number(p.ecartPrix) || 0 })) } : null,
+        });
       } catch (e) {
         setErreurEnregistrement("Enregistrement impossible : " + ((e && e.message) || e) + " — rien n'a été validé, vous pouvez réessayer.");
         setEnregistrementEnCours(false);
@@ -9455,27 +9500,14 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
     logActivity("Stock", "Réception validée", `${fournisseur} — ${nbConformes} conforme(s), ${nbNonConformes} non conforme(s)`);
 
     if (nonConformesActuels.length > 0) {
-      const emailSujet = `Réception du ${date} — ${fournisseur} — Non-conformités`;
-      // Au palier avec IA, le message est rédigé pour être envoyé quasiment tel quel (demande
-      // explicite d'avoir/remboursement) — voir la bannière dédiée dans Contrôle & Gestion, qui
-      // prévient qu'il reste un clic à faire : l'application ne peut techniquement pas envoyer
-      // l'e-mail elle-même (pas de serveur mail côté BrigadeRestoPro), seul le lien mailto: existe.
-      const emailCorps = [
-        `Bonjour,`, ``,
-        `Réception du ${date} à ${heure}, réceptionnée par ${moi?.nom || ""}.`, ``,
-        `Les produits suivants présentent une non-conformité et sont retournés :`,
-        ...nonConformesActuels.map((p) => `- ${p.nom} — ${p.quantiteNC} — motif : ${p.raison}${p.ecartPrix ? ` — écart de prix signalé : ${p.ecartPrix} €` : ""}`),
-        ``,
-        ...(IA_ACTIVEE ? [`Merci de bien vouloir établir un avoir ou un remboursement correspondant à ces articles, et de nous confirmer la bonne prise en compte de ce retour.`, ``] : []),
-        `Photos du bon de livraison et des non-conformités jointes à ce message (bon n° ${receptionId.slice(0, 8)}, consultable dans notre application de gestion).`, ``, `Cordialement,`,
-      ].join("\n");
+      const { sujet: emailSujet, corps: emailCorps } = construireMailNC();
       const notification = {
         id: uid(), date, heure, employeeId: currentUserId, fournisseur, sujet: emailSujet, corps: emailCorps,
         receptionId, photoBon: null, photosBon: photosBonArchive,
         nonConformes: nonConformesActuels.map((p) => ({ nom: p.nom, quantiteNC: p.quantiteNC, raison: p.raison, photoNC: p.photoNC, ecartPrix: Number(p.ecartPrix) || 0 })),
         envoyee: false, genereParIA: IA_ACTIVEE,
       };
-      setNotificationsFournisseur([notification, ...notificationsFournisseur]);
+      if (!modeManuel) setNotificationsFournisseur([notification, ...notificationsFournisseur]);
       logActivity("Contrôle", "Notification fournisseur envoyée au chef", `${fournisseur} — ${nonConformesActuels.length} non-conformité(s)`);
     }
 
@@ -9492,7 +9524,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         </div>
         <p className="text-sm text-[var(--steel)] mb-2">{entreesFinalisees.filter((e) => e.conforme).length} article(s) ajoutés au stock{nonConformesActuels.length ? `, ${nonConformesActuels.length} à retourner au fournisseur` : ""}.</p>
         {nonConformesActuels.length > 0 && (
-          <p className="text-sm text-[var(--steel)] mb-5">Le chef a été notifié dans son onglet Contrôle pour la suite — vous n'avez rien d'autre à faire.</p>
+          <p className="text-sm text-[var(--steel)] mb-5">{modeManuel ? "Le chef et le directeur ont été prévenus dans leur onglet Contrôle & Gestion : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire." : "Le chef a été notifié dans son onglet Contrôle pour la suite — vous n'avez rien d'autre à faire."}</p>
         )}
         <Button onClick={onDone}>Terminer</Button>
       </Card>
@@ -9640,19 +9672,20 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
 
           {modeManuel && typesATemperature.length === 0 && <p className="text-xs text-[var(--steel)] mb-3">Aucun produit frais, viande ou surgelé sur ce bon : pas de température à relever.</p>}
           {modeManuel && typesATemperature.length > 0 && !tempsPretes && <p className="text-xs text-[var(--warn)] mb-3">Relevez la température de chaque type de produit présent sur le bon pour continuer.</p>}
-          {modeManuel && tempsPretes && tempsNonConformes && <p className="text-xs text-[var(--warn)] mb-3">Une température est hors norme : utilisez « Un produit est hors norme » pour désigner le ou les produits à renvoyer.</p>}
-          {choixTemp === null && (
+          {modeManuel && tempsPretes && tempsNonConformes && <p className="text-xs text-[var(--warn)] font-semibold mb-3">Une température est hors norme : les produits de ce type seront automatiquement marqués « non conformes » à l'étape suivante (photo avec la température et retour obligatoire chez le fournisseur). Vous pouvez continuer la réception.</p>}
+          {modeManuel && <Button onClick={passerEnRevueProduits} disabled={!tempsPretes}>Continuer vers le détail des produits</Button>}
+          {!modeManuel && choixTemp === null && (
             <div className="flex flex-wrap gap-3">
               <Button onClick={() => setChoixTemp("conforme")} disabled={modeManuel && (!tempsPretes || tempsNonConformes)}><CheckCircle2 size={16} /> Températures conformes — continuer</Button>
               <Button variant="danger" onClick={() => setChoixTemp("non-conforme")}><XCircle size={16} /> Un produit est hors norme</Button>
             </div>
           )}
 
-          {choixTemp === "conforme" && (
+          {!modeManuel && choixTemp === "conforme" && (
             <Button onClick={IA_ACTIVEE ? passerEnRevueProduits : () => setStep(4)}>Continuer vers le détail des produits</Button>
           )}
 
-          {choixTemp === "non-conforme" && IA_ACTIVEE && (
+          {!modeManuel && choixTemp === "non-conforme" && IA_ACTIVEE && (
             <div>
               <p className="text-sm text-[var(--ink)] mb-3">Sélectionnez le ou les produits concernés, puis photographiez chacun avec la température affichée sur le thermomètre — cette photo servira de preuve pour le retour fournisseur.</p>
               <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
@@ -9683,7 +9716,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             </div>
           )}
 
-          {choixTemp === "non-conforme" && !IA_ACTIVEE && (
+          {!modeManuel && choixTemp === "non-conforme" && !IA_ACTIVEE && (
             <div>
               <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
                 <p className="text-xs text-[var(--warn)] font-semibold">⚠ Température non conforme : ce ou ces produits doivent être renvoyés obligatoirement chez le fournisseur, pour le reste tout est bon.</p>
@@ -9696,9 +9729,22 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 4 && IA_ACTIVEE && (
-        <StepShell titre="Détail de chaque produit" sousTitre="Photographiez l'étiquette ENTIÈRE de chaque produit (pas juste le coin DLC) — l'IA propose le nom, le lot, la DLC, les allergènes, l'origine et le numéro d'agrément sanitaire ; complétez ce qui manque, indiquez la quantité reçue, puis validez ou refusez immédiatement le produit." onPrev={() => setStep(3)} nextLabel="Suivant" onNext={() => setStep(5)}>
+        <StepShell titre="Détail de chaque produit" sousTitre="Photographiez l'étiquette ENTIÈRE de chaque produit (pas juste le coin DLC) — l'IA propose le nom, le lot, la DLC, les allergènes, l'origine et le numéro d'agrément sanitaire ; complétez ce qui manque, indiquez la quantité reçue, puis validez ou refusez immédiatement le produit." onPrev={() => setStep(3)} nextLabel="Suivant" onNext={() => setStep(5)} nextDisabled={produits.some((p) => p.tempNC && !p.photoNC)}>
           <div className="space-y-4">
-            {produits.filter((p) => !p.tempRejete).map((p) => {
+            {produits.filter((p) => !p.tempRejete).slice().sort((a, b) => (b.tempNC ? 1 : 0) - (a.tempNC ? 1 : 0)).map((p) => {
+              if (p.tempNC) {
+                return (
+                  <div key={p.id} className="rounded-lg p-3 border-2" style={{ borderColor: "var(--warn)", backgroundColor: "var(--warn-soft)" }}>
+                    <div className="flex items-center justify-between gap-2 mb-1">
+                      <div className="text-sm font-semibold text-[var(--ink)]">{p.nom} — {p.quantite}</div>
+                      <span className="text-xs font-bold text-white px-2 py-0.5 rounded-full" style={{ backgroundColor: "var(--warn)" }}>NON CONFORME</span>
+                    </div>
+                    <p className="text-xs font-semibold text-[var(--warn)] mb-2">Température relevée : {temps[p.conservation]} °C (hors norme). Prenez une photo du produit avec sa température affichée sur le thermomètre. Retour obligatoire chez le fournisseur.</p>
+                    <PhotoInput small value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Photo du produit + thermomètre (obligatoire)" />
+                    {!p.photoNC && <p className="text-xs text-[var(--warn)] mt-1">Photo obligatoire pour continuer.</p>}
+                  </div>
+                );
+              }
               const correspondanceStock = (p.nom || "").trim() ? trouverCorrespondance(p.nom, stock, (s) => s.nom) : null;
               return (
                 <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
@@ -9837,7 +9883,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 5 && (
-        <StepShell titre="Autres produits non conformes ?" sousTitre="En dehors des produits déjà rejetés en température, y a-t-il un ou plusieurs autres produits non conformes (aspect, emballage abîmé, DLC dépassée...) ?" onPrev={() => { setAutresNC(null); setStep(4); }} hideNext>
+        <StepShell titre="Autres produits non conformes ?" sousTitre="En dehors des produits déjà rejetés en température, y a-t-il un ou plusieurs autres produits non conformes (manque d'étiquette, DLC, produit abîmé...) ? Choisissez le produit dans la liste, puis la cause. Pour un produit absent de la liste (ex. un reblochon livré en trop), utilisez le bloc « Ajouter un produit non conforme »." onPrev={() => { setAutresNC(null); setStep(4); }} hideNext>
           {autresNC === null && (
             <div className="flex flex-wrap gap-3">
               <Button variant="danger" onClick={() => setAutresNC("oui")}><XCircle size={16} /> Oui, un ou plusieurs produits</Button>
@@ -9849,7 +9895,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             <div>
               <p className="text-sm text-[var(--ink)] mb-3">Sélectionnez le ou les produits concernés, photographiez-les, puis indiquez la cause{IA_ACTIVEE ? " — à l'écrit ou à la voix" : ""}.</p>
               <div className="space-y-3">
-                {produits.filter((p) => !p.tempRejete).map((p) => (
+                {produits.filter((p) => !p.tempRejete && !p.tempNC).map((p) => (
                   <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2 gap-2">
                       <div className="text-sm font-medium text-[var(--ink)]">{p.nom}</div>
@@ -9865,7 +9911,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                     {!p.conforme && (
                       <div className="space-y-2 pt-2 border-t border-[var(--line)]">
                         <input className={inputCls} type="number" placeholder="Quantité non conforme" value={p.quantiteNC} onChange={(e) => updateProduit(p.id, { quantiteNC: e.target.value })} />
-                        <ChampTexteOuVocal value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} placeholder="Cause de la non-conformité (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />
+                        {modeManuel ? <ChampCauseNC value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} /> : <ChampTexteOuVocal value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} placeholder="Cause de la non-conformité (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />}
                         <input className={inputCls} type="number" step="0.01" placeholder="Écart de prix facturé (€, si produit substitué/facturé plus cher — optionnel)" value={p.ecartPrix || ""} onChange={(e) => updateProduit(p.id, { ecartPrix: e.target.value })} />
                         <PhotoInput small value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Photo du produit" />
                       </div>
@@ -9880,7 +9926,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                 <div className="space-y-2">
                   <input className={inputCls} placeholder="Nom du produit" value={nouveauProduitNom} onChange={(e) => setNouveauProduitNom(e.target.value)} />
                   <input className={inputCls} type="number" placeholder="Quantité" value={nouveauProduitQuantite} onChange={(e) => setNouveauProduitQuantite(e.target.value)} />
-                  <ChampTexteOuVocal value={nouveauProduitRaison} onChange={setNouveauProduitRaison} placeholder="Motif (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />
+                  {modeManuel ? <ChampCauseNC value={nouveauProduitRaison} onChange={setNouveauProduitRaison} /> : <ChampTexteOuVocal value={nouveauProduitRaison} onChange={setNouveauProduitRaison} placeholder="Motif (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />}
                   <PhotoInput small value={nouveauProduitPhoto} onChange={setNouveauProduitPhoto} label="Photo du produit" />
                   <Button variant="ghost" onClick={ajouterNouveauProduitNC} disabled={!nouveauProduitNom.trim()}><Plus size={14} /> Ajouter ce produit non conforme</Button>
                 </div>
@@ -9919,6 +9965,16 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               </ul>
             </Card>
           )}
+          {modeManuel && nonConformesActuels.length > 0 && (() => {
+            const m = construireMailNC();
+            return (
+              <Card className="mb-4">
+                <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Mail prêt pour le fournisseur « {fournisseur} »</p>
+                <p className="text-xs text-[var(--steel)] mb-2">À la validation, il est transmis au <strong>chef et au directeur</strong> : ce sont eux qui le vérifient et l'envoient (ou traitent le retour par téléphone). Vous n'avez rien à envoyer vous-même.</p>
+                <div className="bg-[var(--bg)] rounded-lg p-3 text-xs text-[var(--ink)] whitespace-pre-wrap"><div className="font-semibold mb-1">Objet : {m.sujet}</div>{m.corps}</div>
+              </Card>
+            );
+          })()}
           <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Produits et quantités réceptionnés ({nbConformes})</p>
           <div className="space-y-2">
             {produits.map((p) => (
@@ -13197,7 +13253,10 @@ function KitchenApp({ identiteExterne } = {}) {
   const [commandesHistoriqueExterne, setCommandesHistoriqueExterne] = useState([]);
   const commandesHistorique = modeExterne ? commandesHistoriqueExterne : commandesHistoriqueStockee;
   const setCommandesHistorique = modeExterne ? setCommandesHistoriqueExterne : setCommandesHistoriqueStockee;
-  const [notificationsFournisseur, setNotificationsFournisseur] = useStoredOuMemoire("notifications-fournisseur", [], modeExterne);
+  const [notificationsMemoire, setNotificationsMemoire] = useStoredOuMemoire("notifications-fournisseur", [], modeExterne);
+  const [notificationsExternes, setNotificationsExternes] = useListeExterne(identiteExterne, "notifications");
+  const notificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? notificationsExternes : notificationsMemoire;
+  const setNotificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? setNotificationsExternes : setNotificationsMemoire;
   // Carnet d'adresses e-mail fournisseur — { [nomFournisseur]: "email@..." } — permet de pré-remplir
   // le destinataire du mailto: de notification de non-conformité. Enregistré/modifié directement
   // depuis la carte NotificationFournisseur (au moment où on en a besoin) ou depuis l'écran Fournisseur.
