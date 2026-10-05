@@ -3580,7 +3580,7 @@ function HaccpRefroidPage({ refroidissements, setRefroidissements, currentUserId
   );
 }
 
-function HaccpHuilePage({ huileTests, employees }) {
+function HaccpHuilePage({ huileTests, employees, onFaireTest, onDecisionMatin }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -3588,7 +3588,17 @@ function HaccpHuilePage({ huileTests, employees }) {
     <div>
       <SectionHeader title="Contrôle des huiles de friture" subtitle="Tests et suivi des bains d'huile" />
       <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} />
-      <HaccpHuile huileTests={huileTests} who={who} />
+      {(onFaireTest || onDecisionMatin) && (
+        <Card className="mb-4">
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Faire un contrôle maintenant</h3>
+          <p className="text-xs text-[var(--steel)] mb-3">Matin : on filtre ou on change l'huile. Soir : test avec la bandelette (photo obligatoire).</p>
+          <div className="flex flex-wrap gap-2">
+            {onDecisionMatin && <Button variant="ghost" onClick={onDecisionMatin}><Droplets size={16} /> Décision du matin</Button>}
+            {onFaireTest && <Button onClick={onFaireTest}><Camera size={16} /> Test bandelette</Button>}
+          </div>
+        </Card>
+      )}
+      <HaccpHuile huileTests={huileTests} who={who} manuelPossible={!!(onFaireTest || onDecisionMatin)} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -6497,12 +6507,12 @@ function HistoriqueCuissons({ cuissons, who }) {
   );
 }
 
-function HaccpHuile({ huileTests, who }) {
+function HaccpHuile({ huileTests, who, manuelPossible }) {
   return (
     <div>
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-1">Historique</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">Le test (photo de la bandelette + "Test bon" / "Test non conforme") se fait uniquement à la validation des tâches de nettoyage liées — aucune saisie manuelle ici.</p>
+        <p className="text-xs text-[var(--steel)] mb-4">{manuelPossible ? "Le test (photo de la bandelette + \"Test bon\" / \"Test non conforme\") se fait ici ou à la validation des tâches de nettoyage liées." : "Le test (photo de la bandelette + \"Test bon\" / \"Test non conforme\") se fait uniquement à la validation des tâches de nettoyage liées — aucune saisie manuelle ici."}</p>
         {huileTests.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun test enregistré.</p> : (
           <div className="divide-y divide-[var(--line)]">
             {huileTests.map((h) => (
@@ -14000,7 +14010,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpRefroidPage refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpHuile" && (
-          <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} />
+          <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onFaireTest={modeExterne ? () => setHuileTestActif({ titre: "Test d'huile de friture" }) : undefined} onDecisionMatin={modeExterne ? () => setHuileMatinActif({ titre: "Huile de friture" }) : undefined} />
         )}
         {tab === "haccpChaud" && (
           <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} />
