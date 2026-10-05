@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import App from './App.jsx';
 import EspaceTestMultiEtablissement from './EspaceTestMultiEtablissement.jsx';
 import ConnexionReelle from './ConnexionReelle.jsx';
+import CameraWebHost from './CameraWeb.jsx';
 import './index.css';
 
 const h = React.createElement;
@@ -66,7 +67,7 @@ try {
     : AFFICHER_NOUVEAU_LOGIN
       ? ConnexionReelle
       : App;
-  root.render(h(ErrorBoundaryApp, null, h(ComposantAAfficher, null)));
+  root.render(h(ErrorBoundaryApp, null, h(ComposantAAfficher, null), AFFICHER_NOUVEAU_LOGIN ? h(CameraWebHost, null) : null));
 } catch (e) {
   afficherErreurFatale(e);
 }
