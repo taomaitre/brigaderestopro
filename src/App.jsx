@@ -2822,7 +2822,6 @@ const ENTRETIEN_REF = [
 ];
 
 function ReferentielProduits({ stock, onBack }) {
-  const [mode, setMode] = useState("stock"); // 'stock' | 'preparations'
   const [catOuverte, setCatOuverte] = useState(null);
 
   const parCategorie = stock.reduce((acc, s) => { (acc[s.categorie] = acc[s.categorie] || []).push(s); return acc; }, {});
@@ -2835,12 +2834,7 @@ function ReferentielProduits({ stock, onBack }) {
       </button>
       <SectionHeader title="Référentiel produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
 
-      <div className="flex gap-2 mb-4">
-        <button onClick={() => setMode("stock")} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${mode === "stock" ? "bg-[var(--accent)] text-white border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Produits achetés</button>
-        <button onClick={() => setMode("preparations")} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${mode === "preparations" ? "bg-[var(--accent)] text-white border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Préparations maison</button>
-      </div>
-
-      {mode === "stock" ? (
+      {(
         <div className="space-y-2">
           {categories.map((cat) => (
             <Card key={cat} className="!p-0 overflow-hidden">
@@ -2879,18 +2873,6 @@ function ReferentielProduits({ stock, onBack }) {
             </Card>
           ))}
         </div>
-      ) : (
-        <Card className="!p-0 overflow-hidden">
-          <ul className="divide-y divide-[var(--line)]">
-            {PREPARATIONS_MAISON_REF.map((p) => (
-              <li key={p.nom} className="px-4 py-2.5">
-                <div className="text-sm font-medium text-[var(--ink)]">{p.nom}</div>
-                <div className="text-xs text-[var(--steel)] mt-0.5">Rendement : {p.rendement}</div>
-                {p.note && <div className="text-xs text-[var(--steel)] italic mt-0.5">{p.note}</div>}
-              </li>
-            ))}
-          </ul>
-        </Card>
       )}
     </div>
   );
