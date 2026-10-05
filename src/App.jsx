@@ -12590,7 +12590,15 @@ function KitchenApp({ identiteExterne } = {}) {
   const [huileMatinActif, setHuileMatinActif] = useState(null);
   const [etiquetteRapideDemandee, setEtiquetteRapideDemandee] = useState(null); // tableau de noms de produits — voir proposerEtiquetteRapide
 
-  const [employees, setEmployees] = useStored("planning-employees", DEFAULT_EMPLOYEES);
+  const [employeesStockes, setEmployeesStockes] = useStored("planning-employees", DEFAULT_EMPLOYEES);
+  // Prévisualisation (identiteExterne) : la liste d'équipe vient de la NOUVELLE base (chargée par
+  // ConnexionReelle.jsx) et vit uniquement en mémoire — ainsi, rien n'est jamais écrit dans l'ancien
+  // stockage (les vraies données actuelles de Games Factory) depuis la prévisualisation. Les
+  // modifications faites ici disparaissent au rechargement : la création/suppression durable
+  // dans la nouvelle base sera ajoutée à l'étape suivante. Usage normal : comportement inchangé.
+  const [employeesExternes, setEmployeesExternes] = useState(() => (identiteExterne && identiteExterne.equipe) || []);
+  const employees = modeExterne ? employeesExternes : employeesStockes;
+  const setEmployees = modeExterne ? setEmployeesExternes : setEmployeesStockes;
   const [currentUserId, setCurrentUserId, currentUserLoaded] = useStored("current-user-id", null);
   // Type d'appareil (tablette partagée ou téléphone personnel) : propre à CET appareil, jamais
   // partagé — voir les fonctions lireTypeAppareil / PersonalCodeGate plus haut dans le fichier.

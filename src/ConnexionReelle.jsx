@@ -163,6 +163,10 @@ export default function ConnexionReelle() {
       employePoste: employeIdentifie.poste,
       employeRole: employeIdentifie.role,
       estChef: /chef|direction/i.test(employeIdentifie.role || ""),
+      // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
+      equipe: (equipe || []).map((e) => ({
+        id: e.id, nom: e.nom, poste: e.poste || "", estChef: /chef|direction/i.test(e.role || ""),
+      })),
     };
     return (
       <div>
@@ -175,7 +179,7 @@ export default function ConnexionReelle() {
         >
           <span>
             Prévisualisation — vraie application, connecté en tant que <strong>{employeIdentifie.nom}</strong>
-            {" "}({session.etablissement.nom}). Les écrans autres que la connexion utilisent encore l'ancien stockage.
+            {" "}({session.etablissement.nom}). Seule la liste d'équipe vient de la nouvelle base (lecture seule, modifications non conservées) ; le reste utilise encore l'ancien stockage.
           </span>
           <button onClick={() => setVoirAppliReelle(false)} style={{ color: "white", textDecoration: "underline" }}>
             ← Revenir à la prévisualisation
