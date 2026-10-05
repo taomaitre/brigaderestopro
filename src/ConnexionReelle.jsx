@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import KitchenApp from './App.jsx';
+import { POSTES, STATUTS_EQUIPE, estChefOuDirecteur } from './listesEquipe.js';
 
 /* =========================================================================================
    PRÉVISUALISATION — Écran de connexion réel (établissement + code employé)
@@ -32,7 +33,7 @@ async function appelerEmployes(jeton, action, payload) {
   });
   const data = await reponse.json().catch(() => null);
   if (!reponse.ok || !data || data.ok !== true) {
-    throw new Error((data && data.erreur) || `Erreur serveur (${reponse.status})`);
+    throw new Error(((data && data.erreur) || `Erreur serveur (${reponse.status})`) + (data && data.detail ? ` — ${data.detail}` : ""));
   }
   return data;
 }
@@ -162,10 +163,10 @@ export default function ConnexionReelle() {
       employeNom: employeIdentifie.nom,
       employePoste: employeIdentifie.poste,
       employeRole: employeIdentifie.role,
-      estChef: /chef|direction/i.test(employeIdentifie.role || ""),
+      estChef: estChefOuDirecteur(employeIdentifie.role),
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
-        id: e.id, nom: e.nom, poste: e.poste || "", estChef: /chef|direction/i.test(e.role || ""),
+        id: e.id, nom: e.nom, poste: e.poste || "", estChef: estChefOuDirecteur(e.role),
       })),
     };
     return (
@@ -244,8 +245,13 @@ export default function ConnexionReelle() {
               {afficherAjout && (
                 <form onSubmit={ajouterMembreEquipe} className="mt-2 space-y-2">
                   <input className={inputCls} placeholder="Nom" value={nouveauNom} onChange={(e) => setNouveauNom(e.target.value)} required />
-                  <input className={inputCls} placeholder="Poste (ex. Chaud, Froid...)" value={nouveauPoste} onChange={(e) => setNouveauPoste(e.target.value)} />
-                  <input className={inputCls} placeholder="Rôle (ex. cuisinier, chef...)" value={nouveauRole} onChange={(e) => setNouveauRole(e.target.value)} />
+                  <select className={inputCls} value={nouveauPoste} onChange={(e) => setNouveauPoste(e.target.value)}>
+                    <option value="">Aucun poste</option>
+                    {POSTES.map((p) => <option key={p} value={p}>{p}</option>)}
+                  </select>
+                  <select className={inputCls} value={nouveauRole} onChange={(e) => setNouveauRole(e.target.value)}>
+                    {STATUTS_EQUIPE.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+                  </select>
                   <input
                     className={inputCls}
                     placeholder="Code à 4 chiffres"

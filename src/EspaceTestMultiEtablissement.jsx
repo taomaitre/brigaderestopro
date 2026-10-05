@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { POSTES, STATUTS_EQUIPE } from './listesEquipe.js';
 
 /* =========================================================================================
    ESPACE DE TEST — Connexion multi-établissement (nouvelle base Supabase, 38 tables, RLS)
@@ -39,7 +40,7 @@ async function appelerAuth(action, payload) {
   });
   const data = await reponse.json().catch(() => null);
   if (!reponse.ok || !data || data.ok !== true) {
-    throw new Error((data && data.erreur) || `Erreur serveur (${reponse.status})`);
+    throw new Error(((data && data.erreur) || `Erreur serveur (${reponse.status})`) + (data && data.detail ? ` — ${data.detail}` : ""));
   }
   return data;
 }
@@ -54,7 +55,7 @@ async function appelerEmployes(jeton, action, payload) {
   });
   const data = await reponse.json().catch(() => null);
   if (!reponse.ok || !data || data.ok !== true) {
-    throw new Error((data && data.erreur) || `Erreur serveur (${reponse.status})`);
+    throw new Error(((data && data.erreur) || `Erreur serveur (${reponse.status})`) + (data && data.detail ? ` — ${data.detail}` : ""));
   }
   return data;
 }
@@ -101,7 +102,7 @@ export default function EspaceTestMultiEtablissement() {
   const [nouveauFournisseur, setNouveauFournisseur] = useState("");
 
   const [nomEmploye, setNomEmploye] = useState("Julie Martin");
-  const [posteEmploye, setPosteEmploye] = useState("Chaud");
+  const [posteEmploye, setPosteEmploye] = useState("");
   const [roleEmploye, setRoleEmploye] = useState("cuisinier");
   const [codeEmploye, setCodeEmploye] = useState("1234");
   const [employes, setEmployes] = useState(null);
@@ -278,10 +279,15 @@ export default function EspaceTestMultiEtablissement() {
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
               <input value={nomEmploye} onChange={(e) => setNomEmploye(e.target.value)} placeholder="Nom"
                 style={{ flex: "1 1 140px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
-              <input value={posteEmploye} onChange={(e) => setPosteEmploye(e.target.value)} placeholder="Poste"
-                style={{ flex: "1 1 100px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
-              <input value={roleEmploye} onChange={(e) => setRoleEmploye(e.target.value)} placeholder="Rôle (cuisinier, chef...)"
-                style={{ flex: "1 1 140px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
+              <select value={posteEmploye} onChange={(e) => setPosteEmploye(e.target.value)}
+                style={{ flex: "1 1 100px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, background: "#fff" }}>
+                <option value="">Aucun poste</option>
+                {POSTES.map((p) => <option key={p} value={p}>{p}</option>)}
+              </select>
+              <select value={roleEmploye} onChange={(e) => setRoleEmploye(e.target.value)}
+                style={{ flex: "1 1 140px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13, background: "#fff" }}>
+                {STATUTS_EQUIPE.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
+              </select>
               <input value={codeEmploye} onChange={(e) => setCodeEmploye(e.target.value)} placeholder="Code à 4 chiffres" maxLength={4}
                 style={{ flex: "0 1 110px", padding: "6px 10px", border: "1px solid #cbd5e1", borderRadius: 6, fontSize: 13 }} />
             </div>
