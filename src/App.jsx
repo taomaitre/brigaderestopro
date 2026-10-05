@@ -2023,6 +2023,8 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
   const [rechercheTracabilite, setRechercheTracabilite] = useState("");
   const [remarqueEnCours, setRemarqueEnCours] = useState(null);
   const [sousEcran, setSousEcran] = useState(null);
+  // Doit rester avec les autres hooks, AVANT les retours anticipés plus bas (sinon React plante : « Rendered fewer hooks »).
+  const [infosTiac, setInfosTiac] = useState(null);
   const [rechAllergenePlat, setRechAllergenePlat] = useState("");
   const [rechAllergeneProduit, setRechAllergeneProduit] = useState("");
   const [rechOrigineProduit, setRechOrigineProduit] = useState("");
@@ -2171,8 +2173,6 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
   if (tracabiliteCompleteActif) {
     return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => setTracabiliteCompleteActif(false)} />;
   }
-
-  const [infosTiac, setInfosTiac] = useState(null);
 
   return (
     <div>
