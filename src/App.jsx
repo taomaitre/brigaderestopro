@@ -2010,7 +2010,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
   );
 }
 
-function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue }) {
+function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -2163,7 +2163,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
   }
 
   if (referentielActif) {
-    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} onBack={() => setReferentielActif(false)} />;
+    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} onBack={() => setReferentielActif(false)} />;
   }
 
   if (verifReceptionsActif) {
@@ -2821,9 +2821,19 @@ const ENTRETIEN_REF = [
   { titre: "Produits d'entretien — Salle", note: "Hygiène des mains, nettoyants WC/urinoirs, désinfection éviers, entretien sols et surfaces. Aucune référence encore renseignée — à remplir dès réception des fiches techniques ou photos d'étiquettes." },
 ];
 
-function ReferentielProduits({ stock, fournisseurs, onBack }) {
+function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
   const [catOuverte, setCatOuverte] = useState(null);
   const [fournisseurOuvert, setFournisseurOuvert] = useState(null);
+  // Édition (uniquement quand l'écran est branché sur la nouvelle base : prop `gestion`)
+  const [edition, setEdition] = useState(null); // { table, id|null, valeurs }
+  const [erreurEdition, setErreurEdition] = useState("");
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+  const sauverEdition = async (valeurs) => {
+    setEnregistrementEnCours(true); setErreurEdition("");
+    try { await gestion.enregistrer(edition.table, edition.id, valeurs); setEdition(null); }
+    catch (e) { setErreurEdition("Enregistrement impossible : " + (e.message || e)); }
+    finally { setEnregistrementEnCours(false); }
+  };
 
   const parCategorie = stock.reduce((acc, s) => { (acc[s.categorie] = acc[s.categorie] || []).push(s); return acc; }, {});
   const categories = Object.keys(parCategorie);
@@ -2835,7 +2845,21 @@ function ReferentielProduits({ stock, fournisseurs, onBack }) {
       </button>
       <SectionHeader title="Référentiel produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
 
-      {fournisseurs && fournisseurs.length > 0 && (
+      {gestion && edition && (
+        <FormulaireCatalogue
+          key={edition.table + (edition.id || "nouveau")}
+          edition={edition} fournisseurs={fournisseurs || []}
+          categories={categories} enCours={enregistrementEnCours} erreur={erreurEdition}
+          onSauver={sauverEdition} onAnnuler={() => { setEdition(null); setErreurEdition(""); }}
+        />
+      )}
+      {gestion && !edition && (
+        <div className="flex gap-2 mb-4">
+          <button onClick={() => setEdition({ table: "fournisseurs", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un fournisseur</button>
+          <button onClick={() => setEdition({ table: "produits", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un produit</button>
+        </div>
+      )}
+      {fournisseurs && (fournisseurs.length > 0 || gestion) && (
         <div className="mb-5">
           <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-2">Fournisseurs</div>
           <div className="space-y-2">
@@ -2853,6 +2877,7 @@ function ReferentielProduits({ stock, fournisseurs, onBack }) {
                     {f.adresse && <div>Adresse : {f.adresse}</div>}
                     {f.numero_client && <div>N° client : {f.numero_client}</div>}
                     {f.note && <div className="italic">{f.note}</div>}
+                    {gestion && <button onClick={() => setEdition({ table: "fournisseurs", id: f.id, valeurs: f })} className="mt-2 text-xs font-medium text-[var(--accent)]">Modifier ce fournisseur</button>}
                   </div>
                 )}
               </Card>
@@ -2885,13 +2910,14 @@ function ReferentielProduits({ stock, fournisseurs, onBack }) {
                       </div>
                       {s.poidsParPiece && <div className="text-xs text-[var(--accent)] mt-0.5">Poids/pièce calculé : {s.poidsParPiece}</div>}
                       {s.note && <div className="text-xs text-[var(--steel)] italic mt-0.5">{s.note}</div>}
+                      {gestion && s.brut && <button onClick={() => setEdition({ table: "produits", id: s.id, valeurs: s.brut })} className="mt-1 text-xs font-medium text-[var(--accent)]">Modifier ce produit</button>}
                     </li>
                   ))}
                 </ul>
               )}
             </Card>
           ))}
-          {ENTRETIEN_REF.map((e) => (
+          {!gestion && ENTRETIEN_REF.map((e) => (
             <Card key={e.titre} className="!p-0 overflow-hidden">
               <div className="px-4 py-3 bg-[var(--accent-soft)]/40">
                 <span className="font-medium text-[var(--ink)] text-sm">{e.titre}</span>
@@ -2903,6 +2929,98 @@ function ReferentielProduits({ stock, fournisseurs, onBack }) {
         </div>
       )}
     </div>
+  );
+}
+
+const CHAMPS_FOURNISSEUR = [
+  { cle: "nom", label: "Nom du fournisseur", requis: true },
+  { cle: "contact_nom", label: "Contact (nom de la personne)" },
+  { cle: "telephone", label: "Téléphone" },
+  { cle: "email", label: "E-mail" },
+  { cle: "adresse", label: "Adresse" },
+  { cle: "numero_client", label: "Numéro de client" },
+  { cle: "jours_livraison", label: "Jours de livraison (ex. Mardi, Vendredi)" },
+  { cle: "note", label: "Note" },
+];
+const UNITES_PRODUIT = ["kg", "g", "L", "cL", "pièce", "botte", "boîte", "sachet", "barquette"];
+const UNITES_PRIX = ["€/kg", "€/L", "€/pièce", "€/botte", "€/boîte", "€/sachet", "€/barquette"];
+
+function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreur, onSauver, onAnnuler }) {
+  const estProduit = edition.table === "produits";
+  const [v, setV] = useState(() => ({ ...edition.valeurs }));
+  const maj = (cle, val) => setV((x) => ({ ...x, [cle]: val }));
+  const champTexte = (cle, label, requis) => (
+    <label key={cle} className="block text-xs text-[var(--steel)]">
+      {label}{requis ? " *" : ""}
+      <input value={v[cle] == null ? "" : v[cle]} onChange={(e) => maj(cle, e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
+    </label>
+  );
+  const valider = () => {
+    if (!String(v.nom || "").trim()) return;
+    const sortie = {};
+    const cles = estProduit
+      ? ["nom", "reference", "categorie", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note"]
+      : CHAMPS_FOURNISSEUR.map((c) => c.cle);
+    cles.forEach((c) => {
+      let val = v[c];
+      if (c === "reference_verifiee") val = !!val;
+      else if (c === "prix_achat") val = val === "" || val == null ? null : Number(String(val).replace(",", "."));
+      else if (typeof val === "string") val = val.trim() === "" ? null : val.trim();
+      else if (val === undefined) val = null;
+      sortie[c] = val;
+    });
+    sortie.nom = String(v.nom).trim();
+    onSauver(sortie);
+  };
+  return (
+    <Card className="mb-5 border-2" style={{ borderColor: "var(--accent)" }}>
+      <div className="font-semibold text-sm text-[var(--ink)] mb-3">
+        {edition.id ? "Modifier" : "Ajouter"} {estProduit ? "un produit" : "un fournisseur"}
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {estProduit ? (
+          <>
+            {champTexte("nom", "Nom du produit", true)}
+            {champTexte("reference", "Référence fournisseur")}
+            <label className="block text-xs text-[var(--steel)]">Catégorie
+              <input list="categories-catalogue" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
+              <datalist id="categories-catalogue">{categories.map((c) => <option key={c} value={c} />)}</datalist>
+            </label>
+            <label className="block text-xs text-[var(--steel)]">Fournisseur
+              <select value={v.fournisseur_id || ""} onChange={(e) => maj("fournisseur_id", e.target.value || null)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+                <option value="">— Aucun —</option>
+                {fournisseurs.map((f) => <option key={f.id} value={f.id}>{f.nom}</option>)}
+              </select>
+            </label>
+            {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
+            <label className="block text-xs text-[var(--steel)]">Unité
+              <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+                <option value="">—</option>
+                {UNITES_PRODUIT.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </label>
+            {champTexte("prix_achat", "Prix d'achat (€)")}
+            <label className="block text-xs text-[var(--steel)]">Le prix est exprimé en
+              <select value={v.prix_unite || ""} onChange={(e) => maj("prix_unite", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+                <option value="">—</option>
+                {UNITES_PRIX.map((u) => <option key={u} value={u}>{u}</option>)}
+              </select>
+            </label>
+            {champTexte("poids_par_piece", "Poids par pièce (ex. 150 g)")}
+            {champTexte("note", "Note")}
+            <label className="flex items-center gap-2 text-xs text-[var(--steel)] sm:col-span-2">
+              <input type="checkbox" checked={!!v.reference_verifiee} onChange={(e) => maj("reference_verifiee", e.target.checked)} />
+              Référence vérifiée avec un bon de livraison
+            </label>
+          </>
+        ) : CHAMPS_FOURNISSEUR.map((c) => champTexte(c.cle, c.label, c.requis))}
+      </div>
+      {erreur && <div className="text-xs text-[var(--warn)] mt-2">{erreur}</div>}
+      <div className="flex gap-2 mt-3">
+        <button onClick={valider} disabled={enCours || !String(v.nom || "").trim()} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white disabled:opacity-50">{enCours ? "Enregistrement…" : "Enregistrer"}</button>
+        <button onClick={onAnnuler} disabled={enCours} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--line)] text-[var(--steel)] bg-white">Annuler</button>
+      </div>
+    </Card>
   );
 }
 
@@ -13700,7 +13818,7 @@ function KitchenApp({ identiteExterne } = {}) {
           />
         )}
         {tab === "controle" && (
-          <Controle employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} />
+          <Controle employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} />
         )}
         {tab === "reservations" && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />

@@ -96,7 +96,7 @@ export default function ConnexionReelle() {
     try {
       const [rf, rp] = await Promise.all([
         supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note").order("nom"),
-        supabasePublic.from("produits").select("id, nom, reference, categorie, unite, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
+        supabasePublic.from("produits").select("id, nom, reference, categorie, fournisseur_id, unite, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
       ]);
       if (rf.error) throw rf.error;
       if (rp.error) throw rp.error;
@@ -108,10 +108,22 @@ export default function ConnexionReelle() {
         prixUnitaire: p.prix_achat != null ? `${Number(p.prix_achat).toFixed(2).replace(".", ",")} ${p.prix_unite || "€"}` : "",
         poidsParPiece: p.poids_par_piece || "", referenceVerifiee: !!p.reference_verifiee, note: p.note || "",
         quantite: 0, cible: 0, unite: p.unite || "",
+        brut: p, // valeurs de la base, pour le formulaire de modification
       })));
     } catch (e2) {
       setErreurEquipe("Impossible de charger le catalogue : " + (e2.message || e2));
     }
+  }
+
+  // Ajout / modification d'un fournisseur ou d'un produit dans la nouvelle base (établissement fictif
+  // de test). La sécurité RLS garantit que seules les lignes de l'établissement connecté sont touchées.
+  async function enregistrerCatalogue(table, id, valeurs) {
+    const requete = id
+      ? supabasePublic.from(table).update(valeurs).eq("id", id)
+      : supabasePublic.from(table).insert({ ...valeurs, etablissement_id: session.etablissement.id });
+    const { error } = await requete;
+    if (error) throw error;
+    await chargerCatalogue();
   }
 
   async function chargerEquipe(jeton) {
@@ -194,6 +206,7 @@ export default function ConnexionReelle() {
       estChef: estChefOuDirecteur(employeIdentifie.role),
       catalogue: catalogue || undefined,
       fournisseurs: fournisseursCat || undefined,
+      gestionCatalogue: catalogue ? { enregistrer: enregistrerCatalogue } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
         id: e.id, nom: e.nom, poste: e.poste || "", estChef: estChefOuDirecteur(e.role),
