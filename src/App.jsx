@@ -1605,6 +1605,39 @@ function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFou
   );
 }
 
+// Notifications fournisseur déjà traitées : rangées dans un bloc replié (une ligne chacune), pour ne pas encombrer l'écran.
+function ArchiveNotificationsTraitees({ notifs, employees, emailsFournisseurs, onEnregistrerEmail, onMarquerEnvoyee, fournisseursCatalogue }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [detail, setDetail] = useState(null);
+  const who = (id) => (employees.find((e) => e.id === id) || {}).nom;
+  if (notifs.length === 0) return null;
+  return (
+    <div className="mt-3">
+      <button onClick={() => setOuvert(!ouvert)} className="w-full flex items-center justify-between rounded-lg border border-[var(--line)] bg-white px-3 py-2.5 text-sm font-medium text-[var(--ink)]">
+        <span>Notifications traitées ({notifs.length})</span>
+        <span className="text-xs text-[var(--steel)]">{ouvert ? "Masquer" : "Afficher"}</span>
+      </button>
+      {ouvert && (
+        <div className="mt-2 space-y-1.5">
+          {notifs.map((n) => (
+            <div key={n.id}>
+              <button onClick={() => setDetail(detail === n.id ? null : n.id)} className="w-full text-left rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm">
+                <span className="font-medium text-[var(--ink)]">{n.fournisseur || "Fournisseur"}</span>
+                <span className="text-xs text-[var(--steel)]"> · {n.date} · {n.modeTraitement === "telephone" ? "traité par téléphone" : "envoyé par e-mail"}{n.traiteParId && who(n.traiteParId) ? ` par ${who(n.traiteParId)}` : ""}</span>
+              </button>
+              {detail === n.id && (
+                <div className="mt-1.5">
+                  <NotificationFournisseur notif={n} employees={employees} onMarquerEnvoyee={onMarquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={onEnregistrerEmail} fiche={(fournisseursCatalogue || []).find((f) => f.nom === n.fournisseur)} />
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // Liste de TOUS les appareils de froid avec la dernière température relevée aujourd'hui : où, quelle
 // valeur, quand, par qui, et si c'est conforme — pour voir d'un coup d'œil ce qui est à corriger.
 // repliable=true : affiche d'abord un résumé « Températures 3/4 » sur lequel on clique pour déplier.
@@ -2511,7 +2544,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
           )}
           <div className="space-y-3">
             {enAttente.map((n) => <NotificationFournisseur key={n.id} notif={n} employees={employees} onMarquerEnvoyee={marquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} fiche={(fournisseursCatalogue || []).find((f) => f.nom === n.fournisseur)} />)}
-            {envoyees.slice(0, 5).map((n) => <NotificationFournisseur key={n.id} notif={n} employees={employees} onMarquerEnvoyee={marquerEnvoyee} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} fiche={(fournisseursCatalogue || []).find((f) => f.nom === n.fournisseur)} />)}
+            <ArchiveNotificationsTraitees notifs={envoyees} employees={employees} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} onMarquerEnvoyee={marquerEnvoyee} fournisseursCatalogue={fournisseursCatalogue} />
           </div>
         </div>
       )}
