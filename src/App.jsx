@@ -2948,6 +2948,7 @@ const UNITES_PRIX = ["€/kg", "€/L", "€/pièce", "€/botte", "€/boîte",
 function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreur, onSauver, onAnnuler }) {
   const estProduit = edition.table === "produits";
   const [v, setV] = useState(() => ({ ...edition.valeurs }));
+  const [categorieNouvelle, setCategorieNouvelle] = useState(false);
   const maj = (cle, val) => setV((x) => ({ ...x, [cle]: val }));
   const champTexte = (cle, label, requis) => (
     <label key={cle} className="block text-xs text-[var(--steel)]">
@@ -2981,16 +2982,20 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
         {estProduit ? (
           <>
             {champTexte("nom", "Nom du produit", true)}
-            {champTexte("reference", "Référence fournisseur")}
-            <label className="block text-xs text-[var(--steel)]">Catégorie
-              <input list="categories-catalogue" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
-              <datalist id="categories-catalogue">{categories.map((c) => <option key={c} value={c} />)}</datalist>
-            </label>
-            <label className="block text-xs text-[var(--steel)]">Fournisseur
+            <label className="block text-xs text-[var(--steel)]">Fournisseur (choisir dans la liste)
               <select value={v.fournisseur_id || ""} onChange={(e) => maj("fournisseur_id", e.target.value || null)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">— Aucun —</option>
                 {fournisseurs.map((f) => <option key={f.id} value={f.id}>{f.nom}</option>)}
               </select>
+            </label>
+            {champTexte("reference", "Référence : code du produit chez le fournisseur (ex. FF-1001)")}
+            <label className="block text-xs text-[var(--steel)]">Catégorie (choisir dans la liste)
+              <select value={categorieNouvelle ? "__nouvelle__" : (v.categorie || "")} onChange={(e) => { if (e.target.value === "__nouvelle__") { setCategorieNouvelle(true); maj("categorie", ""); } else { setCategorieNouvelle(false); maj("categorie", e.target.value); } }} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+                <option value="">— Choisir —</option>
+                {[...new Set([...categories, ...(v.categorie && !categories.includes(v.categorie) && !categorieNouvelle ? [v.categorie] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}
+                <option value="__nouvelle__">+ Nouvelle catégorie…</option>
+              </select>
+              {categorieNouvelle && <input value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
             </label>
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
