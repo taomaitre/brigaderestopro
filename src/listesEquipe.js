@@ -14,12 +14,15 @@ export const STATUTS_EQUIPE = [
   { value: "plongeur", label: "Plongeur" },
 ];
 
-// Liste finale des postes décidée le 04/10 (voir presentation-fonctionnalites-ma-cuisine.md,
-// Tuile n°12) : fusion entre les postes des fiches techniques et le vocabulaire d'une brigade.
+// Postes (liste du 04/10, voir presentation-fonctionnalites-ma-cuisine.md, Tuile n°12) + les postes
+// courants d'un petit restaurant (Chaud, Froid, Pizza, Desserts) placés en tête, ajoutés le 05/10.
 // + choix « Aucun poste » géré par les écrans. Pour ajouter ou retirer un poste : modifier ici.
 export const POSTES = [
-  "Pizza", "Chaud", "Froid", "Pâtisserie", "Garde-manger", "Saucier", "Poissonnier",
-  "Rôtisseur", "Grillardin", "Friturier", "Entremétier", "Boucher", "Tournant", "Communard",
+  // Postes courants d'un petit restaurant (en premier, ce sont les plus utilisés)
+  "Chaud", "Froid", "Pizza", "Desserts",
+  // Postes d'une brigade plus structurée (restaurant plus grand ou gastronomique)
+  "Pâtisserie", "Garde-manger", "Saucier", "Poissonnier", "Rôtisseur", "Grillardin",
+  "Friturier", "Entremétier", "Boucher", "Tournant", "Communard",
 ];
 
 // Chef ou directeur : accès aux rubriques réservées (Gestion et contrôle, Fournisseur…).
