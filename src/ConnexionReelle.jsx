@@ -27,6 +27,11 @@ const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`
 
 const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
 
+function dateHeureIso(date, heure) {
+  const d = new Date(`${date}T${heure || "00:00"}:00`);
+  return (isNaN(d.getTime()) ? new Date() : d).toISOString();
+}
+
 async function appelerEmployes(jeton, action, payload) {
   const reponse = await fetch(URL_FONCTION_EMPLOYES, {
     method: "POST",
@@ -237,6 +242,38 @@ export default function ConnexionReelle() {
         jete: !!x.jete, decongele: !!x.decongelationInfo, donnees: x,
       }),
     },
+    cuissons: {
+      table: "cuissons",
+      aDb: (x) => ({
+        produit_nom: x.produit || null,
+        famille_haccp: { viandeHachee: "viande_hachee", volaille: "volaille", poisson: "poisson" }[x.famille] || "general",
+        appareil: x.appareil || null,
+        heure_depart: dateHeureIso(x.date, x.heureDebut),
+        duree_attendue_min: x.dureeAttendueMin == null ? null : Math.round(Number(x.dureeAttendueMin)) || null,
+        temperature_coeur_mesuree: versNombre(x.temperature), conforme: x.conforme == null ? null : !!x.conforme,
+        statut: x.statut === "termine" ? "termine" : "en_cours",
+        employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null, donnees: x,
+      }),
+    },
+    refroidissements: {
+      table: "refroidissements",
+      aDb: (x) => ({
+        mode: x.type === "negatif" ? "negatif" : "positif",
+        temperature_depart: versNombre(x.tempDebut), heure_depart: dateHeureIso(x.date, x.heureDebut),
+        temperature_fin: versNombre(x.tempFin), conforme: x.conforme == null ? null : !!x.conforme,
+        statut: x.statut === "termine" ? "termine" : "en_cours",
+        employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null, donnees: x,
+      }),
+    },
+    maintiens: {
+      table: "maintiens_chaud",
+      aDb: (x) => ({
+        produit_nom: x.nom || null, appareil: x.appareil || null,
+        heure_debut: dateHeureIso(x.date, x.heureDebut),
+        statut: x.statut === "termine" ? "termine" : "en_cours",
+        employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null, donnees: x,
+      }),
+    },
     releves: {
       table: "releves_temperature",
       aDb: (x) => ({
@@ -340,7 +377,7 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
@@ -349,7 +386,13 @@ export default function ConnexionReelle() {
         lireReceptions(),
         lireNotifications().catch(() => []),
         supabasePublic.from("etiquettes").select("*").order("cree_le", { ascending: false }).limit(500),
+        supabasePublic.from("cuissons").select("*").order("heure_depart", { ascending: false }).limit(300),
+        supabasePublic.from("refroidissements").select("*").order("heure_depart", { ascending: false }).limit(300),
+        supabasePublic.from("maintiens_chaud").select("*").order("heure_debut", { ascending: false }).limit(300),
       ]);
+      if (rcu.error) throw rcu.error;
+      if (rrf.error) throw rrf.error;
+      if (rmc.error) throw rmc.error;
       if (re.error) throw re.error;
       if (rh.error) throw rh.error;
       if (rp.error) throw rp.error;
@@ -373,6 +416,9 @@ export default function ConnexionReelle() {
         receptions: receptionsLues,
         notifications: notificationsLues,
         preparations: (re.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id, jete: !!r.jete })),
+        cuissons: (rcu.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
+        refroidissements: (rrf.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
+        maintiens: (rmc.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         huileTests: (rh.data || []).map((r) => ({
           id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
           valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
@@ -709,6 +755,9 @@ export default function ConnexionReelle() {
         receptions: { persister: persisterReceptions },
         notifications: { persister: persisterNotifications },
         preparations: { persister: fabriquerPersisterFroid("preparations") },
+        cuissons: { persister: fabriquerPersisterFroid("cuissons") },
+        refroidissements: { persister: fabriquerPersisterFroid("refroidissements") },
+        maintiens: { persister: fabriquerPersisterFroid("maintiens") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.

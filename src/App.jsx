@@ -13842,17 +13842,20 @@ function KitchenApp({ identiteExterne } = {}) {
   const [equipementsFroidExternes, setEquipementsFroidExternes] = useListeExterne(identiteExterne, "equipements");
   const equipementsFroid = modeExterne ? equipementsFroidExternes : equipementsFroidStockes;
   const setEquipementsFroid = modeExterne ? setEquipementsFroidExternes : setEquipementsFroidStockes;
-  const [catalogueMaintienChaud, setCatalogueMaintienChaud] = useStored("catalogue-maintien-chaud", DEFAULT_PRODUITS_MAINTIEN_CHAUD);
+  const [catalogueMaintienChaud, setCatalogueMaintienChaud] = useStoredOuMemoire("catalogue-maintien-chaud", DEFAULT_PRODUITS_MAINTIEN_CHAUD, modeExterne, []);
   // Plats à cuisson chronométrée (durée connue par la fiche technique) — pizzas et burgers en
   // sont volontairement exclus (cuisson courte, surveillée en direct, pas besoin de chrono avec
   // alarme). Sauce bolognaise et lasagne pré-remplies avec la durée réellement documentée sur
   // leur fiche technique (FT SAUCE 04 : mijotée 1h ; FT plat-02-lasagne : Rational 180°C, 35-45 min,
   // on prend le milieu 40 min) — modifiable à tout moment depuis l'écran Cuisson.
-  const [catalogueCuisson, setCatalogueCuisson] = useStored("catalogue-cuisson-chronometree", [
+  const [catalogueCuisson, setCatalogueCuisson] = useStoredOuMemoire("catalogue-cuisson-chronometree", [
     { nom: "Sauce bolognaise", dureeMin: 60, famille: "viandeHachee" },
     { nom: "Lasagne", dureeMin: 40, famille: "viandeHachee" },
-  ]);
-  const [entriesMaintienChaud, setEntriesMaintienChaud] = useStored("entries-maintien-chaud", []);
+  ], modeExterne, []);
+  const [entriesMaintienChaudStockees, setEntriesMaintienChaudStockees] = useStored("entries-maintien-chaud", []);
+  const [entriesMaintienChaudExternes, setEntriesMaintienChaudExternes] = useListeExterne(identiteExterne, "maintiens");
+  const entriesMaintienChaud = modeExterne ? entriesMaintienChaudExternes : entriesMaintienChaudStockees;
+  const setEntriesMaintienChaud = modeExterne ? setEntriesMaintienChaudExternes : setEntriesMaintienChaudStockees;
   const [relevesFroidStockes, setRelevesFroidStockes] = useStored("releves-froid", []);
   const [relevesFroidExternes, setRelevesFroidExternes] = useListeExterne(identiteExterne, "releves");
   const relevesFroid = modeExterne ? relevesFroidExternes : relevesFroidStockes;
@@ -14035,8 +14038,14 @@ function KitchenApp({ identiteExterne } = {}) {
   const [huileTestsExternes, setHuileTestsExternes] = useListeExterne(identiteExterne, "huileTests");
   const huileTests = modeExterne ? huileTestsExternes : huileTestsStockes;
   const setHuileTests = modeExterne ? setHuileTestsExternes : setHuileTestsStockes;
-  const [refroidissements, setRefroidissements] = useStored("refroidissements", []);
-  const [cuissons, setCuissons] = useStored("cuissons", []);
+  const [refroidissementsStockes, setRefroidissementsStockes] = useStored("refroidissements", []);
+  const [refroidissementsExternes, setRefroidissementsExternes] = useListeExterne(identiteExterne, "refroidissements");
+  const refroidissements = modeExterne ? refroidissementsExternes : refroidissementsStockes;
+  const setRefroidissements = modeExterne ? setRefroidissementsExternes : setRefroidissementsStockes;
+  const [cuissonsStockees, setCuissonsStockees] = useStored("cuissons", []);
+  const [cuissonsExternes, setCuissonsExternes] = useListeExterne(identiteExterne, "cuissons");
+  const cuissons = modeExterne ? cuissonsExternes : cuissonsStockees;
+  const setCuissons = modeExterne ? setCuissonsExternes : setCuissonsStockees;
   const [dernierControleRappelConso, setDernierControleRappelConso] = useStored("dernier-controle-rappelconso", null);
   const [alertesRappelConso, setAlertesRappelConso] = useStored("alertes-rappelconso", []);
   const [rappelConsoEnCours, setRappelConsoEnCours] = useState(false);
