@@ -6502,7 +6502,15 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
   // Une fois la cuisson terminée (temp à cœur enregistrée) pour un plat venant du catalogue
   // chronométré, on enchaîne directement sur le passage en refroidissement — bac/gastro d'abord,
   // puis température de départ pour vérifier la conformité (norme : ≥ 63°C).
-  const toggleSelectionRefroid = (id) => setSelectionRefroid((s) => (s.includes(id) ? s.filter((i) => i !== id) : [...s, id]));
+  const toggleSelectionRefroid = (id) => {
+    const deja = selectionRefroid.includes(id);
+    setSelectionRefroid((s) => (deja ? s.filter((i) => i !== id) : [...s, id]));
+    // À la sélection, on reprend la température à cœur de fin de cuisson : l'employé la confirme (ou la corrige) puis lance.
+    if (!deja) {
+      const c = cuissons.find((x) => x.id === id);
+      if (c && c.temperature != null && c.temperature !== "") setTempDebutRefroid((t) => (t[id] ? t : { ...t, [id]: String(c.temperature) }));
+    }
+  };
   const pretesPourRefroidissement = cuissons.filter((c) => c.statut === "termine" && c.pretPourRefroidissement && !c.refroidissementLance);
 
   const lancerRefroidissementDepuisCuisson = () => {
@@ -6579,7 +6587,7 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
       {pretesPourRefroidissement.length > 0 && (
         <Card className="mb-6 border-[var(--warn)]/40">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Cuisson terminée — à mettre en refroidissement</h3>
-          <p className="text-xs text-[var(--steel)] mb-3">Mettez d'abord le produit en gastro ou en bac, puis cochez-le, indiquez sa température de départ (conforme si ≥ {REFROIDISSEMENT_NORME.debutMin}°C) et lancez le refroidissement — ça l'envoie directement dans Refroidissement rapide.</p>
+          <p className="text-xs text-[var(--steel)] mb-3">Mettez d'abord le produit en gastro ou en bac, puis cochez-le : la température à cœur de fin de cuisson est reprise automatiquement comme température de départ (conforme si ≥ {REFROIDISSEMENT_NORME.debutMin}°C). Confirmez-la, ou corrigez-la si elle a changé, puis lancez le refroidissement.</p>
           <div className="space-y-2 mb-4">
             {pretesPourRefroidissement.map((c) => (
               <div key={c.id} className="border border-[var(--line)] rounded-lg p-3 flex items-center gap-2">
@@ -6589,7 +6597,11 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
                   <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.temperature}°C à cœur</div>
                 </div>
                 {selectionRefroid.includes(c.id) && (
-                  <input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="T° départ" value={tempDebutRefroid[c.id] ?? ""} onChange={(ev) => setTempDebutRefroid({ ...tempDebutRefroid, [c.id]: ev.target.value })} />
+                  <div className="flex items-center gap-1.5 text-xs text-[var(--steel)]">
+                    <span>T° de départ à confirmer</span>
+                    <input className={`${inputCls} w-20`} type="number" step="0.1" placeholder="T°" value={tempDebutRefroid[c.id] ?? ""} onChange={(ev) => setTempDebutRefroid({ ...tempDebutRefroid, [c.id]: ev.target.value })} />
+                    <span>°C</span>
+                  </div>
                 )}
               </div>
             ))}
