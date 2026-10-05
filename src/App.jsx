@@ -3169,13 +3169,31 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
                     <li key={s.id} className="px-4 py-2.5">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="text-sm font-medium text-[var(--ink)] flex items-center gap-2">
-                          {s.nom} {!s.referenceVerifiee && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à vérifier</span>}
+                          {s.nom} {gestion && (!s.reference || !s.prixUnitaire) && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à compléter : {[!s.reference && "référence", !s.prixUnitaire && "prix"].filter(Boolean).join(", ")}</span>}
+                          {!gestion && !s.referenceVerifiee && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à vérifier</span>}
                         </div>
-                        {s.prixUnitaire && <div className="text-xs text-[var(--steel)]">{s.prixUnitaire}</div>}
+                        {s.prixUnitaire && <div className="text-sm font-semibold text-[var(--ink)]">{s.prixUnitaire}</div>}
                       </div>
+                      {gestion ? (
+                        <dl className="mt-1 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 text-xs">
+                          {[
+                            ["Fournisseur", s.fournisseur || "—"],
+                            ["Référence", s.reference || "—"],
+                            ["Conditionnement", s.conditionnement || "—"],
+                            ["Prix d'achat", s.prixUnitaire || "—"],
+                            ["Type", s.conservation ? (LIBELLE_CONSERVATION[s.conservation] || s.conservation) : "—"],
+                            ["Conservation après fabrication", s.dlcJours != null ? `${s.dlcJours} j` : "—"],
+                            ["Après ouverture", s.delaiOuverture != null ? `${s.delaiOuverture} j` : "—"],
+                            ["Poids par pièce", s.poidsParPiece || "—"],
+                          ].map(([k, val]) => (
+                            <div key={k}><dt className="text-[var(--steel)]">{k}</dt><dd className="text-[var(--ink)] font-medium">{val}</dd></div>
+                          ))}
+                        </dl>
+                      ) : (
                       <div className="text-xs text-[var(--steel)] mt-0.5">
-                        {s.reference ? `${s.fournisseur} · Réf. ${s.reference}` : (gestion ? (s.fournisseur || "Sans fournisseur") : `${s.fournisseur} (hors Sysco)`)}{s.conditionnement ? ` · ${s.conditionnement}` : ""}
+                        {s.reference ? `${s.fournisseur} · Réf. ${s.reference}` : `${s.fournisseur} (hors Sysco)`}{s.conditionnement ? ` · ${s.conditionnement}` : ""}
                       </div>
+                      )}
                       {s.poidsParPiece && <div className="text-xs text-[var(--accent)] mt-0.5">Poids/pièce calculé : {s.poidsParPiece}</div>}
                       {s.note && <div className="text-xs text-[var(--steel)] italic mt-0.5">{s.note}</div>}
                       {gestion && s.brut && <button onClick={() => setEdition({ table: "produits", id: s.id, valeurs: s.brut })} className="mt-1 text-xs font-medium text-[var(--accent)]">Modifier ce produit</button>}
@@ -3295,10 +3313,6 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
             </label>
             {champTexte("poids_par_piece", "Poids par pièce (ex. 150 g)")}
             {champTexte("note", "Note")}
-            <label className="flex items-center gap-2 text-xs text-[var(--steel)] sm:col-span-2">
-              <input type="checkbox" checked={!!v.reference_verifiee} onChange={(e) => maj("reference_verifiee", e.target.checked)} />
-              Référence vérifiée avec un bon de livraison
-            </label>
           </>
         ) : CHAMPS_FOURNISSEUR.map((c) => champTexte(c.cle, c.label, c.requis))}
       </div>
