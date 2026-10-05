@@ -3195,12 +3195,14 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     if (!String(v.nom || "").trim()) return;
     const sortie = {};
     const cles = estProduit
-      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note"]
+      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours"]
       : CHAMPS_FOURNISSEUR.map((c) => c.cle);
     cles.forEach((c) => {
       let val = v[c];
       if (c === "reference_verifiee") val = !!val;
       else if (c === "prix_achat") val = val === "" || val == null ? null : Number(String(val).replace(",", "."));
+      else if (c === "delai_jours_dlc" || c === "delai_apres_ouverture_jours") { const n = parseInt(String(val == null ? "" : val), 10); val = Number.isNaN(n) || n < 0 ? null : n; }
+      else if (c === "type_date") val = val === "DLC" || val === "DDM" ? val : null;
       else if (typeof val === "string") val = val.trim() === "" ? null : val.trim();
       else if (val === undefined) val = null;
       sortie[c] = val;
@@ -3242,6 +3244,15 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
             </label>
+            <label className="block text-xs text-[var(--steel)]">Date sur l'étiquette : DLC ou DDM ?
+              <select value={v.type_date || ""} onChange={(e) => maj("type_date", e.target.value || null)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+                <option value="">— Non précisé —</option>
+                <option value="DLC">DLC : date limite de consommation (produit périssable)</option>
+                <option value="DDM">DDM : date de durabilité minimale (lue à la réception)</option>
+              </select>
+            </label>
+            {champTexte("delai_jours_dlc", "Durée de conservation après fabrication / mise en étiquette (jours, pour une DLC)")}
+            {champTexte("delai_apres_ouverture_jours", "Durée de conservation après ouverture (jours, facultatif)")}
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
               <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
@@ -6678,7 +6689,7 @@ function categoriserProduitDlc(nom) {
   if (/miel|sucre|cornichon|œuf|oeuf|épice/.test(n)) return "Épicerie";
   return "Autres";
 }
-const ORDRE_CATEGORIES_DLC = ["Produits laitiers", "Produits frais", "Charcuterie", "Viandes", "Poissons", "Sauces", "Desserts", "Pains & bases", "Surgelés", "Plats préparés", "Épicerie", "Autres"];
+const ORDRE_CATEGORIES_DLC = ["Produits laitiers", "Produits frais", "Charcuterie", "Viandes", "Poissons", "Fruits et légumes", "Sauces", "Desserts", "Pains & bases", "Surgelés", "Plats préparés", "Épicerie", "Autres"];
 
 function GestionProduitsDlc({ produits, setProduits, logActivity, onEditerEtiquette }) {
   const [nouveau, setNouveau] = useState({ nom: "", poste: "Poste Chaud", dlcJours: "" });
@@ -7453,7 +7464,7 @@ function genererLot(nom) {
   return `${abreviationLot(nom)}${dateLotDuJour()}`;
 }
 
-function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits }) {
+function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits, modeMigre }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
 
   const [ficheNormesOuverte, setFicheNormesOuverte] = useState(null);
@@ -7714,7 +7725,12 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         </Card>
       )}
 
-      <Card className="mb-6">
+      {modeMigre && (
+        <Card className="mb-6">
+          <p className="text-sm text-[var(--steel)]">Les produits de cet écran viennent de votre catalogue (Contrôle & Gestion → Gestion → Fournisseur). Pour ajouter un produit ou régler sa durée de conservation (DLC en jours ou DDM), ouvrez sa fiche produit à cet endroit.</p>
+        </Card>
+      )}
+      {!modeMigre && <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-3">Ajouter ou retirer un produit</h3>
         <div className="flex gap-2 mb-4">
           <Button variant={ongletAjoutRetrait === "ajouter" ? "primary" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "ajouter" ? null : "ajouter"))}><Plus size={16} /> Ajouter un produit</Button>
@@ -7775,7 +7791,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             )}
           </div>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }
@@ -13950,8 +13966,27 @@ function KitchenApp({ identiteExterne } = {}) {
   const tasks = modeExterne ? tasksExternes : tasksStockees;
   const setTasks = modeExterne ? setTasksExternes : setTasksStockees;
   // Catalogue des préparations maison : en prévisualisation, vide et en mémoire (pas celui de Games Factory) — fiches/traçabilité pas encore migrées.
-  const [produits, setProduits] = useStoredOuMemoire("produits-catalogue", DEFAULT_PRODUITS, modeExterne, []);
-  const [preparations, setPreparations] = useStored("preparations", []);
+  const [produitsMemoire, setProduitsMemoire] = useStoredOuMemoire("produits-catalogue", DEFAULT_PRODUITS, modeExterne, []);
+  // En prévisualisation : le catalogue DLC / étiquettes vient des produits de la nouvelle base (durée de conservation saisie dans la fiche produit).
+  const catalogueExterne = modeExterne && identiteExterne ? identiteExterne.catalogue : null;
+  const produitsCatalogueExterne = React.useMemo(() => {
+    const cat = catalogueExterne || [];
+    const CAT_PAR_TYPE = { surgele: "Surgelés", viande: "Viandes", poisson: "Poissons", legume: "Fruits et légumes" };
+    return cat.filter((c) => !["entretien", "emballage", "autre"].includes(c.conservation)).map((c) => {
+      const jours = c.dlcJours == null ? null : Number(c.dlcJours);
+      return {
+        id: c.id, nom: c.nom, poste: "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
+        typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), dlcJours: jours,
+        ddmLotActuel: c.lot || null, ddmDateActuelle: c.dlc || null,
+      };
+    });
+  }, [catalogueExterne]);
+  const produits = modeExterne ? produitsCatalogueExterne : produitsMemoire;
+  const setProduits = modeExterne ? (() => {}) : setProduitsMemoire;
+  const [preparationsStockees, setPreparationsStockees] = useStored("preparations", []);
+  const [preparationsExternes, setPreparationsExternes] = useListeExterne(identiteExterne, "preparations");
+  const preparations = modeExterne ? preparationsExternes : preparationsStockees;
+  const setPreparations = modeExterne ? setPreparationsExternes : setPreparationsStockees;
   // Tests d'huile de friture : nouvelle base en prévisualisation, ancien stockage sinon.
   const [huileTestsStockes, setHuileTestsStockes] = useStored("huile-tests", []);
   const [huileTestsExternes, setHuileTestsExternes] = useListeExterne(identiteExterne, "huileTests");
@@ -14322,9 +14357,13 @@ function KitchenApp({ identiteExterne } = {}) {
     // Mêmes recherches que creerEtiquetteDlc, pour que les étiquettes/traçabilité créées depuis
     // une fiche technique portent aussi les mentions cuisson / refroidissement / maintien au chaud.
     const nomPropre = (fiche.nom || "").trim().toLowerCase();
-    const derniereCuisson = cuissons.filter((c) => (c.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
-    const dernierRefroidissement = refroidissements.filter((r) => (r.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
-    const dernierMaintien = entriesMaintienChaud.filter((e) => (e.nom || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || b.heureDebut || "")).localeCompare(a.date + (a.heureFin || a.heureDebut || "")))[0] || null;
+    // Aperçu (nouvelle base) : jamais les cuissons / refroidissements / maintiens de l'ancien stockage réel.
+    const cuissonsLues = modeExterne ? [] : cuissons;
+    const refroidissementsLus = modeExterne ? [] : refroidissements;
+    const maintiensLus = modeExterne ? [] : entriesMaintienChaud;
+    const derniereCuisson = cuissonsLues.filter((c) => (c.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
+    const dernierRefroidissement = refroidissementsLus.filter((r) => (r.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
+    const dernierMaintien = maintiensLus.filter((e) => (e.nom || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || b.heureDebut || "")).localeCompare(a.date + (a.heureFin || a.heureDebut || "")))[0] || null;
     const entry = {
       id: uid(), produitId: null, nomLibre: fiche.nom, employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), quantite, dlcDate, jete: false, jeteDate: null,
       heureRefroidissement: dernierRefroidissement?.heureFin || null, photo: photo || null,
@@ -14424,7 +14463,7 @@ function KitchenApp({ identiteExterne } = {}) {
     }
     logActivitySafe("HACCP", "Étiquette DLC créée", `${produitNom}${lotFinal ? ` — lot ${lotFinal}` : ""} — DLC/DDM ${dlcDate}${quantiteUtilisee ? ` — ${quantiteUtilisee} retiré(s) du stock` : ""}`);
     return entry;
-  }, [currentUserId, setPreparations, logActivitySafe, cuissons, refroidissements, entriesMaintienChaud, setStock, stock]);
+  }, [currentUserId, setPreparations, logActivitySafe, cuissons, refroidissements, entriesMaintienChaud, setStock, stock, modeExterne]);
 
   // Traçabilité la plus simple possible (offre SANS IA) : une ou plusieurs photos de l'étiquette
   // (pas limité à une seule — devant/dos de l'emballage si besoin), qui montrent déjà elles-mêmes le
@@ -14910,7 +14949,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "etiquettes" && (
           consentementAccorde()
-            ? <EtiquettesDlc stock={stock} jeterStock={jeterStock} preparations={preparations} jeterPreparation={jeterPreparation} currentUserId={currentUserId} logActivity={logActivitySafe} creerEtiquetteDlc={creerEtiquetteDlc} employees={employees} produits={produits} setProduits={setProduits} />
+            ? <EtiquettesDlc stock={stock} jeterStock={jeterStock} preparations={preparations} jeterPreparation={jeterPreparation} currentUserId={currentUserId} logActivity={logActivitySafe} creerEtiquetteDlc={creerEtiquetteDlc} employees={employees} produits={produits} setProduits={setProduits} modeMigre={modeExterne} />
             : <AccesRestreint titre="Lecture automatique des étiquettes par IA" />
         )}
         {tab === "tracabilite" && (

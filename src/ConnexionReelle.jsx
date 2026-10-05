@@ -132,7 +132,7 @@ export default function ConnexionReelle() {
     try {
       const [rf, rp, rl] = await Promise.all([
         supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note, coordonnees_a_completer").order("nom"),
-        supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
+        supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, type_date, delai_jours_dlc, delai_apres_ouverture_jours, fournisseurs(nom)").order("nom"),
         supabasePublic.from("lots_produits").select("produit_id, numero_lot, dlc, quantite_restante, date_reception").order("date_reception", { ascending: false }).limit(1000),
       ]);
       if (rf.error) throw rf.error;
@@ -143,6 +143,7 @@ export default function ConnexionReelle() {
       setFournisseursCat(rf.data || []);
       const liste = (rp.data || []).map((p) => ({
         id: p.id, nom: p.nom, categorie: p.categorie || "Autres", conservation: p.conservation || "",
+        typeDate: p.type_date || "", dlcJours: p.delai_jours_dlc == null ? null : Number(p.delai_jours_dlc), delaiOuverture: p.delai_apres_ouverture_jours == null ? null : Number(p.delai_apres_ouverture_jours),
         fournisseur: (p.fournisseurs && p.fournisseurs.nom) || "",
         reference: p.reference || "", conditionnement: p.conditionnement || "",
         prixUnitaire: p.prix_achat != null ? `${Number(p.prix_achat).toFixed(2).replace(".", ",")} ${p.prix_unite || "€"}` : "",
@@ -226,6 +227,14 @@ export default function ConnexionReelle() {
       aDb: (e) => ({
         nom: e.nom, famille: e.type === "congelateur" ? "negatif" : "positif", type: e.type || null,
         norme_min: e.min == null ? null : Number(e.min), norme_max: e.max == null ? null : Number(e.max), numero_sonde: e.sonde || null,
+      }),
+    },
+    preparations: {
+      table: "etiquettes",
+      aDb: (x) => ({
+        nom_libre: x.nomLibre || null, dlc: /^\d{4}-\d{2}-\d{2}$/.test(x.dlcDate || "") ? x.dlcDate : null,
+        nb_etiquettes: Number(x.nbEtiquettes) || 1, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null,
+        jete: !!x.jete, decongele: !!x.decongelationInfo, donnees: x,
       }),
     },
     releves: {
@@ -331,7 +340,7 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
@@ -339,7 +348,9 @@ export default function ConnexionReelle() {
         supabasePublic.from("huile_friture_tests").select("*").order("date", { ascending: false }).order("heure", { ascending: false }).limit(300),
         lireReceptions(),
         lireNotifications().catch(() => []),
+        supabasePublic.from("etiquettes").select("*").order("cree_le", { ascending: false }).limit(500),
       ]);
+      if (re.error) throw re.error;
       if (rh.error) throw rh.error;
       if (rp.error) throw rp.error;
       if (ra.error) throw ra.error;
@@ -361,6 +372,7 @@ export default function ConnexionReelle() {
         }),
         receptions: receptionsLues,
         notifications: notificationsLues,
+        preparations: (re.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id, jete: !!r.jete })),
         huileTests: (rh.data || []).map((r) => ({
           id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
           valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
@@ -696,6 +708,7 @@ export default function ConnexionReelle() {
         huileTests: { persister: fabriquerPersisterFroid("huileTests") },
         receptions: { persister: persisterReceptions },
         notifications: { persister: persisterNotifications },
+        preparations: { persister: fabriquerPersisterFroid("preparations") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
