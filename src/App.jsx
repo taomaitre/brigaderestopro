@@ -6877,7 +6877,7 @@ function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, em
       <div className="text-lg font-semibold text-[var(--ink)] mb-2">{produitNom}</div>
       <div className="text-sm text-[var(--ink)] space-y-0.5">
         <div>Lot : <strong>{lot || "—"}</strong></div>
-        <div>Ouvert/préparé le : {date} à {heure}</div>
+        <div>Fabriqué le : {date} à {heure}</div>
         <div>Par : {who(employeeId)}</div>
         {cuissonInfo && (
           <div>Cuisson : {cuissonInfo.heureDebut}{cuissonInfo.heureFin ? ` → ${cuissonInfo.heureFin}` : ""}{cuissonInfo.temperature ? ` — ${cuissonInfo.temperature}°C à cœur` : ""}{cuissonInfo.conforme === false ? " (non conforme)" : ""}</div>
