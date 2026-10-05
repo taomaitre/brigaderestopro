@@ -12835,7 +12835,11 @@ function KitchenApp({ identiteExterne } = {}) {
   // Type d'appareil (tablette partagée ou téléphone personnel) : propre à CET appareil, jamais
   // partagé — voir les fonctions lireTypeAppareil / PersonalCodeGate plus haut dans le fichier.
   const [typeAppareil, setTypeAppareil] = useState(() => lireTypeAppareil());
-  const [activityLog, setActivityLog] = useStored("activity-log", []);
+  // Journal d'activité : en prévisualisation, en mémoire seulement (jamais l'ancien stockage réel) — pas encore migré.
+  const [activityLogStocke, setActivityLogStocke] = useStored("activity-log", []);
+  const [activityLogExterne, setActivityLogExterne] = useState([]);
+  const activityLog = modeExterne ? activityLogExterne : activityLogStocke;
+  const setActivityLog = modeExterne ? setActivityLogExterne : setActivityLogStocke;
 
   const [tempLogsStockes, setTempLogsStockes] = useStored("haccp-temps", []);
   const [tempLogsExternes, setTempLogsExternes] = useState([]); // prévisualisation : en mémoire, jamais l'ancien stockage
@@ -12991,10 +12995,23 @@ function KitchenApp({ identiteExterne } = {}) {
   const [shiftsExternes, setShiftsExternes] = useListeExterne(identiteExterne, "shifts");
   const shifts = modeExterne ? shiftsExternes : shiftsStockes;
   const setShifts = modeExterne ? setShiftsExternes : setShiftsStockes;
-  const [tasks, setTasks] = useStored("taches", DEFAULT_TASKS_POSTE_CHAUD);
+  // Tâches : en prévisualisation, en mémoire seulement (jamais l'ancien stockage, qui contient les tâches réelles de
+  // Games Factory) et sans les tâches Games Factory intégrées au code. Deux tâches génériques d'exemple sont proposées
+  // pour pouvoir essayer le test d'huile ; le chef peut en créer d'autres. La vraie migration des tâches viendra plus tard.
+  const [tasksStockees, setTasksStockees] = useStored("taches", DEFAULT_TASKS_POSTE_CHAUD);
+  const [tasksExternes, setTasksExternes] = useState(() => [
+    { id: uid(), titre: "Filtrer ou changer l'huile de la friteuse", heure: "10:00", duree: 15, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", date: null, declencheChangementHuile: true, completions: {} },
+    { id: uid(), titre: "Nettoyage de fin de service", heure: "21:30", duree: 60, categorie: "Nettoyage", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", date: null, declencheHuile: true, completions: {} },
+  ]);
+  const tasks = modeExterne ? tasksExternes : tasksStockees;
+  const setTasks = modeExterne ? setTasksExternes : setTasksStockees;
   const [produits, setProduits] = useStored("produits-catalogue", DEFAULT_PRODUITS);
   const [preparations, setPreparations] = useStored("preparations", []);
-  const [huileTests, setHuileTests] = useStored("huile-tests", []);
+  // Tests d'huile de friture : nouvelle base en prévisualisation, ancien stockage sinon.
+  const [huileTestsStockes, setHuileTestsStockes] = useStored("huile-tests", []);
+  const [huileTestsExternes, setHuileTestsExternes] = useListeExterne(identiteExterne, "huileTests");
+  const huileTests = modeExterne ? huileTestsExternes : huileTestsStockes;
+  const setHuileTests = modeExterne ? setHuileTestsExternes : setHuileTestsStockes;
   const [refroidissements, setRefroidissements] = useStored("refroidissements", []);
   const [cuissons, setCuissons] = useStored("cuissons", []);
   const [dernierControleRappelConso, setDernierControleRappelConso] = useStored("dernier-controle-rappelconso", null);
@@ -13211,7 +13228,7 @@ function KitchenApp({ identiteExterne } = {}) {
       logActivitySafe("HACCP", "Catalogue des préparations mis à jour", `${manquants.length} nouveau(x) produit(s) ajouté(s) automatiquement`);
       return [...prev, ...manquants];
     });
-    setTasks((prev) => {
+    if (!modeExterne) setTasks((prev) => {
       const cleStable = (t) => `${t.titre}__${t.assignedTo}__${t.jour || ""}__${t.jourDuMois || ""}__${Number((t.heure || "0").split(":")[0]) < 16 ? "matin" : "soir"}`;
       const parCle = new Map(prev.map((t) => [cleStable(t), t]));
       const ajouts = [];

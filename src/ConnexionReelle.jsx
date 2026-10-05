@@ -238,6 +238,13 @@ export default function ConnexionReelle() {
         heure_debut: x.debut || null, heure_fin: x.fin || null,
       }),
     },
+    huileTests: {
+      table: "huile_friture_tests",
+      aDb: (x) => ({
+        date: x.date, heure: x.heure || null, resultat: x.resultat || null,
+        photo_bandelette_url: x.photo || null, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null,
+      }),
+    },
     surveillances: {
       table: "surveillances_temperature",
       aDb: (x) => ({
@@ -251,12 +258,14 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp] = await Promise.all([
+      const [ra, rr, rs, rp, rh] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
         supabasePublic.from("planning_creneaux").select("*"),
+        supabasePublic.from("huile_friture_tests").select("*").order("date", { ascending: false }).order("heure", { ascending: false }).limit(300),
       ]);
+      if (rh.error) throw rh.error;
       if (rp.error) throw rp.error;
       if (ra.error) throw ra.error;
       if (rr.error) throw rr.error;
@@ -275,6 +284,10 @@ export default function ConnexionReelle() {
           const dl = dateLocale(r.date_heure);
           return { id: r.id, equipementId: r.appareil_id, valeur: Number(r.valeur), date: dl.date, heure: dl.heure, employeeId: r.employe_id, conforme: r.conforme, manuel: true, note: r.note || "" };
         }),
+        huileTests: (rh.data || []).map((r) => ({
+          id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
+          valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
+        })),
         surveillances: (rs.data || []).map((r) => {
           const dl = dateLocale(r.detecte_le);
           return {
@@ -474,6 +487,7 @@ export default function ConnexionReelle() {
         equipements: { persister: fabriquerPersisterFroid("equipements") },
         releves: { persister: fabriquerPersisterFroid("releves") },
         surveillances: { persister: fabriquerPersisterFroid("surveillances") },
+        huileTests: { persister: fabriquerPersisterFroid("huileTests") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
