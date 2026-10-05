@@ -8022,9 +8022,17 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 /* ---------- module Réception des marchandises ---------- */
 
 const SEUILS_RECEPTION = {
-  surgele: { max: -15, ideal: -18, label: "≤ -18°C (tolérance transport jusqu'à -15°C)" },
+  surgele: { max: -18, label: "≤ -18°C" },
   frais: { max: 4, label: "≤ 4°C" },
   viande: { max: 4, label: "≤ 4°C" },
+};
+// Normes de réception de la version migrée (aperçu) : tolérance de transport pour le surgelé,
+// limite basse pour le frais (un produit frais ne doit pas arriver gelé), seuil plus strict pour poisson/haché/plats cuisinés.
+const SEUILS_RECEPTION_NOUVEAU = {
+  surgele: { min: null, max: -15, ideal: -18, label: "≤ -18°C (tolérance transport jusqu'à -15°C)" },
+  frais: { min: -1, max: 4, label: "de -1°C à +4°C" },
+  viande: { min: -1, max: 4, label: "de -1°C à +4°C" },
+  poisson: { min: -1, max: 3, label: "de -1°C à +3°C (poisson sur glace fondante : 0 à +2°C)" },
 };
 const RAISONS_NON_CONFORMITE = ["Produit abîmé à la livraison", "DLC trop courte", "Température non conforme", "Produit non commandé", "Produit substitué / facturé plus cher que commandé"];
 
@@ -8898,10 +8906,11 @@ function ImportPhotoIA({ titre, description, consigne, onResultats, boutonLabel 
 const CONSERVATIONS = [
   { v: "frais", l: "Frais / laitier" },
   { v: "viande", l: "Viande fraîche" },
+  { v: "poisson", l: "Poisson / viande hachée / plat cuisiné" },
   { v: "surgele", l: "Surgelé" },
   { v: "sec", l: "Sec / épicerie" },
 ];
-const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", surgele: "Surgelé", sec: "Sec" };
+const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", poisson: "Poisson / haché", surgele: "Surgelé", sec: "Sec" };
 
 // Date saisie à la main (JJ/MM/AAAA, JJMMAAAA ou MM/AAAA — pour une DDM lointaine) OU choisie dans le calendrier.
 // La valeur échangée est toujours au format AAAA-MM-JJ ("" si vide). Pour MM/AAAA, on prend le dernier jour du mois.
@@ -9144,7 +9153,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   const [analyseBonEnCours, setAnalyseBonEnCours] = useState(false);
   const [bonIllisible, setBonIllisible] = useState(false);
 
-  const [temps, setTemps] = useState({ surgele: "", frais: "", viande: "" });
+  const [temps, setTemps] = useState({ surgele: "", frais: "", viande: "", poisson: "" });
   const [tempRejets, setTempRejets] = useState({}); // { [ligneId]: { photo } }
   const [choixTemp, setChoixTemp] = useState(null);
 
@@ -9168,10 +9177,13 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   const conformeTemp = (type) => {
     const v = parseFloat(temps[type]);
     if (Number.isNaN(v)) return null;
-    return v <= SEUILS_RECEPTION[type].max;
+    if (!modeManuel) return v <= SEUILS_RECEPTION[type].max;
+    const sn = SEUILS_RECEPTION_NOUVEAU[type];
+    return v <= sn.max && (sn.min == null || v >= sn.min);
   };
+  const seuilsAffiches = modeManuel ? SEUILS_RECEPTION_NOUVEAU : SEUILS_RECEPTION;
   // Prévisualisation : on ne demande que les températures des types de produits présents sur le bon (frais, viande, surgelé).
-  const typesATemperature = [...new Set(lignesBon.map((l) => l.conservation).filter((c) => c === "frais" || c === "viande" || c === "surgele"))];
+  const typesATemperature = [...new Set(lignesBon.map((l) => l.conservation).filter((c) => c === "frais" || c === "viande" || c === "poisson" || c === "surgele"))];
   const tempsPretes = typesATemperature.every((t) => !Number.isNaN(parseFloat(temps[t])));
   const tempsNonConformes = typesATemperature.some((t) => conformeTemp(t) === false);
 
@@ -9611,16 +9623,16 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         <StepShell titre="Contrôle températures HACCP" onPrev={() => setStep(2)} hideNext>
           <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/20 mb-4">
             <p className="text-xs text-[var(--ink)]">
-              <strong>Rappel des normes de réception :</strong> un produit surgelé doit être à {SEUILS_RECEPTION.surgele.label}, un produit frais/laitier à {SEUILS_RECEPTION.frais.label}, une viande fraîche à {SEUILS_RECEPTION.viande.label}. Prenez la température à cœur avec la sonde, pas la température de l'air.
+              <strong>Rappel des normes de réception :</strong> un produit surgelé doit être à {seuilsAffiches.surgele.label}, un produit frais/laitier à {seuilsAffiches.frais.label}, une viande fraîche à {seuilsAffiches.viande.label}{modeManuel ? `, un poisson / une viande hachée / un plat cuisiné à ${seuilsAffiches.poisson.label}` : ""}. Un produit surgelé ne doit jamais être recongelé s'il a décongelé. Prenez la température à cœur avec la sonde, pas la température de l'air.
             </p>
           </Card>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande"]].filter(([type]) => !modeManuel || typesATemperature.includes(type)).map(([type, label]) => {
+            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande"], ["poisson", "Poisson / haché / plat cuisiné"]].filter(([type]) => !modeManuel || typesATemperature.includes(type)).map(([type, label]) => {
               const ok = conformeTemp(type);
               return (
-                <Field key={type} label={`${label} (${SEUILS_RECEPTION[type].label})`}>
+                <Field key={type} label={`${label} (${seuilsAffiches[type].label})`}>
                   <input className={inputCls} type="number" step="0.1" value={temps[type]} onChange={(e) => setTemps({ ...temps, [type]: e.target.value })} />
-                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? (type === "surgele" && parseFloat(temps[type]) > SEUILS_RECEPTION.surgele.ideal ? "Accepté (tolérance transport), à mettre au congélateur immédiatement" : "Conforme") : "Hors norme"}</span>}
+                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? (modeManuel && type === "surgele" && parseFloat(temps[type]) > SEUILS_RECEPTION_NOUVEAU.surgele.ideal ? "Accepté (tolérance transport), à mettre au congélateur immédiatement" : "Conforme") : (modeManuel && type !== "surgele" && parseFloat(temps[type]) < SEUILS_RECEPTION_NOUVEAU[type].min ? "Hors norme : produit gelé ? (un produit frais ne doit pas arriver gelé)" : "Hors norme")}</span>}
                 </Field>
               );
             })}
