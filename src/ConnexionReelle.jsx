@@ -96,22 +96,25 @@ export default function ConnexionReelle() {
     try {
       const [rf, rp] = await Promise.all([
         supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note").order("nom"),
-        supabasePublic.from("produits").select("id, nom, reference, categorie, fournisseur_id, unite, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
+        supabasePublic.from("produits").select("id, nom, reference, categorie, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
       ]);
       if (rf.error) throw rf.error;
       if (rp.error) throw rp.error;
       setFournisseursCat(rf.data || []);
-      setCatalogue((rp.data || []).map((p) => ({
+      const liste = (rp.data || []).map((p) => ({
         id: p.id, nom: p.nom, categorie: p.categorie || "Autres",
         fournisseur: (p.fournisseurs && p.fournisseurs.nom) || "",
         reference: p.reference || "", conditionnement: p.conditionnement || "",
         prixUnitaire: p.prix_achat != null ? `${Number(p.prix_achat).toFixed(2).replace(".", ",")} ${p.prix_unite || "€"}` : "",
         poidsParPiece: p.poids_par_piece || "", referenceVerifiee: !!p.reference_verifiee, note: p.note || "",
-        quantite: 0, cible: 0, unite: p.unite || "",
+        quantite: Number(p.quantite_stock) || 0, cible: Number(p.quantite_cible) || 0, unite: p.unite || "", lot: "", dlc: "",
         brut: p, // valeurs de la base, pour le formulaire de modification
-      })));
+      }));
+      setCatalogue(liste);
+      return liste;
     } catch (e2) {
       setErreurEquipe("Impossible de charger le catalogue : " + (e2.message || e2));
+      return null;
     }
   }
 
@@ -124,6 +127,45 @@ export default function ConnexionReelle() {
     const { error } = await requete;
     if (error) throw error;
     await chargerCatalogue();
+  }
+
+  // Enregistre dans la nouvelle base les changements de stock faits dans l'application (quantités,
+  // quantité cible, fournisseur, ajout et suppression d'article). Retourne le catalogue rechargé quand
+  // des lignes ont été ajoutées/supprimées (les nouveaux articles reçoivent leur vrai identifiant).
+  // Lot et DLC restent pour l'instant en mémoire uniquement (pas encore branchés sur la base).
+  async function persisterStock(prec, suiv) {
+    const idFournisseur = (nom) => {
+      const f = (fournisseursCat || []).find((x) => x.nom === nom);
+      return f ? f.id : null;
+    };
+    const avant = new Map(prec.map((x) => [x.id, x]));
+    const idsApres = new Set(suiv.map((x) => x.id));
+    let recharger = false;
+    for (const x of suiv) {
+      const o = avant.get(x.id);
+      if (!o) {
+        const { error } = await supabasePublic.from("produits").insert({
+          etablissement_id: session.etablissement.id, nom: x.nom, reference: x.reference || null,
+          categorie: x.categorie || null, unite: x.unite || null, fournisseur_id: idFournisseur(x.fournisseur),
+          quantite_stock: Number(x.quantite) || 0, quantite_cible: Number(x.cible) || 0,
+        });
+        if (error) throw error;
+        recharger = true;
+      } else if (Number(o.quantite) !== Number(x.quantite) || Number(o.cible) !== Number(x.cible) || o.fournisseur !== x.fournisseur) {
+        const maj = { quantite_stock: Number(x.quantite) || 0, quantite_cible: Number(x.cible) || 0 };
+        if (o.fournisseur !== x.fournisseur) maj.fournisseur_id = idFournisseur(x.fournisseur);
+        const { error } = await supabasePublic.from("produits").update(maj).eq("id", x.id);
+        if (error) throw error;
+      }
+    }
+    for (const o of prec) {
+      if (!idsApres.has(o.id)) {
+        const { error } = await supabasePublic.from("produits").delete().eq("id", o.id);
+        if (error) throw error;
+        recharger = true;
+      }
+    }
+    return recharger ? await chargerCatalogue() : null;
   }
 
   async function chargerEquipe(jeton) {
@@ -207,6 +249,7 @@ export default function ConnexionReelle() {
       catalogue: catalogue || undefined,
       fournisseurs: fournisseursCat || undefined,
       gestionCatalogue: catalogue ? { enregistrer: enregistrerCatalogue } : undefined,
+      gestionStock: catalogue ? { persister: persisterStock } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
         id: e.id, nom: e.nom, poste: e.poste || "", estChef: estChefOuDirecteur(e.role),

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useLayoutEffect, useCallback } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 
 /* ======================================================================================
@@ -12816,9 +12816,43 @@ function KitchenApp({ identiteExterne } = {}) {
   // Zones de nettoyage du plan de nettoyage (PMS) : liste éditable par le chef (ajout/suppression),
   // au départ les 3 postes de cuisine + "Tous". "Tous" ne peut pas être supprimée (tâches communes).
   const [zonesNettoyage, setZonesNettoyage] = useStored("haccp-zones-nettoyage", ["Tous", "Poste Chaud", "Poste Pizza", "Poste Froid"]);
-  const [stock, setStock] = useStored("stock-items", DEFAULT_STOCK);
+  // Stock : en usage normal, ancien stockage (inchangé). En prévisualisation « nouvelle base »
+  // (identiteExterne), le stock vient UNIQUEMENT de la nouvelle base (catalogue de l'établissement) —
+  // jamais du catalogue Games Factory intégré au code (DEFAULT_STOCK) — et les changements y sont enregistrés.
+  const [stockStocke, setStockStocke] = useStored("stock-items", DEFAULT_STOCK);
+  const [stockExterneEtat, setStockExterneEtat] = useState(() => (identiteExterne && identiteExterne.catalogue) || []);
+  const stockExterneRef = useRef(stockExterneEtat);
+  const identiteExterneRef = useRef(identiteExterne);
+  identiteExterneRef.current = identiteExterne;
+  const cataloguePrecedentRef = useRef(identiteExterne && identiteExterne.catalogue);
+  useEffect(() => {
+    const cat = identiteExterne && identiteExterne.catalogue;
+    if (cat && cat !== cataloguePrecedentRef.current) {
+      cataloguePrecedentRef.current = cat;
+      stockExterneRef.current = cat;
+      setStockExterneEtat(cat);
+    }
+  });
+  const setStockExterne = useCallback((maj) => {
+    const prec = stockExterneRef.current;
+    const suiv = typeof maj === "function" ? maj(prec) : maj;
+    stockExterneRef.current = suiv;
+    setStockExterneEtat(suiv);
+    const gestion = identiteExterneRef.current && identiteExterneRef.current.gestionStock;
+    if (gestion) {
+      gestion.persister(prec, suiv)
+        .then((recharge) => { if (recharge) { stockExterneRef.current = recharge; setStockExterneEtat(recharge); } })
+        .catch((e) => console.error("Enregistrement du stock impossible :", e));
+    }
+  }, []);
+  const stock = modeExterne ? stockExterneEtat : stockStocke;
+  const setStock = modeExterne ? setStockExterne : setStockStocke;
   const [receptions, setReceptions] = useStored("stock-receptions", []);
-  const [commandesHistorique, setCommandesHistorique] = useStored("commandes-historique", []);
+  const [commandesHistoriqueStockee, setCommandesHistoriqueStockee] = useStored("commandes-historique", []);
+  // En prévisualisation : historique de commandes vide et NON conservé (jamais l'ancien stockage réel).
+  const [commandesHistoriqueExterne, setCommandesHistoriqueExterne] = useState([]);
+  const commandesHistorique = modeExterne ? commandesHistoriqueExterne : commandesHistoriqueStockee;
+  const setCommandesHistorique = modeExterne ? setCommandesHistoriqueExterne : setCommandesHistoriqueStockee;
   const [notificationsFournisseur, setNotificationsFournisseur] = useStored("notifications-fournisseur", []);
   // Carnet d'adresses e-mail fournisseur — { [nomFournisseur]: "email@..." } — permet de pré-remplir
   // le destinataire du mailto: de notification de non-conformité. Enregistré/modifié directement
