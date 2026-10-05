@@ -6536,6 +6536,7 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer une cuisson chronométrée</h3>
         <p className="text-xs text-[var(--steel)] mb-3">Pour les plats dont la fiche technique donne une durée de cuisson (sauce bolognaise, lasagne...) — pas pour les pizzas et burgers, cuits sous surveillance directe. Cochez, réglez l'heure une seule fois, et démarrez le chrono.</p>
+        {catalogue.length === 0 && <p className="text-sm text-[var(--steel)] mb-3">Aucun plat dans le catalogue pour l'instant : ajoutez votre premier plat ci-dessous (nom, durée, famille).</p>}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
           {catalogue.map((p) => (
             <label key={p.nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(p.nom) ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--ink)]"}`}>
@@ -6553,7 +6554,10 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
               {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
             </select>
           </Field>
-          <Button variant="ghost" onClick={ajouterPlat}><Plus size={14} /> Ajouter</Button>
+        </div>
+        <div className="mb-4">
+          <Button onClick={ajouterPlat} disabled={!nouveauPlat || !(Number(nouvelleDuree) > 0) || catalogue.some((p) => p.nom === nouveauPlat)}><Plus size={14} /> Ajouter ce plat au catalogue</Button>
+          {(nouveauPlat || nouvelleDuree) && <p className="text-xs mt-1" style={{ color: "#C1432D" }}>Le plat n'est pas encore dans la liste : cliquez sur « Ajouter ce plat au catalogue » pour pouvoir le cocher.</p>}
         </div>
         <Field label="Heure de départ"><input className={`${inputCls} w-32 mb-4`} type="time" value={heureDebutChrono} onChange={(e) => setHeureDebutChrono(e.target.value)} /></Field>
         <Button onClick={demarrerCuissonsChronometrees} disabled={selection.length === 0}>Démarrer la cuisson ({selection.length})</Button>
