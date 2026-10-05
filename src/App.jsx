@@ -7413,7 +7413,49 @@ function ChampRechercheVocale({ value, onChange, placeholder, label }) {
   );
 }
 
-function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabilitePhotoSimple, employees, allergenesStandard, setAllergenesStandard, setAllergenesProduits, origineStandard, setOrigineStandard, setOrigineProduits, dlcJoursStandard, setDlcJoursStandard, catalogueProduits, setCatalogueProduits, setProduitsLotException }) {
+// Offre SANS IA : la traçabilité = les photos elles-mêmes, rangées par jour, dans l'ordre où elles
+// ont été prises (la plus ancienne du jour en premier). Aucun nom/lot/DLC à saisir.
+function ListeTracabilitePhotosParJour({ entrees, who }) {
+  const [photoOuverte, setPhotoOuverte] = useState(null);
+  const parJour = {};
+  entrees.forEach((p) => { (parJour[p.date] = parJour[p.date] || []).push(p); });
+  const jours = Object.keys(parJour).sort((a, b) => b.localeCompare(a));
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Traçabilités enregistrées</h3>
+      <p className="text-xs text-[var(--steel)] mb-3">Les photos sont classées par jour, dans l'ordre où elles ont été prises. Conservées 2 mois.</p>
+      {jours.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune traçabilité enregistrée pour le moment.</p>}
+      {jours.map((j) => {
+        const liste = [...parJour[j]].sort((a, b) => (a.heure || "").localeCompare(b.heure || ""));
+        return (
+          <div key={j} className="mb-4 last:mb-0">
+            <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-2">{fmtLong(j)} · {liste.length} traçabilité(s)</div>
+            <div className="space-y-2">
+              {liste.map((p, i) => (
+                <div key={p.id} className="flex items-center gap-3">
+                  <span className="text-xs text-[var(--steel)] w-5 shrink-0">{i + 1}.</span>
+                  <div className="flex gap-1 shrink-0">
+                    {(p.photos && p.photos.length ? p.photos : [p.photo].filter(Boolean)).map((src, k) => (
+                      <img key={k} src={src} alt="" onClick={() => setPhotoOuverte(src)} className="w-14 h-14 object-cover rounded-lg border border-[var(--line)] cursor-pointer" />
+                    ))}
+                  </div>
+                  <div className="text-xs text-[var(--steel)]">{p.heure}{who(p.employeeId) ? ` · ${who(p.employeeId)}` : ""}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+      {photoOuverte && (
+        <div onClick={() => setPhotoOuverte(null)} className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4">
+          <img src={photoOuverte} alt="" className="max-w-full max-h-full rounded-lg" />
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabilitePhotoSimple, employees, allergenesStandard, setAllergenesStandard, setAllergenesProduits, origineStandard, setOrigineStandard, setOrigineProduits, dlcJoursStandard, setDlcJoursStandard, catalogueProduits, setCatalogueProduits, setProduitsLotException, sansIA }) {
   const [recherche, setRecherche] = useState("");
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
@@ -7437,11 +7479,12 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
       <BoutonInfosNormes ficheKey="tracabilite" onClick={ouvrirNormes} label="Qu'est-ce qu'une traçabilité et comment bien la faire" />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
 
-      {IA_ACTIVEE
-        ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} />
+      {IA_ACTIVEE && !sansIA
+        ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} sansIA={modeExterne} />
         : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} />}
 
-      <Card>
+      {sansIA && <ListeTracabilitePhotosParJour entrees={preparations.filter((p) => p.typeEntree === "photo-simple")} who={who} />}
+      {!sansIA && <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-3">Rechercher une traçabilité</h3>
         <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Nom du produit, numéro de lot ou date" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
         {resultats.length > 0 && (
@@ -7460,7 +7503,7 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
         {recherchePropre.length > 1 && resultats.length === 0 && (
           <p className="text-xs text-[var(--steel)] mt-2">Aucune traçabilité trouvée pour cette recherche.</p>
         )}
-      </Card>
+      </Card>}
     </div>
   );
 }
@@ -10933,7 +10976,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
       <Card>
         <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Rechercher (produit, lot ou date)" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
         <div className="divide-y divide-[var(--line)] mt-3">
-          {tracabiliteFiltree.length === 0 ? <p className="text-sm text-[var(--steel)] py-2">Aucune traçabilité enregistrée.</p> : tracabiliteFiltree.map((p) => {
+          {tracabiliteFiltree.length === 0 ? <p className="text-sm text-[var(--steel)] py-2">Aucune traçabilité enregistrée.</p> : tracabiliteFiltree.map((p, idx) => {
             const nomAffiche = produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || (p.typeEntree === "photo-simple" ? "Traçabilité par photo" : "Produit");
             // Petit texte de lecture rapide avec toutes les infos capturées par l'IA (allergènes,
             // origine, agrément sanitaire/code usine, délai après ouverture) quand elles existent —
@@ -10945,7 +10988,9 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
               p.delaiApresOuvertureJours ? `${p.delaiApresOuvertureJours} j après ouverture` : null,
             ].filter(Boolean);
             return (
-              <div key={p.id} className="flex items-center justify-between py-2.5 text-sm gap-3">
+              <React.Fragment key={p.id}>
+              {(idx === 0 || tracabiliteFiltree[idx - 1].date !== p.date) && <div className="pt-3 pb-1 text-xs font-semibold uppercase tracking-wide text-[var(--steel)]">{fmtLong(p.date)}</div>}
+              <div className="flex items-center justify-between py-2.5 text-sm gap-3">
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex gap-1 shrink-0">
                     {(p.photos && p.photos.length > 0 ? p.photos : [p.photo, p.photoEtiquette].filter(Boolean)).map((src, i) => (
@@ -10968,6 +11013,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
                   <span className="text-xs bg-[var(--warn-soft)] text-[var(--warn)] px-2 py-0.5 rounded-full shrink-0">En cours</span>
                 )}
               </div>
+              </React.Fragment>
             );
           })}
         </div>
@@ -14994,7 +15040,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "tracabilite" && (
           consentementAccorde()
-            ? <TracabilitePage preparations={preparations} creerEtiquetteDlc={creerEtiquetteDlc} enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} employees={employees} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={produits} setCatalogueProduits={setProduits} setProduitsLotException={setProduitsLotException} />
+            ? <TracabilitePage preparations={preparations} creerEtiquetteDlc={creerEtiquetteDlc} enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} employees={employees} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={produits} setCatalogueProduits={setProduits} setProduitsLotException={setProduitsLotException} sansIA={modeExterne} />
             : <AccesRestreint titre="Lecture automatique des photos par IA" />
         )}
         {tab === "haccpTemp" && (
