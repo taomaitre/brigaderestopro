@@ -2152,6 +2152,104 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
   );
 }
 
+// Gestion → Commandes : les commandes (livraisons) reçues, avec partage / e-mail / impression
+// (par exemple pour envoyer une copie à la comptabilité qui vérifie les factures).
+function CommandesRecues({ receptions, employees, nomMoi }) {
+  const [ouverte, setOuverte] = useState(null);
+  const [message, setMessage] = useState("");
+  const fmtDate = (iso) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || "");
+  const who = (id) => (employees.find((e) => e.id === id) || {}).nom || "";
+
+  const groupes = React.useMemo(() => {
+    const m = new Map();
+    receptions.forEach((r) => {
+      if (!r.produit || r.produit === "(aucun produit détaillé)") return;
+      const cle = r.receptionId || r.id;
+      if (!m.has(cle)) m.set(cle, { cle, date: r.date, heure: r.heure, fournisseur: r.fournisseur, employeeId: r.employeeId, lignes: [], photosBon: r.photosBon || [] });
+      m.get(cle).lignes.push(r);
+    });
+    return [...m.values()].sort((a, b) => `${b.date} ${b.heure}`.localeCompare(`${a.date} ${a.heure}`));
+  }, [receptions]);
+
+  const statutLigne = (l) => (l.conforme ? "Accepté" : (l.raison || "Non conforme"));
+  const texteCommande = (c) => {
+    const lignes = c.lignes.map((l) => `- ${l.produit} — ${l.conforme ? l.quantite : `${l.quantiteNC} refusé(s)`}${l.lot ? ` — lot ${l.lot}` : ""}${l.dlc ? ` — DLC ${fmtDate(l.dlc)}` : ""}${l.temperature != null ? ` — ${l.temperature} °C` : ""}${l.conforme ? "" : ` — NON CONFORME : ${l.raison || ""}`}`);
+    return [`Commande reçue le ${fmtDate(c.date)} à ${c.heure}`, `Fournisseur : ${c.fournisseur}`, `Réceptionnée par : ${who(c.employeeId) || nomMoi || ""}`, ``, ...lignes, ``, `(Réf. ${String(c.cle).slice(0, 8)})`].join("\n");
+  };
+  const partager = async (c) => {
+    const texte = texteCommande(c);
+    try {
+      if (navigator.share) { await navigator.share({ title: `Commande ${c.fournisseur} du ${fmtDate(c.date)}`, text: texte }); return; }
+      await navigator.clipboard.writeText(texte);
+      setMessage("Texte copié : collez-le dans le message de votre choix.");
+    } catch (e) { /* partage annulé */ }
+  };
+  const envoyerMail = (c) => {
+    window.location.href = `mailto:?subject=${encodeURIComponent(`Commande ${c.fournisseur} reçue le ${fmtDate(c.date)}`)}&body=${encodeURIComponent(texteCommande(c))}`;
+  };
+  const imprimer = (c) => {
+    const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+    const lignes = c.lignes.map((l) => `<tr><td>${esc(l.produit)}</td><td>${esc(l.conforme ? l.quantite : l.quantiteNC + " refusé(s)")}</td><td>${esc(l.lot)}</td><td>${esc(fmtDate(l.dlc))}</td><td>${l.temperature != null ? esc(l.temperature) + " °C" : ""}</td><td style="color:${l.conforme ? "#2F6B4F" : "#C1432D"}">${esc(statutLigne(l))}</td></tr>`).join("");
+    const photos = (c.photosBon || []).map((p) => `<img src="${p}" style="max-width:100%;margin:8px 0;border:1px solid #ccc" />`).join("");
+    const html = `<html><head><title>Commande ${esc(c.fournisseur)}</title><style>body{font-family:Arial,sans-serif;padding:24px;color:#1D2321}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px 8px;text-align:left;font-size:13px}th{background:#f2f2f2}</style></head><body><h2>Commande reçue — ${esc(c.fournisseur)}</h2><p>Livraison du ${esc(fmtDate(c.date))} à ${esc(c.heure)}<br/>Réceptionnée par ${esc(who(c.employeeId) || nomMoi || "")}<br/>Réf. ${esc(String(c.cle).slice(0, 8))}</p><table><tr><th>Produit</th><th>Quantité</th><th>Lot</th><th>DLC</th><th>Température</th><th>Statut</th></tr>${lignes}</table>${photos ? `<h3>Bon de livraison</h3>${photos}` : ""}</body></html>`;
+    const f = document.createElement("iframe");
+    f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    document.body.appendChild(f);
+    f.contentDocument.open(); f.contentDocument.write(html); f.contentDocument.close();
+    setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { /* ignore */ } setTimeout(() => f.remove(), 2000); }, 400);
+  };
+
+  if (groupes.length === 0) return <p className="text-sm text-[var(--steel)]">Aucune commande reçue pour le moment. Elles apparaissent ici après chaque réception de marchandises.</p>;
+  return (
+    <div className="space-y-3">
+      {message && <p className="text-sm" style={{ color: "#2F6B4F" }}>{message}</p>}
+      {groupes.map((c) => {
+        const nbNC = c.lignes.filter((l) => !l.conforme).length;
+        const ouv = ouverte === c.cle;
+        return (
+          <Card key={c.cle}>
+            <button className="w-full text-left" onClick={() => setOuverte(ouv ? null : c.cle)}>
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <div className="font-semibold text-[var(--ink)]">{c.fournisseur || "Fournisseur non renseigné"}</div>
+                  <div className="text-xs text-[var(--steel)]">{fmtDate(c.date)} à {c.heure} · {c.lignes.length} article(s) · réceptionnée par {who(c.employeeId) || "—"}</div>
+                </div>
+                <div className="flex items-center gap-2 shrink-0">
+                  {nbNC > 0 && <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: "#C1432D" }}>{nbNC} non conforme(s)</span>}
+                  {c.lignes.every((l) => l.valideChef) && <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">Vérifiée</span>}
+                </div>
+              </div>
+            </button>
+            {ouv && (
+              <div className="mt-3 pt-3 border-t border-[var(--line)]">
+                <div className="space-y-1.5 mb-3">
+                  {c.lignes.map((l) => (
+                    <div key={l.id} className="text-sm border border-[var(--line)] rounded-lg px-3 py-2">
+                      <div className="flex items-center justify-between gap-2">
+                        <strong className="text-[var(--ink)]">{l.produit}</strong>
+                        <span className="text-xs font-semibold" style={{ color: l.conforme ? "#2F6B4F" : "#C1432D" }}>{statutLigne(l)}</span>
+                      </div>
+                      <div className="text-xs text-[var(--steel)]">{l.conforme ? l.quantite : `${l.quantiteNC} refusé(s)`}{l.lot ? ` · lot ${l.lot}` : ""}{l.dlc ? ` · DLC ${fmtDate(l.dlc)}` : ""}{l.temperature != null ? ` · ${l.temperature} °C` : ""}{l.conservation ? ` · ${LIBELLE_CONSERVATION[l.conservation] || l.conservation}` : ""}</div>
+                    </div>
+                  ))}
+                </div>
+                {c.photosBon.length > 0 && (
+                  <div className="flex flex-wrap gap-2 mb-3">{c.photosBon.map((p, i) => <img key={i} src={p} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--line)]" />)}</div>
+                )}
+                <div className="flex flex-wrap gap-2">
+                  <Button variant="ghost" onClick={() => partager(c)}>Partager</Button>
+                  <Button variant="ghost" onClick={() => envoyerMail(c)}><Mail size={16} /> Envoyer par e-mail</Button>
+                  <Button variant="ghost" onClick={() => imprimer(c)}><Printer size={16} /> Imprimer</Button>
+                </div>
+              </div>
+            )}
+          </Card>
+        );
+      })}
+    </div>
+  );
+}
+
 function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
@@ -2238,6 +2336,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
     { id: "origine", label: "Origine des viandes", icon: MapPin, couleur: TUILE_COULEURS.reception, section: "gestion" },
     { id: "tiac", label: "Déclaration TIAC", icon: Activity, couleur: TUILE_COULEURS.haccpCuisson, section: "gestion" },
     { id: "fournisseur", label: "Fournisseur", icon: ShoppingCart, couleur: TUILE_COULEURS.stock, section: "gestion" },
+    { id: "commandes", label: "Commandes", icon: ClipboardList, couleur: TUILE_COULEURS.reception, section: "gestion" },
     { id: "comptes", label: "Gestion des comptes", icon: Users, couleur: TUILE_COULEURS.comptes, section: "gestion" },
     { id: "pms", label: "PMS", icon: Droplets, couleur: TUILE_COULEURS.haccpHuile, section: "gestion" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, couleur: TUILE_COULEURS.fiches, section: "gestion" },
@@ -2246,7 +2345,8 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
   // plus des sous-tuiles de la section Gestion, mais deux grandes tuiles à part, tout en haut
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
-  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive);
+  // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (t.id !== "commandes" || !!stockCatalogue));
   const ouvrirSousTuile = (id) => {
     if (id === "reception") return setVerifReceptionsActif(true);
     if (id === "fournisseur") return setReferentielActif(true);
@@ -2482,6 +2582,13 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
         </div>
       )}
       </>
+      )}
+
+      {sousEcran === "commandes" && (
+        <div>
+          <SectionHeader title="Commandes reçues" subtitle="Toutes les livraisons reçues — à partager, envoyer par e-mail ou imprimer (par exemple pour la comptabilité)" />
+          <CommandesRecues receptions={receptions} employees={employees} nomMoi={(employees.find((e) => e.id === currentUserId) || {}).nom} />
+        </div>
       )}
 
       {sousEcran === "temperatures" && (
