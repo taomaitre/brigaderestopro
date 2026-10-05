@@ -8022,7 +8022,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 /* ---------- module Réception des marchandises ---------- */
 
 const SEUILS_RECEPTION = {
-  surgele: { max: -18, label: "≤ -18°C" },
+  surgele: { max: -15, ideal: -18, label: "≤ -18°C (tolérance transport jusqu'à -15°C)" },
   frais: { max: 4, label: "≤ 4°C" },
   viande: { max: 4, label: "≤ 4°C" },
 };
@@ -9168,7 +9168,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   const conformeTemp = (type) => {
     const v = parseFloat(temps[type]);
     if (Number.isNaN(v)) return null;
-    return type === "surgele" ? v <= SEUILS_RECEPTION.surgele.max : v <= SEUILS_RECEPTION[type].max;
+    return v <= SEUILS_RECEPTION[type].max;
   };
   // Prévisualisation : on ne demande que les températures des types de produits présents sur le bon (frais, viande, surgelé).
   const typesATemperature = [...new Set(lignesBon.map((l) => l.conservation).filter((c) => c === "frais" || c === "viande" || c === "surgele"))];
@@ -9620,7 +9620,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               return (
                 <Field key={type} label={`${label} (${SEUILS_RECEPTION[type].label})`}>
                   <input className={inputCls} type="number" step="0.1" value={temps[type]} onChange={(e) => setTemps({ ...temps, [type]: e.target.value })} />
-                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? "Conforme" : "Hors norme"}</span>}
+                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? (type === "surgele" && parseFloat(temps[type]) > SEUILS_RECEPTION.surgele.ideal ? "Accepté (tolérance transport), à mettre au congélateur immédiatement" : "Conforme") : "Hors norme"}</span>}
                 </Field>
               );
             })}
