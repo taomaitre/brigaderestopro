@@ -6444,11 +6444,6 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
   const [nouvelleDuree, setNouvelleDuree] = useState("");
   const [selectionRefroid, setSelectionRefroid] = useState([]);
   const [tempDebutRefroid, setTempDebutRefroid] = useState({});
-  const [appareilProgramme, setAppareilProgramme] = useState("Four à pizza");
-  const [produitProgramme, setProduitProgramme] = useState("");
-  const [dureeProgrammee, setDureeProgrammee] = useState("");
-  const [heureDebutProgramme, setHeureDebutProgramme] = useState(new Date().toTimeString().slice(0, 5));
-  const [familleProgramme, setFamilleProgramme] = useState("general");
   const [nouvelleFamillePlat, setNouvelleFamillePlat] = useState("general");
   const today = todayISO();
 
@@ -6493,21 +6488,6 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
     setNouveauPlat(""); setNouvelleDuree(""); setNouvelleFamillePlat("general");
   };
   const retirerPlat = (nom) => setCatalogue(catalogue.filter((p) => p.nom !== nom));
-
-  // Cuisson programmée à la main (four à pizza, four Rational...) : pas de fiche technique
-  // chronométrée ici, l'employé choisit l'appareil, note ce qu'il cuit (plat/programme) et règle
-  // la durée lui-même. Une fois validée, ça crée une entrée "en-cours" en tout point identique à
-  // une cuisson chronométrée — elle rejoint donc automatiquement "Cuissons en cours" et profite
-  // de la même alarme (pré-alerte 10 min avant, puis bannière + bip/vibration à l'échéance).
-  const demarrerCuissonProgrammee = () => {
-    if (!produitProgramme || !(Number(dureeProgrammee) > 0)) return;
-    const entry = { id: uid(), produit: produitProgramme, famille: familleProgramme, appareil: appareilProgramme, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutProgramme, debutTs: Date.now(), dureeAttendueMin: Number(dureeProgrammee), heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
-    setCuissons([entry, ...cuissons]);
-    logActivity("HACCP", "Cuisson programmée démarrée", `${produitProgramme} — ${appareilProgramme}, ${dureeProgrammee} min, à ${heureDebutProgramme}`);
-    setProduitProgramme("");
-    setDureeProgrammee("");
-  };
-
   const demarrerCuissonsChronometrees = () => {
     if (selection.length === 0) return;
     const nouvelles = selection.map((nom) => {
@@ -6569,32 +6549,6 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
         </div>
         <Field label="Heure de départ"><input className={`${inputCls} w-32 mb-4`} type="time" value={heureDebutChrono} onChange={(e) => setHeureDebutChrono(e.target.value)} /></Field>
         <Button onClick={demarrerCuissonsChronometrees} disabled={selection.length === 0}>Démarrer la cuisson ({selection.length})</Button>
-      </Card>
-
-      <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer une cuisson programmée (manuelle)</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Pour un plat cuit dans un appareil programmable (four à pizza, four Rational...) sans fiche technique chronométrée. Choisissez l'appareil, notez le plat/programme et la durée, puis validez : le chrono démarre tout de suite, avec la même alerte sonore qu'en fin de refroidissement.</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <Field label="Appareil">
-            <select className={inputCls} value={appareilProgramme} onChange={(e) => setAppareilProgramme(e.target.value)}>
-              <option value="Four à pizza">Four à pizza</option>
-              <option value="Four Rational">Four Rational</option>
-              <option value="Four Atoll Speed / Mery Chef">Four Atoll Speed / Mery Chef</option>
-              <option value="Plancha">Plancha</option>
-              <option value="Friteuse">Friteuse</option>
-              <option value="Salamandre">Salamandre</option>
-            </select>
-          </Field>
-          <Field label="Plat / programme"><input className={inputCls} value={produitProgramme} onChange={(e) => setProduitProgramme(e.target.value)} placeholder="Ex. Pizza margherita, prog. 3" /></Field>
-          <Field label="Famille (seuil HACCP)">
-            <select className={inputCls} value={familleProgramme} onChange={(e) => setFamilleProgramme(e.target.value)}>
-              {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
-            </select>
-          </Field>
-          <Field label="Durée (min)"><input className={inputCls} type="number" value={dureeProgrammee} onChange={(e) => setDureeProgrammee(e.target.value)} /></Field>
-          <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDebutProgramme} onChange={(e) => setHeureDebutProgramme(e.target.value)} /></Field>
-        </div>
-        <Button onClick={demarrerCuissonProgrammee} disabled={!produitProgramme || !(Number(dureeProgrammee) > 0)}>Démarrer la cuisson</Button>
       </Card>
 
       {enCours.length > 0 && (
