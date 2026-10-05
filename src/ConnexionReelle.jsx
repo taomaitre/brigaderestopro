@@ -84,6 +84,7 @@ export default function ConnexionReelle() {
   const [nouveauPoste, setNouveauPoste] = useState("");
   const [nouveauRole, setNouveauRole] = useState("cuisinier");
   const [nouveauCode, setNouveauCode] = useState("");
+  const [nouvelEmail, setNouvelEmail] = useState("");
   const [enregistrement, setEnregistrement] = useState(false);
   const [erreurEquipe, setErreurEquipe] = useState("");
 
@@ -290,9 +291,12 @@ export default function ConnexionReelle() {
     };
   }
 
-  async function chargerEquipe(jeton) {
+  // Pour un chef/directeur (codeDirection fourni), la liste contient aussi les e-mails.
+  async function chargerEquipe(jeton, codeDirection) {
     try {
-      const data = await appelerEmployes(jeton, "lister", {});
+      const data = codeDirection
+        ? await appelerEmployes(jeton, "lister_avec_emails", { code: codeDirection })
+        : await appelerEmployes(jeton, "lister", {});
       setEquipe(data.employes || []);
     } catch (e2) {
       setErreurEquipe("Impossible de charger l'équipe : " + e2.message);
@@ -307,13 +311,25 @@ export default function ConnexionReelle() {
     }
     setEnregistrement(true); setErreurEquipe("");
     try {
-      await appelerEmployes(session.token, "creer", { nom: nouveauNom, poste: nouveauPoste, role: nouveauRole, code: nouveauCode });
-      setNouveauNom(""); setNouveauPoste(""); setNouveauCode(""); setAfficherAjout(false);
-      await chargerEquipe(session.token);
+      await appelerEmployes(session.token, "creer", { nom: nouveauNom, poste: nouveauPoste, role: nouveauRole, code: nouveauCode, email: nouvelEmail.trim() });
+      setNouveauNom(""); setNouveauPoste(""); setNouveauCode(""); setNouvelEmail(""); setAfficherAjout(false);
+      await chargerEquipe(session.token, estChefOuDirecteur(employeIdentifie.role) ? code : null);
     } catch (e2) {
       setErreurEquipe("Impossible d'ajouter cet employé : " + e2.message);
     } finally {
       setEnregistrement(false);
+    }
+  }
+
+  async function modifierEmailEmploye(emp) {
+    const saisie = window.prompt(`Adresse e-mail de ${emp.nom} (laisser vide pour effacer) :`, emp.email || "");
+    if (saisie === null) return;
+    setErreurEquipe("");
+    try {
+      await appelerEmployes(session.token, "modifier_email", { code, employe_id: emp.id, email: saisie.trim() });
+      await chargerEquipe(session.token, code);
+    } catch (e2) {
+      setErreurEquipe("Impossible d'enregistrer l'e-mail : " + e2.message);
     }
   }
 
@@ -344,7 +360,7 @@ export default function ConnexionReelle() {
       const data = await appelerEmployes(session.token, "verifier", { code });
       setEmployeIdentifie(data.employe);
       setEtape("connecte");
-      chargerEquipe(session.token);
+      chargerEquipe(session.token, estChefOuDirecteur(data.employe.role) ? code : null);
       chargerCatalogue();
       chargerListesFroid();
     } catch (e2) {
@@ -443,7 +459,14 @@ export default function ConnexionReelle() {
                   {equipe.length === 0 && <li className="text-xs text-[var(--steel)]">Aucun employé pour l'instant.</li>}
                   {equipe.map((e) => (
                     <li key={e.id} className="text-sm text-[var(--ink)] flex justify-between py-1 border-b border-[var(--line)] last:border-0">
-                      <span>{e.nom}</span>
+                      <span>
+                        {e.nom}
+                        {estChefOuDirecteur(employeIdentifie.role) && (
+                          <button type="button" onClick={() => modifierEmailEmploye(e)} className="block text-xs text-[var(--accent)]">
+                            {e.email ? e.email : "+ Ajouter un e-mail"}
+                          </button>
+                        )}
+                      </span>
                       <span className="text-[var(--steel)] text-xs">{e.role}{e.poste ? ` — ${e.poste}` : ""}</span>
                     </li>
                   ))}
@@ -468,6 +491,14 @@ export default function ConnexionReelle() {
                   <select className={inputCls} value={nouveauRole} onChange={(e) => setNouveauRole(e.target.value)}>
                     {STATUTS_EQUIPE.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
                   </select>
+                  <input
+                    className={inputCls}
+                    type="email"
+                    autoComplete="off"
+                    placeholder="E-mail de l'employé (facultatif)"
+                    value={nouvelEmail}
+                    onChange={(e) => setNouvelEmail(e.target.value)}
+                  />
                   <input
                     className={inputCls}
                     placeholder="Code à 4 chiffres"
