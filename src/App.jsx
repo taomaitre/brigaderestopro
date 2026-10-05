@@ -3277,15 +3277,8 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
             </label>
-            <label className="block text-xs text-[var(--steel)]">Date sur l'étiquette : DLC ou DDM ?
-              <select value={v.type_date || ""} onChange={(e) => maj("type_date", e.target.value || null)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
-                <option value="">— Non précisé —</option>
-                <option value="DLC">DLC : date limite de consommation (produit périssable)</option>
-                <option value="DDM">DDM : date de durabilité minimale (lue à la réception)</option>
-              </select>
-            </label>
-            {champTexte("delai_jours_dlc", "Durée de conservation après fabrication / mise en étiquette (jours, pour une DLC)")}
-            {champTexte("delai_apres_ouverture_jours", "Durée de conservation après ouverture (jours, facultatif)")}
+            {champTexte("delai_jours_dlc", "Durée de conservation après fabrication (en jours)")}
+            {champTexte("delai_apres_ouverture_jours", "Durée après ouverture, si notée sur l'emballage (en jours)")}
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
               <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
