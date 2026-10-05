@@ -9319,6 +9319,17 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   const nbConformes = produits.filter((p) => p.conforme).length;
   const nbNonConformes = produits.filter((p) => !p.conforme).length;
 
+  // Prévisualisation : un produit de même nom existe déjà dans le stock → on ne le mélange JAMAIS sans demander
+  // (ex. poulet surgelé reçu alors que le stock contient du poulet frais).
+  const normNom = (t) => String(t || "").trim().toLowerCase();
+  const candidatsNom = (p) => stock.filter((x) => normNom(x.nom) === normNom(p.nom));
+  const trouveParReference = (p) => !!(p.reference && stock.some((x) => normNom(x.reference) === normNom(p.reference)));
+  const situationStock = (p) => {
+    if (!modeManuel || !p.conservation || !normNom(p.nom) || trouveParReference(p)) return null;
+    const c = candidatsNom(p);
+    if (c.length === 0 || c.some((x) => x.conservation === p.conservation)) return null;
+    return c.some((x) => !x.conservation) ? { type: "question", c } : { type: "distinct", c };
+  };
   const qteAccepteeDe = (p) => (p.conforme ? (Number(p.quantite) || 0) : Math.max(0, (Number(p.quantite) || 0) - (Number(p.quantiteNC) || 0)));
 
   // Minimum obligatoire enseigné en formation hygiène pour assurer la traçabilité : nom du produit,
@@ -9332,6 +9343,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
     if (!(p.nom || "").trim()) return true;
     if (!IA_ACTIVEE) return !String(p.quantite ?? "").trim();
     if (modeManuel && (!p.conservation || !(Number(p.quantite) > 0))) return true;
+    if (modeManuel && situationStock(p)?.type === "question" && !p.fusion) return true;
     return !(p.lot || "").trim() || !(p.dlc || "").trim();
   });
 
@@ -9369,7 +9381,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         raison: p.conforme ? "" : p.raison, quantiteNC: p.conforme ? 0 : (Number(p.quantiteNC) || 0),
         photoNC: p.conforme ? null : p.photoNC, ecartPrix: p.conforme ? 0 : (Number(p.ecartPrix) || 0), valideChef: false,
         photoBon: null, photosBon: photosBonArchive,
-        ...(modeManuel ? { reference: (p.reference || "").trim(), conservation: p.conservation || "", categorie: (p.categorie || "").trim(), temperature: p.conservation && temps[p.conservation] !== "" && temps[p.conservation] != null ? Number(temps[p.conservation]) : null } : {}),
+        ...(modeManuel ? { reference: (p.reference || "").trim(), conservation: p.conservation || "", categorie: (p.categorie || "").trim(), fusion: p.fusion || "", temperature: p.conservation && temps[p.conservation] !== "" && temps[p.conservation] != null ? Number(temps[p.conservation]) : null } : {}),
       };
       nouvellesEntrees.push(entry);
       if (qteAcceptee > 0) {
@@ -9685,6 +9697,24 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                     <input className={inputCls} placeholder="Origine / provenance" value={p.origine || ""} onChange={(e) => updateProduit(p.id, { origine: e.target.value })} />
                     <input className={inputCls} placeholder="N° agrément sanitaire (CE)" value={p.agrementSanitaire || ""} onChange={(e) => updateProduit(p.id, { agrementSanitaire: e.target.value })} />
                   </div>
+                  {(() => {
+                    const sit = situationStock(p);
+                    if (!sit) return null;
+                    const nomExistant = sit.c[0].nom;
+                    if (sit.type === "distinct") {
+                      return <p className="text-xs text-[var(--steel)] mt-2">« {nomExistant} » existe déjà dans le stock en <strong>{LIBELLE_CONSERVATION[sit.c[0].conservation] || sit.c[0].conservation}</strong> : ce produit reçu en <strong>{LIBELLE_CONSERVATION[p.conservation]}</strong> sera enregistré comme un article distinct, sans toucher à l'autre.</p>;
+                    }
+                    return (
+                      <div className="mt-2 rounded-lg p-2.5" style={{ backgroundColor: "var(--warn-soft)" }}>
+                        <p className="text-xs text-[var(--ink)] mb-1.5">« {nomExistant} » existe déjà dans le stock, sans type précisé. Ce produit reçu en <strong>{LIBELLE_CONSERVATION[p.conservation]}</strong> est-il le même article ?</p>
+                        <select className={inputCls} value={p.fusion || ""} onChange={(e) => updateProduit(p.id, { fusion: e.target.value })}>
+                          <option value="">Choisir…</option>
+                          <option value="existant">Oui, l'ajouter à l'article existant « {nomExistant} »</option>
+                          <option value="nouveau">Non, créer un article distinct ({LIBELLE_CONSERVATION[p.conservation]})</option>
+                        </select>
+                      </div>
+                    );
+                  })()}
                   {echecAnalyse[p.id] && (
                     <p className="text-xs text-[var(--warn)] mt-2">Photo pas assez lisible pour être analysée — complétez les champs manuellement.</p>
                   )}
@@ -9837,7 +9867,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                 {produitsIncomplets.map((p) => (
                   <li key={p.id}>
                     {p.nom || "(nom manquant)"} — manque : {(IA_ACTIVEE
-                      ? [!((p.nom || "").trim()) && "nom", !((p.lot || "").trim()) && "n° de lot", !((p.dlc || "").trim()) && "DLC", modeManuel && !(Number(p.quantite) > 0) && "quantité", modeManuel && !p.conservation && "type de produit"]
+                      ? [!((p.nom || "").trim()) && "nom", !((p.lot || "").trim()) && "n° de lot", !((p.dlc || "").trim()) && "DLC", modeManuel && !(Number(p.quantite) > 0) && "quantité", modeManuel && !p.conservation && "type de produit", modeManuel && situationStock(p)?.type === "question" && !p.fusion && "choix : article existant ou distinct"]
                       : [!((p.nom || "").trim()) && "nom", !String(p.quantite ?? "").trim() && "quantité"]
                     ).filter(Boolean).join(", ")}
                   </li>

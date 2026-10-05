@@ -400,7 +400,10 @@ export default function ConnexionReelle() {
       if (parRef) return parRef;
       const memeNom = catalogueCourant.filter((c) => norm(c.nom) === norm(e.produit));
       if (!e.conservation) return memeNom[0];
-      return memeNom.find((c) => c.conservation === e.conservation) || memeNom.find((c) => !c.conservation);
+      const memeType = memeNom.find((c) => c.conservation === e.conservation);
+      if (memeType) return memeType;
+      // Un article de même nom sans type précisé n'est utilisé que si l'employé l'a explicitement demandé (e.fusion === "existant").
+      return e.fusion === "existant" ? memeNom.find((c) => !c.conservation) : undefined;
     };
     const adoptions = new Map();
 
