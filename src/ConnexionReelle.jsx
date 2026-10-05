@@ -168,6 +168,115 @@ export default function ConnexionReelle() {
     return recharger ? await chargerCatalogue() : null;
   }
 
+  // ---- Températures du froid (appareils, relevés, surveillances) : nouvelle base ----
+  const [listesFroid, setListesFroid] = useState(null);
+
+  const EST_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  const dateLocale = (iso) => {
+    const d = new Date(iso);
+    const p2 = (n) => String(n).padStart(2, "0");
+    return { date: `${d.getFullYear()}-${p2(d.getMonth() + 1)}-${p2(d.getDate())}`, heure: `${p2(d.getHours())}:${p2(d.getMinutes())}` };
+  };
+  const versNombre = (v) => (v === "" || v == null ? null : Number(String(v).replace(",", ".")));
+
+  const CONVERSIONS_FROID = {
+    equipements: {
+      table: "appareils",
+      aDb: (e) => ({
+        nom: e.nom, famille: e.type === "congelateur" ? "negatif" : "positif", type: e.type || null,
+        norme_min: e.min == null ? null : Number(e.min), norme_max: e.max == null ? null : Number(e.max), numero_sonde: e.sonde || null,
+      }),
+    },
+    releves: {
+      table: "releves_temperature",
+      aDb: (x) => ({
+        appareil_id: x.equipementId, valeur: versNombre(x.valeur),
+        date_heure: new Date(`${x.date}T${x.heure || "00:00"}:00`).toISOString(),
+        conforme: x.conforme == null ? null : !!x.conforme, note: x.note || null, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null,
+      }),
+    },
+    surveillances: {
+      table: "surveillances_temperature",
+      aDb: (x) => ({
+        appareil_id: x.equipementId, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null,
+        detecte_le: new Date(`${x.date}T${x.heureDetection || "00:00"}:00`).toISOString(),
+        valeur_initiale: versNombre(x.valeurInitiale), rappel_a: new Date(x.rappelTs).toISOString(),
+        statut: x.statut, alarme_acquittee: !!x.alarmeAcquittee, motif: x.motif || null, note: x.note || null,
+      }),
+    },
+  };
+
+  async function chargerListesFroid() {
+    try {
+      const [ra, rr, rs] = await Promise.all([
+        supabasePublic.from("appareils").select("*").order("nom"),
+        supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
+        supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
+      ]);
+      if (ra.error) throw ra.error;
+      if (rr.error) throw rr.error;
+      if (rs.error) throw rs.error;
+      const listes = {
+        equipements: (ra.data || []).map((r) => ({
+          id: r.id, nom: r.nom, type: r.type || (r.famille === "negatif" ? "congelateur" : "frigo"),
+          min: r.norme_min == null ? null : Number(r.norme_min), max: r.norme_max == null ? null : Number(r.norme_max),
+          sonde: r.numero_sonde || null, sondeConnectee: false,
+        })),
+        releves: (rr.data || []).map((r) => {
+          const dl = dateLocale(r.date_heure);
+          return { id: r.id, equipementId: r.appareil_id, valeur: Number(r.valeur), date: dl.date, heure: dl.heure, employeeId: r.employe_id, conforme: r.conforme, manuel: true, note: r.note || "" };
+        }),
+        surveillances: (rs.data || []).map((r) => {
+          const dl = dateLocale(r.detecte_le);
+          return {
+            id: r.id, equipementId: r.appareil_id, employeeId: r.employe_id, date: dl.date, heureDetection: dl.heure,
+            valeurInitiale: r.valeur_initiale == null ? "" : Number(r.valeur_initiale), rappelTs: Date.parse(r.rappel_a),
+            statut: r.statut, alarmeAcquittee: !!r.alarme_acquittee, motif: r.motif || undefined, note: r.note || undefined,
+          };
+        }),
+      };
+      setListesFroid(listes);
+      return listes;
+    } catch (e2) {
+      setErreurEquipe("Impossible de charger les températures : " + (e2.message || e2));
+      return null;
+    }
+  }
+
+  // Enregistre les changements d'une liste (ajout, modification, suppression) ; retourne les listes
+  // rechargées quand des lignes ont été ajoutées/supprimées (les nouvelles lignes reçoivent leur vrai identifiant).
+  function fabriquerPersisterFroid(cle) {
+    const conv = CONVERSIONS_FROID[cle];
+    return async (avant, apres) => {
+      const mapAvant = new Map(avant.map((x) => [x.id, x]));
+      const idsApres = new Set(apres.map((x) => x.id));
+      let recharger = false;
+      for (const x of apres) {
+        const o = mapAvant.get(x.id);
+        const ligne = conv.aDb(x);
+        if (!o) {
+          if (cle !== "equipements" && !EST_UUID.test(x.equipementId || "")) throw new Error("Appareil pas encore enregistré, réessayez dans un instant.");
+          const { error } = await supabasePublic.from(conv.table).insert({ ...ligne, etablissement_id: session.etablissement.id });
+          if (error) throw error;
+          recharger = true;
+        } else if (JSON.stringify(conv.aDb(o)) !== JSON.stringify(ligne)) {
+          const { error } = await supabasePublic.from(conv.table).update(ligne).eq("id", x.id);
+          if (error) throw error;
+        }
+      }
+      for (const o of avant) {
+        if (!idsApres.has(o.id)) {
+          const { error } = await supabasePublic.from(conv.table).delete().eq("id", o.id);
+          if (error) throw error;
+          recharger = true;
+        }
+      }
+      if (!recharger) return null;
+      const listes = await chargerListesFroid();
+      return listes ? listes[cle] : null;
+    };
+  }
+
   async function chargerEquipe(jeton) {
     try {
       const data = await appelerEmployes(jeton, "lister", {});
@@ -224,6 +333,7 @@ export default function ConnexionReelle() {
       setEtape("connecte");
       chargerEquipe(session.token);
       chargerCatalogue();
+      chargerListesFroid();
     } catch (e2) {
       setErreur("Code incorrect, ou pas encore attribué.");
       setCode("");
@@ -250,6 +360,12 @@ export default function ConnexionReelle() {
       fournisseurs: fournisseursCat || undefined,
       gestionCatalogue: catalogue ? { enregistrer: enregistrerCatalogue } : undefined,
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
+      listes: listesFroid || undefined,
+      gestionListes: listesFroid ? {
+        equipements: { persister: fabriquerPersisterFroid("equipements") },
+        releves: { persister: fabriquerPersisterFroid("releves") },
+        surveillances: { persister: fabriquerPersisterFroid("surveillances") },
+      } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
         id: e.id, nom: e.nom, poste: e.poste || "", estChef: estChefOuDirecteur(e.role),

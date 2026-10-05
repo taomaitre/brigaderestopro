@@ -925,6 +925,38 @@ function isTempOk(type, valeur) {
 
 /* ---------- stockage persistant ---------- */
 
+// Liste « nouvelle base » : en prévisualisation, une liste (appareils de froid, relevés…) vient de la
+// nouvelle base (identiteExterne.listes[cle]) et chaque changement y est enregistré via
+// identiteExterne.gestionListes[cle].persister(avant, apres), jamais dans l'ancien stockage.
+function useListeExterne(identiteExterne, cle) {
+  const donnees = identiteExterne && identiteExterne.listes ? identiteExterne.listes[cle] : undefined;
+  const [etat, setEtat] = useState(() => donnees || []);
+  const ref = useRef(etat);
+  const identiteRef = useRef(identiteExterne);
+  identiteRef.current = identiteExterne;
+  const precedent = useRef(donnees);
+  useEffect(() => {
+    if (donnees && donnees !== precedent.current) {
+      precedent.current = donnees;
+      ref.current = donnees;
+      setEtat(donnees);
+    }
+  });
+  const setListe = useCallback((maj) => {
+    const avant = ref.current;
+    const apres = typeof maj === "function" ? maj(avant) : maj;
+    ref.current = apres;
+    setEtat(apres);
+    const gestion = identiteRef.current && identiteRef.current.gestionListes && identiteRef.current.gestionListes[cle];
+    if (gestion) {
+      gestion.persister(avant, apres)
+        .then((recharge) => { if (recharge) { ref.current = recharge; setEtat(recharge); } })
+        .catch((e) => console.error("Enregistrement impossible (" + cle + ") :", e));
+    }
+  }, [cle]);
+  return [etat, setListe];
+}
+
 function useStored(key, initial) {
   const [value, setValue] = useState(initial);
   const [loaded, setLoaded] = useState(false);
@@ -12738,8 +12770,16 @@ function KitchenApp({ identiteExterne } = {}) {
   const [typeAppareil, setTypeAppareil] = useState(() => lireTypeAppareil());
   const [activityLog, setActivityLog] = useStored("activity-log", []);
 
-  const [tempLogs, setTempLogs] = useStored("haccp-temps", []);
-  const [equipementsFroid, setEquipementsFroid] = useStored("equipements-froid", DEFAULT_EQUIPEMENTS_FROID);
+  const [tempLogsStockes, setTempLogsStockes] = useStored("haccp-temps", []);
+  const [tempLogsExternes, setTempLogsExternes] = useState([]); // prévisualisation : en mémoire, jamais l'ancien stockage
+  const tempLogs = modeExterne ? tempLogsExternes : tempLogsStockes;
+  const setTempLogs = modeExterne ? setTempLogsExternes : setTempLogsStockes;
+  // Appareils, relevés et surveillances de température : ancien stockage en usage normal ; nouvelle base
+  // UNIQUEMENT en prévisualisation (jamais la liste d'appareils Games Factory intégrée au code).
+  const [equipementsFroidStockes, setEquipementsFroidStockes] = useStored("equipements-froid", DEFAULT_EQUIPEMENTS_FROID);
+  const [equipementsFroidExternes, setEquipementsFroidExternes] = useListeExterne(identiteExterne, "equipements");
+  const equipementsFroid = modeExterne ? equipementsFroidExternes : equipementsFroidStockes;
+  const setEquipementsFroid = modeExterne ? setEquipementsFroidExternes : setEquipementsFroidStockes;
   const [catalogueMaintienChaud, setCatalogueMaintienChaud] = useStored("catalogue-maintien-chaud", DEFAULT_PRODUITS_MAINTIEN_CHAUD);
   // Plats à cuisson chronométrée (durée connue par la fiche technique) — pizzas et burgers en
   // sont volontairement exclus (cuisson courte, surveillée en direct, pas besoin de chrono avec
@@ -12751,8 +12791,14 @@ function KitchenApp({ identiteExterne } = {}) {
     { nom: "Lasagne", dureeMin: 40, famille: "viandeHachee" },
   ]);
   const [entriesMaintienChaud, setEntriesMaintienChaud] = useStored("entries-maintien-chaud", []);
-  const [relevesFroid, setRelevesFroid] = useStored("releves-froid", []);
-  const [surveillancesFroid, setSurveillancesFroid] = useStored("surveillances-froid", []);
+  const [relevesFroidStockes, setRelevesFroidStockes] = useStored("releves-froid", []);
+  const [relevesFroidExternes, setRelevesFroidExternes] = useListeExterne(identiteExterne, "releves");
+  const relevesFroid = modeExterne ? relevesFroidExternes : relevesFroidStockes;
+  const setRelevesFroid = modeExterne ? setRelevesFroidExternes : setRelevesFroidStockes;
+  const [surveillancesFroidStockees, setSurveillancesFroidStockees] = useStored("surveillances-froid", []);
+  const [surveillancesFroidExternes, setSurveillancesFroidExternes] = useListeExterne(identiteExterne, "surveillances");
+  const surveillancesFroid = modeExterne ? surveillancesFroidExternes : surveillancesFroidStockees;
+  const setSurveillancesFroid = modeExterne ? setSurveillancesFroidExternes : setSurveillancesFroidStockees;
   const [cleaning, setCleaning] = useStored("haccp-cleaning", [
     // Tous
     { id: uid(), tache: "Sol cuisine", poste: "Tous", frequence: "Quotidienne", note: "Nettoyant désinfectant, eau chaude <60°C, 5 à 10 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
@@ -12858,7 +12904,10 @@ function KitchenApp({ identiteExterne } = {}) {
   // le destinataire du mailto: de notification de non-conformité. Enregistré/modifié directement
   // depuis la carte NotificationFournisseur (au moment où on en a besoin) ou depuis l'écran Fournisseur.
   const [emailsFournisseurs, setEmailsFournisseurs] = useStored("emails-fournisseurs", {});
-  const [alertesControle, setAlertesControle] = useStored("alertes-controle", []);
+  const [alertesControleStockees, setAlertesControleStockees] = useStored("alertes-controle", []);
+  const [alertesControleExternes, setAlertesControleExternes] = useState([]); // prévisualisation : en mémoire
+  const alertesControle = modeExterne ? alertesControleExternes : alertesControleStockees;
+  const setAlertesControle = modeExterne ? setAlertesControleExternes : setAlertesControleStockees;
   const [remarquesChef, setRemarquesChef] = useStored("remarques-chef", []);
   // Fiches techniques : le socle FICHES_TECHNIQUES (données de référence, fournies par le fichier
   // Excel du chef) reste statique, mais le chef peut désormais créer ses propres fiches depuis
