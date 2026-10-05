@@ -6509,7 +6509,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
     if (selection.length === 0) return;
     const nouvelles = selection.map((nom) => {
       const p = catalogue.find((x) => x.nom === nom);
-      return { id: uid(), produit: nom, famille: p?.famille || "general", date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutChrono, debutTs: Date.now(), dureeAttendueMin: p?.dureeMin || 20, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
+      return { id: uid(), produit: nom, famille: p?.famille || "general", appareil: p?.appareil || undefined, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutChrono, debutTs: Date.now(), dureeAttendueMin: p?.dureeMin || 20, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
     });
     setCuissons([...nouvelles, ...cuissons]);
     logActivity("HACCP", "Cuisson chronométrée démarrée", `${selection.join(", ")} à ${heureDebutChrono}`);
@@ -6551,38 +6551,24 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   return (
     <div>
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer une cuisson chronométrée</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Pour les plats dont la fiche technique donne une durée de cuisson (sauce bolognaise, lasagne...) — pas pour les pizzas et burgers, cuits sous surveillance directe. Cochez, réglez l'heure une seule fois, et démarrez le chrono.</p>
-        {catalogue.length === 0 && <p className="text-sm text-[var(--steel)] mb-3">Aucun plat dans le catalogue pour l'instant : ajoutez votre premier plat ci-dessous (nom, durée, famille).</p>}
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Cuissons des fiches techniques</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Les plats dont la fiche technique donne une durée de cuisson (et l'appareil) : tout est déjà connu, il suffit de cocher, de régler l'heure et de démarrer le chrono. Pas pour les pizzas et burgers, cuits sous surveillance directe.</p>
+        {catalogue.length === 0 && <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique avec une cuisson pour l'instant : elles apparaîtront ici automatiquement dès que vos fiches techniques seront enregistrées. En attendant, utilisez la cuisson manuelle ci-dessous.</p>}
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
           {catalogue.map((p) => (
             <label key={p.nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(p.nom) ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--ink)]"}`}>
               <input type="checkbox" checked={selection.includes(p.nom)} onChange={() => toggleSelection(p.nom)} />
-              {p.nom} <span className="text-xs opacity-70">({p.dureeMin} min · ≥{cuissonSeuilMin(p.famille)}°C)</span>
-              <button onClick={(e) => { e.preventDefault(); retirerPlat(p.nom); }} className="ml-auto text-[var(--steel)] hover:text-[var(--warn)]"><X size={13} /></button>
+              <span>{p.nom} <span className="text-xs opacity-70">({p.dureeMin} min · ≥{cuissonSeuilMin(p.famille)}°C{p.appareil ? ` · ${p.appareil}` : ""})</span></span>
             </label>
           ))}
         </div>
-        <div className="flex flex-wrap items-end gap-2 mb-4">
-          <Field label="Ajouter un plat au catalogue"><input className={inputCls} value={nouveauPlat} onChange={(e) => setNouveauPlat(e.target.value)} /></Field>
-          <Field label="Durée de cuisson (min, fiche technique)"><input className={`${inputCls} w-32`} type="number" value={nouvelleDuree} onChange={(e) => setNouvelleDuree(e.target.value)} /></Field>
-          <Field label="Famille (seuil HACCP)">
-            <select className={inputCls} value={nouvelleFamillePlat} onChange={(e) => setNouvelleFamillePlat(e.target.value)}>
-              {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
-            </select>
-          </Field>
-        </div>
-        <div className="mb-4">
-          <Button onClick={ajouterPlat} disabled={!nouveauPlat || !(Number(nouvelleDuree) > 0) || catalogue.some((p) => p.nom === nouveauPlat)}><Plus size={14} /> Ajouter ce plat au catalogue</Button>
-          {(nouveauPlat || nouvelleDuree) && <p className="text-xs mt-1" style={{ color: "#C1432D" }}>Le plat n'est pas encore dans la liste : cliquez sur « Ajouter ce plat au catalogue » pour pouvoir le cocher.</p>}
-        </div>
         <Field label="Heure de départ"><input className={`${inputCls} w-32 mb-4`} type="time" value={heureDebutChrono} onChange={(e) => setHeureDebutChrono(e.target.value)} /></Field>
-        <Button onClick={demarrerCuissonsChronometrees} disabled={selection.length === 0}>Démarrer la cuisson ({selection.length})</Button>
+        <Button onClick={demarrerCuissonsChronometrees} disabled={selection.length === 0 || catalogue.length === 0}>Démarrer la cuisson ({selection.length})</Button>
       </Card>
 
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer une cuisson programmée (manuelle)</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Pour un plat cuit dans un appareil programmable (four à pizza, four Rational...) sans fiche technique chronométrée. Choisissez l'appareil, notez le plat/programme et la durée, puis validez : le chrono démarre tout de suite, avec la même alerte sonore qu'en fin de refroidissement.</p>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Nouvelle cuisson (à remplir à la main)</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Pour un plat qui n'est pas dans les fiches techniques : rien n'est connu, remplissez tous les champs (appareil, plat, famille, durée, heure), puis validez. Le chrono démarre tout de suite, avec la même alerte sonore qu'en fin de refroidissement.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
           <Field label="Appareil">
             <select className={inputCls} value={appareilProgramme} onChange={(e) => setAppareilProgramme(e.target.value)}>
