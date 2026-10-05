@@ -12348,7 +12348,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
 
 /* ---------- module Horaires (heures de travail) ---------- */
 
-function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onBack }) {
+function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onBack, nouvelleBase }) {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [code, setCode] = useState("");
@@ -12492,11 +12492,11 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
       )}
       <SectionHeader
         title="Horaires"
-        subtitle="Semaine type : 9h30–14h30 et 18h–20h30 en semaine, jusqu'à 23h30 vendredi et samedi, repos le lundi"
-        action={<Button variant="ghost" onClick={applyStandardAll}>Appliquer à toute l'équipe</Button>}
+        subtitle={nouvelleBase ? "Semaine type de l'établissement : cliquez sur un créneau pour programmer les horaires de chaque employé" : "Semaine type : 9h30–14h30 et 18h–20h30 en semaine, jusqu'à 23h30 vendredi et samedi, repos le lundi"}
+        action={nouvelleBase ? null : <Button variant="ghost" onClick={applyStandardAll}>Appliquer à toute l'équipe</Button>}
       />
 
-      <Card className="mb-6">
+      {!nouvelleBase && <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-4">Ajouter un employé</h3>
         <div className="flex flex-wrap gap-3 items-end">
           <Field label="Nom"><input className={inputCls} value={name} onChange={(e) => setName(e.target.value)} /></Field>
@@ -12505,7 +12505,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
           <Button onClick={addEmployee}><Plus size={16} /> Ajouter</Button>
         </div>
         <p className="text-xs text-[var(--steel)] mt-2">Le code personnel n'est utile que si cet employé installe l'appli sur son propre téléphone (voir plus bas) — pas besoin d'en donner un si seule la tablette de la cuisine est utilisée.</p>
-      </Card>
+      </Card>}
 
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Importer un planning depuis Excel</h3>
@@ -12565,8 +12565,8 @@ Une entrée par créneau de travail visible — si un même employé travaille m
                   <td className="py-2.5 pr-3 align-top">
                     <div className="font-medium text-[var(--ink)]">{emp.nom}</div>
                     <div className="text-xs text-[var(--steel)]">{emp.poste}</div>
-                    <button onClick={() => applyStandard(emp.id)} className="text-[10px] text-[var(--accent)] font-medium mt-1">Appliquer standard</button>
-                    <div className="mt-1.5 flex items-center gap-1">
+                    {!nouvelleBase && <button onClick={() => applyStandard(emp.id)} className="text-[10px] text-[var(--accent)] font-medium mt-1">Appliquer standard</button>}
+                    {!nouvelleBase && <div className="mt-1.5 flex items-center gap-1">
                       <label className="text-[10px] text-[var(--steel)]">Code tel.</label>
                       <input
                         className="text-[11px] border border-[var(--line)] rounded px-1.5 py-1 w-16 min-h-[28px]"
@@ -12574,7 +12574,7 @@ Une entrée par créneau de travail visible — si un même employé travaille m
                         defaultValue={emp.code || ""}
                         onBlur={(e) => setEmployeeCode(emp.id, e.target.value)}
                       />
-                    </div>
+                    </div>}
                   </td>
                   {JOURS.map((jour) => (
                     <td key={jour} className="py-2 px-2 align-top space-y-1">
@@ -12601,7 +12601,7 @@ Une entrée par créneau de travail visible — si un même employé travaille m
                     </td>
                   ))}
                   <td className="py-2.5 pl-2 font-medium text-[var(--ink)] align-top">{totalHeures(emp.id).toFixed(1)}h</td>
-                  <td className="align-top"><BoutonSupprimer onConfirm={() => removeEmployee(emp.id)} size={15} libelle={emp.nom} /></td>
+                  <td className="align-top">{!nouvelleBase && <BoutonSupprimer onConfirm={() => removeEmployee(emp.id)} size={15} libelle={emp.nom} />}</td>
                 </tr>
               ))}
             </tbody>
@@ -12977,8 +12977,16 @@ function KitchenApp({ identiteExterne } = {}) {
   // l'icône "Créer une fiche technique" (Gestion) — elles sont stockées à part puis fusionnées ici.
   const [fichesCustom, setFichesCustom] = useStored("fiches-custom", []);
   const fiches = React.useMemo(() => [...FICHES_TECHNIQUES, ...fichesCustom], [fichesCustom]);
-  const [reservations, setReservations] = useStored("reservations", []);
-  const [shifts, setShifts] = useStored("planning-shifts", []);
+  // Réservations : en prévisualisation, en mémoire seulement (jamais l'ancien stockage réel) — pas encore migrées.
+  const [reservationsStockees, setReservationsStockees] = useStored("reservations", []);
+  const [reservationsExternes, setReservationsExternes] = useState([]);
+  const reservations = modeExterne ? reservationsExternes : reservationsStockees;
+  const setReservations = modeExterne ? setReservationsExternes : setReservationsStockees;
+  // Horaires (semaine type) : nouvelle base en prévisualisation, ancien stockage sinon.
+  const [shiftsStockes, setShiftsStockes] = useStored("planning-shifts", []);
+  const [shiftsExternes, setShiftsExternes] = useListeExterne(identiteExterne, "shifts");
+  const shifts = modeExterne ? shiftsExternes : shiftsStockes;
+  const setShifts = modeExterne ? setShiftsExternes : setShiftsStockes;
   const [tasks, setTasks] = useStored("taches", DEFAULT_TASKS_POSTE_CHAUD);
   const [produits, setProduits] = useStored("produits-catalogue", DEFAULT_PRODUITS);
   const [preparations, setPreparations] = useStored("preparations", []);
@@ -13978,7 +13986,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <Equipe employees={employees} shifts={shifts} activityLog={activityLog} tasks={tasks} toggleTask={toggleTaskShared} currentUserId={currentUserId} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} />
         )}
         {tab === "horaires" && (
-          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
+          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} nouvelleBase={modeExterne} />
         )}
       </main>
       {/* La barre d'onglets mobile du bas a été retirée : la navigation se fait maintenant

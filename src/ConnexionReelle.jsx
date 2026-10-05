@@ -195,6 +195,13 @@ export default function ConnexionReelle() {
         conforme: x.conforme == null ? null : !!x.conforme, note: x.note || null, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null,
       }),
     },
+    shifts: {
+      table: "planning_creneaux",
+      aDb: (x) => ({
+        utilisateur_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null, jour_semaine: x.jour, service: x.service || null,
+        heure_debut: x.debut || null, heure_fin: x.fin || null,
+      }),
+    },
     surveillances: {
       table: "surveillances_temperature",
       aDb: (x) => ({
@@ -208,15 +215,21 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs] = await Promise.all([
+      const [ra, rr, rs, rp] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
+        supabasePublic.from("planning_creneaux").select("*"),
       ]);
+      if (rp.error) throw rp.error;
       if (ra.error) throw ra.error;
       if (rr.error) throw rr.error;
       if (rs.error) throw rs.error;
       const listes = {
+        shifts: (rp.data || []).filter((r) => r.jour_semaine).map((r) => ({
+          id: r.id, employeeId: r.utilisateur_id, jour: r.jour_semaine, service: r.service,
+          debut: (r.heure_debut || "").slice(0, 5), fin: (r.heure_fin || "").slice(0, 5),
+        })),
         equipements: (ra.data || []).map((r) => ({
           id: r.id, nom: r.nom, type: r.type || (r.famille === "negatif" ? "congelateur" : "frigo"),
           min: r.norme_min == null ? null : Number(r.norme_min), max: r.norme_max == null ? null : Number(r.norme_max),
@@ -255,7 +268,7 @@ export default function ConnexionReelle() {
         const o = mapAvant.get(x.id);
         const ligne = conv.aDb(x);
         if (!o) {
-          if (cle !== "equipements" && !EST_UUID.test(x.equipementId || "")) throw new Error("Appareil pas encore enregistré, réessayez dans un instant.");
+          if ((cle === "releves" || cle === "surveillances") && !EST_UUID.test(x.equipementId || "")) throw new Error("Appareil pas encore enregistré, réessayez dans un instant.");
           const { error } = await supabasePublic.from(conv.table).insert({ ...ligne, etablissement_id: session.etablissement.id });
           if (error) throw error;
           recharger = true;
@@ -365,6 +378,7 @@ export default function ConnexionReelle() {
         equipements: { persister: fabriquerPersisterFroid("equipements") },
         releves: { persister: fabriquerPersisterFroid("releves") },
         surveillances: { persister: fabriquerPersisterFroid("surveillances") },
+        shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
