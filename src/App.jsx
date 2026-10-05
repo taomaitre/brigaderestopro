@@ -957,6 +957,13 @@ function useListeExterne(identiteExterne, cle) {
   return [etat, setListe];
 }
 
+// En prévisualisation (memoireSeule), la valeur reste en mémoire et ne touche JAMAIS l'ancien stockage réel.
+function useStoredOuMemoire(cle, initial, memoireSeule, initialMemoire) {
+  const [stocke, setStocke] = useStored(cle, initial);
+  const [memoire, setMemoire] = useState(initialMemoire !== undefined ? initialMemoire : initial);
+  return memoireSeule ? [memoire, setMemoire] : [stocke, setStocke];
+}
+
 function useStored(key, initial) {
   const [value, setValue] = useState(initial);
   const [loaded, setLoaded] = useState(false);
@@ -2299,7 +2306,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
   }
 
   if (verifReceptionsActif) {
-    return <VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => setVerifReceptionsActif(false)} />;
+    return <VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => setVerifReceptionsActif(false)} memoireSeule={!!stockCatalogue} />;
   }
 
   if (tracabiliteCompleteActif) {
@@ -9040,11 +9047,15 @@ function ChampTexteOuVocal({ value, onChange, placeholder, suggestions, permettr
   );
 }
 
-function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, onDone, onCancel, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
+function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, onDone, onCancel, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException, optionsExterne }) {
   const [step, setStep] = useState(1);
   const moi = employees.find((e) => e.id === currentUserId);
   const receptionId = React.useMemo(() => uid(), []);
-  const fournisseursConnus = [...new Set(stock.map((s) => s.fournisseur).filter(Boolean))];
+  const fournisseursConnus = [...new Set([...stock.map((s) => s.fournisseur), ...((optionsExterne && optionsExterne.fournisseurs) || [])].filter(Boolean))];
+  // En prévisualisation (nouvelle base) : saisie manuelle des lignes du bon (l'analyse IA n'a pas encore de serveur) et enregistrement dans la base.
+  const modeManuel = !!optionsExterne;
+  const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
+  const [erreurEnregistrement, setErreurEnregistrement] = useState("");
 
   const [fournisseur, setFournisseur] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -9260,7 +9271,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
 
   const nonConformesActuels = produits.filter((p) => !p.conforme);
 
-  const validerReception = () => {
+  const validerReception = async () => {
+    if (enregistrementEnCours) return;
     let stockCourant = stock;
     const nouvellesEntrees = [];
     const articlesCrees = [];
@@ -9288,6 +9300,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         raison: p.conforme ? "" : p.raison, quantiteNC: p.conforme ? 0 : (Number(p.quantiteNC) || 0),
         photoNC: p.conforme ? null : p.photoNC, ecartPrix: p.conforme ? 0 : (Number(p.ecartPrix) || 0), valideChef: false,
         photoBon: null, photosBon: photosBonArchive,
+        ...(modeManuel ? { reference: (p.reference || "").trim() } : {}),
       };
       nouvellesEntrees.push(entry);
       if (qteAcceptee > 0) {
@@ -9320,11 +9333,24 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       });
     }
 
-    setStock(stockCourant);
-    if (articlesCrees.length > 0) {
-      logActivity("Stock", "Nouvel(aux) article(s) créé(s) automatiquement à la réception", `${articlesCrees.join(", ")} — aucune correspondance trouvée dans l'inventaire, vérifiez le nom/l'unité/la catégorie`);
+    if (modeManuel) {
+      // Nouvelle base : le stock, les lots, l'en-tête et les lignes de la réception sont enregistrés ensemble.
+      setEnregistrementEnCours(true); setErreurEnregistrement("");
+      try {
+        await optionsExterne.enregistrer(nouvellesEntrees, photosBonArchive, { fournisseur, date, heure });
+      } catch (e) {
+        setErreurEnregistrement("Enregistrement impossible : " + ((e && e.message) || e) + " — rien n'a été validé, vous pouvez réessayer.");
+        setEnregistrementEnCours(false);
+        return;
+      }
+      setEnregistrementEnCours(false);
+    } else {
+      setStock(stockCourant);
+      if (articlesCrees.length > 0) {
+        logActivity("Stock", "Nouvel(aux) article(s) créé(s) automatiquement à la réception", `${articlesCrees.join(", ")} — aucune correspondance trouvée dans l'inventaire, vérifiez le nom/l'unité/la catégorie`);
+      }
+      setReceptions([...nouvellesEntrees, ...receptions]);
     }
-    setReceptions([...nouvellesEntrees, ...receptions]);
     logActivity("Stock", "Réception validée", `${fournisseur} — ${nbConformes} conforme(s), ${nbNonConformes} non conforme(s)`);
 
     if (nonConformesActuels.length > 0) {
@@ -9389,7 +9415,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               </div>
             </Field>
             <Field label="Fournisseur">
-              <input list="fournisseurs-connus" className={inputCls} value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} placeholder="Sysco, Promocash..." />
+              <input list="fournisseurs-connus" className={inputCls} value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} placeholder="Choisir ou saisir un fournisseur" />
               <datalist id="fournisseurs-connus">{fournisseursConnus.map((f) => <option key={f} value={f} />)}</datalist>
             </Field>
             <Field label="Date de livraison">
@@ -9425,12 +9451,18 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               </div>
             )}
             <PhotoInput value={null} onChange={(v) => setPhotosBon([...photosBon, v])} label={photosBon.length > 0 ? "Ajouter une autre page du bon" : "Photographier le bon de livraison"} />
-            {photosBon.length > 0 && (
+            {photosBon.length > 0 && !modeManuel && (
               <Button variant="ghost" className="mt-3" onClick={analyserBon}>
                 {analyseBonEnCours ? <Loader2 size={16} className="animate-spin" /> : null} {analyseBonEnCours ? "Analyse en cours..." : `Analyser le${photosBon.length > 1 ? " bon (" + photosBon.length + " photos)" : " bon"}`}
               </Button>
             )}
-            {bonIllisible && (
+            {modeManuel && (
+              <div className="mt-3">
+                <Button variant="ghost" onClick={() => setLignesBon([...lignesBon, { id: uid(), nom: "", quantite: "", reference: "" }])}>+ Ajouter un produit du bon</Button>
+                <p className="text-xs text-[var(--steel)] mt-2">Recopiez les lignes du bon : produit, référence (facultatif) et quantité. L'analyse automatique par IA viendra plus tard.</p>
+              </div>
+            )}
+            {bonIllisible && !modeManuel && (
               <p className="text-xs text-[var(--warn)] mt-2">Aucune des photo(s) n'est assez lisible pour être analysée — reprenez la/les photo(s) (meilleure lumière, bon bien à plat, texte net) puis relancez l'analyse.</p>
             )}
           </div>
@@ -9547,7 +9579,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                 <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
                   <div className="flex items-start gap-3 mb-3">
                     <PhotoInput value={p.photo} onChange={(v) => updateProduit(p.id, { photo: v })} label="Photographier le produit" />
-                    {p.photo && (
+                    {p.photo && !modeManuel && (
                       <Button variant="ghost" onClick={() => analyserProduit(p)}>
                         {analyseEnCours[p.id] ? <Loader2 size={14} className="animate-spin" /> : null} {analyseEnCours[p.id] ? "Analyse..." : "Analyser"}
                       </Button>
@@ -9706,7 +9738,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 6 && (
-        <StepShell titre="Analyse du bon de commande" sousTitre="Vérifiez la liste avant de valider — elle sera enregistrée telle quelle et le chef sera notifié en cas de non-conformité." onPrev={() => setStep(5)} nextLabel="Valider la réception" onNext={validerReception} nextDisabled={produitsIncomplets.length > 0}>
+        <StepShell titre="Analyse du bon de commande" sousTitre="Vérifiez la liste avant de valider — elle sera enregistrée telle quelle et le chef sera notifié en cas de non-conformité." onPrev={() => setStep(5)} nextLabel={enregistrementEnCours ? "Enregistrement…" : "Valider la réception"} onNext={validerReception} nextDisabled={produitsIncomplets.length > 0 || enregistrementEnCours}>
+          {erreurEnregistrement && <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4"><p className="text-xs text-[var(--warn)]">{erreurEnregistrement}</p></Card>}
           {produitsIncomplets.length > 0 && (
             <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
               <p className="text-xs font-semibold text-[var(--warn)] mb-1.5">Impossible de valider — {IA_ACTIVEE ? "nom, n° de lot et DLC sont obligatoires pour la traçabilité" : "le nom et la quantité sont obligatoires"} ({produitsIncomplets.length} produit(s) incomplet(s)) :</p>
@@ -9751,13 +9784,13 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   );
 }
 
-function Reception({ stock, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, enCours, setEnCours, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
+function Reception({ optionsExterne, stock, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, enCours, setEnCours, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const [infosOuvertes, setInfosOuvertes] = useState(false);
   const [ficheReception, setFicheReception] = useState(null);
 
   if (enCours) {
-    return <ReceptionWizard stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivity} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} onDone={() => setEnCours(false)} onCancel={() => setEnCours(false)} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />;
+    return <ReceptionWizard optionsExterne={optionsExterne} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivity} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} onDone={() => setEnCours(false)} onCancel={() => setEnCours(false)} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />;
   }
 
   return (
@@ -9790,9 +9823,9 @@ function Reception({ stock, setStock, receptions, setReceptions, currentUserId, 
   );
 }
 
-function VerificationReceptions({ receptions, setReceptions, employees, onBack }) {
+function VerificationReceptions({ receptions, setReceptions, employees, onBack, memoireSeule }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
-  const [ecarts, setEcarts] = useStored("ecarts-reception", []);
+  const [ecarts, setEcarts] = useStoredOuMemoire("ecarts-reception", [], memoireSeule);
   const [nouvelEcart, setNouvelEcart] = useState(null); // { type: "manquant" | "en-trop" }
 
   const ajouterEcart = (e) => {
@@ -12999,17 +13032,26 @@ function KitchenApp({ identiteExterne } = {}) {
   }, []);
   const stock = modeExterne ? stockExterneEtat : stockStocke;
   const setStock = modeExterne ? setStockExterne : setStockStocke;
-  const [receptions, setReceptions] = useStored("stock-receptions", []);
+  // Réceptions : nouvelle base en prévisualisation, ancien stockage sinon.
+  const [receptionsStockees, setReceptionsStockees] = useStored("stock-receptions", []);
+  const [receptionsExternes, setReceptionsExternes] = useListeExterne(identiteExterne, "receptions");
+  const receptions = modeExterne ? receptionsExternes : receptionsStockees;
+  const setReceptions = modeExterne ? setReceptionsExternes : setReceptionsStockees;
   const [commandesHistoriqueStockee, setCommandesHistoriqueStockee] = useStored("commandes-historique", []);
   // En prévisualisation : historique de commandes vide et NON conservé (jamais l'ancien stockage réel).
   const [commandesHistoriqueExterne, setCommandesHistoriqueExterne] = useState([]);
   const commandesHistorique = modeExterne ? commandesHistoriqueExterne : commandesHistoriqueStockee;
   const setCommandesHistorique = modeExterne ? setCommandesHistoriqueExterne : setCommandesHistoriqueStockee;
-  const [notificationsFournisseur, setNotificationsFournisseur] = useStored("notifications-fournisseur", []);
+  const [notificationsFournisseur, setNotificationsFournisseur] = useStoredOuMemoire("notifications-fournisseur", [], modeExterne);
   // Carnet d'adresses e-mail fournisseur — { [nomFournisseur]: "email@..." } — permet de pré-remplir
   // le destinataire du mailto: de notification de non-conformité. Enregistré/modifié directement
   // depuis la carte NotificationFournisseur (au moment où on en a besoin) ou depuis l'écran Fournisseur.
-  const [emailsFournisseurs, setEmailsFournisseurs] = useStored("emails-fournisseurs", {});
+  // En prévisualisation : en mémoire, pré-rempli avec les e-mails des fournisseurs de la nouvelle base.
+  const [emailsFournisseurs, setEmailsFournisseurs] = useStoredOuMemoire("emails-fournisseurs", {}, modeExterne, () => {
+    const m = {};
+    ((identiteExterne && identiteExterne.fournisseurs) || []).forEach((f) => { if (f.email) m[f.nom] = f.email; });
+    return m;
+  });
   const [alertesControleStockees, setAlertesControleStockees] = useStored("alertes-controle", []);
   const [alertesControleExternes, setAlertesControleExternes] = useState([]); // prévisualisation : en mémoire
   const alertesControle = modeExterne ? alertesControleExternes : alertesControleStockees;
@@ -13040,7 +13082,8 @@ function KitchenApp({ identiteExterne } = {}) {
   ]);
   const tasks = modeExterne ? tasksExternes : tasksStockees;
   const setTasks = modeExterne ? setTasksExternes : setTasksStockees;
-  const [produits, setProduits] = useStored("produits-catalogue", DEFAULT_PRODUITS);
+  // Catalogue des préparations maison : en prévisualisation, vide et en mémoire (pas celui de Games Factory) — fiches/traçabilité pas encore migrées.
+  const [produits, setProduits] = useStoredOuMemoire("produits-catalogue", DEFAULT_PRODUITS, modeExterne, []);
   const [preparations, setPreparations] = useStored("preparations", []);
   // Tests d'huile de friture : nouvelle base en prévisualisation, ancien stockage sinon.
   const [huileTestsStockes, setHuileTestsStockes] = useStored("huile-tests", []);
@@ -13053,8 +13096,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const [alertesRappelConso, setAlertesRappelConso] = useStored("alertes-rappelconso", []);
   const [rappelConsoEnCours, setRappelConsoEnCours] = useState(false);
   const [allergenesPlats, setAllergenesPlats] = useStored("allergenes-plats", {});
-  const [allergenesProduits, setAllergenesProduits] = useStored("allergenes-produits", {});
-  const [origineProduits, setOrigineProduits] = useStored("origine-produits", {});
+  const [allergenesProduits, setAllergenesProduits] = useStoredOuMemoire("allergenes-produits", {}, modeExterne);
+  const [origineProduits, setOrigineProduits] = useStoredOuMemoire("origine-produits", {}, modeExterne);
   // Valeur "normale" de l'établissement pour chaque produit (origine, allergènes, délai de
   // conservation après ouverture) — enregistrée une première fois, puis gardée comme référence à
   // laquelle revenir automatiquement après un lot exceptionnel. produitsLotException liste les
@@ -13062,10 +13105,10 @@ function KitchenApp({ identiteExterne } = {}) {
   // des allergènes ou un délai après ouverture différent de d'habitude) ; dès que le stock de ce
   // produit revient à 0 (le lot exceptionnel est entièrement consommé), on revient automatiquement
   // à la valeur normale — voir l'effet juste après la définition de tous ces états.
-  const [allergenesStandard, setAllergenesStandard] = useStored("allergenes-standard", {});
-  const [origineStandard, setOrigineStandard] = useStored("origine-standard", {});
-  const [dlcJoursStandard, setDlcJoursStandard] = useStored("dlcjours-standard", {});
-  const [produitsLotException, setProduitsLotException] = useStored("produits-lot-exception", {});
+  const [allergenesStandard, setAllergenesStandard] = useStoredOuMemoire("allergenes-standard", {}, modeExterne);
+  const [origineStandard, setOrigineStandard] = useStoredOuMemoire("origine-standard", {}, modeExterne);
+  const [dlcJoursStandard, setDlcJoursStandard] = useStoredOuMemoire("dlcjours-standard", {}, modeExterne);
+  const [produitsLotException, setProduitsLotException] = useStoredOuMemoire("produits-lot-exception", {}, modeExterne);
   const [declarationsTiac, setDeclarationsTiac] = useStored("declarations-tiac", []);
 
   useEffect(() => {
@@ -13256,7 +13299,7 @@ function KitchenApp({ identiteExterne } = {}) {
   }, []);
 
   useEffect(() => {
-    setProduits((prev) => {
+    if (!modeExterne) setProduits((prev) => {
       const nomsExistants = new Set(prev.map((p) => p.nom));
       const manquants = DEFAULT_PRODUITS.filter((p) => !nomsExistants.has(p.nom));
       if (manquants.length === 0) return prev;
@@ -13995,7 +14038,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "reception" && (
           consentementAccorde()
-            ? <Reception stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
+            ? <Reception optionsExterne={modeExterne && identiteExterne.gestionReceptions ? { enregistrer: identiteExterne.gestionReceptions.enregistrer, fournisseurs: (identiteExterne.fournisseurs || []).map((f) => f.nom) } : undefined} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
             : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
         )}
         {tab === "etiquettes" && (

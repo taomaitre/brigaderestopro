@@ -130,12 +130,16 @@ export default function ConnexionReelle() {
   // attendu par l'écran « Référentiel produits » de l'application.
   async function chargerCatalogue() {
     try {
-      const [rf, rp] = await Promise.all([
+      const [rf, rp, rl] = await Promise.all([
         supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note").order("nom"),
         supabasePublic.from("produits").select("id, nom, reference, categorie, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
+        supabasePublic.from("lots_produits").select("produit_id, numero_lot, dlc, quantite_restante, date_reception").order("date_reception", { ascending: false }).limit(1000),
       ]);
       if (rf.error) throw rf.error;
       if (rp.error) throw rp.error;
+      // Dernier lot reçu de chaque produit (lot et DLC affichés dans le stock).
+      const dernierLot = new Map();
+      (rl.data || []).forEach((l) => { if (!dernierLot.has(l.produit_id)) dernierLot.set(l.produit_id, l); });
       setFournisseursCat(rf.data || []);
       const liste = (rp.data || []).map((p) => ({
         id: p.id, nom: p.nom, categorie: p.categorie || "Autres",
@@ -143,7 +147,8 @@ export default function ConnexionReelle() {
         reference: p.reference || "", conditionnement: p.conditionnement || "",
         prixUnitaire: p.prix_achat != null ? `${Number(p.prix_achat).toFixed(2).replace(".", ",")} ${p.prix_unite || "€"}` : "",
         poidsParPiece: p.poids_par_piece || "", referenceVerifiee: !!p.reference_verifiee, note: p.note || "",
-        quantite: Number(p.quantite_stock) || 0, cible: Number(p.quantite_cible) || 0, unite: p.unite || "", lot: "", dlc: "",
+        quantite: Number(p.quantite_stock) || 0, cible: Number(p.quantite_cible) || 0, unite: p.unite || "",
+        lot: (dernierLot.get(p.id) || {}).numero_lot || "", dlc: (dernierLot.get(p.id) || {}).dlc || "",
         brut: p, // valeurs de la base, pour le formulaire de modification
       }));
       setCatalogue(liste);
@@ -256,14 +261,41 @@ export default function ConnexionReelle() {
     },
   };
 
+  // Réceptions : une ligne par produit reçu (même format que l'ancien stockage), regroupées par receptionId.
+  async function lireReceptions() {
+    const { data, error } = await supabasePublic
+      .from("receptions")
+      .select("id, fournisseur_nom, date_livraison, heure_livraison, receptionne_par, fournisseurs(nom), receptions_lignes(*), receptions_photos_bon(url_photo, ordre)")
+      .order("date_livraison", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(150);
+    if (error) throw error;
+    const liste = [];
+    (data || []).forEach((r) => {
+      const photos = (r.receptions_photos_bon || []).slice().sort((a, b) => (a.ordre || 0) - (b.ordre || 0)).map((x) => x.url_photo);
+      (r.receptions_lignes || []).forEach((l) => {
+        liste.push({
+          id: l.id, receptionId: r.id, date: r.date_livraison, heure: (r.heure_livraison || "").slice(0, 5), employeeId: r.receptionne_par,
+          fournisseur: r.fournisseur_nom || (r.fournisseurs && r.fournisseurs.nom) || "", produit: l.produit_nom || "", reference: l.reference || "",
+          quantite: Number(l.quantite) || 0, lot: l.lot || "", dlc: l.dlc || "", allergenes: l.allergenes || "", origine: l.origine || "",
+          agrementSanitaire: l.agrement_sanitaire || "", conforme: l.conforme !== false, raison: l.motif_non_conformite || "",
+          quantiteNC: Number(l.quantite_nc) || 0, photoNC: l.photo_nc_url || null, ecartPrix: Number(l.ecart_prix) || 0,
+          valideChef: !!l.valide_chef, photoBon: null, photosBon: photos,
+        });
+      });
+    });
+    return liste;
+  }
+
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
         supabasePublic.from("planning_creneaux").select("*"),
         supabasePublic.from("huile_friture_tests").select("*").order("date", { ascending: false }).order("heure", { ascending: false }).limit(300),
+        lireReceptions(),
       ]);
       if (rh.error) throw rh.error;
       if (rp.error) throw rp.error;
@@ -284,6 +316,7 @@ export default function ConnexionReelle() {
           const dl = dateLocale(r.date_heure);
           return { id: r.id, equipementId: r.appareil_id, valeur: Number(r.valeur), date: dl.date, heure: dl.heure, employeeId: r.employe_id, conforme: r.conforme, manuel: true, note: r.note || "" };
         }),
+        receptions: receptionsLues,
         huileTests: (rh.data || []).map((r) => ({
           id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
           valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
@@ -337,6 +370,100 @@ export default function ConnexionReelle() {
       const listes = await chargerListesFroid();
       return listes ? listes[cle] : null;
     };
+  }
+
+  // Modifications faites sur la liste des réceptions (validation par le chef) ; les ajouts passent par enregistrerReception.
+  async function persisterReceptions(avant, apres) {
+    const mapAvant = new Map(avant.map((x) => [x.id, x]));
+    for (const x of apres) {
+      const o = mapAvant.get(x.id);
+      if (o && !!o.valideChef !== !!x.valideChef && EST_UUID.test(x.id || "")) {
+        const { error } = await supabasePublic.from("receptions_lignes").update({ valide_chef: !!x.valideChef }).eq("id", x.id);
+        if (error) throw error;
+      }
+    }
+    return null;
+  }
+
+  // Enregistre une réception validée : stock (quantités), lots (n° de lot, DLC…), en-tête, lignes et photos du bon.
+  async function enregistrerReception(entrees, photosBon, meta) {
+    const etab = session.etablissement.id;
+    const norm = (t) => String(t || "").trim().toLowerCase();
+    const fournisseur = (fournisseursCat || []).find((f) => norm(f.nom) === norm(meta.fournisseur));
+    const idFournisseur = fournisseur ? fournisseur.id : null;
+    const catalogueCourant = (catalogue || []).map((c) => ({ id: c.id, nom: c.nom, reference: c.reference, quantite: Number(c.quantite) || 0 }));
+    const trouver = (e) => catalogueCourant.find((c) => e.reference && norm(c.reference) === norm(e.reference)) || catalogueCourant.find((c) => norm(c.nom) === norm(e.produit));
+
+    // 1. Stock : on ajoute la quantité acceptée à chaque produit (ou on le crée s'il est inconnu).
+    const idProduitParLigne = {};
+    const modifies = new Set();
+    for (const e of entrees) {
+      const qte = Number(e.quantite) || 0;
+      if (qte <= 0 || !String(e.produit || "").trim()) continue;
+      let c = trouver(e);
+      if (c) {
+        c.quantite += qte;
+        modifies.add(c.id);
+      } else {
+        const { data, error } = await supabasePublic.from("produits").insert({
+          etablissement_id: etab, nom: String(e.produit).trim(), reference: e.reference || null, unite: "kg",
+          fournisseur_id: idFournisseur, quantite_stock: qte, quantite_cible: 0,
+        }).select("id").single();
+        if (error) throw error;
+        c = { id: data.id, nom: String(e.produit).trim(), reference: e.reference || "", quantite: qte };
+        catalogueCourant.push(c);
+      }
+      idProduitParLigne[e.id] = c.id;
+    }
+    for (const id of modifies) {
+      const c = catalogueCourant.find((x) => x.id === id);
+      const { error } = await supabasePublic.from("produits").update({ quantite_stock: c.quantite }).eq("id", id);
+      if (error) throw error;
+    }
+
+    // 2. Lots (un lot par produit réceptionné avec une quantité acceptée).
+    const lotParLigne = {};
+    for (const e of entrees) {
+      const produitId = idProduitParLigne[e.id];
+      if (!produitId) continue;
+      const allergenes = String(e.allergenes || "").split(/[,;]/).map((t) => t.trim()).filter(Boolean);
+      const { data, error } = await supabasePublic.from("lots_produits").insert({
+        etablissement_id: etab, produit_id: produitId, numero_lot: e.lot || null, dlc: e.dlc || null,
+        quantite_recue: Number(e.quantite) || 0, quantite_restante: Number(e.quantite) || 0,
+        allergenes_lot: allergenes.length ? allergenes : null, origine_lot: e.origine || null, agrement_sanitaire_lot: e.agrementSanitaire || null,
+        date_reception: new Date(`${meta.date}T${meta.heure || "00:00"}:00`).toISOString(),
+      }).select("id").single();
+      if (error) throw error;
+      lotParLigne[e.id] = data.id;
+    }
+
+    // 3. En-tête, lignes et photos du bon de livraison.
+    const { data: rec, error: errRec } = await supabasePublic.from("receptions").insert({
+      etablissement_id: etab, fournisseur_id: idFournisseur, fournisseur_nom: meta.fournisseur || null,
+      receptionne_par: EST_UUID.test(entrees[0] && entrees[0].employeeId || "") ? entrees[0].employeeId : null,
+      date_livraison: meta.date, heure_livraison: meta.heure || null,
+    }).select("id").single();
+    if (errRec) throw errRec;
+    const lignes = entrees.map((e) => ({
+      reception_id: rec.id, produit_id: idProduitParLigne[e.id] || null, produit_nom: e.produit || null, reference: e.reference || null,
+      quantite: Number(e.quantite) || 0, lot_cree_id: lotParLigne[e.id] || null, lot: e.lot || null, dlc: e.dlc || null,
+      allergenes: e.allergenes || null, origine: e.origine || null, agrement_sanitaire: e.agrementSanitaire || null,
+      conforme: e.conforme !== false, motif_non_conformite: e.raison || null, quantite_nc: Number(e.quantiteNC) || 0,
+      ecart_prix: Number(e.ecartPrix) || 0, photo_nc_url: e.photoNC || null, valide_chef: false,
+    }));
+    if (lignes.length) {
+      const { error } = await supabasePublic.from("receptions_lignes").insert(lignes);
+      if (error) throw error;
+    }
+    if (photosBon && photosBon.length) {
+      const { error } = await supabasePublic.from("receptions_photos_bon").insert(photosBon.map((u, i) => ({ reception_id: rec.id, url_photo: u, ordre: i })));
+      if (error) throw error;
+    }
+
+    // 4. Rechargement : le stock (quantités, lot, DLC) et la liste des réceptions.
+    await chargerCatalogue();
+    const lues = await lireReceptions();
+    setListesFroid((prev) => (prev ? { ...prev, receptions: lues } : prev));
   }
 
   // Pour un chef/directeur (codeDirection fourni), la liste contient aussi les e-mails.
@@ -482,12 +609,14 @@ export default function ConnexionReelle() {
       fournisseurs: fournisseursCat || undefined,
       gestionCatalogue: catalogue ? { enregistrer: enregistrerCatalogue } : undefined,
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
+      gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
       listes: listesFroid || undefined,
       gestionListes: listesFroid ? {
         equipements: { persister: fabriquerPersisterFroid("equipements") },
         releves: { persister: fabriquerPersisterFroid("releves") },
         surveillances: { persister: fabriquerPersisterFroid("surveillances") },
         huileTests: { persister: fabriquerPersisterFroid("huileTests") },
+        receptions: { persister: persisterReceptions },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
