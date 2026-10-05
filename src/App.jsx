@@ -9193,6 +9193,13 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   const [nouveauProduitQuantite, setNouveauProduitQuantite] = useState("");
   const [nouveauProduitRaison, setNouveauProduitRaison] = useState("");
   const [nouveauProduitPhoto, setNouveauProduitPhoto] = useState(null);
+  // Aperçu : nature du produit ajouté à l'étape 5 (livré en plus / manquant / autre non conforme).
+  const [nouveauProduitKind, setNouveauProduitKind] = useState("plus");
+  const [plusDecision, setPlusDecision] = useState("");
+  const [plusType, setPlusType] = useState("");
+  const [plusLot, setPlusLot] = useState("");
+  const [plusDlc, setPlusDlc] = useState("");
+  const [plusFusion, setPlusFusion] = useState("");
 
   const conformeTemp = (type) => {
     const v = parseFloat(temps[type]);
@@ -9275,12 +9282,22 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
     const nomPropre = nouveauProduitNom.trim();
     if (!nomPropre) return;
     const qte = nouveauProduitQuantite || "0";
-    setProduits((prev) => [...prev, {
-      id: uid(), nom: nomPropre, reference: "", quantite: qte, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "",
-      photo: null, tempRejete: false, conforme: false, raison: nouveauProduitRaison.trim() || "Produit non commandé",
-      quantiteNC: qte, photoNC: nouveauProduitPhoto,
-    }]);
+    const base = { id: uid(), nom: nomPropre, reference: "", quantite: qte, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", photo: null, tempRejete: false };
+    let nouveau;
+    if (modeManuel && nouveauProduitKind === "manquant") {
+      // Produit commandé/facturé mais non livré : aucune photo, uniquement mentionné dans le mail.
+      nouveau = { ...base, conforme: false, manquant: true, raison: "Produit manquant (non livré)", quantiteNC: qte, photoNC: null };
+    } else if (modeManuel && nouveauProduitKind === "plus" && plusDecision === "garde") {
+      // Produit livré en plus, conservé : entre normalement au stock (type, lot, DLC obligatoires), pas de mail.
+      nouveau = { ...base, conservation: plusType, lot: plusLot, dlc: plusDlc, fusion: plusFusion, conforme: true, enPlus: true, raison: "", quantiteNC: "", photoNC: null };
+    } else if (modeManuel && nouveauProduitKind === "plus") {
+      nouveau = { ...base, conforme: false, enPlus: true, raison: "Produit non commandé (livré en plus) — renvoyé", quantiteNC: qte, photoNC: nouveauProduitPhoto };
+    } else {
+      nouveau = { ...base, conforme: false, raison: nouveauProduitRaison.trim() || "Produit non commandé", quantiteNC: qte, photoNC: nouveauProduitPhoto };
+    }
+    setProduits((prev) => [...prev, nouveau]);
     setNouveauProduitNom(""); setNouveauProduitQuantite(""); setNouveauProduitRaison(""); setNouveauProduitPhoto(null);
+    setPlusDecision(""); setPlusType(""); setPlusLot(""); setPlusDlc(""); setPlusFusion("");
   };
 
   const analyserProduit = async (p) => {
@@ -9396,7 +9413,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
 
   // Texte du mail de retour fournisseur (aperçu à l'étape 6 et notification enregistrée).
   const construireMailNC = () => {
-    const emailSujet = `Réception du ${date} — ${fournisseur} — Non-conformités`;
+    const emailSujet = `Réception du ${date} — ${fournisseur} — ${nonConformesActuels.some((p) => !p.manquant) ? "Non-conformités" : "Produits manquants"}${nonConformesActuels.some((p) => p.manquant) && nonConformesActuels.some((p) => !p.manquant) ? " et produits manquants" : ""}`;
       // Au palier avec IA, le message est rédigé pour être envoyé quasiment tel quel (demande
       // explicite d'avoir/remboursement) — voir la bannière dédiée dans Contrôle & Gestion, qui
       // prévient qu'il reste un clic à faire : l'application ne peut techniquement pas envoyer
@@ -9404,11 +9421,12 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
     const emailCorps = [
         `Bonjour,`, ``,
         `Réception du ${date} à ${heure}, réceptionnée par ${moi?.nom || ""}.`, ``,
-        `Les produits suivants présentent une non-conformité et sont retournés :`,
-        ...nonConformesActuels.map((p) => `- ${p.nom} — ${p.quantiteNC} — motif : ${p.raison}${p.tempNC && temps[p.conservation] !== "" && temps[p.conservation] != null ? ` (température relevée : ${temps[p.conservation]} °C)` : ""}${p.ecartPrix ? ` — écart de prix signalé : ${p.ecartPrix} €` : ""}`),
-        ``,
-        ...(IA_ACTIVEE ? [`Merci de bien vouloir établir un avoir ou un remboursement correspondant à ces articles, et de nous confirmer la bonne prise en compte de ce retour.`, ``] : []),
-        `Photos du bon de livraison et des non-conformités jointes à ce message (bon n° ${receptionId.slice(0, 8)}, consultable dans notre application de gestion).`, ``, `Cordialement,`,
+        ...(nonConformesActuels.some((p) => !p.manquant) ? [`Les produits suivants présentent une non-conformité et sont retournés :`] : []),
+        ...nonConformesActuels.filter((p) => !p.manquant).map((p) => `- ${p.nom} — ${p.quantiteNC} — motif : ${p.raison}${p.tempNC && temps[p.conservation] !== "" && temps[p.conservation] != null ? ` (température relevée : ${temps[p.conservation]} °C)` : ""}${p.ecartPrix ? ` — écart de prix signalé : ${p.ecartPrix} €` : ""}`),
+        ...(nonConformesActuels.some((p) => !p.manquant) ? [``] : []),
+        ...(nonConformesActuels.some((p) => p.manquant) ? [`Les produits suivants figuraient sur la commande / le bon de livraison mais n'ont pas été livrés :`, ...nonConformesActuels.filter((p) => p.manquant).map((p) => `- ${p.nom} — ${p.quantiteNC} manquant(s)`), ``] : []),
+        ...(IA_ACTIVEE ? [`Merci de bien vouloir établir un avoir ou un remboursement correspondant à ces articles${nonConformesActuels.some((p) => p.manquant) ? " (ou de livrer les produits manquants)" : ""}, et de nous confirmer la bonne prise en compte.`, ``] : []),
+        ...(nonConformesActuels.some((p) => !p.manquant) ? [`Photos du bon de livraison et des non-conformités jointes à ce message (bon n° ${receptionId.slice(0, 8)}, consultable dans notre application de gestion).`, ``] : []), `Cordialement,`,
       ].join("\n");
     return { sujet: emailSujet, corps: emailCorps };
   };
@@ -9482,7 +9500,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         const mailNC = nonConformesActuels.length > 0 ? construireMailNC() : null;
         await optionsExterne.enregistrer(nouvellesEntrees, photosBonArchive, {
           fournisseur, date, heure,
-          notification: mailNC ? { sujet: mailNC.sujet, corps: mailNC.corps, ecartPrix: nonConformesActuels.reduce((t, p) => t + (Number(p.ecartPrix) || 0), 0), nonConformes: nonConformesActuels.map((p) => ({ nom: p.nom, quantiteNC: p.quantiteNC, raison: p.raison, photoNC: p.photoNC || null, ecartPrix: Number(p.ecartPrix) || 0 })) } : null,
+          notification: mailNC ? { sujet: mailNC.sujet, corps: mailNC.corps, ecartPrix: nonConformesActuels.reduce((t, p) => t + (Number(p.ecartPrix) || 0), 0), nonConformes: nonConformesActuels.map((p) => ({ nom: p.nom, quantiteNC: p.quantiteNC, raison: p.raison, manquant: !!p.manquant, photoNC: p.photoNC || null, ecartPrix: Number(p.ecartPrix) || 0 })) } : null,
         });
       } catch (e) {
         setErreurEnregistrement("Enregistrement impossible : " + ((e && e.message) || e) + " — rien n'a été validé, vous pouvez réessayer.");
@@ -9921,14 +9939,51 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               </div>
 
               <Card className="mt-4 border-dashed">
-                <p className="text-sm font-medium text-[var(--ink)] mb-2">+ Ajouter un produit non conforme absent de cette liste</p>
-                <p className="text-xs text-[var(--steel)] mb-2">Un produit livré en trop, non commandé, ou qui n'a jamais été saisi plus haut.</p>
+                <p className="text-sm font-medium text-[var(--ink)] mb-2">+ Ajouter un produit absent de cette liste</p>
+                {modeManuel && (
+                  <div className="flex flex-wrap gap-2 mb-3">
+                    {[["plus", "Livré en plus (non commandé)"], ["manquant", "Produit manquant (non livré)"], ["autre", "Autre produit non conforme"]].map(([k, l]) => (
+                      <Button key={k} variant={nouveauProduitKind === k ? "primary" : "ghost"} onClick={() => setNouveauProduitKind(k)}>{l}</Button>
+                    ))}
+                  </div>
+                )}
+                {!modeManuel && <p className="text-xs text-[var(--steel)] mb-2">Un produit livré en trop, non commandé, ou qui n'a jamais été saisi plus haut.</p>}
+                {modeManuel && nouveauProduitKind === "manquant" && <p className="text-xs text-[var(--steel)] mb-2">Un produit commandé (ou facturé) mais qui n'a pas été livré. Pas de photo : il sera simplement indiqué dans le mail au fournisseur.</p>}
+                {modeManuel && nouveauProduitKind === "plus" && <p className="text-xs text-[var(--steel)] mb-2">Un produit livré qui n'était pas commandé : vous le gardez ou vous le renvoyez.</p>}
                 <div className="space-y-2">
                   <input className={inputCls} placeholder="Nom du produit" value={nouveauProduitNom} onChange={(e) => setNouveauProduitNom(e.target.value)} />
-                  <input className={inputCls} type="number" placeholder="Quantité" value={nouveauProduitQuantite} onChange={(e) => setNouveauProduitQuantite(e.target.value)} />
-                  {modeManuel ? <ChampCauseNC value={nouveauProduitRaison} onChange={setNouveauProduitRaison} /> : <ChampTexteOuVocal value={nouveauProduitRaison} onChange={setNouveauProduitRaison} placeholder="Motif (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />}
-                  <PhotoInput small value={nouveauProduitPhoto} onChange={setNouveauProduitPhoto} label="Photo du produit" />
-                  <Button variant="ghost" onClick={ajouterNouveauProduitNC} disabled={!nouveauProduitNom.trim()}><Plus size={14} /> Ajouter ce produit non conforme</Button>
+                  <input className={inputCls} type="number" placeholder={modeManuel && nouveauProduitKind === "manquant" ? "Quantité manquante" : "Quantité"} value={nouveauProduitQuantite} onChange={(e) => setNouveauProduitQuantite(e.target.value)} />
+                  {modeManuel && nouveauProduitKind === "plus" && (
+                    <select className={inputCls} value={plusDecision} onChange={(e) => setPlusDecision(e.target.value)}>
+                      <option value="">Je garde ou je renvoie ce produit ?…</option>
+                      <option value="garde">Je garde le produit (il entre au stock)</option>
+                      <option value="renvoie">Je renvoie le produit (il sera indiqué dans le mail)</option>
+                    </select>
+                  )}
+                  {modeManuel && nouveauProduitKind === "plus" && plusDecision === "garde" && (
+                    <>
+                      <select className={inputCls} value={plusType} onChange={(e) => setPlusType(e.target.value)}>
+                        <option value="">Type de produit…</option>
+                        {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+                      </select>
+                      <input className={inputCls} placeholder="N° de lot" value={plusLot} onChange={(e) => setPlusLot(e.target.value)} />
+                      <ChampDateSaisie value={plusDlc} onChange={setPlusDlc} placeholder="DLC / DDM : JJ/MM/AAAA ou MM/AAAA" />
+                      {(() => {
+                        const sit = situationStock({ nom: nouveauProduitNom, conservation: plusType, reference: "" });
+                        if (!sit || sit.type !== "question") return null;
+                        return (
+                          <select className={inputCls} value={plusFusion} onChange={(e) => setPlusFusion(e.target.value)}>
+                            <option value="">« {sit.c[0].nom} » existe déjà sans type : même article ?…</option>
+                            <option value="existant">Oui, l'ajouter à l'article existant</option>
+                            <option value="nouveau">Non, créer un article distinct</option>
+                          </select>
+                        );
+                      })()}
+                    </>
+                  )}
+                  {(!modeManuel || nouveauProduitKind === "autre") && (modeManuel ? <ChampCauseNC value={nouveauProduitRaison} onChange={setNouveauProduitRaison} /> : <ChampTexteOuVocal value={nouveauProduitRaison} onChange={setNouveauProduitRaison} placeholder="Motif (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />)}
+                  {(!modeManuel || nouveauProduitKind === "autre" || (nouveauProduitKind === "plus" && plusDecision === "renvoie")) && <PhotoInput small value={nouveauProduitPhoto} onChange={setNouveauProduitPhoto} label="Photo du produit" />}
+                  <Button variant="ghost" onClick={ajouterNouveauProduitNC} disabled={!nouveauProduitNom.trim() || (modeManuel && nouveauProduitKind === "plus" && (!plusDecision || (plusDecision === "garde" && (!plusType || !plusLot.trim() || !plusDlc.trim() || (situationStock({ nom: nouveauProduitNom, conservation: plusType, reference: "" })?.type === "question" && !plusFusion)))))}><Plus size={14} /> Ajouter ce produit</Button>
                 </div>
               </Card>
 
