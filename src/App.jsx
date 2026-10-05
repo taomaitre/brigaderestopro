@@ -3746,7 +3746,7 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   );
 }
 
-function HaccpRefroidPage({ refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidPage({ cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -3755,7 +3755,7 @@ function HaccpRefroidPage({ refroidissements, setRefroidissements, currentUserId
       <SectionHeader title="Refroidissement rapide" subtitle="Suivi des refroidissements et de la cellule" />
       <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" />
       <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" />
-      <HaccpRefroidissement refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+      <HaccpRefroidissement cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -6202,13 +6202,14 @@ function EtiquetteRefroidissement({ r, who }) {
 
 const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Maintien à température", "Processus de refroidissement non conforme"];
 
-function HaccpRefroidissement({ refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
   const [produit, setProduit] = useState("");
   const [tempDebut, setTempDebut] = useState("");
   const [heureDepart, setHeureDepart] = useState(new Date().toTimeString().slice(0, 5));
   const [finForm, setFinForm] = useState({});
   const [etiquetteOuverte, setEtiquetteOuverte] = useState(null); // nom du produit dont on édite l'étiquette
+  const [cuissonChoisieId, setCuissonChoisieId] = useState(null);
   const today = todayISO();
 
   useEffect(() => {
@@ -6223,10 +6224,23 @@ function HaccpRefroidissement({ refroidissements, setRefroidissements, currentUs
     setHeureDepart(new Date().toTimeString().slice(0, 5));
   }, []);
 
+  // Produits sortis de cuisson et pas encore passés en refroidissement : proposés ici, déjà remplis.
+  const cuissonsPretes = cuissons.filter((c) => c.statut === "termine" && c.pretPourRefroidissement && !c.refroidissementLance);
+  const choisirCuisson = (c) => {
+    setProduit(c.produit); setModeDemarrage("positif");
+    setTempDebut(c.temperature != null && c.temperature !== "" ? String(c.temperature) : "");
+    setCuissonChoisieId(c.id);
+  };
+
   const demarrer = () => {
     if (!produit || tempDebut === "") return;
-    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
+    // Un produit venant d'une cuisson (choisi dans la liste, ou saisi avec le même nom) ne doit être refroidi qu'une fois :
+    // on le relie à sa cuisson, qui disparaît alors de « à mettre en refroidissement ».
+    const cuissonLiee = cuissonsPretes.find((c) => c.id === cuissonChoisieId) || cuissonsPretes.find((c) => (c.produit || "").trim().toLowerCase() === produit.trim().toLowerCase());
+    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
     setRefroidissements([entry, ...refroidissements]);
+    if (cuissonLiee && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === cuissonLiee.id ? { ...c, refroidissementLance: true } : c)));
+    setCuissonChoisieId(null);
     logActivity("HACCP", modeDemarrage === "negatif" ? "Congélation / surgélation démarrée" : "Refroidissement démarré", `${produit} — ${tempDebut}°C à ${heureDepart}`);
     setProduit(""); setTempDebut(""); setHeureDepart(new Date().toTimeString().slice(0, 5));
   };
@@ -6308,6 +6322,18 @@ function HaccpRefroidissement({ refroidissements, setRefroidissements, currentUs
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer un refroidissement</h3>
         <p className="text-xs text-[var(--steel)] mb-3">L'heure de départ est pré-remplie à l'heure actuelle — modifiable si vous démarrez avec un léger décalage.</p>
+        {cuissonsPretes.length > 0 && (
+          <div className="mb-3 p-3 rounded-lg border border-[var(--warn)]/40 bg-[var(--warn-soft)]">
+            <p className="text-xs font-medium text-[var(--ink)] mb-2">Sortis de cuisson, à mettre en refroidissement — touchez un produit pour le pré-remplir :</p>
+            <div className="flex flex-wrap gap-2">
+              {cuissonsPretes.map((c) => (
+                <button key={c.id} onClick={() => choisirCuisson(c)} className={`text-sm px-3 py-1.5 rounded-lg border ${cuissonChoisieId === c.id ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] bg-white text-[var(--ink)]"}`}>
+                  {c.produit} <span className="text-xs opacity-70">· {c.temperature}°C à {c.heureFin}</span>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
         <div className="flex gap-2 mb-3">
           <button onClick={() => setModeDemarrage("positif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "positif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Refroidissement rapide (positif)</button>
           <button onClick={() => setModeDemarrage("negatif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "negatif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Congélation / surgélation (négatif)</button>
@@ -6534,7 +6560,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
     const aTraiter = pretesPourRefroidissement.filter((c) => selectionRefroid.includes(c.id) && tempDebutRefroid[c.id]);
     if (aTraiter.length === 0) return;
     const nouveauxRefroidissements = aTraiter.map((c) => ({
-      id: uid(), date: today, employeeId: currentUserId, produit: c.produit,
+      id: uid(), date: today, employeeId: currentUserId, produit: c.produit, origineCuissonId: c.id,
       heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), tempDebut: tempDebutRefroid[c.id],
       heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null, cellNettoyee: false,
     }));
@@ -6624,6 +6650,33 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
           </div>
         </Card>
       )}
+
+      {(() => {
+        const suivis = cuissons
+          .filter((c) => c.statut === "termine" && c.refroidissementLance)
+          .map((c) => ({ c, r: refroidissements.find((x) => x.origineCuissonId === c.id) || refroidissements.find((x) => (x.produit || "").trim().toLowerCase() === (c.produit || "").trim().toLowerCase() && x.date === c.date) }))
+          .filter(({ c, r }) => c.date === today || (r && r.statut === "en-cours"));
+        if (suivis.length === 0) return null;
+        return (
+          <Card className="mb-6">
+            <h3 className="font-semibold text-[var(--ink)] mb-1">Passés en refroidissement</h3>
+            <p className="text-xs text-[var(--steel)] mb-3">Ces produits sont déjà pris en charge dans « Refroidissement rapide » — rien à relancer ici.</p>
+            <div className="space-y-2">
+              {suivis.map(({ c, r }) => (
+                <div key={c.id} className="border border-[var(--line)] rounded-lg p-3 flex items-center justify-between gap-2">
+                  <div>
+                    <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
+                    <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.temperature}°C à cœur</div>
+                  </div>
+                  {r && r.statut === "en-cours" && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] shrink-0">Refroidissement en cours depuis {r.heureDebut}</span>}
+                  {r && r.statut === "termine" && <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${r.conforme ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>Refroidissement terminé à {r.heureFin}{r.tempFin !== "" && r.tempFin != null ? ` · ${r.tempFin}°C` : ""}</span>}
+                  {!r && <span className="text-xs text-[var(--steel)] shrink-0">Refroidissement lancé</span>}
+                </div>
+              ))}
+            </div>
+          </Card>
+        );
+      })()}
 
       {pretesPourRefroidissement.length > 0 && (
         <Card className="mb-6 border-[var(--warn)]/40">
@@ -15020,7 +15073,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpTempPage tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} />
         )}
         {tab === "haccpRefroid" && (
-          <HaccpRefroidPage refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+          <HaccpRefroidPage cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpHuile" && (
           <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onFaireTest={modeExterne ? () => setHuileTestActif({ titre: "Test d'huile de friture", manuel: true }) : undefined} onDecisionMatin={modeExterne ? () => setHuileMatinActif({ titre: "Huile de friture" }) : undefined} />
