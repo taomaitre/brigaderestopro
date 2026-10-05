@@ -6583,9 +6583,14 @@ function HaccpCuisson({ cuissons, setCuissons, currentUserId, logActivity, who, 
               <option value="Four à pizza">Four à pizza</option>
               <option value="Four Rational">Four Rational</option>
               <option value="Four Atoll Speed / Mery Chef">Four Atoll Speed / Mery Chef</option>
+              <option value="Plaque de cuisson (induction / gaz)">Plaque de cuisson (induction / gaz)</option>
+              <option value="Marmite / sauteuse">Marmite / sauteuse</option>
+              <option value="Four traditionnel">Four traditionnel</option>
               <option value="Plancha">Plancha</option>
+              <option value="Grill / barbecue">Grill / barbecue</option>
               <option value="Friteuse">Friteuse</option>
               <option value="Salamandre">Salamandre</option>
+              <option value="Autre appareil">Autre appareil</option>
             </select>
           </Field>
           <Field label="Plat / programme"><input className={inputCls} value={produitProgramme} onChange={(e) => setProduitProgramme(e.target.value)} placeholder="Ex. Pizza margherita, prog. 3" /></Field>
