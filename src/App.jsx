@@ -10133,7 +10133,12 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   // ── Aides de saisie du brouillon ──
   const suggestions = brouillon && brouillon.nom.trim().length >= 1 && !stock.some((s) => norm(s.nom) === norm(brouillon.nom))
     ? stock.filter((s) => norm(s.nom).includes(norm(brouillon.nom))).slice(0, 6) : [];
-  const choisirDuStock = (s) => maj({ nom: s.nom, reference: s.reference || "", conservation: s.conservation || "" });
+  // Température déjà relevée sur un produit précédent du même type : proposée d'office (modifiable).
+  const tempPrecedente = (type) => {
+    const l = produits.filter((p) => p.conservation === type && p.temperature !== "" && p.temperature != null && !p.manquant);
+    return l.length ? String(l[l.length - 1].temperature) : "";
+  };
+  const choisirDuStock = (s) => maj({ nom: s.nom, reference: s.reference || "", conservation: s.conservation || "", temperature: tempPrecedente(s.conservation || "") });
 
   const sitStock = (p) => {
     if (!p.conservation || !norm(p.nom)) return null;
@@ -10356,7 +10361,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             </div>
             <div>
               <label className="text-sm font-medium text-[var(--ink)]">Type de produit</label>
-              <select className={inputCls} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value })}>
+              <select className={inputCls} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value, temperature: b.temperature === "" || b.temperature === tempPrecedente(b.conservation) ? tempPrecedente(e.target.value) : b.temperature })}>
                 <option value="">Choisir…</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
@@ -10379,6 +10384,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             <div className="mt-3">
               <label className="text-sm font-medium text-[var(--ink)]">Température à cœur (°C) — norme : {SEUILS_RECEPTION_NOUVEAU[b.conservation].label}</label>
               <input className={inputCls} type="number" step="0.1" inputMode="decimal" value={b.temperature} onChange={(e) => maj({ temperature: e.target.value })} />
+              {b.temperature !== "" && b.temperature === tempPrecedente(b.conservation) && <p className="text-xs text-[var(--steel)] mt-1">Reprise de la température du produit précédent du même type — modifiez-la si elle est différente.</p>}
               {etatTemp === "ok" && <p className="text-sm mt-1" style={{ color: "#2F6B4F" }}>✓ Température conforme</p>}
               {etatTemp === "tolerance" && <p className="text-sm mt-1" style={{ color: "#2F6B4F" }}>✓ Accepté (tolérance transport) — à mettre au congélateur immédiatement</p>}
               {tempNC && <p className="text-base font-semibold mt-1 text-[var(--warn)]">⚠ Hors norme{etatTemp === "gele" ? " : produit gelé ? (un produit frais ne doit pas arriver gelé)" : ""} — ce produit doit être refusé.</p>}
