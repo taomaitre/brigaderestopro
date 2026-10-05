@@ -7675,7 +7675,25 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
 
 /* ---------- module Stock & réception ---------- */
 
-function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity }) {
+// Quantité de stock saisissable à la main (en plus des boutons − et +) : validée en quittant le champ ou avec Entrée.
+function QuantiteEditable({ valeur, unite, onCommit }) {
+  const [texte, setTexte] = useState(String(valeur));
+  useEffect(() => { setTexte(String(valeur)); }, [valeur]);
+  const valider = () => {
+    const n = parseFloat(String(texte).replace(",", "."));
+    if (Number.isNaN(n) || n < 0) { setTexte(String(valeur)); return; }
+    if (n !== Number(valeur)) onCommit(n);
+  };
+  return (
+    <span className="inline-flex items-center gap-1">
+      <input type="text" inputMode="decimal" value={texte} onChange={(e) => setTexte(e.target.value)} onBlur={valider} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
+        className={`${inputCls} w-20 text-center font-semibold`} aria-label="Quantité en stock" />
+      <span className="text-sm text-[var(--steel)]">{unite}</span>
+    </span>
+  );
+}
+
+function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle }) {
   const [infosStockage, setInfosStockage] = useState(null);
   const [item, setItem] = useState({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" });
   const [aCommander, setACommander] = useState({});
@@ -7702,6 +7720,12 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     const s = stock.find((x) => x.id === id);
     setStock(stock.map((s) => (s.id === id ? { ...s, quantite: Math.max(0, Number(s.quantite) + delta) } : s)));
     if (s) logActivity("Stock", delta > 0 ? "Quantité augmentée" : "Quantité diminuée", `${s.nom} : ${delta > 0 ? "+" : ""}${delta} ${s.unite}`);
+  };
+
+  const fixerQty = (id, n) => {
+    const s = stock.find((x) => x.id === id);
+    setStock(stock.map((x) => (x.id === id ? { ...x, quantite: n } : x)));
+    if (s) logActivity("Stock", "Quantité modifiée à la main", `${s.nom} : ${s.quantite} → ${n} ${s.unite}`);
   };
 
   const updateCible = (id, valeur) => setStock(stock.map((s) => (s.id === id ? { ...s, cible: valeur } : s)));
@@ -7885,7 +7909,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-2 shrink-0">
                           <button onClick={() => adjustQty(s.id, -1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--line)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">−</button>
-                          <span className="text-center font-semibold text-[var(--ink)] whitespace-nowrap">{s.quantite} {s.unite}</span>
+                          {saisieManuelle ? <QuantiteEditable valeur={s.quantite} unite={s.unite} onCommit={(n) => fixerQty(s.id, n)} /> : <span className="text-center font-semibold text-[var(--ink)] whitespace-nowrap">{s.quantite} {s.unite}</span>}
                           <button onClick={() => adjustQty(s.id, 1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--line)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">+</button>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
@@ -14763,7 +14787,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "stock" && (
           consentementAccorde()
-            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} />
+            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} saisieManuelle={modeExterne} />
             : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
         )}
         {tab === "reception" && (
