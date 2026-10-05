@@ -1662,7 +1662,43 @@ function TableauTemperaturesDuJour({ equipementsFroid, relevesFroid, who, replia
 // de service cuisine + plonge, autres tâches du jour (hors repas du personnel/service, déjà couverts
 // ailleurs), matériel propre et éteint. Oui/Non par ligne ; Non permet d'ajouter une note reprise par
 // le mécanisme remarquesChef existant, donc l'employé concerné la retrouve le lendemain matin.
-function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning }) {
+// Carte "Huile de friture" du contrôle journalier : montre au chef si la décision du matin (filtration ou
+// remplacement) et le test bandelette du soir ont été faits aujourd'hui, par qui et à quelle heure.
+function CarteHuileDuJour({ huileTests, who }) {
+  const aujourdhui = todayISO();
+  const duJour = (huileTests || []).filter((h) => h.date === aujourdhui);
+  const matin = duJour.find((h) => /matin/i.test(h.resultat || ""));
+  const soir = duJour.find((h) => !/matin/i.test(h.resultat || ""));
+  const remplaceeCeMatin = matin && matin.resultat === "Remplacement (matin)";
+  const bon = (r) => ["Bonne", "Conforme", "Conservée"].includes(r);
+  const ligne = (titre, h, attente) => (
+    <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
+      <div className="flex items-center gap-3 min-w-0">
+        {h && h.photo && <img src={h.photo} alt="Bandelette" className="w-10 h-10 object-cover rounded-lg border border-[var(--line)]" />}
+        <div className="min-w-0">
+          <p className="text-[var(--ink)]">{titre}</p>
+          {h && <p className="text-xs text-[var(--steel)]">{h.heure}{who(h.employeeId) ? ` · ${who(h.employeeId)}` : ""}</p>}
+        </div>
+      </div>
+      {h ? (
+        <span className={`text-xs font-semibold px-2.5 py-1 rounded-full whitespace-nowrap ${bon(h.resultat) || /Filtration|Remplacement/.test(h.resultat) ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{h.resultat === "Bonne" ? "Test bon" : h.resultat === "Pas bonne" ? "Non conforme" : h.resultat}</span>
+      ) : (
+        <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--line)] text-[var(--steel)] whitespace-nowrap">{attente}</span>
+      )}
+    </div>
+  );
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Huile de friture</h3>
+      <div className="divide-y divide-[var(--line)]">
+        {ligne("Décision du matin (filtrer ou changer)", matin, "Pas encore fait")}
+        {remplaceeCeMatin && !soir ? ligne("Test bandelette du soir", null, "Non nécessaire (huile changée ce matin)") : ligne("Test bandelette du soir", soir, "Pas encore fait")}
+      </div>
+    </Card>
+  );
+}
+
+function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, huileTests, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning }) {
   const today = todayISO();
   const [statutsParJour, setStatutsParJour] = useStored("controle-planning-statuts", {});
   const [notesParJour, setNotesParJour] = useStored("controle-planning-notes", {});
@@ -1766,6 +1802,8 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
       <p className="text-xs text-[var(--steel)]">{valides} ✓ validé(s) · {nonValides} ✗ non validé(s) · {restants} restant(s) — un point non validé peut recevoir une note ; l'employé concerné la retrouvera demain matin.</p>
 
       {relevesFroid && <TableauTemperaturesDuJour equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} who={who} repliable />}
+
+      {huileTests && <CarteHuileDuJour huileTests={huileTests} who={who} />}
 
       {CATEGORIES.map((cat) => (
         <Card key={cat.titre}>
@@ -2554,25 +2592,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
       )}
 
       {sousEcran === "huile" && (
-        <Card className="mb-6">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">Tests huile du jour</h3>
-          {huileDuJour.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun aujourd'hui.</p> : (
-            <div className="space-y-2">
-              {huileDuJour.map((h) => (
-                <div key={h.id} className="flex items-center justify-between text-sm border-b border-[var(--line)] pb-2 last:border-0 last:pb-0">
-                  <div className="flex items-center gap-2.5">
-                    {h.photo && <img src={h.photo} alt="Test bandelette" className="w-12 h-12 object-cover rounded-lg border border-[var(--line)]" />}
-                    <div>
-                      <span className="text-[var(--ink)]">{who(h.employeeId)}</span>
-                      <span className="text-xs text-[var(--steel)] ml-2">{h.heure}</span>
-                    </div>
-                  </div>
-                  <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(h.resultat) ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{h.resultat}</span>
-                </div>
-              ))}
-            </div>
-          )}
-        </Card>
+        <div className="mb-6"><CarteHuileDuJour huileTests={huileTests} who={who} /></div>
       )}
 
       {sousEcran === "allergenes" && (
@@ -2790,7 +2810,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
 
       {sousEcran === "planning" && (
         <div className="mb-6">
-          <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
+          <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
         </div>
       )}
 
@@ -11661,7 +11681,7 @@ function ModalControleObligatoire({ moment, onClose }) {
   );
 }
 
-function ModalControleChef({ tasks, employees, preparations, produits, stock, equipementsFroid, relevesFroid, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
+function ModalControleChef({ tasks, employees, preparations, produits, stock, equipementsFroid, relevesFroid, huileTests, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
   const today = todayISO();
   // Même checklist, mêmes données, que "Gestion et contrôle" → tuile Planning côté chef — voir
   // ControlePlanningJour. Ici on ne fait qu'ajouter l'habillage modal (fermer / PDF / signer).
@@ -11679,7 +11699,7 @@ function ModalControleChef({ tasks, employees, preparations, produits, stock, eq
         </div>
         <h2 className="font-bold text-[var(--ink)] mb-3 hidden print:block">Contrôle de fin de service — {fmtLong(today)}</h2>
 
-        <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
+        <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
 
         <button onClick={() => { onSigner(); onClose(); }} className="mt-4 w-full py-3 rounded-xl font-bold text-sm print:hidden" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
           Terminer le contrôle
@@ -12139,7 +12159,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       })()}
 
       {modalOuvert === "controle-chef" && (
-        <ModalControleChef tasks={tasks} employees={employees} preparations={preparations} produits={produits} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} currentUserId={currentUserId} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} logActivity={logActivity} cleaning={cleaning}
+        <ModalControleChef tasks={tasks} employees={employees} preparations={preparations} produits={produits} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} currentUserId={currentUserId} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} logActivity={logActivity} cleaning={cleaning}
           onSigner={() => logActivity("Contrôle", "Contrôle de fin de service signé", `Par ${employees.find((e) => e.id === currentUserId)?.nom || ""}`)}
           onClose={() => { setModalOuvert(null); setModalCollegue(null); }} />
       )}
