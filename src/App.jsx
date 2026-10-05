@@ -2988,7 +2988,10 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
             {fournisseurs.map((f) => (
               <Card key={f.id} className="!p-0 overflow-hidden">
                 <button onClick={() => setFournisseurOuvert((c) => (c === f.id ? null : f.id))} className="w-full flex items-center justify-between px-4 py-3 text-left">
-                  <span className="font-medium text-[var(--ink)] text-sm">{f.nom}</span>
+                  <span>
+                    <span className="font-medium text-[var(--ink)] text-sm block">{f.nom}</span>
+                    {f.coordonnees_a_completer && <span className="block text-xs font-medium" style={{ color: "var(--warn)" }}>En attente des coordonnées</span>}
+                  </span>
                   <span className="text-xs text-[var(--steel)]">{f.jours_livraison ? `Livraison : ${f.jours_livraison} ` : ""}{fournisseurOuvert === f.id ? "▲" : "▼"}</span>
                 </button>
                 {fournisseurOuvert === f.id && (
@@ -3093,6 +3096,10 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
       sortie[c] = val;
     });
     sortie.nom = String(v.nom).trim();
+    if (!estProduit) {
+      const aUneCoordonnee = ["contact_nom", "telephone", "email", "adresse"].some((c) => sortie[c]);
+      sortie.coordonnees_a_completer = aUneCoordonnee ? false : !!(edition.valeurs && edition.valeurs.coordonnees_a_completer);
+    }
     onSauver(sortie);
   };
   return (
@@ -9120,6 +9127,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   const modeManuel = !!optionsExterne;
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
   const [erreurEnregistrement, setErreurEnregistrement] = useState("");
+  const [autreFournisseur, setAutreFournisseur] = useState(false);
 
   const [fournisseur, setFournisseur] = useState("");
   const [date, setDate] = useState(todayISO());
@@ -9487,7 +9495,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       </div>
 
       {step === 1 && (
-        <StepShell titre="Informations générales" nextLabel="Suivant" onNext={() => { setDateHeureVerrouillees(true); setStep(2); }}>
+        <StepShell titre="Informations générales" nextLabel="Suivant" onNext={() => { setDateHeureVerrouillees(true); setStep(2); }} nextDisabled={modeManuel && !fournisseur.trim()}>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <Field label="Réceptionné par">
               <div className="flex items-center gap-2 border border-[var(--line)] rounded-lg px-3 py-2 bg-[var(--bg)]">
@@ -9496,8 +9504,23 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               </div>
             </Field>
             <Field label="Fournisseur">
-              <input list="fournisseurs-connus" className={inputCls} value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} placeholder="Choisir ou saisir un fournisseur" />
-              <datalist id="fournisseurs-connus">{fournisseursConnus.map((f) => <option key={f} value={f} />)}</datalist>
+              {modeManuel ? (
+                <>
+                  <select className={inputCls} value={autreFournisseur ? "__autre__" : fournisseur} onChange={(e) => { if (e.target.value === "__autre__") { setAutreFournisseur(true); setFournisseur(""); } else { setAutreFournisseur(false); setFournisseur(e.target.value); } }}>
+                    <option value="">— Choisir le fournisseur —</option>
+                    {fournisseursConnus.map((f) => <option key={f} value={f}>{f}</option>)}
+                    <option value="__autre__">+ Autre fournisseur (dépannage, magasin…)</option>
+                  </select>
+                  {autreFournisseur && <input autoComplete="off" className={`${inputCls} mt-1`} value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} placeholder="Nom du fournisseur (ex. Carrefour, Promocash)" />}
+                  {autreFournisseur && <span className="text-xs text-[var(--steel)] block mt-1">Il sera ajouté à la liste des fournisseurs « en attente des coordonnées » : le chef les complétera plus tard.</span>}
+                  {!fournisseur.trim() && <span className="text-xs text-[var(--warn)] block mt-1">Le fournisseur est obligatoire.</span>}
+                </>
+              ) : (
+                <>
+                  <input list="fournisseurs-connus" className={inputCls} value={fournisseur} onChange={(e) => setFournisseur(e.target.value)} placeholder="Choisir ou saisir un fournisseur" />
+                  <datalist id="fournisseurs-connus">{fournisseursConnus.map((f) => <option key={f} value={f} />)}</datalist>
+                </>
+              )}
             </Field>
             <Field label="Date de livraison">
               {dateHeureVerrouillees ? (

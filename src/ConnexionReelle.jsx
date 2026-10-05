@@ -131,7 +131,7 @@ export default function ConnexionReelle() {
   async function chargerCatalogue() {
     try {
       const [rf, rp, rl] = await Promise.all([
-        supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note").order("nom"),
+        supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note, coordonnees_a_completer").order("nom"),
         supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, fournisseurs(nom)").order("nom"),
         supabasePublic.from("lots_produits").select("produit_id, numero_lot, dlc, quantite_restante, date_reception").order("date_reception", { ascending: false }).limit(1000),
       ]);
@@ -391,7 +391,15 @@ export default function ConnexionReelle() {
     const etab = session.etablissement.id;
     const norm = (t) => String(t || "").trim().toLowerCase();
     const fournisseur = (fournisseursCat || []).find((f) => norm(f.nom) === norm(meta.fournisseur));
-    const idFournisseur = fournisseur ? fournisseur.id : null;
+    let idFournisseur = fournisseur ? fournisseur.id : null;
+    // Fournisseur inconnu (dépannage dans un magasin, par ex.) : créé tout de suite, avec le rappel « en attente des coordonnées ».
+    if (!idFournisseur && String(meta.fournisseur || "").trim()) {
+      const { data: nouveau, error: errF } = await supabasePublic.from("fournisseurs").insert({
+        etablissement_id: etab, nom: String(meta.fournisseur).trim(), coordonnees_a_completer: true,
+      }).select("id").single();
+      if (errF) throw errF;
+      idFournisseur = nouveau.id;
+    }
     const catalogueCourant = (catalogue || []).map((c) => ({ id: c.id, nom: c.nom, reference: c.reference, conservation: c.conservation || "", quantite: Number(c.quantite) || 0 }));
     // Même référence → même produit. Sinon même nom ET même type (un produit frais et le même surgelé sont deux articles distincts) ;
     // un article déjà existant sans type précisé adopte celui de la réception.
