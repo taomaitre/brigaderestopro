@@ -1595,6 +1595,66 @@ function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFou
   );
 }
 
+// Liste de TOUS les appareils de froid avec la dernière température relevée aujourd'hui : où, quelle
+// valeur, quand, par qui, et si c'est conforme — pour voir d'un coup d'œil ce qui est à corriger.
+// repliable=true : affiche d'abord un résumé « Températures 3/4 » sur lequel on clique pour déplier.
+function TableauTemperaturesDuJour({ equipementsFroid, relevesFroid, who, repliable }) {
+  const [ouvert, setOuvert] = useState(!repliable);
+  const aujourdhui = todayISO();
+  const lignes = equipementsFroid.map((eq) => {
+    const dernier = relevesFroid
+      .filter((r) => r.equipementId === eq.id && r.date === aujourdhui)
+      .slice()
+      .sort((a, b) => `${b.date} ${b.heure || ""}`.localeCompare(`${a.date} ${a.heure || ""}`))[0];
+    const conforme = dernier ? (dernier.conforme == null ? equipementConforme(eq, dernier.valeur) : dernier.conforme) : null;
+    return { eq, dernier, conforme };
+  });
+  const releves = lignes.filter((l) => l.dernier).length;
+  const horsNorme = lignes.filter((l) => l.dernier && l.conforme === false).length;
+  const manquants = lignes.length - releves;
+  const norme = (eq) => (eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`);
+
+  if (equipementsFroid.length === 0) return <p className="text-sm text-[var(--steel)]">Aucun appareil de froid enregistré.</p>;
+
+  const liste = (
+    <ul className="space-y-1.5">
+      {lignes.map(({ eq, dernier, conforme }) => {
+        const etat = !dernier ? "manquant" : conforme === false ? "hors" : "ok";
+        return (
+          <li key={eq.id} className={`rounded-lg p-2.5 border text-sm ${etat === "hors" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : etat === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+            <div className="flex items-center justify-between gap-2 flex-wrap">
+              <span className="font-medium text-[var(--ink)]">{eq.nom}</span>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${etat === "hors" ? "bg-[var(--warn)] text-white" : etat === "ok" ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--steel)] border border-[var(--line)]"}`}>
+                {etat === "hors" ? "Hors norme" : etat === "ok" ? "Conforme" : "Pas encore relevé"}
+              </span>
+            </div>
+            <div className="text-xs text-[var(--steel)] mt-0.5">
+              Norme : {norme(eq)}
+              {dernier && <> · <span className={etat === "hors" ? "text-[var(--warn)] font-semibold" : "text-[var(--ink)] font-semibold"}>{dernier.valeur}°C</span> à {dernier.heure}{who && who(dernier.employeeId) ? ` · ${who(dernier.employeeId)}` : ""}</>}
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+
+  if (!repliable) return liste;
+  return (
+    <Card>
+      <button onClick={() => setOuvert((o) => !o)} className="w-full flex items-center justify-between gap-2 text-left">
+        <span className="font-semibold text-[var(--ink)]">
+          Températures {releves}/{lignes.length}
+          {horsNorme > 0 && <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--warn)] text-white">{horsNorme} hors norme</span>}
+          {horsNorme === 0 && manquants === 0 && <span className="ml-2 text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--accent)] text-white">Tout est relevé</span>}
+        </span>
+        <span className="text-xs text-[var(--steel)]">{ouvert ? "▲" : "▼"}</span>
+      </button>
+      {manquants > 0 && !ouvert && <p className="text-xs text-[var(--steel)] mt-1">{manquants} appareil(s) pas encore relevé(s) aujourd'hui — touchez pour voir lesquels.</p>}
+      {ouvert && <div className="mt-3">{liste}</div>}
+    </Card>
+  );
+}
+
 // Checklist de contrôle de fin de journée, partagée entre "Gestion et contrôle" → tuile
 // Planning (chef) et le bouton Contrôle du Planning de chaque employé — même contenu, même état,
 // pour que le chef et l'employé du lendemain voient exactement la même chose. Volontairement une
@@ -1602,7 +1662,7 @@ function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFou
 // de service cuisine + plonge, autres tâches du jour (hors repas du personnel/service, déjà couverts
 // ailleurs), matériel propre et éteint. Oui/Non par ligne ; Non permet d'ajouter une note reprise par
 // le mécanisme remarquesChef existant, donc l'employé concerné la retrouve le lendemain matin.
-function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning }) {
+function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning }) {
   const today = todayISO();
   const [statutsParJour, setStatutsParJour] = useStored("controle-planning-statuts", {});
   const [notesParJour, setNotesParJour] = useStored("controle-planning-notes", {});
@@ -1704,6 +1764,8 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
   return (
     <div className="space-y-6">
       <p className="text-xs text-[var(--steel)]">{valides} ✓ validé(s) · {nonValides} ✗ non validé(s) · {restants} restant(s) — un point non validé peut recevoir une note ; l'employé concerné la retrouvera demain matin.</p>
+
+      {relevesFroid && <TableauTemperaturesDuJour equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} who={who} repliable />}
 
       {CATEGORIES.map((cat) => (
         <Card key={cat.titre}>
@@ -2378,6 +2440,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
         <>
         <Card className="mb-6">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Frigos & congélateurs</h3>
+          <div className="mb-3"><TableauTemperaturesDuJour equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} who={who} /></div>
           {relevesFroidDuJour.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun relevé aujourd'hui.</p> : (
             <div className="space-y-2">
               <p className="text-xs text-[var(--steel)]">{relevesFroidDuJour.filter((r) => r.conforme).length}/{relevesFroidDuJour.length} relevés conformes</p>
@@ -2727,7 +2790,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
 
       {sousEcran === "planning" && (
         <div className="mb-6">
-          <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
+          <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
         </div>
       )}
 
@@ -11598,7 +11661,7 @@ function ModalControleObligatoire({ moment, onClose }) {
   );
 }
 
-function ModalControleChef({ tasks, employees, preparations, produits, stock, equipementsFroid, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
+function ModalControleChef({ tasks, employees, preparations, produits, stock, equipementsFroid, relevesFroid, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
   const today = todayISO();
   // Même checklist, mêmes données, que "Gestion et contrôle" → tuile Planning côté chef — voir
   // ControlePlanningJour. Ici on ne fait qu'ajouter l'habillage modal (fermer / PDF / signer).
@@ -11616,7 +11679,7 @@ function ModalControleChef({ tasks, employees, preparations, produits, stock, eq
         </div>
         <h2 className="font-bold text-[var(--ink)] mb-3 hidden print:block">Contrôle de fin de service — {fmtLong(today)}</h2>
 
-        <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
+        <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
 
         <button onClick={() => { onSigner(); onClose(); }} className="mt-4 w-full py-3 rounded-xl font-bold text-sm print:hidden" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
           Terminer le contrôle
@@ -11839,7 +11902,7 @@ function ModalNettoyagePeriodique({ frequence, cleaning, setCleaning, moi, onClo
   );
 }
 
-function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, remarquesChef, setRemarquesChef }) {
+function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef }) {
   const today = todayISO();
   const [form, setForm] = useState({ titre: "", heure: "", categorie: "Préparation", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", jourDuMois: 1, date: today, declencheHuile: false, declencheChangementHuile: false, declencheTracabilite: false, declencheRefroidissement: false });
   const [expanded, setExpanded] = useState(null);
@@ -12076,7 +12139,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       })()}
 
       {modalOuvert === "controle-chef" && (
-        <ModalControleChef tasks={tasks} employees={employees} preparations={preparations} produits={produits} stock={stock} equipementsFroid={equipementsFroid} currentUserId={currentUserId} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} logActivity={logActivity} cleaning={cleaning}
+        <ModalControleChef tasks={tasks} employees={employees} preparations={preparations} produits={produits} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} currentUserId={currentUserId} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} logActivity={logActivity} cleaning={cleaning}
           onSigner={() => logActivity("Contrôle", "Contrôle de fin de service signé", `Par ${employees.find((e) => e.id === currentUserId)?.nom || ""}`)}
           onClose={() => { setModalOuvert(null); setModalCollegue(null); }} />
       )}
@@ -13859,7 +13922,7 @@ function KitchenApp({ identiteExterne } = {}) {
           </div>
         )}
         {tab === "taches" && (
-          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} />
+          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} />
         )}
         {tab === "stock" && (
           consentementAccorde()
