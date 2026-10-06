@@ -17557,16 +17557,16 @@ function KitchenApp({ identiteExterne } = {}) {
             )}
             <HorlogeEnTete />
           </div>
-          <nav className="grid gap-2 px-4 pb-3" style={{ gridTemplateColumns: "7.5rem repeat(6, minmax(0, 1fr))", gridTemplateRows: "repeat(2, 4.5rem)" }}>
+          <nav className="grid gap-1.5 px-4 pb-2" style={{ gridTemplateColumns: "5rem repeat(6, minmax(0, 1fr))", gridTemplateRows: "repeat(2, 2.25rem)" }}>
             <button onClick={() => setTab("accueil")} style={{ gridRow: "span 2" }}
-              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 text-base font-bold transition-colors ${tab === "accueil" ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
-              <ChefHat size={38} />Accueil
+              className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 text-xs font-bold transition-colors ${tab === "accueil" ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
+              <ChefHat size={24} />Accueil
             </button>
             {navItems.map((n) => (
               <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
-                className={`relative flex flex-col items-center justify-center gap-1 px-2 rounded-xl border-2 text-[13px] font-semibold leading-tight text-center transition-colors ${tab === n.id ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
-                <n.icon size={22} />
-                <span className="line-clamp-2">{n.label}</span>
+                className={`relative flex items-center justify-center gap-1.5 px-2 rounded-lg border-2 text-[11px] font-semibold leading-[1.1] text-left transition-colors ${tab === n.id ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
+                <n.icon size={15} className="shrink-0" />
+                <span className="line-clamp-2 min-w-0">{n.label}</span>
                 {badges[n.id] > 0 && (
                   <span className="absolute top-1 right-1 text-[10px] rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#C1432D", color: "#ffffff" }}>{badges[n.id]}</span>
                 )}
