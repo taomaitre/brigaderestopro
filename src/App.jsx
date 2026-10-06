@@ -96,6 +96,7 @@ const Mail = makeIcon([RC(2, 4, 20, 16, 2), P("m22 6-8.97 6.7a2 2 0 0 1-2.06 0L2
 const Loader2 = makeIcon([P("M21 12a9 9 0 1 1-6.219-8.56")]);
 const XCircle = makeIcon([C(12, 12, 10), L(15, 9, 9, 15), L(9, 9, 15, 15)]);
 const Mic = makeIcon([RC(9, 2, 6, 11, 3), P("M19 10v2a7 7 0 0 1-14 0v-2"), L(12, 19, 12, 22)]);
+const SprayCan = makeIcon([P("M3 3h.01"), P("M7 5h.01"), P("M11 7h.01"), P("M3 7h.01"), P("M7 9h.01"), P("M3 11h.01"), RC(15, 5, 4, 4, 0), P("m19 9 2 2v10c0 .6-.4 1-1 1h-6c-.6 0-1-.4-1-1V11l2-2"), P("m13 14 8-2"), P("m13 19 8-2")]);
 const Sparkles = makeIcon([P("m12 3-1.9 4.9L5 9.8l4.9 1.9L12 16.6l1.9-4.9 4.9-1.9-4.9-1.9z"), P("M5 3v4"), P("M19 17v4"), P("M3 5h4"), P("M17 19h4")]);
 const MapPin = makeIcon([P("M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"), C(12, 10, 3)]);
 
@@ -2390,7 +2391,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
     { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, couleur: TUILE_COULEURS.stock, section: "gestion" },
     { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, couleur: TUILE_COULEURS.reception, section: "gestion" },
     { id: "comptes", label: "Gestion des comptes", icon: Users, couleur: TUILE_COULEURS.comptes, section: "gestion" },
-    { id: "pms", label: "PMS — plan de nettoyage", icon: Droplets, couleur: TUILE_COULEURS.haccpHuile, section: "gestion" },
+    { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, couleur: TUILE_COULEURS.haccpHuile, section: "gestion" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, couleur: TUILE_COULEURS.fiches, section: "gestion" },
   ];
   // "Planning employé" et "Réservation client" sont réservées à la direction : elles ne sont
