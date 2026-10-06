@@ -3209,8 +3209,9 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
                             ["Conditionnement", s.conditionnement || "—"],
                             ["Prix d'achat", s.prixUnitaire || "—"],
                             ["Type", s.conservation ? (LIBELLE_CONSERVATION[s.conservation] || s.conservation) : "—"],
-                            ["Conservation après fabrication", s.dlcJours != null ? `${s.dlcJours} j` : "—"],
-                            ["Après ouverture", s.delaiOuverture != null ? `${s.delaiOuverture} j` : "—"],
+                            ["DLC après ouverture", (s.delaiOuverture != null ? s.delaiOuverture : s.dlcJours) != null ? `${s.delaiOuverture != null ? s.delaiOuverture : s.dlcJours} j` : "—"],
+                            ["Origine", s.origineNorme || "—"],
+                            ["Allergènes", s.allergenesNorme || "—"],
                             ["Poids par pièce", s.poidsParPiece || "—"],
                           ].map(([k, val]) => (
                             <div key={k}><dt className="text-[var(--steel)]">{k}</dt><dd className="text-[var(--ink)] font-medium">{val}</dd></div>
@@ -3260,7 +3261,7 @@ const UNITES_PRIX = ["€/kg", "€/L", "€/pièce", "€/botte", "€/boîte",
 
 function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreur, onSauver, onAnnuler }) {
   const estProduit = edition.table === "produits";
-  const [v, setV] = useState(() => ({ ...edition.valeurs }));
+  const [v, setV] = useState(() => { const b = { ...edition.valeurs }; if (b.delai_apres_ouverture_jours == null && b.delai_jours_dlc != null) b.delai_apres_ouverture_jours = b.delai_jours_dlc; return b; });
   const [categorieNouvelle, setCategorieNouvelle] = useState(false);
   const maj = (cle, val) => setV((x) => ({ ...x, [cle]: val }));
   const champTexte = (cle, label, requis) => (
@@ -3273,7 +3274,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     if (!String(v.nom || "").trim()) return;
     const sortie = {};
     const cles = estProduit
-      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours"]
+      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours", "allergenes_norme", "origine_norme"]
       : CHAMPS_FOURNISSEUR.map((c) => c.cle);
     cles.forEach((c) => {
       let val = v[c];
@@ -3286,6 +3287,11 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
       sortie[c] = val;
     });
     sortie.nom = String(v.nom).trim();
+    if (estProduit) {
+      // Une seule DLC : celle de l'emballage du fabricant (ou, à défaut, celle du tableau des DLC).
+      sortie.delai_jours_dlc = sortie.delai_apres_ouverture_jours;
+      sortie.allergenes_norme = Array.isArray(v.allergenes_norme) ? v.allergenes_norme : [];
+    }
     if (!estProduit) {
       const aUneCoordonnee = ["contact_nom", "telephone", "email", "adresse"].some((c) => sortie[c]);
       sortie.coordonnees_a_completer = aUneCoordonnee ? false : !!(edition.valeurs && edition.valeurs.coordonnees_a_completer);
@@ -3322,8 +3328,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
             </label>
-            {champTexte("delai_jours_dlc", "Durée de conservation après fabrication (en jours)")}
-            {champTexte("delai_apres_ouverture_jours", "Durée après ouverture, si notée sur l'emballage (en jours)")}
+            {champTexte("delai_apres_ouverture_jours", "DLC après ouverture (en jours) — celle indiquée sur l'emballage du fabricant, sinon celle du tableau des DLC")}
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
               <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
@@ -3339,6 +3344,18 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
               </select>
             </label>
             {champTexte("poids_par_piece", "Poids par pièce (ex. 150 g)")}
+            {champTexte("origine_norme", "Origine du produit (ex. France, UE, Italie)")}
+            <div className="sm:col-span-2 text-xs text-[var(--steel)]">
+              Allergènes du produit (14 réglementaires) — ils se coucheront tout seuls dans les fiches techniques qui utilisent ce produit
+              <div className="flex flex-wrap gap-1.5 mt-1.5">
+                {ALLERGENES_14.map((a) => {
+                  const liste = Array.isArray(v.allergenes_norme) ? v.allergenes_norme : [];
+                  const on = liste.includes(a);
+                  return <button key={a} type="button" onClick={() => maj("allergenes_norme", on ? liste.filter((x) => x !== a) : [...liste, a])}
+                    className={`px-2.5 py-1 rounded-full border text-xs font-medium ${on ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>{on ? "✓ " : ""}{a}</button>;
+                })}
+              </div>
+            </div>
             {champTexte("note", "Note")}
           </>
         ) : CHAMPS_FOURNISSEUR.map((c) => champTexte(c.cle, c.label, c.requis))}
@@ -5505,9 +5522,13 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               ))}
             </div>
             {avecModes && produitACreer && gestionCatalogue && (
-              <FormulaireCatalogue key={produitACreer.valeurs.nom} edition={produitACreer} fournisseurs={fournisseursCatalogue || []}
-                categories={[...new Set((stock || []).map((x) => x.categorie).filter(Boolean))]} enCours={produitEnCours} erreur={erreurProduit}
-                onSauver={sauverProduit} onAnnuler={() => { setProduitACreer(null); setErreurProduit(""); }} />
+              <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
+                <div className="w-full max-w-3xl mt-6">
+                  <FormulaireCatalogue key={produitACreer.valeurs.nom} edition={produitACreer} fournisseurs={fournisseursCatalogue || []}
+                    categories={[...new Set((stock || []).map((x) => x.categorie).filter(Boolean))]} enCours={produitEnCours} erreur={erreurProduit}
+                    onSauver={sauverProduit} onAnnuler={() => { setProduitACreer(null); setErreurProduit(""); }} />
+                </div>
+              </div>
             )}
             <Button variant="ghost" onClick={ajouterIngredient}><Plus size={14} /> Ajouter un ingrédient</Button>
 
