@@ -1301,7 +1301,8 @@ function Field({ label, children }) {
 }
 
 // Champs et listes compacts du plan de nettoyage : hauteur fixe, texte jamais plus grand que la case
-const champNetAuto = "h-10 min-w-0 max-w-full px-2.5 border border-[var(--line)] rounded-lg text-sm text-[var(--ink)] bg-white truncate focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)]";
+const bordNet = "!border-[color-mix(in_srgb,var(--steel)_45%,white)]";
+const champNetAuto = "h-10 min-w-0 max-w-full px-2.5 border border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg text-sm text-[var(--ink)] bg-white truncate focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)]";
 const champNet = `${champNetAuto} w-full`;
 const libNet = "block text-sm font-medium text-[var(--ink)] mb-1";
 const inputCls =
@@ -4254,7 +4255,7 @@ function QuiCompactNettoyage({ v, maj, employees }) {
         <div className="flex flex-wrap gap-1 mt-1 col-span-full">
           {(employees || []).filter((e) => e.id !== "direction").map((e) => {
             const on = (v.personnes || []).includes(e.id);
-            return <button type="button" key={e.id} onClick={() => maj({ assigneA: "personnes", personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{e.nom}</button>;
+            return <button type="button" key={e.id} onClick={() => maj({ assigneA: "personnes", personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[color-mix(in_srgb,var(--steel)_45%,white)]"}`}>{e.nom}</button>;
           })}
           {!(v.personnes || []).length && <span className="text-xs text-[var(--warn)]">Choisissez au moins une personne.</span>}
         </div>
@@ -4314,7 +4315,7 @@ function ChampZoneNettoyage({ value, onChange, zones }) {
     <Field label="Zone et poste (vous les nommez comme vous voulez : Poste chaud, Pâtisserie, Plonge…)">
       {creer ? (
         <div className="flex gap-2">
-          <input className={`${inputCls} flex-1`} placeholder="Nom de la nouvelle zone" onChange={(e) => onChange(e.target.value)} autoFocus />
+          <input className={`${inputCls} ${bordNet} flex-1`} placeholder="Nom de la nouvelle zone" onChange={(e) => onChange(e.target.value)} autoFocus />
           <button type="button" className="text-xs text-[var(--steel)] underline" onClick={() => { setCreer(false); onChange("Tous"); }}>Annuler</button>
         </div>
       ) : (
@@ -4343,7 +4344,7 @@ function ChampsQuiNettoyage({ v, maj, employees }) {
           <div className="flex flex-wrap gap-1.5">
             {(employees || []).filter((e) => e.id !== "direction").map((e) => {
               const on = (v.personnes || []).includes(e.id);
-              return <button type="button" key={e.id} onClick={() => maj({ personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{e.nom}</button>;
+              return <button type="button" key={e.id} onClick={() => maj({ personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[color-mix(in_srgb,var(--steel)_45%,white)]"}`}>{e.nom}</button>;
             })}
           </div>
           {!(v.personnes || []).length && <p className="text-xs text-[var(--warn)] mt-1">Choisissez au moins une personne.</p>}
@@ -4369,17 +4370,17 @@ function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCan
       <div className="bg-white rounded-2xl p-5 w-full max-w-2xl shadow-xl mt-10">
         <div className="font-semibold text-[var(--ink)] mb-3">{titre}</div>
         <div className="space-y-3">
-          <Field label="Quelle tâche ? (ex. Frigo viande — portes et intérieur)"><input className={`${inputCls} w-full`} value={v.tache} onChange={(e) => maj({ tache: e.target.value })} autoFocus /></Field>
+          <Field label="Quelle tâche ? (ex. Frigo viande — portes et intérieur)"><input className={`${inputCls} ${bordNet} w-full`} value={v.tache} onChange={(e) => maj({ tache: e.target.value })} autoFocus /></Field>
           <ChampZoneNettoyage value={v.poste} onChange={(z) => maj({ poste: z })} zones={zones} />
           <ChampsFrequenceNettoyage v={v} maj={maj} />
           <QuiCompactNettoyage v={v} maj={maj} employees={employees} />
-          <Field label="Produit, dosage et méthode (protocole à respecter)"><textarea className={`${inputCls} w-full`} rows={4} value={v.note} onChange={(e) => maj({ note: e.target.value })} placeholder="ex. Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon la fiche du produit." /></Field>
+          <Field label="Produit, dosage et méthode (protocole à respecter)"><textarea className={`${inputCls} ${bordNet} w-full`} rows={4} value={v.note} onChange={(e) => maj({ note: e.target.value })} placeholder="ex. Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon la fiche du produit." /></Field>
           <Field label="Étapes à effectuer (facultatif — ex. pour une friteuse : vidanger, dégraisser, rincer…)">
             <div className="space-y-2">
               {(v.etapes || []).map((e, i) => (
                 <div key={i} className="flex gap-2">
                   <span className="w-6 h-9 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
-                  <input className={`${inputCls} flex-1`} placeholder="Décrire l'étape" value={e} onChange={(ev) => maj({ etapes: (v.etapes || []).map((x, j) => (j === i ? ev.target.value : x)) })} />
+                  <input className={`${inputCls} ${bordNet} flex-1`} placeholder="Décrire l'étape" value={e} onChange={(ev) => maj({ etapes: (v.etapes || []).map((x, j) => (j === i ? ev.target.value : x)) })} />
                   <button type="button" onClick={() => maj({ etapes: (v.etapes || []).filter((_, j) => j !== i) })} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
                 </div>
               ))}
@@ -4401,7 +4402,7 @@ function BlocLignesAppareilNettoyage({ lignes, majLigne }) {
   return (
     <div className="space-y-2">
       {lignes.map((l, i) => (
-        <div key={i} className={`border rounded-lg p-3 space-y-2 ${l.on ? "border-[var(--line)] bg-white" : "border-dashed border-[var(--line)] bg-[var(--bg)]"}`}>
+        <div key={i} className={`border rounded-lg p-3 space-y-2 ${l.on ? "border-[color-mix(in_srgb,var(--steel)_45%,white)] bg-white" : "border-dashed border-[color-mix(in_srgb,var(--steel)_45%,white)] bg-[var(--bg)]"}`}>
           <div className="flex items-center gap-2">
             <input type="checkbox" className="w-5 h-5 shrink-0" checked={l.on} onChange={() => majLigne(i, { on: !l.on })} />
             <input className={`${champNetAuto} flex-1`} value={l.suffixe} onChange={(e) => majLigne(i, { suffixe: e.target.value })} disabled={!l.on} title={l.suffixe} />
@@ -4484,13 +4485,13 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
               </select>
             </Field>
             <div className="sm:col-span-2"><Field label="Appareil ou surface">
-              <select className={`${inputCls} w-full`} value={choix[0]} onChange={(e) => choisir(catalogue.find((c) => c.categorie === categorie).items.find((it) => it[0] === e.target.value))}>
+              <select className={`${inputCls} ${bordNet} w-full`} value={choix[0]} onChange={(e) => choisir(catalogue.find((c) => c.categorie === categorie).items.find((it) => it[0] === e.target.value))}>
                 {catalogue.find((c) => c.categorie === categorie).items.map((it) => <option key={it[0]} value={it[0]}>{it[0]}</option>)}
               </select>
             </Field></div>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2"><Field label={estLibre(choix) ? "Son nom (il sera ajouté à votre liste)" : "Son nom chez vous (ex. Frigo desserts)"}><input className={`${inputCls} w-full`} value={nom} onChange={(e) => setNom(e.target.value)} autoFocus /></Field></div>
+            <div className="sm:col-span-2"><Field label={estLibre(choix) ? "Son nom (il sera ajouté à votre liste)" : "Son nom chez vous (ex. Frigo desserts)"}><input className={`${inputCls} ${bordNet} w-full`} value={nom} onChange={(e) => setNom(e.target.value)} autoFocus /></Field></div>
             <Field label="Combien ?">
               <select className={inputCls} value={nombre} onChange={(e) => changerNombre(Number(e.target.value))}>
                 {Array.from({ length: 10 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
@@ -4508,7 +4509,7 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
           )}
           {memes || nombre === 1 ? champsReglage(0, nombre > 1, false) : (
             exemplaires.map((k) => (
-              <div key={k} className="border-2 border-[var(--line)] rounded-lg p-3 bg-[var(--bg)] space-y-2">
+              <div key={k} className="border-2 border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg p-3 bg-[var(--bg)] space-y-2">
                 <p className="text-sm font-bold text-[var(--ink)]">Exemplaire {k + 1} sur {nombre}</p>
                 {champsReglage(k, false, true)}
               </div>
@@ -4596,14 +4597,14 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
             <p className="text-sm font-semibold text-[var(--ink)] mt-3 mb-1">Vos zones et postes</p>
             <p className="text-xs text-[var(--steel)] mb-3">Les endroits ou postes de votre cuisine, nommés comme vous voulez (ex. Poste chaud, Pizza, Froid, Pâtisserie, Plonge, Réserve…). Vous pourrez ensuite attribuer chaque appareil à une zone dans le plan. Facultatif : vous pouvez aussi passer directement à l'écran suivant.</p>
             <div className="flex flex-wrap gap-2 mb-2">
-              {toutesZones.filter((z) => z !== "Tous").map((z) => <span key={z} className="text-xs font-medium bg-[var(--bg)] border border-[var(--line)] rounded-full px-3 py-1">{z}</span>)}
+              {toutesZones.filter((z) => z !== "Tous").map((z) => <span key={z} className="text-xs font-medium bg-[var(--bg)] border border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-full px-3 py-1">{z}</span>)}
               {!toutesZones.filter((z) => z !== "Tous").length && <span className="text-xs text-[var(--steel)]">Aucune zone pour l'instant.</span>}
             </div>
             <div className="flex gap-2">
-              <input className={`${inputCls} flex-1`} placeholder="Nom d'une zone ou d'un poste" value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterZone(); }} autoFocus />
+              <input className={`${inputCls} ${bordNet} flex-1`} placeholder="Nom d'une zone ou d'un poste" value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterZone(); }} autoFocus />
               <Button variant="ghost" onClick={ajouterZone}><Plus size={14} /> Ajouter</Button>
             </div>
-            <div className="flex justify-end gap-2 mt-5 border-t border-[var(--line)] pt-3">
+            <div className="flex justify-end gap-2 mt-5 border-t border-[color-mix(in_srgb,var(--steel)_45%,white)] pt-3">
               <Button variant="ghost" onClick={onCancel}>Annuler</Button>
               <Button onClick={() => setEcran(2)}>Suivant</Button>
             </div>
@@ -4627,9 +4628,9 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
                         <div className="flex flex-wrap items-center gap-2 text-sm">
                           <span className="flex-1 min-w-[10rem] text-[var(--ink)]">{nom}{dejaAuPlan(cherche) && <span className="ml-2 text-xs text-[var(--steel)]">✓ déjà dans votre plan</span>}</span>
                           <div className="flex items-center gap-1.5">
-                            <button type="button" onClick={() => changer(c.categorie, nom, -1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none bg-white">−</button>
+                            <button type="button" onClick={() => changer(c.categorie, nom, -1)} className="w-8 h-8 rounded-lg border border-[color-mix(in_srgb,var(--steel)_45%,white)] text-lg leading-none bg-white">−</button>
                             <span className="w-6 text-center font-semibold">{n}</span>
-                            <button type="button" onClick={() => changer(c.categorie, nom, 1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none bg-white">+</button>
+                            <button type="button" onClick={() => changer(c.categorie, nom, 1)} className="w-8 h-8 rounded-lg border border-[color-mix(in_srgb,var(--steel)_45%,white)] text-lg leading-none bg-white">+</button>
                           </div>
                           {n > 0 && (
                             <select className={`${champNetAuto}`} value={l.every((u) => u.zone === l[0].zone) ? l[0].zone : "__varie__"} onChange={(e) => { if (e.target.value !== "__varie__") zoneDeTous(c.categorie, nom, e.target.value); }} title="Zone et poste">
@@ -4644,7 +4645,7 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
                         {n > 0 && detailOuvert[k0] && (
                           <div className="mt-2 space-y-2">
                             {l.map((u, k) => (
-                              <div key={k} className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-white border border-[var(--line)] rounded-lg p-2">
+                              <div key={k} className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-white border border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg p-2">
                                 <input className={`${champNetAuto}`} value={u.nom} placeholder={n > 1 ? `${nom} ${k + 1}` : nom} onChange={(e) => majUnite(c.categorie, nom, k, { nom: e.target.value })} />
                                 <select className={`${champNetAuto}`} value={u.zone} onChange={(e) => majUnite(c.categorie, nom, k, { zone: e.target.value })}>
                                   {toutesZones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
@@ -4665,7 +4666,7 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
               </div>
             ))}
             <p className="text-xs text-[var(--steel)] mb-3">Les éléments que vous ajoutez à la main sont signalés à l'équipe qui fait évoluer le logiciel, pour qu'ils rejoignent la liste.</p>
-            <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] pt-3">
+            <div className="flex items-center justify-between gap-2 border-t border-[color-mix(in_srgb,var(--steel)_45%,white)] pt-3">
               <span className="text-sm text-[var(--ink)]">{apercu.length} tâche{apercu.length > 1 ? "s" : ""} seront ajoutées au plan.</span>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => setEcran(1)}>Retour</Button>
@@ -4707,7 +4708,7 @@ function AjoutExemplairesNettoyage({ t, zones, employees, onAjouter }) {
   const changerTotal = (n) => { setTotal(n); setLignes((l) => Array.from({ length: n - 1 }, (_, k) => l[k] || (l.length ? { ...l[l.length - 1], nom: `${base} ${k + 2}`, sonde: "" } : modele(k)))); };
   const maj = (k, p) => setLignes((l) => l.map((x, i) => (i === k ? { ...x, ...p } : x)));
   return (
-    <div className="border-2 border-[var(--line)] rounded-lg p-3 space-y-3 bg-[var(--bg)]">
+    <div className="border-2 border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg p-3 space-y-3 bg-[var(--bg)]">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-semibold text-[var(--ink)]">Combien en avez-vous en tout dans votre cuisine ?</span>
         <select className={`${champNetAuto}`} value={total} onChange={(e) => changerTotal(Number(e.target.value))}>{Array.from({ length: 10 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select>
@@ -4715,7 +4716,7 @@ function AjoutExemplairesNettoyage({ t, zones, employees, onAjouter }) {
       </div>
       {total > 1 && <p className="text-sm text-[var(--ink)]">« {base} » ci-dessus est le n° 1. Réglez ici les {total - 1} autre{total > 2 ? "s" : ""} :</p>}
       {lignes.map((x, k) => (
-        <div key={k} className="border border-[var(--line)] rounded-lg p-2.5 bg-white space-y-2">
+        <div key={k} className="border border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg p-2.5 bg-white space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className={refrigere ? "" : "sm:col-span-2"}><label className={libNet}>Nom (n° {k + 2})</label><input className={`${champNet}`} value={x.nom} onChange={(e) => maj(k, { nom: e.target.value })} /></div>
             {refrigere && <div><label className={libNet}>Sonde n°</label><input className={`${champNet}`} value={x.sonde} placeholder="facultatif" onChange={(e) => maj(k, { sonde: e.target.value })} /></div>}
@@ -4737,7 +4738,7 @@ function LignePlanNettoyage({ t, zones, employees, modeMulti, choisie, onChoisir
   const setFreq = (f) => set(normaliserTacheNet({ ...t, frequence: f }));
   const etapes = t.etapes || [];
   return (
-    <div className={`border rounded-lg p-2.5 ${choisie ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
+    <div className={`border rounded-lg p-2.5 ${choisie ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[color-mix(in_srgb,var(--steel)_45%,white)] bg-white"}`}>
       <div className="flex flex-wrap items-center gap-2">
         {modeMulti && <input type="checkbox" className="w-5 h-5" checked={choisie} onChange={onChoisir} title="Sélectionner cette ligne" />}
         <ChampTexteDiffere value={t.tache} onCommit={(v) => v.trim() && set({ tache: v.trim() })} className={`${champNetAuto} flex-1 min-w-[12rem]`} />
@@ -4759,18 +4760,18 @@ function LignePlanNettoyage({ t, zones, employees, modeMulti, choisie, onChoisir
         {t.sonde ? ` · sonde ${t.sonde}` : ""}{etapes.length ? ` · ${etapes.length} étape${etapes.length > 1 ? "s" : ""}` : ""}
       </p>
       {ouverte && (
-        <div className="mt-2 pt-2 border-t border-[var(--line)] space-y-3">
+        <div className="mt-2 pt-2 border-t border-[color-mix(in_srgb,var(--steel)_45%,white)] space-y-3">
           <ChampsFrequenceNettoyage v={t} maj={(p) => set(normaliserTacheNet({ ...t, ...p }))} />
           <QuiCompactNettoyage v={t} maj={(p) => set(p)} employees={employees} />
-          {estRefrigereNet(t) && <Field label="Numéro de sonde (facultatif)"><ChampTexteDiffere value={t.sonde || ""} onCommit={(v) => set({ sonde: v.trim() || undefined })} className={`${inputCls} w-full`} placeholder="ex. 3" /></Field>}
+          {estRefrigereNet(t) && <Field label="Numéro de sonde (facultatif)"><ChampTexteDiffere value={t.sonde || ""} onCommit={(v) => set({ sonde: v.trim() || undefined })} className={`${inputCls} ${bordNet} w-full`} placeholder="ex. 3" /></Field>}
           <AjoutExemplairesNettoyage t={t} zones={zones} employees={employees} onAjouter={onAjouterExemplaires} />
-          <Field label="Produit, dosage et méthode"><ChampTexteDiffere multiline value={t.note || ""} onCommit={(v) => set({ note: v })} className={`${inputCls} w-full`} /></Field>
+          <Field label="Produit, dosage et méthode"><ChampTexteDiffere multiline value={t.note || ""} onCommit={(v) => set({ note: v })} className={`${inputCls} ${bordNet} w-full`} /></Field>
           <Field label="Étapes à effectuer (facultatif)">
             <div className="space-y-2">
               {etapes.map((e, i) => (
                 <div key={i} className="flex gap-2">
                   <span className="w-6 h-9 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
-                  <ChampTexteDiffere value={e} onCommit={(v) => set({ etapes: etapes.map((x, j) => (j === i ? v : x)) })} className={`${inputCls} flex-1`} placeholder="Décrire l'étape" />
+                  <ChampTexteDiffere value={e} onCommit={(v) => set({ etapes: etapes.map((x, j) => (j === i ? v : x)) })} className={`${inputCls} ${bordNet} flex-1`} placeholder="Décrire l'étape" />
                   <button type="button" onClick={() => set({ etapes: etapes.filter((_, j) => j !== i) })} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
                 </div>
               ))}
@@ -4861,15 +4862,15 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
         <Button variant="ghost" onClick={() => setEditeur({ id: null, initial: {} })}><Plus size={16} /> Ajouter une tâche libre</Button>
       </div>
       {cleaning.length === 0 ? (
-        <div className="rounded-lg border border-[var(--line)] p-3 bg-[var(--bg)]">
+        <div className="rounded-lg border border-[color-mix(in_srgb,var(--steel)_45%,white)] p-3 bg-[var(--bg)]">
           <p className="text-sm text-[var(--ink)] mb-2">Aucune tâche pour l'instant. <strong>Faites l'inventaire de votre cuisine</strong> : vos zones, puis combien vous avez de chaque chose. Le plan est créé avec les fréquences du guide officiel de bonnes pratiques d'hygiène du restaurateur, et vous l'ajustez ici. Vous pouvez aussi partir d'un <strong>plan de 19 tâches communes à toute cuisine</strong> (sols, murs, plans de travail, poubelles, plonge, hotte…). Ce sont des propositions : c'est à l'établissement de fixer ses fréquences selon ses risques.</p>
           {chargerPlanDepart && <Button variant="ghost" onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de départ (19 tâches)</Button>}
         </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-1.5 mb-3">
-            {[["tableau", "Tableau"], ["jour", "Par jour"]].map(([k, lib]) => <button key={k} type="button" onClick={() => setVue(k)} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${vue === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{lib}</button>)}
-            {vue === "tableau" && <button type="button" onClick={() => (modeMulti ? quitterMulti() : (setModeMulti(true), setMessageGroupe(null)))} className={`ml-auto px-3 py-1.5 rounded-full text-xs font-medium border ${modeMulti ? "bg-[var(--warn)] text-white border-[var(--warn)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{modeMulti ? "Terminer la sélection multiple" : "Modifier plusieurs lignes à la fois"}</button>}
+            {[["tableau", "Tableau"], ["jour", "Par jour"]].map(([k, lib]) => <button key={k} type="button" onClick={() => setVue(k)} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${vue === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[color-mix(in_srgb,var(--steel)_45%,white)]"}`}>{lib}</button>)}
+            {vue === "tableau" && <button type="button" onClick={() => (modeMulti ? quitterMulti() : (setModeMulti(true), setMessageGroupe(null)))} className={`ml-auto px-3 py-1.5 rounded-full text-xs font-medium border ${modeMulti ? "bg-[var(--warn)] text-white border-[var(--warn)]" : "bg-white text-[var(--ink)] border-[color-mix(in_srgb,var(--steel)_45%,white)]"}`}>{modeMulti ? "Terminer la sélection multiple" : "Modifier plusieurs lignes à la fois"}</button>}
           </div>
           {messageGroupe && !modeMulti && <p className="text-xs text-[var(--accent)] font-medium mb-2">{messageGroupe}</p>}
           <div className="flex flex-wrap gap-2 mb-3">
@@ -4920,7 +4921,7 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
               </div>
             </div>
           )}
-          <div className="flex flex-wrap gap-2 pt-3 mt-4 border-t border-[var(--line)]">
+          <div className="flex flex-wrap gap-2 pt-3 mt-4 border-t border-[color-mix(in_srgb,var(--steel)_45%,white)]">
             {confirmerVider
               ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Effacer les {cleaning.length} tâches du plan ?</span><Button variant="danger" onClick={() => { setCleaning([]); setConfirmerVider(false); setChoisies([]); logActivity("Nettoyage", "Plan de nettoyage entièrement effacé", `${cleaning.length} tâches`); }}>Oui, tout effacer</Button><Button variant="ghost" onClick={() => setConfirmerVider(false)}>Non</Button></span>
               : <Button variant="ghost" onClick={() => setConfirmerVider(true)}>Effacer tout le plan et recommencer</Button>}
