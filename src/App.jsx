@@ -4981,6 +4981,26 @@ function NormeAutreBloc({ titre, norme, note, autre, valeur, justif, unite, text
   );
 }
 const MENTION_NORME_PERSO = " — norme personnalisée sous la responsabilité de l'établissement";
+// Normes personnalisées (« Autre ») choisies dans les fiches techniques, par nom de produit (prévisualisation nouvelle base).
+// Renseigné à chaque rendu par le composant principal ; lu par les écrans Refroidissement / Maintien au chaud.
+let NORMES_PERSO_FICHES = {};
+function construireNormesPersoFiches(fichesListe) {
+  const m = {};
+  (fichesListe || []).forEach((f) => {
+    const p = f.procedes || {};
+    const e = {};
+    if (p.refroid && p.refroid.on && p.refroid.autre) e.refroid = `${p.refroid.cibleTxt || "norme à préciser"}${p.refroid.justif ? ` (justification : ${p.refroid.justif})` : ""}`;
+    if (p.maintien && p.maintien.on && p.maintien.autre) e.maintien = `≥ +${p.maintien.temp || "?"} °C à cœur${p.maintien.justif ? ` (justification : ${p.maintien.justif})` : ""}`;
+    if (p.remise && p.remise.on && p.remise.autre) e.remise = `≥ +${p.remise.cible || "?"} °C à cœur${p.remise.justif ? ` (justification : ${p.remise.justif})` : ""}`;
+    if (Object.keys(e).length) m[(f.nom || "").trim().toLowerCase()] = e;
+  });
+  return m;
+}
+function MentionNormePersoFiche({ nom, etape }) {
+  const e = NORMES_PERSO_FICHES[(nom || "").trim().toLowerCase()];
+  if (!e || !e[etape]) return null;
+  return <div className="text-xs text-[var(--warn)] mt-1">⚠ La fiche technique de ce produit prévoit une norme personnalisée : {e[etape]}.{MENTION_NORME_PERSO}. Les contrôles ci-dessous restent calculés sur la norme officielle.</div>;
+}
 
 function haccpRowsFiche(S) {
   const p = S.procedes, rows = [];
@@ -6058,7 +6078,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
 
         <div className="flex justify-between gap-2 mt-5 pt-4 border-t border-[var(--line)]">
           <Button variant="ghost" onClick={() => setStep((s) => { const p = etapesVisibles.indexOf(s); return etapesVisibles[Math.max(0, p - 1)]; })} disabled={etapesVisibles.indexOf(step) <= 0}>← Précédent</Button>
-          <Button onClick={() => setStep((s) => { const p = etapesVisibles.indexOf(s); return etapesVisibles[Math.min(etapesVisibles.length - 1, p + 1)]; })} disabled={etapesVisibles.indexOf(step) === etapesVisibles.length - 1}>Suivant →</Button>
+          {avecModes && etapesVisibles.indexOf(step) === etapesVisibles.length - 1
+            ? <Button onClick={enregistrer} disabled={bloquant}>Enregistrer la fiche</Button>
+            : <Button onClick={() => setStep((s) => { const p = etapesVisibles.indexOf(s); return etapesVisibles[Math.min(etapesVisibles.length - 1, p + 1)]; })} disabled={etapesVisibles.indexOf(step) === etapesVisibles.length - 1}>Suivant →</Button>}
         </div>
       </Card>
 
@@ -6776,6 +6798,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                     <div className="flex-1">
                       <div className="text-sm text-[var(--ink)] font-medium">{e.nom} <span className="text-xs text-[var(--steel)] font-normal">— {e.appareil}</span></div>
                       <div className="text-xs text-[var(--steel)]">Depuis {e.heureDebut} · {minutes} min</div>
+                      <MentionNormePersoFiche nom={e.nom} etape="maintien" />
                     </div>
                     {selectionEnCours.includes(e.id) && (
                       <input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="T° sortie" value={tempSortie[e.id] ?? ""} onChange={(ev) => setTempSortie({ ...tempSortie, [e.id]: ev.target.value })} />
@@ -7000,6 +7023,7 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
                   <div className="flex items-center justify-between mb-2">
                     <div>
                       <div className="text-sm font-medium text-[var(--ink)]">{r.type === "negatif" ? "❄ " : ""}{r.produit} — départ {r.tempDebut}°C à {r.heureDebut}</div>
+                      <MentionNormePersoFiche nom={r.produit} etape="refroid" />
                       <div className={`text-xs ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? ` — délai de ${norme.dureeMaxMin / 60}h dépassé !` : ` / ${norme.dureeMaxMin} min max`} · {who(r.employeeId)}</div>
                     </div>
                   </div>
@@ -14727,6 +14751,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const catalogueCuissonFiches = React.useMemo(() => fichesExternes
     .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
     .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "", controles: f.procedes.cuisson.controles || null, seuilPerso: f.procedes.cuisson.coeurAutre ? seuilCuissonPerso(f.procedes.cuisson) : undefined })), [fichesExternes]);
+  NORMES_PERSO_FICHES = React.useMemo(() => (modeExterne ? construireNormesPersoFiches(fichesExternes) : {}), [modeExterne, fichesExternes]);
   const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
   const catalogueCuisson = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
   const setCatalogueCuisson = modeExterne ? (() => {}) : setCatalogueCuissonBase;
