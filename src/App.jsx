@@ -4081,6 +4081,7 @@ const PROTO_NET = {
   degivrage: "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.",
   simple: "Nettoyant désinfectant alimentaire, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.",
 };
+const noteDepartNet = (re) => (PLAN_NETTOYAGE_DEPART.find((t) => re.test(t.tache)) || {}).note || PROTO_NET.simple;
 const REPERE_GBPH = (page, texte) => `\nRepère officiel (guide GBPH Restaurateur, tableau p.${page}) : ${texte}`;
 // Nettoyages proposés par type d'appareil : fréquences du tableau officiel « Fréquences indicatives de nettoyage et désinfection »
 // (guide GBPH Restaurateur, DILA 2015, p.19-24 — « à personnaliser en fonction de l'établissement »). Tout reste modifiable.
@@ -4122,21 +4123,37 @@ const TYPES_APPAREIL_NETTOYAGE = {
   surface: { lignes: [
     { suffixe: "nettoyage et désinfection", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
   ] },
+  // Surfaces et locaux : mêmes fréquences et mêmes repères officiels que le plan de départ (guide GBPH Restaurateur, p.19-24)
+  sol: { lignes: [
+    { suffixe: "nettoyage et désinfection", frequence: "Quotidienne", moments: ["midi", "soir"], note: noteDepartNet(/^Sol de la cuisine/) },
+    { suffixe: "parties difficilement accessibles (sous et derrière les équipements)", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 1, moments: ["soir"], note: noteDepartNet(/^Sols —/) },
+  ] },
+  murs: { lignes: [{ suffixe: "parties accessibles — nettoyage et désinfection", frequence: "Hebdomadaire", jours: ["Jeudi"], moments: ["soir"], note: noteDepartNet(/^Murs de la cuisine/) }] },
+  plafond: { lignes: [{ suffixe: "nettoyage et désinfection", frequence: "Annuelle", moisAnnee: 1, jourAnnee: 1, moments: ["soir"], note: noteDepartNet(/^Plafonds/) }] },
+  plan: { lignes: [{ suffixe: "nettoyage et désinfection", frequence: "Quotidienne", moments: ["midi", "soir"], note: noteDepartNet(/^Plans de travail/) }] },
+  etagere: { lignes: [{ suffixe: "nettoyage et désinfection", frequence: "Hebdomadaire", jours: ["Jeudi"], moments: ["soir"], note: noteDepartNet(/^Étagères/) }] },
+  reserve: { lignes: [{ suffixe: "sol et étagères", frequence: "Hebdomadaire", jours: ["Lundi"], moments: ["soir"], note: noteDepartNet(/^Réserve/) }] },
+  evacuation: { lignes: [{ suffixe: "paniers siphons en place et propres", frequence: "Quotidienne", moments: ["soir"], note: noteDepartNet(/^Bouches d'évacuation/) }] },
+  poubelle: { lignes: [{ suffixe: "vidée, nettoyée et désinfectée", frequence: "Quotidienne", moments: ["midi", "soir"], note: noteDepartNet(/^Poubelles de cuisine/) }] },
+  voirie: { lignes: [{ suffixe: "nettoyage et désinfection", frequence: "Hebdomadaire", jours: ["Samedi"], moments: ["soir"], note: noteDepartNet(/^Poubelles de voirie/) }] },
+  contact: { lignes: [{ suffixe: "nettoyage et désinfection", frequence: "Quotidienne", moments: ["soir"], note: noteDepartNet(/^Points de contact/) }] },
+  evier: { lignes: [{ suffixe: "robinetterie, bacs, distributeurs de savon", frequence: "Quotidienne", moments: ["midi", "soir"], note: noteDepartNet(/^Éviers et lave-mains/) }] },
+  lavevaisselle: { lignes: [{ suffixe: "filtres, bras de lavage et joints", frequence: "Hebdomadaire", jours: ["Lundi"], moments: ["soir"], note: noteDepartNet(/^Lave-vaisselle/) + REPERE_GBPH(24, "plonge automatique : veiller à l'entretien et à la maintenance de l'appareil.") }] },
   autre: { lignes: [
     { suffixe: "nettoyage", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
   ] },
 };
 // Liste des appareils et surfaces d'une cuisine : le chef indique ce qu'il a réellement (rien n'est obligatoire).
 const CATALOGUE_APPAREILS_NETTOYAGE = [
-  { categorie: "Froid et congélation", items: [["Frigo", "froidpos"], ["Saladette / table réfrigérée", "froidpos"], ["Chambre froide positive", "chambrepos"], ["Chambre froide négative", "froidneg"], ["Congélateur", "froidneg"], ["Congélateur à glace", "froidneg"], ["Vitrine réfrigérée", "vitrine"], ["Cellule de refroidissement ou de congélation", "cellule"], ["Machine à glaçons", "froidpos"]] },
-  { categorie: "Cuisson", items: [["Four", "four"], ["Four mixte", "four"], ["Four à pizza", "four"], ["Plaque à induction", "four"], ["Piano / feux vifs", "four"], ["Plancha", "four"], ["Friteuse", "four"], ["Grill / salamandre", "four"], ["Bain-marie", "four"], ["Cuiseur multifonction / sauteuse", "four"], ["Micro-ondes", "petit"], ["Hotte et filtres", "hotte"]] },
-  { categorie: "Petit matériel", items: [["Robot batteur", "petit"], ["Robot coupe / mixeur", "petit"], ["Hachoir", "petit"], ["Trancheuse", "petit"], ["Coupe-légumes", "petit"], ["Pétrin", "petit"], ["Machine sous vide", "sousvide"], ["Chauffe-pot", "petit"], ["Balance", "petit"]] },
-  { categorie: "Plonge et lavage", items: [["Lave-vaisselle", "lavage"], ["Plonge (bacs)", "lavage"], ["Évier de lavage des légumes", "lavage"], ["Lave-mains", "lavage"]] },
-  { categorie: "Surfaces et locaux", items: [["Étagères et rangements", "surface"], ["Réserve / stockage sec", "surface"], ["Bouche d'évacuation supplémentaire", "surface"]] },
+  { categorie: "Surfaces et locaux", items: [["Sol de la cuisine", "sol", /^sols?\b/i], ["Murs et carrelage", "murs", /^murs/i], ["Plafonds", "plafond", /^plafond/i], ["Plans de travail", "plan", /^plans? de travail/i], ["Étagères et rangements", "etagere", /^étagères/i], ["Réserve / stockage", "reserve", /^réserve/i], ["Bouche d'évacuation (égout, siphon)", "evacuation", /^bouches? d'évacuation/i], ["Hotte et filtres", "hotte", /^hotte/i], ["Poubelles de cuisine", "poubelle", /^poubelles de cuisine/i], ["Poubelles de voirie et leur zone", "voirie", /^poubelles de voirie/i], ["Points de contact (poignées, interrupteurs)", "contact", /^points de contact/i]] },
+  { categorie: "Plonge et lavage", items: [["Plonge et vaisselle", "lavage", /^plonge/i], ["Lave-vaisselle", "lavevaisselle", /^lave-vaisselle/i], ["Éviers et lave-mains", "evier", /^éviers/i], ["Évier de lavage des légumes", "lavage"]] },
+  { categorie: "Appareils réfrigérés", items: [["Frigo", "froidpos"], ["Saladette / table réfrigérée", "froidpos"], ["Chambre froide positive", "chambrepos"], ["Chambre froide négative", "froidneg"], ["Congélateur", "froidneg"], ["Vitrine réfrigérée", "vitrine"], ["Cellule de refroidissement ou de congélation", "cellule"], ["Machine à glaçons", "froidpos"]] },
+  { categorie: "Appareils de cuisson", items: [["Four", "four"], ["Four mixte", "four"], ["Four à pizza", "four"], ["Plaque à induction", "four"], ["Piano / feux vifs", "four"], ["Plancha", "four"], ["Friteuse", "four"], ["Grill / salamandre", "four"], ["Bain-marie", "four"], ["Cuiseur multifonction / sauteuse", "four"], ["Micro-ondes", "petit"]] },
+  { categorie: "Matériel", items: [["Pétrin", "petit"], ["Robot batteur", "petit"], ["Robot coupe / mixeur", "petit"], ["Hachoir", "petit"], ["Trancheuse", "petit"], ["Coupe-légumes", "petit"], ["Mixeur plongeant", "petit"], ["Machine sous vide", "sousvide"], ["Balance", "petit"]] },
   { categorie: "Autre", items: [["Autre (je saisis le nom)", "autre"]] },
 ];
 const ITEM_LIBRE_NETTOYAGE = "➕ Autre (je saisis le nom)";
-const PRESET_PAR_CATEGORIE_NETTOYAGE = { "Froid et congélation": "froidpos", "Cuisson": "four", "Petit matériel": "petit", "Plonge et lavage": "lavage", "Surfaces et locaux": "surface", "Autre": "autre" };
+const PRESET_PAR_CATEGORIE_NETTOYAGE = { "Surfaces et locaux": "surface", "Plonge et lavage": "lavage", "Appareils réfrigérés": "froidpos", "Appareils de cuisson": "four", "Matériel": "petit", "Autre": "autre" };
 const libelleFrequenceSection = (f) => (f === "Quotidienne" ? "chaque jour" : f === "Hebdomadaire" ? "chaque semaine" : f === "Toutes les 2 semaines" ? "toutes les 2 semaines" : f === "Mensuelle" ? "chaque mois" : f === "Annuelle" ? "chaque année" : String(f).toLowerCase());
 const libelleZone = (z) => (z === "Tous" || !z ? "Toute la cuisine (commun)" : z);
 const POSITIONS_MOIS = [[1, "1er"], [2, "2e"], [3, "3e"], [4, "4e"], ["dernier", "dernier"]];
@@ -4236,7 +4253,7 @@ function libelleAssignationNet(t, employees) {
 function ChampZoneNettoyage({ value, onChange, zones }) {
   const [creer, setCreer] = useState(false);
   return (
-    <Field label="Zone ou poste (vous les nommez comme vous voulez : Poste chaud, Pâtisserie, Plonge…)">
+    <Field label="Zone et poste (vous les nommez comme vous voulez : Poste chaud, Pâtisserie, Plonge…)">
       {creer ? (
         <div className="flex gap-2">
           <input className={`${inputCls} flex-1`} placeholder="Nom de la nouvelle zone" onChange={(e) => onChange(e.target.value)} autoFocus />
@@ -4422,105 +4439,175 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
   );
 }
 
-// Assistant « inventaire de ma cuisine » : le chef indique ses zones puis combien il a de chaque appareil ; le plan est généré
-// avec les fréquences du guide officiel, que chaque tâche permet ensuite d'adapter (jours, midi/soir, personne…).
-function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, demandesAjout, signalerAjout }) {
+// Assistant « inventaire de ma cuisine » : le chef indique ses zones et postes, puis, dans l'ordre (surfaces et locaux, plonge, appareils
+// réfrigérés, cuisson, matériel), combien il a de chaque élément. Chaque exemplaire se règle séparément : son nom, sa zone et son poste,
+// la sonde (appareils réfrigérés), qui le nettoie et quand (après utilisation, chaque jour, semaine, 2 semaines, mois, an).
+// Les fréquences proposées viennent du guide officiel ; tout reste modifiable ici puis tâche par tâche.
+const SECTIONS_INVENTAIRE = {
+  "Surfaces et locaux": "Les surfaces à nettoyer : sol, murs, plafond, plans de travail, étagères, réserve, bouches d'évacuation, hotte…",
+  "Plonge et lavage": "La plonge, le lave-vaisselle, les éviers.",
+  "Appareils réfrigérés": "Frigos, chambres froides, congélateurs, cellules… Donnez à chacun son nom (ex. Chambre froide 1) et, si vous voulez, son numéro de sonde.",
+  "Appareils de cuisson": "Fours, plaques, plancha, friteuses…",
+  "Matériel": "D'abord les gros appareils (pétrin, robots…), puis le petit matériel.",
+};
+function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, demandesAjout, signalerAjout, employees }) {
   const [zonesLocales, setZonesLocales] = useState([]);
   const [nouvelleZone, setNouvelleZone] = useState("");
   const toutesZones = [...new Set([...zones, ...zonesLocales])];
-  const [nombres, setNombres] = useState({});
-  const [zoneDe, setZoneDe] = useState({});
-  const [perso, setPerso] = useState([]); // appareils saisis à la main : { cle, categorie, nom, preset }
+  const [unites, setUnites] = useState({}); // cle -> liste d'exemplaires
+  const [ouverte, setOuverte] = useState(null); // exemplaire dont le détail (qui et quand) est ouvert : "cle#k"
+  const [perso, setPerso] = useState([]); // éléments saisis à la main : { categorie, nom, preset }
   const [saisie, setSaisie] = useState({});
   const catalogue = CATALOGUE_APPAREILS_NETTOYAGE.filter((c) => c.categorie !== "Autre").map((c) => {
     const ajoutesEtab = (demandesAjout || []).filter((d) => d.type === "appareil_nettoyage").map((d) => String(d.valeur).split("::")).filter(([n, pr]) => n && PRESET_PAR_CATEGORIE_NETTOYAGE[c.categorie] === (pr || "autre") && !c.items.some((it) => it[0].toLowerCase() === n.toLowerCase())).map(([n, pr]) => [n, pr || "autre"]);
-    const lesPerso = perso.filter((x) => x.categorie === c.categorie).map((x) => [x.nom, x.preset, true]);
+    const lesPerso = perso.filter((x) => x.categorie === c.categorie && !c.items.some((it) => it[0].toLowerCase() === x.nom.toLowerCase()) && !ajoutesEtab.some((it) => it[0].toLowerCase() === x.nom.toLowerCase())).map((x) => [x.nom, x.preset]);
     return { categorie: c.categorie, items: [...c.items, ...ajoutesEtab, ...lesPerso] };
   });
   const cle = (cat, nom) => `${cat}|${nom}`;
-  const nb = (cat, nom) => nombres[cle(cat, nom)] || 0;
-  const changer = (cat, nom, d) => setNombres((x) => ({ ...x, [cle(cat, nom)]: Math.max(0, Math.min(20, (x[cle(cat, nom)] || 0) + d)) }));
+  const liste = (cat, nom) => unites[cle(cat, nom)] || [];
+  const uniteVide = () => ({ nom: "", zone: "Tous", sonde: "", assigneA: undefined, personnes: [], lignes: null });
+  const lignesDe = (u, preset) => u.lignes || TYPES_APPAREIL_NETTOYAGE[preset].lignes.map((l) => ({ ...l, on: true }));
+  const changer = (cat, nom, d) => setUnites((x) => {
+    const l = x[cle(cat, nom)] || [];
+    const suite = d > 0 ? (l.length < 20 ? [...l, { ...uniteVide(), zone: l.length ? l[l.length - 1].zone : "Tous" }] : l) : l.slice(0, -1);
+    return { ...x, [cle(cat, nom)]: suite };
+  });
+  const majUnite = (cat, nom, k, p) => setUnites((x) => ({ ...x, [cle(cat, nom)]: (x[cle(cat, nom)] || []).map((u, i) => (i === k ? { ...u, ...p } : u)) }));
+  const majLigne = (cat, nom, preset, k, i, p) => setUnites((x) => ({ ...x, [cle(cat, nom)]: (x[cle(cat, nom)] || []).map((u, idx) => (idx === k ? { ...u, lignes: lignesDe(u, preset).map((l, j) => (j === i ? { ...l, ...p } : l)) } : u)) }));
   const ajouterZone = () => { const n = nouvelleZone.trim(); if (!n || toutesZones.some((z) => z.toLowerCase() === n.toLowerCase())) return; setZonesLocales((l) => [...l, n]); setNouvelleZone(""); };
   const ajouterPerso = (cat) => {
     const nom = (saisie[cat] || "").trim();
     if (!nom) return;
-    setPerso((l) => [...l, { cle: cle(cat, nom), categorie: cat, nom, preset: PRESET_PAR_CATEGORIE_NETTOYAGE[cat] }]);
-    setNombres((x) => ({ ...x, [cle(cat, nom)]: 1 }));
+    if (!perso.some((x) => x.categorie === cat && x.nom.toLowerCase() === nom.toLowerCase())) setPerso((l) => [...l, { categorie: cat, nom, preset: PRESET_PAR_CATEGORIE_NETTOYAGE[cat] }]);
+    if (!liste(cat, nom).length) changer(cat, nom, 1);
     setSaisie((x) => ({ ...x, [cat]: "" }));
   };
+  const nomDe = (u, nom, n, k) => (u.nom.trim() || (n > 1 ? `${nom} ${k + 1}` : nom)) + (u.sonde.trim() ? ` (sonde ${u.sonde.trim()})` : "");
+  const dejaAuPlan = (cherche) => !!cherche && existantes.some((t) => cherche.test(t));
   const generer = () => {
     const sortie = [];
     catalogue.forEach((c) => c.items.forEach(([nom, preset]) => {
-      const n = nb(c.categorie, nom);
-      if (!n) return;
-      for (let k = 1; k <= n; k++) {
-        const nomUnite = n > 1 ? `${nom} ${k}` : nom;
-        TYPES_APPAREIL_NETTOYAGE[preset].lignes.forEach((l) => {
-          const tache = `${nomUnite} — ${l.suffixe}`;
-          if (existantes.some((t) => t.toLowerCase() === tache.toLowerCase())) return;
-          sortie.push({ tache, poste: zoneDe[cle(c.categorie, nom)] || "Tous", note: l.note || "", assigneA: "tous", ...sortieFrequenceNettoyage(l) });
+      const l = liste(c.categorie, nom);
+      l.forEach((u, k) => {
+        const mode = u.assigneA || "tous";
+        const nomU = nomDe(u, nom, l.length, k);
+        lignesDe(u, preset).filter((x) => x.on).forEach((x) => {
+          const tache = `${nomU} — ${x.suffixe}`;
+          if (existantes.some((t) => t.toLowerCase() === tache.toLowerCase()) || sortie.some((s) => s.tache.toLowerCase() === tache.toLowerCase())) return;
+          sortie.push({ tache, poste: u.zone || "Tous", note: x.note || "", assigneA: mode, personnes: mode === "personnes" ? u.personnes : undefined, sonde: u.sonde.trim() || undefined, ...sortieFrequenceNettoyage(x) });
         });
-      }
+      });
     }));
     return sortie;
   };
+  const toutesUnites = catalogue.flatMap((c) => c.items.flatMap(([nom]) => liste(c.categorie, nom).map((u) => u)));
+  const incomplet = toutesUnites.some((u) => !(u.zone || "").trim() || ((u.assigneA || "tous") === "personnes" && !u.personnes.length));
   const apercu = generer();
   const valider = () => {
-    perso.forEach((x) => { if (nb(x.categorie, x.nom) > 0 && signalerAjout) signalerAjout("appareil_nettoyage", `${x.nom}::${x.preset}`, "plan de nettoyage — inventaire de la cuisine"); });
+    perso.forEach((x) => { if (liste(x.categorie, x.nom).length && signalerAjout) signalerAjout("appareil_nettoyage", `${x.nom}::${x.preset}`, "plan de nettoyage — inventaire de la cuisine"); });
     onSave(apercu, zonesLocales);
   };
+  const resume = (u, preset) => lignesDe(u, preset).filter((x) => x.on).map((x) => `${x.suffixe} : ${libelleFrequenceNet(x)}${["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle"].includes(x.frequence) ? ` (${libelleMomentsNet(x)})` : ""}`).join(" · ") || "aucun nettoyage choisi";
   return (
     <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
       <div className="bg-white rounded-2xl p-5 w-full max-w-2xl shadow-xl mt-6 mb-6">
         <div className="font-semibold text-[var(--ink)] mb-1">Inventaire de ma cuisine</div>
-        <p className="text-xs text-[var(--steel)] mb-4">Indiquez vos zones, puis combien vous avez de chaque appareil (laissez à 0 ce que vous n'avez pas). Le plan de nettoyage est ensuite créé avec les fréquences du guide officiel de bonnes pratiques d'hygiène ; vous pourrez tout adapter tâche par tâche : jours, midi et/ou soir, personne chargée du nettoyage.</p>
+        <p className="text-xs text-[var(--steel)] mb-4">Indiquez vos zones et postes, puis ce que vous avez dans votre cuisine (laissez à 0 ce que vous n'avez pas). Pour chaque élément, vous choisissez sa zone et son poste, qui le nettoie et quand. Les fréquences proposées viennent du guide officiel de bonnes pratiques d'hygiène ; vous êtes libre de les adapter.</p>
         <div className="mb-5">
-          <p className="text-sm font-semibold text-[var(--ink)] mb-1">1. Vos zones</p>
-          <p className="text-xs text-[var(--steel)] mb-2">Les endroits de votre cuisine, nommés comme vous voulez (ex. Poste chaud, Pâtisserie, Plonge, Réserve…). Facultatif : vous pouvez aussi garder « Toute la cuisine ».</p>
+          <p className="text-sm font-semibold text-[var(--ink)] mb-1">1. Vos zones et postes</p>
+          <p className="text-xs text-[var(--steel)] mb-2">Les endroits ou postes de votre cuisine, nommés comme vous voulez (ex. Poste chaud, Pizza, Froid, Pâtisserie, Plonge, Réserve…). Facultatif : vous pouvez aussi garder « Toute la cuisine ».</p>
           <div className="flex flex-wrap gap-2 mb-2">
             {toutesZones.filter((z) => z !== "Tous").map((z) => <span key={z} className="text-xs font-medium bg-[var(--bg)] border border-[var(--line)] rounded-full px-3 py-1">{z}</span>)}
           </div>
           <div className="flex gap-2">
-            <input className={`${inputCls} flex-1`} placeholder="Nom d'une zone" value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterZone(); }} />
-            <Button variant="ghost" onClick={ajouterZone}><Plus size={14} /> Ajouter la zone</Button>
+            <input className={`${inputCls} flex-1`} placeholder="Nom d'une zone ou d'un poste" value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterZone(); }} />
+            <Button variant="ghost" onClick={ajouterZone}><Plus size={14} /> Ajouter</Button>
           </div>
         </div>
-        <p className="text-sm font-semibold text-[var(--ink)] mb-2">2. Vos appareils et surfaces</p>
-        {catalogue.map((c) => (
-          <div key={c.categorie} className="mb-4">
-            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-1.5">{c.categorie}</p>
-            <ul className="space-y-1">
-              {c.items.map(([nom]) => {
-                const n = nb(c.categorie, nom);
-                return (
-                  <li key={nom} className={`flex flex-wrap items-center gap-2 text-sm rounded-lg px-2 py-1.5 ${n ? "bg-[var(--accent-soft)]" : ""}`}>
-                    <span className="flex-1 min-w-[10rem] text-[var(--ink)]">{nom}</span>
-                    <div className="flex items-center gap-1.5">
-                      <button type="button" onClick={() => changer(c.categorie, nom, -1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none">−</button>
-                      <span className="w-6 text-center font-semibold">{n}</span>
-                      <button type="button" onClick={() => changer(c.categorie, nom, 1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none">+</button>
-                    </div>
-                    {n > 0 && (
-                      <select className={`${inputCls} text-xs`} value={zoneDe[cle(c.categorie, nom)] || "Tous"} onChange={(e) => setZoneDe((x) => ({ ...x, [cle(c.categorie, nom)]: e.target.value }))}>
-                        {toutesZones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
-                      </select>
-                    )}
-                  </li>
-                );
-              })}
-            </ul>
-            <div className="flex gap-2 mt-1.5">
-              <input className={`${inputCls} flex-1 text-sm`} placeholder="+ Un appareil qui n'est pas dans la liste (son nom)" value={saisie[c.categorie] || ""} onChange={(e) => setSaisie((x) => ({ ...x, [c.categorie]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") ajouterPerso(c.categorie); }} />
-              <Button variant="ghost" onClick={() => ajouterPerso(c.categorie)}>Ajouter</Button>
+        <p className="text-sm font-semibold text-[var(--ink)] mb-2">2. Ce qu'il y a à nettoyer dans votre cuisine</p>
+        {catalogue.map((c) => {
+          const frigo = c.categorie === "Appareils réfrigérés";
+          return (
+            <div key={c.categorie} className="mb-5">
+              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)]">{c.categorie}</p>
+              <p className="text-xs text-[var(--steel)] mb-1.5">{SECTIONS_INVENTAIRE[c.categorie]}</p>
+              <ul className="space-y-1">
+                {c.items.map(([nom, preset, cherche]) => {
+                  const l = liste(c.categorie, nom);
+                  const n = l.length;
+                  return (
+                    <li key={nom} className={`rounded-lg px-2 py-1.5 ${n ? "bg-[var(--accent-soft)]" : ""}`}>
+                      <div className="flex flex-wrap items-center gap-2 text-sm">
+                        <span className="flex-1 min-w-[10rem] text-[var(--ink)]">{nom}{dejaAuPlan(cherche) && <span className="ml-2 text-xs text-[var(--steel)]">✓ déjà dans votre plan</span>}</span>
+                        <div className="flex items-center gap-1.5">
+                          <button type="button" onClick={() => changer(c.categorie, nom, -1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none bg-white">−</button>
+                          <span className="w-6 text-center font-semibold">{n}</span>
+                          <button type="button" onClick={() => changer(c.categorie, nom, 1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none bg-white">+</button>
+                        </div>
+                      </div>
+                      {l.map((u, k) => {
+                        const id = `${cle(c.categorie, nom)}#${k}`;
+                        const ouvert = ouverte === id;
+                        const lignes = lignesDe(u, preset);
+                        return (
+                          <div key={k} className="mt-2 ml-1 border border-[var(--line)] rounded-lg p-2.5 bg-white space-y-2">
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                              <div>
+                                <label className="block text-[11px] text-[var(--steel)] mb-0.5">Son nom{n > 1 ? ` (exemplaire ${k + 1})` : ""}</label>
+                                <input className={`${inputCls} w-full text-sm`} value={u.nom} placeholder={n > 1 ? `${nom} ${k + 1}` : nom} onChange={(e) => majUnite(c.categorie, nom, k, { nom: e.target.value })} />
+                              </div>
+                              <div>
+                                <label className="block text-[11px] text-[var(--steel)] mb-0.5">Zone et poste</label>
+                                <select className={`${inputCls} w-full text-sm`} value={u.zone} onChange={(e) => majUnite(c.categorie, nom, k, { zone: e.target.value })}>
+                                  {toutesZones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
+                                </select>
+                              </div>
+                            </div>
+                            {frigo && (
+                              <div>
+                                <label className="block text-[11px] text-[var(--steel)] mb-0.5">Numéro de sonde (facultatif)</label>
+                                <input className={`${inputCls} w-full text-sm`} value={u.sonde} placeholder="ex. 3" onChange={(e) => majUnite(c.categorie, nom, k, { sonde: e.target.value })} />
+                              </div>
+                            )}
+                            <div className="flex items-start justify-between gap-2">
+                              <p className="text-xs text-[var(--steel)] flex-1">{resume(u, preset)} · {libelleAssignationNet({ assigneA: u.assigneA, personnes: u.personnes, poste: u.zone }, employees)}</p>
+                              <button type="button" className="text-xs font-medium text-[var(--accent)] underline shrink-0" onClick={() => setOuverte(ouvert ? null : id)}>{ouvert ? "Fermer" : "Qui et quand ?"}</button>
+                            </div>
+                            {ouvert && (
+                              <div className="border-t border-[var(--line)] pt-2 space-y-3">
+                                <ChampsQuiNettoyage v={{ poste: u.zone, assigneA: u.assigneA, personnes: u.personnes }} maj={(p) => majUnite(c.categorie, nom, k, p)} employees={employees} />
+                                {lignes.map((x, i) => (
+                                  <div key={i} className="border border-[var(--line)] rounded-lg p-2.5 space-y-2">
+                                    <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
+                                      <input type="checkbox" checked={x.on} onChange={() => majLigne(c.categorie, nom, preset, k, i, { on: !x.on })} />
+                                      <span className="flex-1">{x.suffixe}</span>
+                                    </label>
+                                    {x.on && <ChampsFrequenceNettoyage v={x} maj={(p) => majLigne(c.categorie, nom, preset, k, i, p)} />}
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </li>
+                  );
+                })}
+              </ul>
+              <div className="flex gap-2 mt-1.5">
+                <input className={`${inputCls} flex-1 text-sm`} placeholder="+ Un élément qui n'est pas dans la liste (son nom)" value={saisie[c.categorie] || ""} onChange={(e) => setSaisie((x) => ({ ...x, [c.categorie]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") ajouterPerso(c.categorie); }} />
+                <Button variant="ghost" onClick={() => ajouterPerso(c.categorie)}>Ajouter</Button>
+              </div>
             </div>
-          </div>
-        ))}
-        <p className="text-xs text-[var(--steel)] mb-3">Avec plusieurs exemplaires d'un même appareil, chacun reçoit son numéro (Frigo 1, Frigo 2…) ; vous pourrez ensuite donner à chacun sa propre zone ou sa propre personne avec « Modifier ».</p>
+          );
+        })}
+        <p className="text-xs text-[var(--steel)] mb-3">Les éléments que vous ajoutez à la main sont signalés à l'équipe qui fait évoluer le logiciel, pour qu'ils rejoignent la liste. Après validation, chaque tâche reste modifiable dans le plan.</p>
+        {incomplet && <p className="text-xs text-[var(--warn)] mb-2">Un exemplaire demande « une ou plusieurs personnes précises » sans personne choisie, ou n'a pas de zone : complétez-le.</p>}
         <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] pt-3">
           <span className="text-sm text-[var(--ink)]">{apercu.length} tâche{apercu.length > 1 ? "s" : ""} seront ajoutées à votre plan.</span>
           <div className="flex gap-2">
             <Button variant="ghost" onClick={onCancel}>Annuler</Button>
-            <Button onClick={valider} disabled={!apercu.length && !zonesLocales.length}>Ajouter à mon plan</Button>
+            <Button onClick={valider} disabled={incomplet || (!apercu.length && !zonesLocales.length)}>Ajouter à mon plan</Button>
           </div>
         </div>
       </div>
@@ -4609,7 +4696,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="Bonnes pratiques d'hygiène : boîtes de conserve et planches à découper" />
       {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
       {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage frequenceImposee={editeur.frequence} zones={zonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
-      {editeur && editeur.mode === "inventaire" && <AssistantInventaireNettoyage zones={zonesNettoyage} existantes={cleaning.map((t) => t.tache)} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerInventaire} onCancel={() => setEditeur(null)} />}
+      {editeur && editeur.mode === "inventaire" && <AssistantInventaireNettoyage employees={employees} zones={zonesNettoyage} existantes={cleaning.map((t) => t.tache)} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerInventaire} onCancel={() => setEditeur(null)} />}
       {editeur && editeur.mode !== "appareil" && editeur.mode !== "inventaire" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} employees={employees} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
       {editable && (
         <Card className="mb-4">
