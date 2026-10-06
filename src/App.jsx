@@ -362,16 +362,16 @@ function jouerRafaleBips(nombre, delaiMs = 350) {
 /* ---------- constantes ---------- */
 
 const NAV = [
-  { id: "taches", label: "Planning", icon: ListChecks },
+  { id: "taches", label: "Tâches du jour", icon: ListChecks },
   { id: "stock", label: "Stock", icon: Package },
   { id: "reception", label: "Réception des marchandises", icon: Truck },
-  { id: "etiquettes", label: "DLC et étiquettes", icon: Printer },
+  { id: "etiquettes", label: "Étiquettes (DLC)", icon: Printer },
   { id: "tracabilite", label: "Traçabilité", icon: Camera },
-  { id: "haccpTemp", label: "Température frigo & congélateur", icon: Thermometer },
-  { id: "haccpRefroid", label: "Refroidissement rapide", icon: Snowflake },
-  { id: "haccpHuile", label: "Contrôle des huiles de friture", icon: Droplets },
+  { id: "haccpTemp", label: "Températures frigos et congélateurs", icon: Thermometer },
+  { id: "haccpRefroid", label: "Refroidissement rapide (cellule)", icon: Snowflake },
+  { id: "haccpHuile", label: "Huile de friture", icon: Droplets },
   { id: "haccpChaud", label: "Gestion du maintien au chaud", icon: Soup },
-  { id: "haccpCuisson", label: "Gestion des cuissons", icon: Flame },
+  { id: "haccpCuisson", label: "Cuissons", icon: Flame },
   { id: "fiches", label: "Fiches techniques", icon: BookOpen },
   { id: "controle", label: "Contrôle & Gestion", icon: ClipboardCheck, chefOnly: true },
 ];
@@ -484,7 +484,7 @@ const DEFAULT_EQUIPEMENTS_FROID = [
 const MARGE_ANOMALIE_FROID = 3;
 const MOTIFS_ANOMALIE_FROID = ["Porte restée ouverte", "Panne de matériel", "Autre"];
 
-// Présélections proposées à l'ajout d'un appareil : on choisit d'abord Froid positif/négatif,
+// Présélections proposées à l'ajout d'un appareil : on choisit d'abord Réfrigéré / Congelé,
 // puis le type précis d'appareil, ce qui pré-remplit la norme de température à respecter —
 // toujours modifiable ensuite si l'appareil réel du restaurant a un réglage différent.
 const PRESETS_EQUIPEMENT_FROID = {
@@ -1328,7 +1328,7 @@ function Dashboard({ employees, activityLog, shifts, tempLogs, stock, reservatio
 
   const stats = [
     { label: "Alertes température", value: alertesTemp.length, icon: Thermometer, tone: alertesTemp.length ? "warn" : "ok", tab: "haccpTemp" },
-    { label: "Articles sous le seuil", value: stockBas.length, icon: TrendingDown, tone: stockBas.length ? "warn" : "ok", tab: "stock" },
+    { label: "Produits à recommander", value: stockBas.length, icon: TrendingDown, tone: stockBas.length ? "warn" : "ok", tab: "stock" },
     { label: "Réservations aujourd'hui", value: `${resasAujourdhui.length} · ${personnesAujourdhui} pers.`, icon: CalendarDays, tone: "gold", tab: "reservations" },
     { label: "Personnel en poste", value: equipeAujourdhui.length, icon: Users, tone: "gold", tab: "planning" },
   ];
@@ -1398,7 +1398,7 @@ function Dashboard({ employees, activityLog, shifts, tempLogs, stock, reservatio
         <Card>
           <h3 className="font-semibold text-[var(--ink)] mb-3">Stock à commander</h3>
           {stockBas.length === 0 ? (
-            <p className="text-sm text-[var(--steel)]">Tous les articles sont au-dessus du seuil minimum.</p>
+            <p className="text-sm text-[var(--steel)]">Tous les produits ont au moins le stock à avoir en réserve.</p>
           ) : (
             <ul className="space-y-2">
               {stockBas.map((s) => (
@@ -1753,8 +1753,8 @@ function CarteHuileDuJour({ huileTests, who }) {
     <Card>
       <h3 className="font-semibold text-[var(--ink)] mb-1">Huile de friture</h3>
       <div className="divide-y divide-[var(--line)]">
-        {ligne("Décision du matin (filtrer ou changer)", matin, "Pas encore fait")}
-        {remplaceeCeMatin && !soir ? ligne("Test bandelette du soir", null, "Non nécessaire (huile changée ce matin)") : ligne("Test bandelette du soir", soir, "Pas encore fait")}
+        {ligne("Huile du matin : filtrer ou changer", matin, "Pas encore fait")}
+        {remplaceeCeMatin && !soir ? ligne("Test de l'huile du soir (bandelette)", null, "Non nécessaire (huile changée ce matin)") : ligne("Test de l'huile du soir (bandelette)", soir, "Pas encore fait")}
       </div>
     </Card>
   );
@@ -1892,7 +1892,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
                                 <CheckCircle2 size={16} /> Oui
                               </button>
                               <button onClick={() => { setStatut(it.key, "ko"); setNoteEnCours({ key: it.key, label: it.label, assignedTo: it.assignedTo, note: notesEnvoyees[it.key] || "" }); }} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium bg-[var(--warn-soft)] active:scale-[0.97] transition-transform">
-                                <XCircle size={16} /> Non
+                                <XCircle size={16} /> Pas fait
                               </button>
                             </div>
                           )}
@@ -2374,11 +2374,11 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
   };
 
   const SOUS_TUILES_CONTROLE_TOUTES = [
-    { id: "planning", label: "Contrôle journalier", icon: ListChecks, couleur: TUILE_COULEURS.taches, section: "controle" },
+    { id: "planning", label: "Tâches du jour", icon: ListChecks, couleur: TUILE_COULEURS.taches, section: "controle" },
     { id: "temperatures", label: "Températures", icon: Thermometer, couleur: TUILE_COULEURS.haccpTemp, section: "controle" },
     { id: "huile", label: "Huile", icon: Droplets, couleur: TUILE_COULEURS.haccpHuile, section: "controle" },
     { id: "cuisson", label: "Cuisson", icon: Flame, couleur: TUILE_COULEURS.haccpCuisson, section: "controle" },
-    { id: "cellule", label: "Cellule", icon: Snowflake, couleur: TUILE_COULEURS.haccpRefroid, section: "controle" },
+    { id: "cellule", label: "Refroidissement rapide (cellule)", icon: Snowflake, couleur: TUILE_COULEURS.haccpRefroid, section: "controle" },
     { id: "maintien", label: "Maintien au chaud", icon: Soup, couleur: TUILE_COULEURS.haccpChaud, section: "controle" },
     { id: "tracabilite", label: "Traçabilité", icon: Camera, couleur: TUILE_COULEURS.tracabilite, section: "controle" },
     { id: "reception", label: "Réception", icon: Truck, couleur: TUILE_COULEURS.reception, section: "controle" },
@@ -2387,10 +2387,10 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, couleur: TUILE_COULEURS.haccpChaud, section: "gestion" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, couleur: TUILE_COULEURS.reception, section: "gestion" },
     { id: "tiac", label: "Déclaration TIAC", icon: Activity, couleur: TUILE_COULEURS.haccpCuisson, section: "gestion" },
-    { id: "fournisseur", label: "Fournisseur", icon: ShoppingCart, couleur: TUILE_COULEURS.stock, section: "gestion" },
-    { id: "commandes", label: "Commandes", icon: ClipboardList, couleur: TUILE_COULEURS.reception, section: "gestion" },
+    { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, couleur: TUILE_COULEURS.stock, section: "gestion" },
+    { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, couleur: TUILE_COULEURS.reception, section: "gestion" },
     { id: "comptes", label: "Gestion des comptes", icon: Users, couleur: TUILE_COULEURS.comptes, section: "gestion" },
-    { id: "pms", label: "PMS", icon: Droplets, couleur: TUILE_COULEURS.haccpHuile, section: "gestion" },
+    { id: "pms", label: "PMS — plan de nettoyage", icon: Droplets, couleur: TUILE_COULEURS.haccpHuile, section: "gestion" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, couleur: TUILE_COULEURS.fiches, section: "gestion" },
   ];
   // "Planning employé" et "Réservation client" sont réservées à la direction : elles ne sont
@@ -2525,7 +2525,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
                   <div className="text-xs text-[var(--accent)] font-medium mt-1">✓ Traité{a.traiteDate ? ` le ${a.traiteDate}` : ""}</div>
                 ) : (
                   <div className="mt-1.5">
-                    <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Marquer comme traité</Button>
+                    <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Rappel traité (produit retiré / vérifié)</Button>
                   </div>
                 )}
               </li>
@@ -2546,7 +2546,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
                     <div className="text-xs text-[var(--steel)] mt-1">{a.detail}</div>
                     <div className="text-xs text-[var(--steel)] mt-1">{a.date} à {a.heure} · {who(a.employeeId)} · {a.type}{a.conforme === false ? " · non conforme" : a.conforme === true ? " · accepté" : ""}</div>
                   </div>
-                  <Button variant="ghost" onClick={() => marquerAlerteVue(a.id)}>Vu</Button>
+                  <Button variant="ghost" onClick={() => marquerAlerteVue(a.id)}>J'ai lu — masquer l'alerte</Button>
                 </div>
               </Card>
             ))}
@@ -2689,7 +2689,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
                   </div>
                   <div className="text-xs text-[var(--steel)]">{who(r.employeeId)}</div>
                   {r.statut === "termine" && r.cellNettoyee === false && (
-                    <Button variant="danger" className="mt-1.5" onClick={() => nettoyerCelluleChef(r.id)}>Valider le nettoyage de la cellule</Button>
+                    <Button variant="danger" className="mt-1.5" onClick={() => nettoyerCelluleChef(r.id)}>Confirmer que la cellule est nettoyée</Button>
                   )}
                 </div>
               ))}
@@ -2843,7 +2843,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
                                 setAllergenesStandard({ ...allergenesStandard, [s.nom]: v });
                                 if (produitsLotException[s.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[s.nom]; return n; });
                               }} />
-                            {produitsLotException[s.nom] && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">lot en cours</span>}
+                            {produitsLotException[s.nom] && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">allergènes variables selon le lot en cours</span>}
                           </div>
                         </td>
                       </tr>
@@ -2888,7 +2888,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
                                 setOrigineStandard({ ...origineStandard, [s.nom]: v });
                                 if (produitsLotException[s.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[s.nom]; return n; });
                               }} />
-                            {produitsLotException[s.nom] && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">lot en cours</span>}
+                            {produitsLotException[s.nom] && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">allergènes variables selon le lot en cours</span>}
                           </div>
                         </td>
                       </tr>
@@ -3322,7 +3322,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
               </select>
               {categorieNouvelle && <input autoComplete="off" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
             </label>
-            <label className="block text-xs text-[var(--steel)]">Type de produit (frais, surgelé…)
+            <label className="block text-xs text-[var(--steel)]">Famille de température (frais, surgelé…)
               <select value={v.conservation || ""} onChange={(e) => maj("conservation", e.target.value || null)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">— Non précisé —</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
@@ -3782,7 +3782,7 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
-      <SectionHeader title="Température frigo & congélateur" subtitle="Relevés de température et alertes" />
+      <SectionHeader title="Températures frigos et congélateurs" subtitle="Relevés de température et alertes" />
       <BoutonInfosNormes ficheKey="temperatureFrigo" onClick={ouvrirNormes} label="Températures & rangement — Normes HACCP" />
       <HaccpTemperatures tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} logActivity={logActivity} who={who} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
@@ -3796,7 +3796,7 @@ function HaccpRefroidPage({ cuissons, setCuissons, refroidissements, setRefroidi
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
-      <SectionHeader title="Refroidissement rapide" subtitle="Suivi des refroidissements et de la cellule" />
+      <SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" />
       <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" />
       <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" />
       <HaccpRefroidissement cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
@@ -3811,15 +3811,15 @@ function HaccpHuilePage({ huileTests, employees, onFaireTest, onDecisionMatin })
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
-      <SectionHeader title="Contrôle des huiles de friture" subtitle="Tests et suivi des bains d'huile" />
+      <SectionHeader title="Huile de friture" subtitle="Tests et suivi des bains d'huile" />
       <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} />
       {(onFaireTest || onDecisionMatin) && (
         <Card className="mb-4">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Faire un contrôle maintenant</h3>
           <p className="text-xs text-[var(--steel)] mb-3">Matin : on filtre ou on change l'huile. Soir : test avec la bandelette (photo obligatoire).</p>
           <div className="flex flex-wrap gap-2">
-            {onDecisionMatin && <Button variant="ghost" onClick={onDecisionMatin}><Droplets size={16} /> Décision du matin</Button>}
-            {onFaireTest && <Button onClick={onFaireTest}><Camera size={16} /> Test bandelette</Button>}
+            {onDecisionMatin && <Button variant="ghost" onClick={onDecisionMatin}><Droplets size={16} /> Huile du matin : filtrer ou changer</Button>}
+            {onFaireTest && <Button onClick={onFaireTest}><Camera size={16} /> Test de l'huile (bandelette)</Button>}
           </div>
         </Card>
       )}
@@ -3849,7 +3849,7 @@ function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId,
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
-      <SectionHeader title="Gestion des cuissons" subtitle="Suivi des cuissons et températures à cœur" />
+      <SectionHeader title="Cuissons" subtitle="Suivi des cuissons et températures à cœur" />
       <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" />
       <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
@@ -3911,7 +3911,7 @@ function HaccpNettoyage({ cleaning, setCleaning, currentUserId, logActivity, who
   return (
     <div>
       <BoutonInfosNormes ficheKey="lavageLegumes" onClick={setInfosFicheNettoyage} label="Protocole de lavage des fruits et légumes" />
-      <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="BPH — Boîtes conserve / Planches à découper" />
+      <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="Bonnes pratiques d'hygiène : boîtes de conserve et planches à découper" />
       {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
       <Card className="mb-4 bg-[var(--warn-soft)] border-[var(--warn)]/30">
         <p className="text-sm text-[var(--warn)] font-medium">Il manque encore les produits et les quantités précises pour plusieurs tâches ci-dessous — à compléter dès que possible.</p>
@@ -4044,7 +4044,7 @@ function NettoyagePage({ cleaning, setCleaning, currentUserId, employees, logAct
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   return (
     <div>
-      <SectionHeader title="PMS" subtitle="Plan de maîtrise sanitaire — nettoyage de la cuisine" />
+      <SectionHeader title="PMS — plan de nettoyage" subtitle="PMS = Plan de Maîtrise Sanitaire : le plan de nettoyage et d'hygiène de la cuisine" />
       <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-6">
         <p className="text-xs text-[var(--ink)]">
           <strong>À finaliser :</strong> détailler pour chaque matériel les étapes de nettoyage selon le protocole HACCP (comme déjà fait pour la friteuse), et déterminer quel produit Keystone (Ecolab) utiliser pour chaque tâche, avec la quantité/dilution exacte. À compléter dans « Protocoles de nettoyage détaillés » ci-dessous, produit par produit.
@@ -4221,7 +4221,7 @@ function DemandeCodeChef({ action, onAutorise, onAnnuler, verifierCodeChef }) {
     <div className="fixed inset-0 z-[9000] bg-black/40 flex items-center justify-center p-4">
       <form onSubmit={valider} className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
         <div className="font-semibold text-[var(--ink)] mb-1">Autorisation du responsable</div>
-        <p className="text-sm text-[var(--steel)] mb-3">Seuls le responsable cuisine ou le directeur peuvent {action} une fiche technique. Va voir ton responsable : s'il est d'accord, il saisit son code ici pour débloquer.</p>
+        <p className="text-sm text-[var(--steel)] mb-3">Seuls le responsable cuisine ou le directeur peuvent {action} une fiche technique. Allez voir votre responsable : s'il est d'accord, il saisit son code ici pour débloquer.</p>
         <input autoFocus type="password" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Code du responsable (4 chiffres)" className={`${inputCls} text-center tracking-widest`} />
         {erreur && <p className="text-xs text-[var(--warn)] mt-2">{erreur}</p>}
         <div className="flex gap-2 mt-4 justify-end">
@@ -4236,7 +4236,7 @@ function DemandeCodeChef({ action, onAutorise, onAnnuler, verifierCodeChef }) {
 function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes, onModifier, verifierCodeChef }) {
   const [demandeCode, setDemandeCode] = useState(null);
   const whoSafe = who || (() => null);
-  // Mode classique (simple) ou expert, seulement dans la nouvelle version ; l'ancienne application affiche tout, comme avant.
+  // Mode simple (simple) ou expert, seulement dans la nouvelle version ; l'ancienne application affiche tout, comme avant.
   const [modeVue, setModeVue] = useState("simple");
   const expert = !avecModes || modeVue === "expert";
   const t = fiche.titresSections || {};
@@ -4347,7 +4347,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       {avecModes && (
         <div className="flex items-center gap-2 mb-4">
           <div className="inline-flex rounded-lg border border-[var(--line)] overflow-hidden text-xs font-semibold">
-            {[["simple", "Mode classique"], ["expert", "Mode expert"]].map(([v, lbl]) => (
+            {[["simple", "Mode simple"], ["expert", "Mode expert"]].map(([v, lbl]) => (
               <button key={v} type="button" onClick={() => setModeVue(v)} className={`px-3 py-1.5 ${modeVue === v ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--steel)]"}`}>{lbl}</button>
             ))}
           </div>
@@ -4364,15 +4364,15 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
                 {modesQuantite.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
               </select>
             </Field>
-            <Field label={modeQuantite === "portions" ? "Portions voulues" : modeQuantite === "total" ? `Quantité voulue (${baseTotalUnite})` : "Facteur (ex. 2,5)"}>
+            <Field label={modeQuantite === "portions" ? "Portions voulues" : modeQuantite === "total" ? `Quantité voulue (${baseTotalUnite})` : "Multiplier la recette par (ex. 2,5)"}>
               <input className={`${inputCls} w-32`} inputMode="decimal" value={quantiteVoulue} onChange={(e) => setQuantiteVoulue(e.target.value)} placeholder={modeQuantite === "portions" ? String(basePortions) : modeQuantite === "total" ? String(baseTotalNb) : "1"} />
             </Field>
             {facteur !== 1 && <Button variant="ghost" onClick={() => setQuantiteVoulue("")}>Revenir à la recette de base</Button>}
           </div>
           <p className="text-xs text-[var(--steel)] mt-2">
             {facteur === 1
-              ? `Recette de base${basePortions > 0 ? ` : ${basePortions} portions` : ""}${baseTotalNb > 0 ? ` · ${formaterNb(baseTotalNb)} ${baseTotalUnite}` : ""}. Entre la quantité dont tu as besoin : les ingrédients se recalculent.`
-              : `Recette multipliée par ${formaterNb(facteur)}. Attention : les quantités écrites dans le texte des étapes ne sont pas recalculées — suis le tableau des ingrédients ci-dessous. Les temps de cuisson et de refroidissement peuvent aussi changer avec la quantité : vérifie toujours à la sonde.`}
+              ? `Recette de base${basePortions > 0 ? ` : ${basePortions} portions` : ""}${baseTotalNb > 0 ? ` · ${formaterNb(baseTotalNb)} ${baseTotalUnite}` : ""}. Entrez la quantité dont vous avez besoin : les ingrédients se recalculent.`
+              : `Recette multipliée par ${formaterNb(facteur)}. Attention : les quantités écrites dans le texte des étapes ne sont pas recalculées — suivez le tableau des ingrédients ci-dessous. Les temps de cuisson et de refroidissement peuvent aussi changer avec la quantité : vérifiez toujours à la sonde.`}
           </p>
         </Card>
       )}
@@ -4380,7 +4380,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
           <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl mt-10">
             <div className="font-semibold text-[var(--ink)] mb-1">Confirmer la production — {quantiteDlc}</div>
-            <p className="text-sm text-[var(--steel)] mb-3">Veux-tu déduire ces quantités du stock ? Tu peux décocher un ingrédient ou corriger sa quantité avant de valider.</p>
+            <p className="text-sm text-[var(--steel)] mb-3">Voulez-vous déduire ces quantités du stock ? Vous pouvez décocher un ingrédient ou corriger sa quantité avant de valider.</p>
             <div className="space-y-1.5 mb-4">
               {ingredientsDestockage.map((ing, i) => (
                 <label key={i} className="flex items-center gap-2 text-sm">
@@ -4428,10 +4428,10 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
                 </div>
               )}
               <div className="flex flex-wrap items-end gap-2">
-                <Field label={avecModes ? "Quantité produite (traçabilité + DLC)" : "2. Quantité produite (traçabilité + DLC)"}>
+                <Field label={avecModes ? "Quantité produite (sert à l'étiquette et au suivi)" : "2. Quantité produite (sert à l'étiquette et au suivi)"}>
                   <input className={`${inputCls} w-32`} placeholder="ex. 3 kg" value={quantiteDlc} onChange={(e) => setQuantiteDlc(e.target.value)} />
                 </Field>
-                <Button onClick={() => (avecModes && ingredientsDestockage.length > 0 ? setConfirmationProd(true) : validerDlc(true))} disabled={!quantiteDlc}>{avecModes ? "Valider la production" : "Valider le destockage"}</Button>
+                <Button onClick={() => (avecModes && ingredientsDestockage.length > 0 ? setConfirmationProd(true) : validerDlc(true))} disabled={!quantiteDlc}>{avecModes ? "Enregistrer la production (et retirer du stock)" : "Valider le destockage"}</Button>
                 {dlcEnregistree && <span className="text-xs text-[var(--accent)] font-medium">Enregistré — DLC {fmtLong ? fmtLong(dlcEnregistree) : dlcEnregistree}</span>}
               </div>
               {etiquetteCreee && (
@@ -4453,12 +4453,12 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
               <div className="flex flex-wrap gap-2">
                 {onDemarrerRefroidissement && fiche.procedes?.refroid?.on !== false && (
                   <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "positif")}>
-                    <Snowflake size={15} /> {fiche.procedes?.refroid?.mode === "cellule" ? "Mettre en cellule" : "Démarrer un refroidissement"}
+                    <Snowflake size={15} /> {fiche.procedes?.refroid?.mode === "cellule" ? "Mettre en cellule (démarrer le refroidissement)" : "Démarrer le refroidissement"}
                   </Button>
                 )}
                 {onDemarrerRefroidissement && fiche.procedes?.congel?.on && (
                   <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "negatif")}>
-                    <Snowflake size={15} /> Lancer la congélation
+                    <Snowflake size={15} /> Démarrer la congélation
                   </Button>
                 )}
                 {onDemarrerCuisson && (
@@ -4971,7 +4971,7 @@ function NormeAutreBloc({ titre, norme, note, autre, valeur, justif, unite, text
                 ? <input className={inputCls} value={valeur} onChange={(e) => onValeur(e.target.value)} placeholder="ex. +10 °C à cœur en moins de 3 h" />
                 : <span className="flex items-center gap-2"><span>≥ +</span><input className={`${inputCls} w-24`} type="number" step="1" value={valeur} onChange={(e) => onValeur(e.target.value)} /><span>{unite || "°C"}</span></span>}
               <input className={`${inputCls} mt-2`} value={justif || ""} onChange={(e) => onJustif(e.target.value)} placeholder="Justification / preuve (ex. analyse de laboratoire du 12/09, étude, avis du consultant HACCP)" />
-              <span className="block text-xs text-[var(--steel)] mt-1">Conseil : note ici la preuve que ta méthode est sûre (résultat d'analyse de laboratoire avec sa date, étude, avis de ton consultant HACCP) et garde le document dans ton plan de maîtrise sanitaire.</span>
+              <span className="block text-xs text-[var(--steel)] mt-1">Conseil : notez ici la preuve que votre méthode est sûre (résultat d'analyse de laboratoire avec sa date, étude, avis de votre consultant HACCP) et gardez le document dans votre plan de maîtrise sanitaire.</span>
               <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la norme officielle pour cette fiche. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
             </span>
           )}
@@ -5012,7 +5012,7 @@ function haccpRowsFiche(S) {
   if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: (p.refroid.autre ? `${p.refroid.cibleTxt || "norme à préciser"}${MENTION_NORME_PERSO}${p.refroid.justif ? ` (justification : ${p.refroid.justif})` : ""}` : "+63 °C → +10 °C à cœur en moins de 2 h") + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
   if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C en moins de 4 h 30, étiquette « congelé le … »" });
   if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
-  rows.push({ etape: "Conservation", pointCritique: S.conservation.type, aControler: `J+${S.conservation.jours || "?"}` });
+  rows.push({ etape: "Conservation", pointCritique: S.conservation.type, aControler: `Valable ${S.conservation.jours || "?"} jour(s) (jour de fabrication inclus)` });
   if (p.maintien.on) rows.push({ etape: "Maintien au chaud", pointCritique: "CCP – T°", aControler: `≥ +${p.maintien.autre ? (Number(p.maintien.temp) || "?") : Math.max(63, Number(p.maintien.temp) || 63)} °C à cœur${p.maintien.autre ? MENTION_NORME_PERSO + (p.maintien.justif ? ` (justification : ${p.maintien.justif})` : "") : ""}${p.maintien.duree ? " · " + p.maintien.duree : ""}` });
   if (p.remise.on) rows.push({ etape: "Remise en T°", pointCritique: "CCP – T° / temps", aControler: `+10 °C → ≥ +${p.remise.cible} °C en moins d'1 h${p.remise.autre ? MENTION_NORME_PERSO + (p.remise.justif ? ` (justification : ${p.remise.justif})` : "") : ""}` });
   return rows;
@@ -5060,27 +5060,27 @@ function problemesFiche(S) {
   if (!S.poste) out.push(["r", "Poste manquant (étape 1 · Identité)."]);
   if (!ingOk.length) out.push(["r", "Aucun ingrédient (étape 2 · Ingrédients)."]);
   if (ingOk.some((i) => !i.qte && i.unite !== "QS")) out.push(["o", "Un ingrédient n'a pas de quantité (étape 2 · Ingrédients)."]);
-  if (!Object.values(p).some((x) => x.on)) out.push(["r", "Aucun procédé choisi : cuisson, préparation froide… (étape 3 · Cuisson & températures)."]);
-  if (p.cuisson.on && !p.cuisson.coeur && !(p.cuisson.controles && p.cuisson.controles.temp === false)) out.push(["o", "T° à cœur de cuisson non précisée (étape 3 · Cuisson & températures)."]);
+  if (!Object.values(p).some((x) => x.on)) out.push(["r", "Aucun procédé choisi : cuisson, préparation froide… (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
+  if (p.cuisson.on && !p.cuisson.coeur && !(p.cuisson.controles && p.cuisson.controles.temp === false)) out.push(["o", "T° à cœur de cuisson non précisée (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.cuisson.on && p.cuisson.coeurAutre) {
     const v = parseFloat(String(p.cuisson.coeurPerso == null ? "" : p.cuisson.coeurPerso).replace(",", "."));
-    if (!Number.isFinite(v)) out.push(["r", "T° à cœur « Autre valeur » non renseignée (étape 3 · Cuisson & températures)."]);
-    else if (!String(p.cuisson.coeurJustif || "").trim()) out.push(["o", "Norme personnalisée sans justification : pense à noter la preuve (analyse de laboratoire, étude de cuisson…) — cela ne bloque pas, c'est ta responsabilité (étape 3 · Cuisson & températures)."]);
+    if (!Number.isFinite(v)) out.push(["r", "T° à cœur « Autre valeur » non renseignée (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
+    else if (!String(p.cuisson.coeurJustif || "").trim()) out.push(["o", "Norme personnalisée sans justification : pensez à noter la preuve (analyse de laboratoire, étude de cuisson…) — cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   }
   if (p.cuisson.on && p.cuisson.appareil === "Friteuse") {
     const t = parseFloat(String((p.cuisson.parametres || {}).temperature || "").replace(",", "."));
-    if (Number.isFinite(t) && t > 180) out.push(["o", `Huile de friture à ${t} °C : ne pas dépasser 180 °C (l'huile se dégrade et devient nocive) — étape 3 · Cuisson & températures.`]);
+    if (Number.isFinite(t) && t > 180) out.push(["o", `Huile de friture à ${t} °C : ne pas dépasser 180 °C (l'huile se dégrade et devient nocive) — étape 3 · Cuisson, refroidissement, maintien au chaud.`]);
   }
-  if (/poisson/i.test(S.categorie || "") && p.froid.on && !p.cuisson.on) out.push(["o", "Poisson cru ou peu cuit (sushi, carpaccio, ceviche) : le poisson doit avoir été congelé à −20 °C à cœur pendant 24 h au moins (Anisakis) — vérifie auprès du fournisseur (étape 3 · Cuisson & températures)."]);
-  if (p.refroid.on && p.refroid.autre && !String(p.refroid.justif || "").trim()) out.push(["o", "Refroidissement : norme personnalisée sans justification — pense à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est ta responsabilité (étape 3 · Cuisson & températures)."]);
-  if (p.maintien.on && p.maintien.autre && !String(p.maintien.justif || "").trim()) out.push(["o", "Maintien au chaud : norme personnalisée sans justification — pense à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est ta responsabilité (étape 3 · Cuisson & températures)."]);
-  if (p.remise.on && p.remise.autre && !String(p.remise.justif || "").trim()) out.push(["o", "Remise en température : norme personnalisée sans justification — pense à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est ta responsabilité (étape 3 · Cuisson & températures)."]);
-  if (p.maintien.on && !p.maintien.autre && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson & températures)."]);
+  if (/poisson/i.test(S.categorie || "") && p.froid.on && !p.cuisson.on) out.push(["o", "Poisson cru ou peu cuit (sushi, carpaccio, ceviche) : le poisson doit avoir été congelé à −20 °C à cœur pendant 24 h au moins (Anisakis) — vérifiez auprès du fournisseur (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
+  if (p.refroid.on && p.refroid.autre && !String(p.refroid.justif || "").trim()) out.push(["o", "Refroidissement : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
+  if (p.maintien.on && p.maintien.autre && !String(p.maintien.justif || "").trim()) out.push(["o", "Maintien au chaud : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
+  if (p.remise.on && p.remise.autre && !String(p.remise.justif || "").trim()) out.push(["o", "Remise en température : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
+  if (p.maintien.on && !p.maintien.autre && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["r", `DLC J+${S.conservation.jours} supérieure au maximum J+${dlcMaxFiche(S)} sans étude de vieillissement validée (étape 6 · Conservation & rendement).`]);
   if (!S.etapes.some((e) => e.titre.trim() || e.texte.trim())) out.push(["o", "Aucune étape de préparation (étape 5 · Préparation)."]);
   if (p.cuisson.on && !(p.cuisson.controles && p.cuisson.controles.temp === false) && !S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Aucune étape marquée « T° de cuisson à relever » (étape 5 · Préparation)."]);
-  if (!p.refroid.on && S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Une étape de préparation est marquée « début de refroidissement » mais Refroidissement n'est pas coché (étape 3 · Cuisson & températures) : le contrôle de refroidissement ne sera pas demandé."]);
-  if (!p.cuisson.on && S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Une étape de préparation est marquée « T° de cuisson à relever » mais Cuisson n'est pas cochée (étape 3 · Cuisson & températures)."]);
+  if (!p.refroid.on && S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Une étape de préparation est marquée « début de refroidissement » mais Refroidissement n'est pas coché (étape 3 · Cuisson, refroidissement, maintien au chaud) : le contrôle de refroidissement ne sera pas demandé."]);
+  if (!p.cuisson.on && S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Une étape de préparation est marquée « T° de cuisson à relever » mais Cuisson n'est pas cochée (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.refroid.on && !S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Aucune étape marquée « début de refroidissement » (étape 5 · Préparation)."]);
   return out;
 }
@@ -5386,7 +5386,7 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   const codeFTActuel = calculerCodeFT(categorieLabelActuelle, codeCatActuel, S.nom, toutesLesFiches);
 
   const STEPS_FICHE = [
-    "Identité", "Ingrédients & allergènes", "Cuisson & températures", "Matériel & ustensiles",
+    "Identité", "Ingrédients & allergènes", "Cuisson, refroidissement, maintien au chaud", "Matériel & ustensiles",
     "Préparation", "Conservation & rendement", "Coût & dressage",
   ];
   // En mode simple, « Matériel & ustensiles » (3) et « Coût & dressage » (6) sont masqués : le matériel
@@ -5660,7 +5660,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   <option value="base">Préparation de base (utilisée dans d'autres fiches)</option>
                 </select>
               </Field>
-              <Field label="Badge (rendement / contenant)"><input className={inputCls} value={S.badge} onChange={(e) => champ("badge", e.target.value)} placeholder="ex. GN 1/1, 12 PARTS" /></Field>
+              <Field label="Mention affichée sur la fiche (rendement / contenant)"><input className={inputCls} value={S.badge} onChange={(e) => champ("badge", e.target.value)} placeholder="ex. bac 1/1, 12 parts" /></Field>
             </div>
             <div className="rounded-lg px-3 py-2.5 text-xs" style={{ backgroundColor: "var(--bg)", color: "var(--steel)" }}>Le poste relie la fiche au planning : la production apparaîtra dans la liste de tâches des employés de ce poste.</div>
           </div>
@@ -5676,12 +5676,12 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               {S.ingredients.map((ing, i) => (
                 <div key={i} className="flex items-center gap-2">
                   <input className={`${inputCls} flex-1`} list="dlist-ingredients-fiche" placeholder="Ingrédient / article du stock" value={ing.nom} onChange={(e) => nomIngredientChange(i, e.target.value)} />
-                  <input className={`${inputCls} w-24`} placeholder="Qté" value={ing.qte} onChange={(e) => majIngredient(i, { qte: e.target.value })} />
+                  <input className={`${inputCls} w-24`} placeholder="Quantité" value={ing.qte} onChange={(e) => majIngredient(i, { qte: e.target.value })} />
                   <select className={`${inputCls} w-28`} value={ing.unite} onChange={(e) => majIngredient(i, { unite: e.target.value })}>
                     {UNITES_FICHE.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                   {ing.lienType && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded bg-[var(--ok-soft,#e7f3e8)] text-[var(--accent)] shrink-0">{ing.lienType === "stock" ? (avecModes ? "Catalogue" : "Stock") : "Fiche"}</span>}
-                  {avecModes && !ing.lienType && ing.nom.trim() && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded shrink-0" style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}>Hors catalogue</span>}
+                  {avecModes && !ing.lienType && ing.nom.trim() && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded shrink-0" style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}>Produit inconnu — pas retiré du stock</span>}
                   {avecModes && !ing.lienType && ing.nom.trim() && gestionCatalogue && <button type="button" onClick={() => setProduitACreer({ table: "produits", id: null, valeurs: { nom: ing.nom.trim() } })} className="text-xs underline font-semibold shrink-0 text-[var(--accent)]">Créer ce produit</button>}
                   <button type="button" onClick={() => retirerIngredient(i)} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0"><X size={16} /></button>
                 </div>
@@ -5778,7 +5778,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
 
             {(modeFiche === "expert" || S.procedes.cuisson.on) && (<ProcedeCard titre="Cuisson" regle="T° à cœur contrôlée à la sonde" actif={S.procedes.cuisson.on} onToggle={() => majProcede("cuisson", { on: !S.procedes.cuisson.on })}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <Field label="Famille (seuil HACCP officiel)">
+                <Field label="Type de produit (température à atteindre à cœur)">
                   <select className={inputCls} value={S.procedes.cuisson.famille} onChange={(e) => majProcede("cuisson", { famille: e.target.value })}>
                     {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
                   </select>
@@ -5842,7 +5842,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                                 <span>°C</span>
                               </span>
                               <input className={`${inputCls} mt-2`} value={c.coeurJustif || ""} onChange={(e) => majProcede("cuisson", { coeurJustif: e.target.value })} placeholder="Justification / preuve (ex. analyse de laboratoire du 12/09, étude de cuisson, avis du consultant HACCP)" />
-                              <span className="block text-xs text-[var(--steel)] mt-1">Conseil : note ici la preuve que ta méthode est sûre (résultat d'analyse de laboratoire avec sa date, étude de cuisson, avis de ton consultant HACCP) et garde le document dans ton plan de maîtrise sanitaire pour un contrôle.</span>
+                              <span className="block text-xs text-[var(--steel)] mt-1">Conseil : notez ici la preuve que votre méthode est sûre (résultat d'analyse de laboratoire avec sa date, étude de cuisson, avis de votre consultant HACCP) et gardez le document dans votre plan de maîtrise sanitaire pour un contrôle.</span>
                               <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la norme officielle pour cette fiche et pour l'écran Cuisson. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
                             </span>
                           )}
@@ -6017,7 +6017,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 ))}
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label={`Durée (jours, J+) · max J+${dlcMaxFiche(S)}${S.conservation.etude ? "" : " sans étude"}`}><input className={inputCls} type="number" min="0" value={S.conservation.jours} onChange={(e) => majConservation({ jours: e.target.value })} /></Field>
+                <Field label={`Durée de conservation (jours, jour de fabrication compris) · max ${dlcMaxFiche(S)}${S.conservation.etude ? "" : " sans étude de laboratoire"}`}><input className={inputCls} type="number" min="0" value={S.conservation.jours} onChange={(e) => majConservation({ jours: e.target.value })} /></Field>
                 <Field label="Température de stockage">
                   <select className={inputCls} value={S.conservation.temp} onChange={(e) => majConservation({ temp: e.target.value })}>
                     {["0 / +3 °C", "0 / +2 °C", "≤ +4 °C", "≤ −18 °C", "Température ambiante (produit stable)"].map((o) => <option key={o} value={o}>{o}</option>)}
@@ -6545,11 +6545,11 @@ function HaccpTemperatures({
                       <td colSpan={5} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-2">
                           <Field label="Nom de l'appareil"><input className={`${inputCls} w-48`} value={editionForm.nom} onChange={(e) => setEditionForm({ ...editionForm, nom: e.target.value })} /></Field>
-                          <Field label="Numéro de sonde"><input className={`${inputCls} w-28`} value={editionForm.sonde} onChange={(e) => setEditionForm({ ...editionForm, sonde: e.target.value })} /></Field>
+                          <Field label="N° du capteur connecté (vide si pas de capteur)"><input className={`${inputCls} w-28`} value={editionForm.sonde} onChange={(e) => setEditionForm({ ...editionForm, sonde: e.target.value })} /></Field>
                           {eq.type !== "congelateur" && (
-                            <Field label="Norme min (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.min} onChange={(e) => setEditionForm({ ...editionForm, min: e.target.value })} /></Field>
+                            <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.min} onChange={(e) => setEditionForm({ ...editionForm, min: e.target.value })} /></Field>
                           )}
-                          <Field label="Norme max (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.max} onChange={(e) => setEditionForm({ ...editionForm, max: e.target.value })} /></Field>
+                          <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.max} onChange={(e) => setEditionForm({ ...editionForm, max: e.target.value })} /></Field>
                           <Button onClick={() => validerEdition(eq.id)}>Enregistrer</Button>
                           <Button variant="ghost" onClick={annulerEdition}>Annuler</Button>
                         </div>
@@ -6602,7 +6602,7 @@ function HaccpTemperatures({
 
       {enAttente.length > 0 && (
         <Card className="mb-6 border-[var(--warn)]/40">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">En surveillance — recontrôle sous 30 min</h3>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">À re-mesurer dans les 30 min (température hors limite)</h3>
           <div className="space-y-3">
             {enAttente.map((s) => {
               const eq = eqById(s.equipementId);
@@ -6615,7 +6615,7 @@ function HaccpTemperatures({
                   <div className="text-xs text-[var(--steel)] mb-2">{minutes} min écoulées {pret ? "— recontrôle possible" : `— possible dans ${30 - minutes} min`}</div>
                   {!form ? (
                     <div className="flex items-center gap-2">
-                      <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="Nouvelle T°" value={recontrole[s.id] ?? ""} onChange={(e) => setRecontrole({ ...recontrole, [s.id]: e.target.value })} />
+                      <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="Nouvelle température (°C)" value={recontrole[s.id] ?? ""} onChange={(e) => setRecontrole({ ...recontrole, [s.id]: e.target.value })} />
                       <Button onClick={() => recontroler(s)}>Recontrôler</Button>
                     </div>
                   ) : (
@@ -6646,8 +6646,8 @@ function HaccpTemperatures({
         <div className="flex flex-wrap items-end gap-2 mb-2">
           <Field label="Famille">
             <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ famille: e.target.value, sousType: "", nom: "", sonde: "", min: "", max: "" })}>
-              <option value="positif">Froid positif</option>
-              <option value="negatif">Froid négatif</option>
+              <option value="positif">Réfrigéré (0 à +4 °C)</option>
+              <option value="negatif">Congelé (−18 °C)</option>
             </select>
           </Field>
           <Field label="Type d'appareil">
@@ -6657,13 +6657,13 @@ function HaccpTemperatures({
             </select>
           </Field>
           <Field label="Nom de cet appareil"><input className={`${inputCls} w-48`} placeholder="ex. Frigo viande 2" value={formAjout.nom} onChange={(e) => setFormAjout({ ...formAjout, nom: e.target.value })} /></Field>
-          <Field label="Numéro de sonde (optionnel)"><input className={`${inputCls} w-32`} value={formAjout.sonde} onChange={(e) => setFormAjout({ ...formAjout, sonde: e.target.value })} /></Field>
+          <Field label="N° du capteur connecté (vide si pas de capteur)"><input className={`${inputCls} w-32`} value={formAjout.sonde} onChange={(e) => setFormAjout({ ...formAjout, sonde: e.target.value })} /></Field>
         </div>
         <div className="flex flex-wrap items-end gap-2 mb-4">
           {formAjout.famille === "positif" && (
-            <Field label="Norme min (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.min} onChange={(e) => setFormAjout({ ...formAjout, min: e.target.value })} /></Field>
+            <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.min} onChange={(e) => setFormAjout({ ...formAjout, min: e.target.value })} /></Field>
           )}
-          <Field label="Norme max (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.max} onChange={(e) => setFormAjout({ ...formAjout, max: e.target.value })} /></Field>
+          <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.max} onChange={(e) => setFormAjout({ ...formAjout, max: e.target.value })} /></Field>
           <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === ""}><Plus size={14} /> Ajouter cet appareil</Button>
         </div>
         <p className="text-xs text-[var(--steel)]">Le numéro de sonde peut être renseigné tout de suite ou ajouté plus tard (bouton "Modifier" sur la ligne de l'appareil). Une fois les sondes connectées réellement installées, le bouton "Connecter cette sonde" sur chaque ligne permettra de l'activer en un geste à sa mise en service.</p>
@@ -6801,7 +6801,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                       <MentionNormePersoFiche nom={e.nom} etape="maintien" />
                     </div>
                     {selectionEnCours.includes(e.id) && (
-                      <input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="T° sortie" value={tempSortie[e.id] ?? ""} onChange={(ev) => setTempSortie({ ...tempSortie, [e.id]: ev.target.value })} />
+                      <input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="Température de sortie (°C)" value={tempSortie[e.id] ?? ""} onChange={(ev) => setTempSortie({ ...tempSortie, [e.id]: ev.target.value })} />
                     )}
                   </div>
                 </div>
@@ -6863,7 +6863,7 @@ function EtiquetteRefroidissement({ r, who }) {
   );
 }
 
-const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Maintien à température", "Processus de refroidissement non conforme"];
+const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme"];
 
 function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
@@ -6919,7 +6919,7 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
     const depasse = dureeMin > norme.dureeMaxMin;
     if (depasse && !saisie.motif) return; // motif obligatoire en cas de dépassement
 
-    const maintienAccepte = saisie.motif === "Maintien à température";
+    const maintienAccepte = saisie.motif === "Produit resté à bonne température (accepté)";
     const conforme = depasse ? maintienAccepte : (r.type === "negatif" ? parseFloat(saisie.tempFin) < norme.finMax : parseFloat(saisie.tempFin) < norme.finMax);
 
     setRefroidissements(refroidissements.map((x) => (x.id === id ? {
@@ -6983,7 +6983,7 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
       </Card>
 
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer un refroidissement</h3>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer le refroidissement</h3>
         <p className="text-xs text-[var(--steel)] mb-3">L'heure de départ est pré-remplie à l'heure actuelle — modifiable si vous démarrez avec un léger décalage.</p>
         {cuissonsPretes.length > 0 && (
           <div className="mb-3 p-3 rounded-lg border border-[var(--warn)]/40 bg-[var(--warn-soft)]">
@@ -6998,8 +6998,8 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
           </div>
         )}
         <div className="flex gap-2 mb-3">
-          <button onClick={() => setModeDemarrage("positif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "positif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Refroidissement rapide (positif)</button>
-          <button onClick={() => setModeDemarrage("negatif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "negatif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Congélation / surgélation (négatif)</button>
+          <button onClick={() => setModeDemarrage("positif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "positif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Refroidir un plat cuit (de +63 °C à +10 °C en 2 h)</button>
+          <button onClick={() => setModeDemarrage("negatif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "negatif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Congeler / surgeler (à −18 °C)</button>
         </div>
         <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
           <Field label="Produit"><input className={inputCls} value={produit} onChange={(e) => setProduit(e.target.value)} /></Field>
@@ -7039,17 +7039,17 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
                           </button>
                         ))}
                       </div>
-                      {saisie.motif && saisie.motif !== "Maintien à température" && (
+                      {saisie.motif && saisie.motif !== "Produit resté à bonne température (accepté)" && (
                         <p className="text-xs text-[var(--warn)] mt-1.5">Ce motif rendra le refroidissement non conforme — le produit sera à jeter.</p>
                       )}
-                      {saisie.motif === "Maintien à température" && (
+                      {saisie.motif === "Produit resté à bonne température (accepté)" && (
                         <p className="text-xs text-[var(--accent)] mt-1.5">Accepté — le produit reste utilisable si la température de fin confirme un maintien correct.</p>
                       )}
                     </div>
                   )}
 
                   <div className="flex items-center gap-2">
-                    <input className={`${inputCls} w-28`} type="number" placeholder="T° fin" value={saisie.tempFin ?? ""} onChange={(e) => majFin(r.id, "tempFin", e.target.value)} />
+                    <input className={`${inputCls} w-28`} type="number" placeholder="Température finale (°C)" value={saisie.tempFin ?? ""} onChange={(e) => majFin(r.id, "tempFin", e.target.value)} />
                     <Button onClick={() => terminer(r.id)} disabled={depasse && !saisie.motif}>{r.type === "negatif" ? "Terminer la surgélation" : "Terminer le refroidissement"}</Button>
                   </div>
                 </div>
@@ -7080,7 +7080,7 @@ function HistoriqueRefroidissements({ refroidissements, who, nettoyerCellule, cr
                 <div className="text-xs text-[var(--steel)]">{r.heureDebut} ({r.tempDebut}°C) → {r.heureFin} ({r.tempFin}°C) · {r.dureeMin} min · {r.date} · {who(r.employeeId)}</div>
                 {r.anomalie && <div className="text-xs text-[var(--warn)] mt-0.5">Anomalie : {r.anomalie}</div>}
                 {r.cellNettoyee === false ? (
-                  <Button variant="danger" className="mt-2" onClick={() => nettoyerCellule(r.id)}>Nettoyer la cellule</Button>
+                  <Button variant="danger" className="mt-2" onClick={() => nettoyerCellule(r.id)}>J'ai nettoyé la cellule</Button>
                 ) : r.cellNettoyee && (
                   <div className="text-xs text-[var(--accent)] mt-1">Cellule nettoyée</div>
                 )}
@@ -7299,7 +7299,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
             <Field label="Nom de l'appareil"><input className={inputCls} value={appareilAutre} onChange={(e) => setAppareilAutre(e.target.value)} placeholder="Ex. Sauteuse basculante" /></Field>
           )}
           <Field label="Plat / programme"><input className={inputCls} value={produitProgramme} onChange={(e) => setProduitProgramme(e.target.value)} placeholder="Ex. Pizza margherita, prog. 3" /></Field>
-          <Field label="Famille (seuil HACCP)">
+          <Field label="Type de produit (température à atteindre à cœur)">
             <select className={inputCls} value={familleProgramme} onChange={(e) => setFamilleProgramme(e.target.value)}>
               {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
             </select>
@@ -7326,13 +7326,13 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                   <div className="text-xs text-[var(--steel)] mb-2">Depuis {c.heureDebut} · {minutes} min (attendu ~{c.dureeAttendueMin} min){c.appareil ? ` · ${c.appareil}` : ""} · {c.controleVisuelSeul ? "contrôle visuel" : `${familleLabel} : conforme si ≥${seuil}°C`}{depasse ? " — À VÉRIFIER MAINTENANT" : ""}</div>
                   {c.controleVisuelSeul ? (
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-[var(--steel)]">Contrôle visuel (pas de sonde) :</span>
+                      <span className="text-xs text-[var(--steel)]">Sans thermomètre — cuisson vérifiée à l'œil :</span>
                       <Button onClick={() => terminerCuissonVisuel(c, true)}>Cuisson conforme</Button>
                       <Button variant="ghost" onClick={() => terminerCuissonVisuel(c, false)}>Non conforme</Button>
                     </div>
                   ) : (
                   <div className="flex items-center gap-2">
-                    <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="T° à cœur" value={temperatureSaisie[c.id] ?? ""} onChange={(e) => setTemperatureSaisie({ ...temperatureSaisie, [c.id]: e.target.value })} />
+                    <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="Température à cœur, au centre du produit (°C)" value={temperatureSaisie[c.id] ?? ""} onChange={(e) => setTemperatureSaisie({ ...temperatureSaisie, [c.id]: e.target.value })} />
                     <Button onClick={() => terminerCuisson(c)}>Terminer la cuisson</Button>
                   </div>
                   )}
@@ -7385,7 +7385,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                 {selectionRefroid.includes(c.id) && (
                   <div className="flex items-center gap-1.5 text-xs text-[var(--steel)]">
                     <span>T° de départ à confirmer</span>
-                    <input className={`${inputCls} w-20`} type="number" step="0.1" placeholder="T°" value={tempDebutRefroid[c.id] ?? ""} onChange={(ev) => setTempDebutRefroid({ ...tempDebutRefroid, [c.id]: ev.target.value })} />
+                    <input className={`${inputCls} w-20`} type="number" step="0.1" placeholder="Température (°C)" value={tempDebutRefroid[c.id] ?? ""} onChange={(ev) => setTempDebutRefroid({ ...tempDebutRefroid, [c.id]: ev.target.value })} />
                     <span>°C</span>
                   </div>
                 )}
@@ -7429,7 +7429,7 @@ function HaccpHuile({ huileTests, who, manuelPossible }) {
     <div>
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-1">Historique</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">{manuelPossible ? "Le test (photo de la bandelette + \"Test bon\" / \"Test non conforme\") se fait ici ou à la validation des tâches de nettoyage liées." : "Le test (photo de la bandelette + \"Test bon\" / \"Test non conforme\") se fait uniquement à la validation des tâches de nettoyage liées — aucune saisie manuelle ici."}</p>
+        <p className="text-xs text-[var(--steel)] mb-4">{manuelPossible ? "Le test (photo de la bandelette + \"Huile bonne\" / \"Huile à changer\") se fait ici ou à la validation des tâches de nettoyage liées." : "Le test (photo de la bandelette + \"Huile bonne\" / \"Huile à changer\") se fait uniquement à la validation des tâches de nettoyage liées — aucune saisie manuelle ici."}</p>
         {huileTests.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun test enregistré.</p> : (
           <div className="divide-y divide-[var(--line)]">
             {huileTests.map((h) => (
@@ -7556,7 +7556,7 @@ function HaccpDlc({ preparations, produits, who, jeterPreparation, today, stock,
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-3">DLC des produits en stock à retirer aujourd'hui</h3>
         <div className="flex gap-2 mb-4 flex-wrap">
-          <Button variant="ghost" onClick={() => setPickerRetirer((v) => !v)}><Trash2 size={16} /> Retirer un produit</Button>
+          <Button variant="ghost" onClick={() => setPickerRetirer((v) => !v)}><Trash2 size={16} /> Jeter un produit périmé</Button>
         </div>
 
         {pickerRetirer && (
@@ -7758,7 +7758,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
         {panier.length > 0 && !pretAValider && <p className="text-xs mb-2" style={{ color: "#C1432D" }}>Pour valider, indiquez : {manques.join(" et ")}.</p>}
         <div className="flex gap-2 justify-end">
           <Button variant="ghost" onClick={onClose}>Plus tard</Button>
-          <Button onClick={confirmer} disabled={!pretAValider}>Valider et imprimer</Button>
+          <Button onClick={confirmer} disabled={!pretAValider}>Imprimer les étiquettes</Button>
         </div>
       </Card>
     </div>
@@ -7835,17 +7835,17 @@ function EditeurEtiquette({ nom, historique, creerEtiquetteDlc, currentUserId, w
             </p>
             <div className="grid grid-cols-2 gap-2 mb-4">
               <div>
-                <div className="text-xs text-[var(--steel)] mb-1">Lot (auto)</div>
+                <div className="text-xs text-[var(--steel)] mb-1">Numéro de lot (calculé, non modifiable)</div>
                 <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{lot}</div>
               </div>
               <div>
-                <div className="text-xs text-[var(--steel)] mb-1">DLC/DDM (auto)</div>
+                <div className="text-xs text-[var(--steel)] mb-1">Date limite DLC/DDM (calculée, non modifiable)</div>
                 <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{dlcDate || "non disponible"}</div>
               </div>
               <Field label="Quantité utilisée (optionnel — déstocke automatiquement)"><input className={inputCls} value={quantiteUtilisee} onChange={(e) => setQuantiteUtilisee(e.target.value)} /></Field>
               <Field label="Nombre d'étiquettes à imprimer"><input className={inputCls} type="number" min="1" value={nbEtiquettes} onChange={(e) => setNbEtiquettes(e.target.value)} /></Field>
             </div>
-            <Button onClick={confirmer} disabled={!dlcDate}>Confirmer et générer l'étiquette</Button>
+            <Button onClick={confirmer} disabled={!dlcDate}>Imprimer l'étiquette</Button>
           </>
         ) : (
           <p className="text-sm text-[var(--warn)]">Ce produit n'est pas (ou plus) dans le catalogue "Étiquette DLC" — ajoutez-le d'abord dans cet écran pour que le logiciel puisse calculer sa date automatiquement. Aucune date ne peut être saisie à la main ici.</p>
@@ -8228,7 +8228,7 @@ function estDdm(p) { return p.typeDate === "DDM" || p.dlcSource === "reception";
 
 function libelleDelaiDlc(p) {
   if (estDdm(p)) return p.ddmLotActuel ? `DDM lot ${p.ddmLotActuel}${p.ddmDateActuelle ? ` : ${p.ddmDateActuelle}` : ""}` : "DDM à réception";
-  return `J+${p.dlcJours ?? 0}`;
+  return `Valable ${p.dlcJours ?? 0} jour(s) (jour de fabrication inclus)`;
 }
 
 function dlcCalculeeProduit(p) {
@@ -8463,8 +8463,8 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         ))}
 
         <div className="flex flex-wrap justify-end gap-2 mt-5 pt-4 border-t border-[var(--line)]">
-          <Button variant="ghost" onClick={reediterEtiquettes} disabled={selection.length === 0}>Réédite la dernière étiquette</Button>
-          <Button onClick={ouvrirAssistantEdition} disabled={selection.length === 0}><Printer size={16} /> Éditer une étiquette</Button>
+          <Button variant="ghost" onClick={reediterEtiquettes} disabled={selection.length === 0}>Réimprimer la dernière étiquette</Button>
+          <Button onClick={ouvrirAssistantEdition} disabled={selection.length === 0}><Printer size={16} /> Créer des étiquettes</Button>
         </div>
       </Card>
 
@@ -8478,11 +8478,11 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                 <div className="font-medium text-[var(--ink)] mb-2">{l.nom}</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
-                    <div className="text-xs text-[var(--steel)] mb-1">Lot (auto)</div>
+                    <div className="text-xs text-[var(--steel)] mb-1">Numéro de lot (calculé, non modifiable)</div>
                     <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{l.lot}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-[var(--steel)] mb-1">DLC/DDM (auto)</div>
+                    <div className="text-xs text-[var(--steel)] mb-1">Date limite DLC/DDM (calculée, non modifiable)</div>
                     <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{l.decongele ? (l.decongelDate ? addDays(l.decongelDate, 2) : "—") : (l.dlcDate || "non disponible")}</div>
                   </div>
                   <Field label="Quantité utilisée"><input className={inputCls} value={l.quantiteUtilisee} onChange={(e) => majLigne(l.produitId, "quantiteUtilisee", e.target.value)} placeholder="ex : 2 kg" /></Field>
@@ -8511,7 +8511,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             ))}
           </div>
           <div className="flex gap-2 mt-4">
-            <Button onClick={confirmerAssistant}><Printer size={16} /> Confirmer et générer les étiquettes</Button>
+            <Button onClick={confirmerAssistant}><Printer size={16} /> Imprimer les étiquettes</Button>
             <Button variant="ghost" onClick={() => setAssistantLignes(null)}>Annuler</Button>
           </div>
         </Card>
@@ -8526,7 +8526,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         <h3 className="font-semibold text-[var(--ink)] mb-3">Ajouter ou retirer un produit</h3>
         <div className="flex gap-2 mb-4">
           <Button variant={ongletAjoutRetrait === "ajouter" ? "primary" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "ajouter" ? null : "ajouter"))}><Plus size={16} /> Ajouter un produit</Button>
-          <Button variant={ongletAjoutRetrait === "retirer" ? "danger" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "retirer" ? null : "retirer"))}><Trash2 size={16} /> Retirer un produit</Button>
+          <Button variant={ongletAjoutRetrait === "retirer" ? "danger" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "retirer" ? null : "retirer"))}><Trash2 size={16} /> Supprimer du catalogue</Button>
         </div>
 
         {ongletAjoutRetrait === "ajouter" && (
@@ -8538,10 +8538,10 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                   {ORDRE_CATEGORIES_DLC.map((c) => <option key={c} value={c}>{c}</option>)}
                 </select>
               </Field>
-              <Field label="Type de date">
+              <Field label="Date limite : DLC ou DDM ?">
                 <select className={inputCls} value={nouveauProduit.typeDate} onChange={(e) => majNouveauProduit("typeDate", e.target.value)}>
-                  <option value="DLC">DLC (délai après préparation)</option>
-                  <option value="DDM">DDM (date sur l'emballage, suivie par lot)</option>
+                  <option value="DLC">DLC — produit fait maison (délai après préparation)</option>
+                  <option value="DDM">DDM — date lue sur l'emballage, suivie par lot</option>
                 </select>
               </Field>
             </div>
@@ -8560,8 +8560,8 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
               </div>
             ) : (
               <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                <Field label="Numéro du lot à sortir en premier"><input className={inputCls} value={nouveauProduit.ddmLot} onChange={(e) => majNouveauProduit("ddmLot", e.target.value)} placeholder="D'après la traçabilité de réception" /></Field>
-                <Field label="DDM de ce lot"><input className={inputCls} type="date" value={nouveauProduit.ddmDate} onChange={(e) => majNouveauProduit("ddmDate", e.target.value)} /></Field>
+                <Field label="Lot le plus ancien, à utiliser d'abord"><input className={inputCls} value={nouveauProduit.ddmLot} onChange={(e) => majNouveauProduit("ddmLot", e.target.value)} placeholder="D'après la traçabilité de réception" /></Field>
+                <Field label="Date limite (DDM) de ce lot"><input className={inputCls} type="date" value={nouveauProduit.ddmDate} onChange={(e) => majNouveauProduit("ddmDate", e.target.value)} /></Field>
               </div>
             )}
             <Button onClick={ajouterProduit} disabled={!nouveauProduit.nom}><Plus size={16} /> Ajouter au catalogue</Button>
@@ -8695,7 +8695,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     return (
       <div>
         <button onClick={() => setVueListeCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour</button>
-        <SectionHeader title="Liste de commande" subtitle="Articles dont le stock est inférieur au stock à avoir en réserve — la quantité proposée = stock à avoir − stock actuel. Vérifiez, ajustez les quantités, puis confirmez que la commande a été passée." />
+        <SectionHeader title="Liste à commander" subtitle="Articles dont le stock est inférieur au stock à avoir en réserve — la quantité proposée = stock à avoir − stock actuel. Vérifiez, ajustez les quantités, puis confirmez que la commande a été passée." />
         <Card>
           {manquants.length === 0 ? (
             <p className="text-sm text-[var(--steel)]">Rien à commander pour le moment, tous les produits ont au moins le stock à avoir en réserve.</p>
@@ -8723,7 +8723,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   </div>
                 </div>
               ))}
-              <Button onClick={validerCommande} className="mt-2"><CheckCircle2 size={16} /> Commande passée</Button>
+              <Button onClick={validerCommande} className="mt-2"><CheckCircle2 size={16} /> J'ai passé la commande (enregistrer)</Button>
             </>
           )}
 
@@ -8779,7 +8779,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 
   return (
     <div>
-      <SectionHeader title="Stock" subtitle="Référence, nom, lot, DLC, quantité en stock et stock à avoir en réserve (sert à calculer les commandes)" />
+      <SectionHeader title="Stock" subtitle="Ce que vous avez en stock, avec son lot et sa date limite. Le stock à avoir en réserve sert à calculer les commandes." />
 
       <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
         className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-bold border-2 shadow-sm"
@@ -8815,7 +8815,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                             onChange={(e) => updateFournisseur(s.id, e.target.value)}
                           />
                         </div>
-                        <span className="text-xs text-[var(--steel)] shrink-0 text-right">Réf. {s.reference || "—"}</span>
+                        <span className="text-xs text-[var(--steel)] shrink-0 text-right">Code fournisseur : {s.reference || "—"}</span>
                       </div>
                       <div className="flex items-center gap-3 text-xs text-[var(--steel)] mb-2 flex-wrap">
                         <span>Lot : {s.lot || "—"}</span>
@@ -8848,8 +8848,8 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 
       {commandeGeneree && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-          <Button variant="ghost" onClick={() => setVueListeCommande(true)}><ClipboardList size={16} /> Liste de commande</Button>
-          <Button variant="ghost" onClick={() => setVueEnvoyerCommande(true)}><Mail size={16} /> Envoyer commande</Button>
+          <Button variant="ghost" onClick={() => setVueListeCommande(true)}><ClipboardList size={16} /> Voir la liste à commander</Button>
+          <Button variant="ghost" onClick={() => setVueEnvoyerCommande(true)}><Mail size={16} /> Écrire les e-mails aux fournisseurs</Button>
         </div>
       )}
 
@@ -8862,7 +8862,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               </button>
               <span className="w-14" />
             </div>
-            <h3 className="font-semibold text-[var(--ink)] mb-1">Quantités qui doivent être en stock</h3>
+            <h3 className="font-semibold text-[var(--ink)] mb-1">Stock à avoir en réserve, par produit</h3>
             <p className="text-xs text-[var(--steel)] mb-4">Pour chaque produit, indiquez le stock que vous voulez toujours avoir en réserve. Le logiciel commandera la différence entre ce stock à avoir et le stock actuel (uniquement pour les produits en dessous).</p>
             <div className="divide-y divide-[var(--line)]">
               {stock.map((s) => (
@@ -8875,7 +8875,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             </div>
             <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-[var(--line)]">
               <Button variant="ghost" onClick={() => setCommandeEnCours(false)}>Annuler</Button>
-              <Button onClick={() => { setCommandeEnCours(false); setCommandeGeneree(true); }}>Valider et générer la commande</Button>
+              <Button onClick={() => { setCommandeEnCours(false); setCommandeGeneree(true); }}>Créer la liste de commande</Button>
             </div>
           </div>
         </div>
@@ -8896,13 +8896,13 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           {modeCatalogue === "ajouter" && (
             <div>
               <div className="grid grid-cols-2 sm:grid-cols-7 gap-3 mb-3">
-                <Field label="Référence"><input className={inputCls} value={item.reference} onChange={(e) => setItem({ ...item, reference: e.target.value })} /></Field>
+                <Field label="Code produit fournisseur"><input className={inputCls} value={item.reference} onChange={(e) => setItem({ ...item, reference: e.target.value })} /></Field>
                 <Field label="Nom"><input className={inputCls} value={item.nom} onChange={(e) => setItem({ ...item, nom: e.target.value })} /></Field>
                 <Field label="Catégorie"><input className={inputCls} placeholder="Légumes" value={item.categorie} onChange={(e) => setItem({ ...item, categorie: e.target.value })} /></Field>
                 <Field label="Fournisseur"><input className={inputCls} value={item.fournisseur} onChange={(e) => setItem({ ...item, fournisseur: e.target.value })} /></Field>
-                <Field label="Conditionnement (unité)">
+                <Field label="Unité de comptage">
                   <select className={inputCls} value={item.unite} onChange={(e) => setItem({ ...item, unite: e.target.value })}>
-                    {["kg", "g", "L", "l", "pc", "carton"].map((u) => <option key={u} value={u}>{u}</option>)}
+                    {["kg", "g", "L", "pièce", "carton"].map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
                 </Field>
                 <Field label="Quantité en stock"><input className={inputCls} type="number" value={item.quantite} onChange={(e) => setItem({ ...item, quantite: e.target.value })} /></Field>
@@ -8910,7 +8910,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => { setModeCatalogue(null); setItem({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" }); }}>Annuler</Button>
-                <Button onClick={() => { addItem(); setModeCatalogue(null); }} disabled={!item.nom}><CheckCircle2 size={16} /> Valider</Button>
+                <Button onClick={() => { addItem(); setModeCatalogue(null); }} disabled={!item.nom}><CheckCircle2 size={16} /> Ajouter ce produit</Button>
               </div>
             </div>
           )}
@@ -8925,7 +8925,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               )}
               <div className="flex justify-end gap-2 mt-3">
                 <Button variant="ghost" onClick={() => { setModeCatalogue(null); setNomASupprimer(""); }}>Annuler</Button>
-                <Button variant="danger" onClick={() => setConfirmSuppressionOuverte(true)} disabled={!produitASupprimer}>Valider</Button>
+                <Button variant="danger" onClick={() => setConfirmSuppressionOuverte(true)} disabled={!produitASupprimer}>Supprimer ce produit</Button>
               </div>
               {confirmSuppressionOuverte && (
                 <ModalConfirmerSuppression
@@ -8954,7 +8954,6 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             ? "C'est aujourd'hui le dernier jour du mois — générez la fiche à partir du stock actuel, comptez, et corrigez."
             : "À faire le matin du dernier jour de chaque mois."}
         </p>
-        <p className="text-xs text-[var(--steel)] mb-4 italic">Note : le modèle exact de fiche à reproduire chaque mois reste à me donner — celle-ci est un tableau générique (référence, nom, quantité système, quantité comptée, écart) en attendant.</p>
         <Button onClick={() => setInventaireActif(true)}>Générer la fiche d'inventaire</Button>
       </Card>
     </div>
@@ -9947,8 +9946,8 @@ function HuileTestModal({ titre, onConfirm, onClose, onAnnuler }) {
             <p className="text-sm text-[var(--ink)] mb-3">Photographiez la bandelette de test utilisée sur l'huile.</p>
             <PhotoInput value={photo} onChange={setPhoto} label="Photographier la bandelette" />
             <div className="flex gap-2 mt-5 pt-4 border-t border-[var(--line)]">
-              <Button onClick={() => choisir("Bonne")} disabled={!photo}><CheckCircle2 size={16} /> Test bon</Button>
-              <Button variant="danger" onClick={() => choisir("Pas bonne")} disabled={!photo}><XCircle size={16} /> Test non conforme</Button>
+              <Button onClick={() => choisir("Bonne")} disabled={!photo}><CheckCircle2 size={16} /> Huile bonne</Button>
+              <Button variant="danger" onClick={() => choisir("Pas bonne")} disabled={!photo}><XCircle size={16} /> Huile à changer</Button>
             </div>
           </div>
         )}
@@ -10581,8 +10580,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               {lignesBon.map((l) => (
                 <div key={l.id} className={modeManuel ? "grid grid-cols-2 sm:grid-cols-7 gap-2" : "grid grid-cols-6 gap-2"}>
                   <input className={`${inputCls} ${modeManuel ? "col-span-2" : "col-span-2"}`} placeholder="Produit" value={l.nom} onChange={(e) => updateLigne(l.id, "nom", e.target.value)} />
-                  <input className={`${inputCls} col-span-1 sm:col-span-1`} placeholder="Référence" value={l.reference || ""} onChange={(e) => updateLigne(l.id, "reference", e.target.value)} />
-                  <input className={`${inputCls} col-span-1`} placeholder="Qté" value={l.quantite} onChange={(e) => updateLigne(l.id, "quantite", e.target.value)} />
+                  <input className={`${inputCls} col-span-1 sm:col-span-1`} placeholder="Code article du bon de livraison" value={l.reference || ""} onChange={(e) => updateLigne(l.id, "reference", e.target.value)} />
+                  <input className={`${inputCls} col-span-1`} placeholder="Quantité livrée (avec unité)" value={l.quantite} onChange={(e) => updateLigne(l.id, "quantite", e.target.value)} />
                   {modeManuel && (
                     <select className={`${inputCls} col-span-1`} value={l.conservation || ""} onChange={(e) => updateLigne(l.id, "conservation", e.target.value)}>
                       <option value="">Type…</option>
@@ -10721,20 +10720,20 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                   </div>
                   <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
                     <input className={inputCls} placeholder="Nom du produit" value={p.nom} onChange={(e) => updateProduit(p.id, { nom: e.target.value })} />
-                    <input className={inputCls} placeholder="Référence" value={p.reference || ""} onChange={(e) => updateProduit(p.id, { reference: e.target.value })} />
+                    <input className={inputCls} placeholder="Code article du bon de livraison" value={p.reference || ""} onChange={(e) => updateProduit(p.id, { reference: e.target.value })} />
                     <input className={inputCls} placeholder="N° de lot" value={p.lot} onChange={(e) => updateProduit(p.id, { lot: e.target.value })} />
-                    {modeManuel ? <ChampDateSaisie value={p.dlc} onChange={(v) => updateProduit(p.id, { dlc: v })} placeholder="DLC / DDM : JJ/MM/AAAA ou MM/AAAA" /> : <input className={inputCls} type="date" placeholder="DLC" value={p.dlc} onChange={(e) => updateProduit(p.id, { dlc: e.target.value })} />}
+                    {modeManuel ? <ChampDateSaisie value={p.dlc} onChange={(v) => updateProduit(p.id, { dlc: v })} placeholder="Date limite (DLC : à consommer jusqu'au · DDM : de préférence avant) — JJ/MM/AAAA ou MM/AAAA" /> : <input className={inputCls} type="date" placeholder="DLC" value={p.dlc} onChange={(e) => updateProduit(p.id, { dlc: e.target.value })} />}
                     <input className={inputCls} type="number" placeholder="Quantité reçue" value={p.quantite} onChange={(e) => updateProduit(p.id, { quantite: e.target.value })} />
                     {modeManuel && (
                       <select className={inputCls} value={p.conservation || ""} onChange={(e) => updateProduit(p.id, { conservation: e.target.value })}>
-                        <option value="">Type de produit…</option>
+                        <option value="">Famille de température…</option>
                         {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
                       </select>
                     )}
 
                     <input className={inputCls} placeholder="Allergènes déclarés" value={p.allergenes || ""} onChange={(e) => updateProduit(p.id, { allergenes: e.target.value })} />
                     <input className={inputCls} placeholder="Origine / provenance" value={p.origine || ""} onChange={(e) => updateProduit(p.id, { origine: e.target.value })} />
-                    <input className={inputCls} placeholder="N° agrément sanitaire (CE)" value={p.agrementSanitaire || ""} onChange={(e) => updateProduit(p.id, { agrementSanitaire: e.target.value })} />
+                    <input className={inputCls} placeholder="N° d'agrément sanitaire (l'ovale sur l'étiquette)" value={p.agrementSanitaire || ""} onChange={(e) => updateProduit(p.id, { agrementSanitaire: e.target.value })} />
                   </div>
                   {(() => {
                     const sit = situationStock(p);
@@ -10761,14 +10760,14 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                     <p className="text-xs text-[var(--warn)] mt-2">⚠ Produit non reconnu dans le stock habituel — pour pouvoir compléter ses fiches allergènes/origine, prenez des photos détaillées : nom, n° de lot, DLC/DDM, logo CE / agrément sanitaire du fabricant, et la liste complète des ingrédients.</p>
                   )}
                   <div className="flex gap-2 mt-3 pt-3 border-t border-[var(--line)]">
-                    <Button variant={p.conforme ? "primary" : "ghost"} style={modeManuel && !p.conforme ? { borderColor: "#2F6B4F", color: "#2F6B4F" } : undefined} onClick={() => updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null })}><CheckCircle2 size={14} /> {modeManuel ? (p.conforme ? "Accepté ✓" : "Accepter") : "Valider"}</Button>
-                    <Button variant={!p.conforme ? "danger" : "ghost"} style={modeManuel ? (!p.conforme ? { backgroundColor: "#C1432D", color: "#ffffff" } : { borderColor: "#C1432D", color: "#C1432D" }) : undefined} onClick={() => updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })}><XCircle size={14} /> {modeManuel ? (!p.conforme ? "Refusé ✗" : "Refuser (non conforme)") : "Non conforme — refusé"}</Button>
+                    <Button variant={p.conforme ? "primary" : "ghost"} style={modeManuel && !p.conforme ? { borderColor: "#2F6B4F", color: "#2F6B4F" } : undefined} onClick={() => updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null })}><CheckCircle2 size={14} /> {modeManuel ? (p.conforme ? "Accepté ✓" : "Accepter ce produit") : "Accepter ce produit"}</Button>
+                    <Button variant={!p.conforme ? "danger" : "ghost"} style={modeManuel ? (!p.conforme ? { backgroundColor: "#C1432D", color: "#ffffff" } : { borderColor: "#C1432D", color: "#C1432D" }) : undefined} onClick={() => updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })}><XCircle size={14} /> {modeManuel ? (!p.conforme ? "Refusé ✗" : "Refuser (non conforme)") : "Refuser (non conforme)"}</Button>
                   </div>
                   {!p.conforme && (
                     <div className="space-y-2 pt-3 mt-3 border-t border-[var(--line)]">
                       <input className={inputCls} type="number" placeholder="Quantité non conforme" value={p.quantiteNC} onChange={(e) => updateProduit(p.id, { quantiteNC: e.target.value })} />
                       <ChampTexteOuVocal value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} placeholder="Cause de la non-conformité (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />
-                      <input className={inputCls} type="number" step="0.01" placeholder="Écart de prix facturé (€, si produit substitué/facturé plus cher — optionnel)" value={p.ecartPrix || ""} onChange={(e) => updateProduit(p.id, { ecartPrix: e.target.value })} />
+                      <input className={inputCls} type="number" step="0.01" placeholder="Surcoût facturé en € (si on vous facture plus cher que commandé) — facultatif" value={p.ecartPrix || ""} onChange={(e) => updateProduit(p.id, { ecartPrix: e.target.value })} />
                       <PhotoInput small value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Photo du produit" />
                     </div>
                   )}
@@ -10805,7 +10804,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             {ajoutManuelOuvert && (
               <div className="flex gap-2 mt-2">
                 <input className={`${inputCls} flex-1`} placeholder="Nom du produit" value={ajoutManuelNom} onChange={(e) => setAjoutManuelNom(e.target.value)} />
-                <input className={`${inputCls} w-24`} type="number" placeholder="Qté" value={ajoutQuantite} onChange={(e) => setAjoutQuantite(e.target.value)} />
+                <input className={`${inputCls} w-24`} type="number" placeholder="Quantité livrée" value={ajoutQuantite} onChange={(e) => setAjoutQuantite(e.target.value)} />
                 <Button onClick={() => ajouterProduitSansIA(ajoutManuelNom)} disabled={!ajoutManuelNom.trim() || !ajoutQuantite}><Plus size={14} /> Ajouter</Button>
               </div>
             )}
@@ -10821,8 +10820,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                       <div className="text-xs text-[var(--steel)]">Quantité : {p.quantite}</div>
                     </div>
                     <div className="flex items-center gap-2">
-                      <Button variant={p.conforme ? "primary" : "ghost"} onClick={() => updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null })}>Valider</Button>
-                      <Button variant={!p.conforme ? "danger" : "ghost"} onClick={() => updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })}>Non conforme — refusé</Button>
+                      <Button variant={p.conforme ? "primary" : "ghost"} onClick={() => updateProduit(p.id, { conforme: true, raison: "", quantiteNC: "", photoNC: null })}>Accepter ce produit</Button>
+                      <Button variant={!p.conforme ? "danger" : "ghost"} onClick={() => updateProduit(p.id, { conforme: false, quantiteNC: p.quantite })}>Refuser (non conforme)</Button>
                       <button onClick={() => setProduits(produits.filter((x) => x.id !== p.id))} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
                     </div>
                   </div>
@@ -10870,7 +10869,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                       <div className="space-y-2 pt-2 border-t border-[var(--line)]">
                         <input className={inputCls} type="number" placeholder="Quantité non conforme" value={p.quantiteNC} onChange={(e) => updateProduit(p.id, { quantiteNC: e.target.value })} />
                         {modeManuel ? <ChampCauseNC value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} /> : <ChampTexteOuVocal value={p.raison} onChange={(v) => updateProduit(p.id, { raison: v })} placeholder="Cause de la non-conformité (écrit ou vocal)" suggestions={RAISONS_NON_CONFORMITE} permettreVocal={IA_ACTIVEE} />}
-                        <input className={inputCls} type="number" step="0.01" placeholder="Écart de prix facturé (€, si produit substitué/facturé plus cher — optionnel)" value={p.ecartPrix || ""} onChange={(e) => updateProduit(p.id, { ecartPrix: e.target.value })} />
+                        <input className={inputCls} type="number" step="0.01" placeholder="Surcoût facturé en € (si on vous facture plus cher que commandé) — facultatif" value={p.ecartPrix || ""} onChange={(e) => updateProduit(p.id, { ecartPrix: e.target.value })} />
                         <PhotoInput small value={p.photoNC} onChange={(v) => updateProduit(p.id, { photoNC: v })} label="Photo du produit" />
                       </div>
                     )}
@@ -10903,11 +10902,11 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                   {modeManuel && nouveauProduitKind === "plus" && plusDecision === "garde" && (
                     <>
                       <select className={inputCls} value={plusType} onChange={(e) => setPlusType(e.target.value)}>
-                        <option value="">Type de produit…</option>
+                        <option value="">Famille de température…</option>
                         {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
                       </select>
                       <input className={inputCls} placeholder="N° de lot" value={plusLot} onChange={(e) => setPlusLot(e.target.value)} />
-                      <ChampDateSaisie value={plusDlc} onChange={setPlusDlc} placeholder="DLC / DDM : JJ/MM/AAAA ou MM/AAAA" />
+                      <ChampDateSaisie value={plusDlc} onChange={setPlusDlc} placeholder="Date limite (DLC : à consommer jusqu'au · DDM : de préférence avant) — JJ/MM/AAAA ou MM/AAAA" />
                       {(() => {
                         const sit = situationStock({ nom: nouveauProduitNom, conservation: plusType, reference: "" });
                         if (!sit || sit.type !== "question") return null;
@@ -10934,7 +10933,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 6 && (
-        <StepShell titre="Analyse du bon de commande" sousTitre="Vérifiez la liste avant de valider — elle sera enregistrée telle quelle et le chef sera notifié en cas de non-conformité." onPrev={() => { setAutresNC(null); setStep(5); }} nextLabel={enregistrementEnCours ? "Enregistrement…" : "Valider la réception"} onNext={validerReception} nextDisabled={produitsIncomplets.length > 0 || enregistrementEnCours}>
+        <StepShell titre="Analyse du bon de commande" sousTitre="Vérifiez la liste avant de valider — elle sera enregistrée telle quelle et le chef sera notifié en cas de non-conformité." onPrev={() => { setAutresNC(null); setStep(5); }} nextLabel={enregistrementEnCours ? "Enregistrement…" : "Terminer et enregistrer la réception"} onNext={validerReception} nextDisabled={produitsIncomplets.length > 0 || enregistrementEnCours}>
           {erreurEnregistrement && <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4"><p className="text-xs text-[var(--warn)]">{erreurEnregistrement}</p></Card>}
           {produitsIncomplets.length > 0 && (
             <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-4">
@@ -11275,7 +11274,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               <input className={inputCls} type="number" inputMode="decimal" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--ink)]">Type de produit</label>
+              <label className="text-sm font-medium text-[var(--ink)]">Famille de température</label>
               <select className={inputCls} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value, temperature: b.temperature === "" || b.temperature === tempPrecedente(b.conservation) ? tempPrecedente(e.target.value) : b.temperature })}>
                 <option value="">Choisir…</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
@@ -11323,10 +11322,10 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
           <button onClick={() => setDetailsOuverts(!detailsOuverts)} className="text-sm text-[var(--accent)] font-medium mt-3">{detailsOuverts ? "− Masquer les détails" : "+ Plus de détails (référence, allergènes, origine, agrément)"}</button>
           {detailsOuverts && (
             <div className="grid grid-cols-2 gap-2 mt-2">
-              <input className={inputCls} placeholder="Référence" value={b.reference} onChange={(e) => maj({ reference: e.target.value })} />
+              <input className={inputCls} placeholder="Code article du bon de livraison" value={b.reference} onChange={(e) => maj({ reference: e.target.value })} />
               <input className={inputCls} placeholder="Allergènes déclarés" value={b.allergenes} onChange={(e) => maj({ allergenes: e.target.value })} />
               <input className={inputCls} placeholder="Origine / provenance" value={b.origine} onChange={(e) => maj({ origine: e.target.value })} />
-              <input className={inputCls} placeholder="N° agrément sanitaire (CE)" value={b.agrementSanitaire} onChange={(e) => maj({ agrementSanitaire: e.target.value })} />
+              <input className={inputCls} placeholder="N° d'agrément sanitaire (l'ovale sur l'étiquette)" value={b.agrementSanitaire} onChange={(e) => maj({ agrementSanitaire: e.target.value })} />
             </div>
           )}
 
@@ -11352,7 +11351,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                   <div className="space-y-2 mb-3">
                     {b.kind !== "plus" && <ChampCauseNC value={b.raison} onChange={(v) => maj({ raison: v })} />}
                     <input className={inputCls} type="number" inputMode="decimal" placeholder="Quantité non conforme" value={b.quantiteNC} onChange={(e) => maj({ quantiteNC: e.target.value })} />
-                    <input className={inputCls} type="number" step="0.01" placeholder="Écart de prix facturé (€, optionnel)" value={b.ecartPrix} onChange={(e) => maj({ ecartPrix: e.target.value })} />
+                    <input className={inputCls} type="number" step="0.01" placeholder="Surcoût facturé en € (facultatif)" value={b.ecartPrix} onChange={(e) => maj({ ecartPrix: e.target.value })} />
                     <p className="text-sm text-[var(--ink)]">Photo du produit (conseillée) :</p>
                   </div>
                 )}
@@ -11446,7 +11445,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
         )}
         <div className="flex items-center justify-between pt-4 border-t border-[var(--line)]">
           <Button variant="ghost" onClick={() => setEtape(3)}><ArrowLeft size={15} /> Retour</Button>
-          <Button onClick={valider} disabled={enCours || produits.length === 0}>{enCours ? "Enregistrement…" : "Valider la réception"}</Button>
+          <Button onClick={valider} disabled={enCours || produits.length === 0}>{enCours ? "Enregistrement…" : "Terminer et enregistrer la réception"}</Button>
         </div>
       </Card>
     </div>
@@ -12701,7 +12700,7 @@ function ModalPreparationCulinaire({ mesProduits, fiches, produitEnPreparation, 
             {/poste\s*chaud/i.test(moi?.poste || "") && (
               <p className="text-xs text-[var(--warn)] mb-3">10h00 à 10h20 : nettoyage de la friteuse + changement d'huile d'abord, puis mise en place.</p>
             )}
-            <p className="text-xs text-[var(--steel)] mb-3">Cliquez sur « Valider » pour un produit (recette ou traçabilité selon le cas), ou sur « Rupture » s'il n'y en a plus.</p>
+            <p className="text-xs text-[var(--steel)] mb-3">Cliquez sur « Préparer » pour un produit (recette ou traçabilité selon le cas), ou sur « Rupture » s'il n'y en a plus.</p>
             <div className="space-y-1.5 mb-3">
               {mesProduits.map((p) => {
                 const ficheLiee = p.sansRecette ? null : trouverFicheCorrespondante(p.nom, fiches, p.ficheNom);
@@ -12712,7 +12711,7 @@ function ModalPreparationCulinaire({ mesProduits, fiches, produitEnPreparation, 
                       <span className="text-xs text-[var(--warn)] font-medium shrink-0">Rupture signalée</span>
                     ) : (
                       <div className="flex gap-1.5 shrink-0">
-                        <Button onClick={() => { if (ficheLiee) { setFicheOuverte(ficheLiee); } else { setProduitEnPreparation(p); setTraceImprimable(null); } }}>Valider</Button>
+                        <Button onClick={() => { if (ficheLiee) { setFicheOuverte(ficheLiee); } else { setProduitEnPreparation(p); setTraceImprimable(null); } }}>Préparer</Button>
                         <Button variant="danger" onClick={() => { onRuptureStock(p); setRuptureSignalee({ ...ruptureSignalee, [p.id]: true }); }}>Rupture</Button>
                       </div>
                     )}
@@ -12730,7 +12729,7 @@ function ModalPreparationCulinaire({ mesProduits, fiches, produitEnPreparation, 
                     <input className={`${inputCls} w-28`} type="number" step="0.01" value={quantitePreparation} onChange={(e) => setQuantitePreparation(e.target.value)} autoFocus />
                   </Field>
                   <Button onClick={() => { const entry = preparerProduit(produitEnPreparation.id, quantitePreparation, photoPreparation); if (entry) setTraceImprimable({ ...entry, nom: produitEnPreparation.nom }); }} disabled={quantitePreparation === "" || !photoPreparation}>
-                    <CheckCircle2 size={16} /> Valider la traçabilité
+                    <CheckCircle2 size={16} /> Enregistrer la traçabilité
                   </Button>
                   <Button variant="ghost" onClick={() => { setProduitEnPreparation(null); setQuantitePreparation(""); setPhotoPreparation(null); }}>Annuler</Button>
                 </div>
@@ -13103,14 +13102,14 @@ function ModalNettoyage({ moi, moment, cleaning, setCleaning, onClose, onDemarre
             {bainMarieLance ? (
               <p className="text-xs text-[var(--accent)] font-medium">Refroidissement lancé pour les 5 sauces — suivi dans HACCP → Refroidissement, alerte avant les 2h. {moment === "soir" && "Si le service dure plus de 2h, relancez une 2e fois avant que les 2h ne soient atteintes."}</p>
             ) : (
-              <Button onClick={() => { onDemarrerRefroidissementBainMarie(); setBainMarieLance(true); }}><Snowflake size={15} /> Valider — lancer le refroidissement des sauces</Button>
+              <Button onClick={() => { onDemarrerRefroidissementBainMarie(); setBainMarieLance(true); }}><Snowflake size={15} /> Lancer le refroidissement des sauces</Button>
             )}
           </div>
         )}
         {etapeHuile && (
           <div className="mb-4 pb-3 border-b border-[var(--line)]">
             <p className="text-sm text-[var(--ink)] mb-2">{etapeHuile}</p>
-            <Button onClick={onOuvrirHuileTest}><Camera size={15} /> Valider — faire le test de l'huile</Button>
+            <Button onClick={onOuvrirHuileTest}><Camera size={15} /> Faire le test de l'huile maintenant</Button>
           </div>
         )}
 
@@ -13132,7 +13131,7 @@ function ModalNettoyage({ moi, moment, cleaning, setCleaning, onClose, onDemarre
                           <CheckCircle2 size={16} /> Validé
                         </button>
                         <button onClick={() => marquerNonFait(it)} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium bg-[var(--warn-soft)] active:scale-[0.97] transition-transform">
-                          <XCircle size={16} /> Non
+                          <XCircle size={16} /> Pas fait
                         </button>
                       </div>
                     )}
@@ -13195,7 +13194,7 @@ function ModalNettoyageQuotidien({ moi, moment, onClose, onDemarrerRefroidisseme
                     {bainMarieLance ? (
                       <p className="text-xs text-[var(--accent)] font-medium">Refroidissement lancé pour les 5 sauces — suivi dans HACCP → Refroidissement, alerte avant les 2h. {moment === "soir" && "Si le service dure plus de 2h, relancez une 2e fois avant que les 2h ne soient atteintes."}</p>
                     ) : (
-                      <Button onClick={() => { onDemarrerRefroidissementBainMarie(); setBainMarieLance(true); }}><Snowflake size={15} /> Valider — lancer le refroidissement des sauces</Button>
+                      <Button onClick={() => { onDemarrerRefroidissementBainMarie(); setBainMarieLance(true); }}><Snowflake size={15} /> Lancer le refroidissement des sauces</Button>
                     )}
                   </li>
                 ) : <EtapeCoche key={i} texte={texte} />
@@ -13269,7 +13268,7 @@ function ModalControlePoste({ moi, moment, onClose }) {
                       <CheckCircle2 size={16} /> Validé
                     </button>
                     <button onClick={() => { setStatut(key, "ko"); setNoteEnCours({ key, note: "", photo: null }); }} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium bg-white active:scale-[0.97] transition-transform">
-                      <XCircle size={16} /> Non validé
+                      <XCircle size={16} /> Pas fait
                     </button>
                   </div>
                 )}
@@ -13354,7 +13353,7 @@ function ModalControleObligatoire({ moment, onClose }) {
                         </button>
                         <button onClick={() => { setStatut(key, "ko"); setNoteEnCours({ key, note: "", photo: null }); }}
                           className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium bg-white active:scale-[0.97] transition-transform">
-                          <XCircle size={16} /> Non validé
+                          <XCircle size={16} /> Pas fait
                         </button>
                       </div>
                     )}
@@ -13443,7 +13442,7 @@ function ModalDetailNettoyage({ item, onToggle, onClose }) {
         <p className="text-xs text-[var(--gold)] font-medium mb-3">{labelJourNettoyage(item)}</p>
         {item.note && <p className="text-sm text-[var(--ink)] mb-4">{item.note}</p>}
         <Button onClick={() => onToggle(item.id)}>
-          {item.fait ? <><CheckCircle2 size={16} /> Fait</> : "Marquer comme fait"}
+          {item.fait ? <><CheckCircle2 size={16} /> Fait</> : "J'ai fait cette tâche"}
         </Button>
       </div>
     </div>
@@ -13614,7 +13613,7 @@ function ModalNettoyagePeriodique({ frequence, cleaning, setCleaning, moi, onClo
       <div className="flex items-center justify-between gap-2 text-sm">
         <span className={`flex-1 ${item.fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{item.tache}</span>
         <span className="text-xs text-[var(--gold)] font-medium shrink-0">{labelJourNettoyage(item)}</span>
-        <Button variant={item.fait ? "ghost" : "primary"} onClick={() => toggle(item.id)}>{item.fait ? <><CheckCircle2 size={14} /> Fait</> : "Valider"}</Button>
+        <Button variant={item.fait ? "ghost" : "primary"} onClick={() => toggle(item.id)}>{item.fait ? <><CheckCircle2 size={14} /> Fait</> : "Fait"}</Button>
       </div>
       {item.note && <p className="text-xs text-[var(--steel)] italic mt-1">{item.note}</p>}
     </li>
@@ -14441,7 +14440,7 @@ function PersonalCodeGate({ employees, onValide }) {
               autoFocus
             />
             {erreur && <p className="text-xs text-[var(--warn)] mt-2">{erreur}</p>}
-            <Button type="submit" className="w-full justify-center mt-3">Valider</Button>
+            <Button type="submit" className="w-full justify-center mt-3">Me connecter</Button>
           </form>
         </Card>
         <button onClick={() => { effacerTypeAppareil(); window.location.reload(); }} className="w-full text-center text-xs text-[var(--steel)] mt-4">
@@ -15807,14 +15806,14 @@ function KitchenApp({ identiteExterne } = {}) {
           </AlerteBanniere>
         )}
         {surveillancesFroid.some((s) => s.statut === "attente" && Date.now() >= s.rappelTs && !s.alarmeAcquittee) && (
-          <AlerteBanniere label="Frigo / congélateur" onClick={() => setTab("haccpTemp")} onArreterAlarme={arreterAlarmeTemp}>Un frigo/congélateur est à recontrôler — Température frigo & congélateur.</AlerteBanniere>
+          <AlerteBanniere label="Frigo / congélateur" onClick={() => setTab("haccpTemp")} onArreterAlarme={arreterAlarmeTemp}>Un frigo/congélateur est à recontrôler — Températures frigos et congélateurs.</AlerteBanniere>
         )}
         {cuissons.some((c) => c.statut === "en-cours" && !c.alarmeAcquittee && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin) && (
-          <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterAlarmeCuisson}>Une cuisson a atteint sa durée attendue — vérifiez la température à cœur maintenant (Gestion des cuissons).</AlerteBanniere>
+          <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterAlarmeCuisson}>Une cuisson a atteint sa durée attendue — vérifiez la température à cœur maintenant (écran Cuissons).</AlerteBanniere>
         )}
         {plusUrgentCuissonPreAlarme && (
           <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterPreAlarmeCuisson} escaladeDebutTs={plusUrgentCuissonPreAlarme.debutTs + (plusUrgentCuissonPreAlarme.dureeAttendueMin - CUISSON_ALERTE_AVANT_MIN) * 60000}>
-            Une cuisson approche de sa durée attendue ({plusUrgentCuissonPreAlarme.produit}) — préparez-vous à vérifier la température à cœur (Gestion des cuissons).
+            Une cuisson approche de sa durée attendue ({plusUrgentCuissonPreAlarme.produit}) — préparez-vous à vérifier la température à cœur (écran Cuissons).
           </AlerteBanniere>
         )}
         {/* Commande vocale accessible depuis n'importe quel écran (pas seulement l'Accueil) :

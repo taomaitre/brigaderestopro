@@ -867,8 +867,7 @@ export default function ConnexionReelle() {
               {employeIdentifie.role}{employeIdentifie.poste ? ` — ${employeIdentifie.poste}` : ""}
             </p>
             <p className="text-xs text-[var(--steel)] mb-4">
-              (La suite de l'application — plan de nettoyage, températures, etc. — utilise encore l'ancien
-              stockage pour l'instant ; seul l'écran de connexion est déjà branché sur la nouvelle base.)
+              (Version de prévisualisation : les données sont enregistrées dans la nouvelle base, sur l'établissement de test.)
             </p>
             <button onClick={() => setVoirAppliReelle(true)} className="text-sm font-semibold text-white rounded-md px-3 py-2 mb-2 block w-full text-center" style={{ backgroundColor: "var(--accent)" }}>
               Essayer la vraie application avec cette identité →
