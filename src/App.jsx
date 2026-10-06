@@ -8668,10 +8668,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     return (
       <div>
         <button onClick={() => setVueListeCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour</button>
-        <SectionHeader title="Liste de commande" subtitle="Articles sous leur quantité cible — vérifiez, ajustez les quantités, puis confirmez que la commande a été passée." />
+        <SectionHeader title="Liste de commande" subtitle="Articles dont le stock est inférieur au stock à avoir en réserve — la quantité proposée = stock à avoir − stock actuel. Vérifiez, ajustez les quantités, puis confirmez que la commande a été passée." />
         <Card>
           {manquants.length === 0 ? (
-            <p className="text-sm text-[var(--steel)]">Rien à commander pour le moment, tout est au-dessus de la quantité cible.</p>
+            <p className="text-sm text-[var(--steel)]">Rien à commander pour le moment, tous les produits ont au moins le stock à avoir en réserve.</p>
           ) : (
             <>
               {Object.entries(grouped).map(([fournisseur, items]) => (
@@ -8752,7 +8752,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 
   return (
     <div>
-      <SectionHeader title="Stock" subtitle="Référence, nom, lot, DLC, quantité en stock et quantité cible" />
+      <SectionHeader title="Stock" subtitle="Référence, nom, lot, DLC, quantité en stock et stock à avoir en réserve (sert à calculer les commandes)" />
 
       <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
         className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-bold border-2 shadow-sm"
@@ -8801,11 +8801,11 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                           <button onClick={() => adjustQty(s.id, 1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--line)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">+</button>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs text-[var(--steel)] whitespace-nowrap">Cible :</span>
+                          <span className="text-xs text-[var(--steel)] whitespace-nowrap" title="Quantité que vous voulez toujours avoir en réserve. Sous ce niveau, le produit passe dans la liste de commande.">Stock à avoir en réserve :</span>
                           <input type="number" className={`${inputCls} w-16`} value={s.cible} onChange={(e) => updateCible(s.id, e.target.value)} />
                         </div>
                       </div>
-                      {bas && <div className="text-[10px] text-[var(--warn)] mt-1">Sous la cible</div>}
+                      {bas && <div className="text-[10px] text-[var(--warn)] mt-1">Sous le stock à avoir en réserve — à commander</div>}
                     </div>
                   );
                 })}
@@ -8836,7 +8836,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               <span className="w-14" />
             </div>
             <h3 className="font-semibold text-[var(--ink)] mb-1">Quantités qui doivent être en stock</h3>
-            <p className="text-xs text-[var(--steel)] mb-4">Vérifiez et ajustez si besoin la quantité cible de chaque produit, puis validez : le logiciel générera la commande de ce qui manque encore par rapport au stock actuel.</p>
+            <p className="text-xs text-[var(--steel)] mb-4">Pour chaque produit, indiquez le stock que vous voulez toujours avoir en réserve. Le logiciel commandera la différence entre ce stock à avoir et le stock actuel (uniquement pour les produits en dessous).</p>
             <div className="divide-y divide-[var(--line)]">
               {stock.map((s) => (
                 <div key={s.id} className="flex items-center justify-between py-2 gap-3 text-sm">
@@ -8879,7 +8879,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   </select>
                 </Field>
                 <Field label="Quantité en stock"><input className={inputCls} type="number" value={item.quantite} onChange={(e) => setItem({ ...item, quantite: e.target.value })} /></Field>
-                <Field label="Quantité cible"><input className={inputCls} type="number" value={item.cible} onChange={(e) => setItem({ ...item, cible: e.target.value })} /></Field>
+                <Field label="Stock à avoir en réserve (sert à calculer les commandes)"><input className={inputCls} type="number" value={item.cible} onChange={(e) => setItem({ ...item, cible: e.target.value })} /></Field>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => { setModeCatalogue(null); setItem({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" }); }}>Annuler</Button>
@@ -9630,7 +9630,7 @@ const FICHES_NORMES = {
       {
         titre: "Gestion des ruptures et des réapprovisionnements",
         contenu: [
-          "Suivre les quantités cibles définies pour chaque produit afin d'anticiper les ruptures avant qu'elles n'affectent le service.",
+          "Respecter le stock à avoir en réserve défini pour chaque produit afin d'anticiper les ruptures avant qu'elles n'affectent le service.",
           "Vérifier la conformité de chaque réapprovisionnement à la réception (voir la fiche Réception des marchandises) avant de l'ajouter au stock.",
           "En cas de rupture, ne jamais utiliser un produit de substitution non prévu sans en informer le chef.",
         ],
