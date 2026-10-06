@@ -4451,24 +4451,22 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
   );
 }
 
-// Assistant « inventaire de ma cuisine » : le chef indique ses zones et postes, puis, dans l'ordre (surfaces et locaux, plonge, appareils
-// réfrigérés, cuisson, matériel), combien il a de chaque élément. Chaque exemplaire se règle séparément : son nom, sa zone et son poste,
-// la sonde (appareils réfrigérés), qui le nettoie et quand (après utilisation, chaque jour, semaine, 2 semaines, mois, an).
-// Les fréquences proposées viennent du guide officiel ; tout reste modifiable ici puis tâche par tâche.
+// Assistant « inventaire de ma cuisine » en 2 écrans : (1) vos zones et postes, (2) ce que vous avez (juste les nombres).
+// Le plan est ensuite créé avec les fréquences du guide officiel ; chaque ligne se règle dans le tableau du plan (nom, zone et poste, quand, qui, sonde…).
 const SECTIONS_INVENTAIRE = {
-  "Surfaces et locaux": "Les surfaces à nettoyer : sol, murs, plafond, plans de travail, étagères, réserve, bouches d'évacuation, hotte…",
+  "Surfaces et locaux": "Sol, murs, plafond, plans de travail, étagères, réserve, bouches d'évacuation, hotte…",
   "Plonge et lavage": "La plonge, le lave-vaisselle, les éviers.",
-  "Appareils réfrigérés": "Frigos, chambres froides, congélateurs, cellules… Donnez à chacun son nom (ex. Chambre froide 1) et, si vous voulez, son numéro de sonde.",
+  "Appareils réfrigérés": "Frigos, chambres froides, congélateurs, cellules… Avec plusieurs exemplaires, chacun est numéroté (Chambre froide 1, 2…) ; vous les renommerez dans le plan.",
   "Appareils de cuisson": "Fours, plaques, plancha, friteuses…",
   "Matériel": "D'abord les gros appareils (pétrin, robots…), puis le petit matériel.",
 };
-function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, demandesAjout, signalerAjout, employees }) {
+function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, demandesAjout, signalerAjout }) {
+  const [ecran, setEcran] = useState(1);
   const [zonesLocales, setZonesLocales] = useState([]);
   const [nouvelleZone, setNouvelleZone] = useState("");
   const toutesZones = [...new Set([...zones, ...zonesLocales])];
-  const [unites, setUnites] = useState({}); // cle -> liste d'exemplaires
-  const [ouverte, setOuverte] = useState(null); // exemplaire dont le détail (qui et quand) est ouvert : "cle#k"
-  const [perso, setPerso] = useState([]); // éléments saisis à la main : { categorie, nom, preset }
+  const [nombres, setNombres] = useState({});
+  const [perso, setPerso] = useState([]);
   const [saisie, setSaisie] = useState({});
   const catalogue = CATALOGUE_APPAREILS_NETTOYAGE.filter((c) => c.categorie !== "Autre").map((c) => {
     const ajoutesEtab = (demandesAjout || []).filter((d) => d.type === "appareil_nettoyage").map((d) => String(d.valeur).split("::")).filter(([n, pr]) => n && PRESET_PAR_CATEGORIE_NETTOYAGE[c.categorie] === (pr || "autre") && !c.items.some((it) => it[0].toLowerCase() === n.toLowerCase())).map(([n, pr]) => [n, pr || "autre"]);
@@ -4476,154 +4474,288 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
     return { categorie: c.categorie, items: [...c.items, ...ajoutesEtab, ...lesPerso] };
   });
   const cle = (cat, nom) => `${cat}|${nom}`;
-  const liste = (cat, nom) => unites[cle(cat, nom)] || [];
-  const uniteVide = () => ({ nom: "", zone: "Tous", sonde: "", assigneA: undefined, personnes: [], lignes: null });
-  const lignesDe = (u, preset) => u.lignes || TYPES_APPAREIL_NETTOYAGE[preset].lignes.map((l) => ({ ...l, on: true }));
-  const changer = (cat, nom, d) => setUnites((x) => {
-    const l = x[cle(cat, nom)] || [];
-    const suite = d > 0 ? (l.length < 20 ? [...l, { ...uniteVide(), zone: l.length ? l[l.length - 1].zone : "Tous" }] : l) : l.slice(0, -1);
-    return { ...x, [cle(cat, nom)]: suite };
-  });
-  const majUnite = (cat, nom, k, p) => setUnites((x) => ({ ...x, [cle(cat, nom)]: (x[cle(cat, nom)] || []).map((u, i) => (i === k ? { ...u, ...p } : u)) }));
-  const majLigne = (cat, nom, preset, k, i, p) => setUnites((x) => ({ ...x, [cle(cat, nom)]: (x[cle(cat, nom)] || []).map((u, idx) => (idx === k ? { ...u, lignes: lignesDe(u, preset).map((l, j) => (j === i ? { ...l, ...p } : l)) } : u)) }));
+  const nb = (cat, nom) => nombres[cle(cat, nom)] || 0;
+  const changer = (cat, nom, d) => setNombres((x) => ({ ...x, [cle(cat, nom)]: Math.max(0, Math.min(20, (x[cle(cat, nom)] || 0) + d)) }));
   const ajouterZone = () => { const n = nouvelleZone.trim(); if (!n || toutesZones.some((z) => z.toLowerCase() === n.toLowerCase())) return; setZonesLocales((l) => [...l, n]); setNouvelleZone(""); };
   const ajouterPerso = (cat) => {
     const nom = (saisie[cat] || "").trim();
     if (!nom) return;
     if (!perso.some((x) => x.categorie === cat && x.nom.toLowerCase() === nom.toLowerCase())) setPerso((l) => [...l, { categorie: cat, nom, preset: PRESET_PAR_CATEGORIE_NETTOYAGE[cat] }]);
-    if (!liste(cat, nom).length) changer(cat, nom, 1);
+    setNombres((x) => ({ ...x, [cle(cat, nom)]: Math.max(1, x[cle(cat, nom)] || 0) }));
     setSaisie((x) => ({ ...x, [cat]: "" }));
   };
-  const nomDe = (u, nom, n, k) => (u.nom.trim() || (n > 1 ? `${nom} ${k + 1}` : nom)) + (u.sonde.trim() ? ` (sonde ${u.sonde.trim()})` : "");
   const dejaAuPlan = (cherche) => !!cherche && existantes.some((t) => cherche.test(t));
   const generer = () => {
     const sortie = [];
     catalogue.forEach((c) => c.items.forEach(([nom, preset]) => {
-      const l = liste(c.categorie, nom);
-      l.forEach((u, k) => {
-        const mode = u.assigneA || "tous";
-        const nomU = nomDe(u, nom, l.length, k);
-        lignesDe(u, preset).filter((x) => x.on).forEach((x) => {
-          const tache = `${nomU} — ${x.suffixe}`;
+      const n = nb(c.categorie, nom);
+      for (let k = 1; k <= n; k++) {
+        const nomU = n > 1 ? `${nom} ${k}` : nom;
+        TYPES_APPAREIL_NETTOYAGE[preset].lignes.forEach((l) => {
+          const tache = `${nomU} — ${l.suffixe}`;
           if (existantes.some((t) => t.toLowerCase() === tache.toLowerCase()) || sortie.some((s) => s.tache.toLowerCase() === tache.toLowerCase())) return;
-          sortie.push({ tache, poste: u.zone || "Tous", note: x.note || "", assigneA: mode, personnes: mode === "personnes" ? u.personnes : undefined, sonde: u.sonde.trim() || undefined, ...sortieFrequenceNettoyage(x) });
+          sortie.push({ tache, poste: "Tous", note: l.note || "", assigneA: "tous", ...sortieFrequenceNettoyage(l) });
         });
-      });
+      }
     }));
     return sortie;
   };
-  const toutesUnites = catalogue.flatMap((c) => c.items.flatMap(([nom]) => liste(c.categorie, nom).map((u) => u)));
-  const incomplet = toutesUnites.some((u) => !(u.zone || "").trim() || ((u.assigneA || "tous") === "personnes" && !u.personnes.length));
   const apercu = generer();
   const valider = () => {
-    perso.forEach((x) => { if (liste(x.categorie, x.nom).length && signalerAjout) signalerAjout("appareil_nettoyage", `${x.nom}::${x.preset}`, "plan de nettoyage — inventaire de la cuisine"); });
+    perso.forEach((x) => { if (nb(x.categorie, x.nom) > 0 && signalerAjout) signalerAjout("appareil_nettoyage", `${x.nom}::${x.preset}`, "plan de nettoyage — inventaire de la cuisine"); });
     onSave(apercu, zonesLocales);
   };
-  const resume = (u, preset) => lignesDe(u, preset).filter((x) => x.on).map((x) => `${x.suffixe} : ${libelleFrequenceNet(x)}${["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle"].includes(x.frequence) ? ` (${libelleMomentsNet(x)})` : ""}`).join(" · ") || "aucun nettoyage choisi";
   return (
     <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
       <div className="bg-white rounded-2xl p-5 w-full max-w-2xl shadow-xl mt-6 mb-6">
-        <div className="font-semibold text-[var(--ink)] mb-1">Inventaire de ma cuisine</div>
-        <p className="text-xs text-[var(--steel)] mb-4">Indiquez vos zones et postes, puis ce que vous avez dans votre cuisine (laissez à 0 ce que vous n'avez pas). Pour chaque élément, vous choisissez sa zone et son poste, qui le nettoie et quand. Les fréquences proposées viennent du guide officiel de bonnes pratiques d'hygiène ; vous êtes libre de les adapter.</p>
-        <div className="mb-5">
-          <p className="text-sm font-semibold text-[var(--ink)] mb-1">1. Vos zones et postes</p>
-          <p className="text-xs text-[var(--steel)] mb-2">Les endroits ou postes de votre cuisine, nommés comme vous voulez (ex. Poste chaud, Pizza, Froid, Pâtisserie, Plonge, Réserve…). Facultatif : vous pouvez aussi garder « Toute la cuisine ».</p>
-          <div className="flex flex-wrap gap-2 mb-2">
-            {toutesZones.filter((z) => z !== "Tous").map((z) => <span key={z} className="text-xs font-medium bg-[var(--bg)] border border-[var(--line)] rounded-full px-3 py-1">{z}</span>)}
-          </div>
-          <div className="flex gap-2">
-            <input className={`${inputCls} flex-1`} placeholder="Nom d'une zone ou d'un poste" value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterZone(); }} />
-            <Button variant="ghost" onClick={ajouterZone}><Plus size={14} /> Ajouter</Button>
-          </div>
-        </div>
-        <p className="text-sm font-semibold text-[var(--ink)] mb-2">2. Ce qu'il y a à nettoyer dans votre cuisine</p>
-        {catalogue.map((c) => {
-          const frigo = c.categorie === "Appareils réfrigérés";
-          return (
-            <div key={c.categorie} className="mb-5">
-              <p className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)]">{c.categorie}</p>
-              <p className="text-xs text-[var(--steel)] mb-1.5">{SECTIONS_INVENTAIRE[c.categorie]}</p>
-              <ul className="space-y-1">
-                {c.items.map(([nom, preset, cherche]) => {
-                  const l = liste(c.categorie, nom);
-                  const n = l.length;
-                  return (
-                    <li key={nom} className={`rounded-lg px-2 py-1.5 ${n ? "bg-[var(--accent-soft)]" : ""}`}>
-                      <div className="flex flex-wrap items-center gap-2 text-sm">
+        <div className="font-semibold text-[var(--ink)] mb-1">Inventaire de ma cuisine — écran {ecran} sur 2</div>
+        {ecran === 1 ? (
+          <>
+            <p className="text-sm font-semibold text-[var(--ink)] mt-3 mb-1">Vos zones et postes</p>
+            <p className="text-xs text-[var(--steel)] mb-3">Les endroits ou postes de votre cuisine, nommés comme vous voulez (ex. Poste chaud, Pizza, Froid, Pâtisserie, Plonge, Réserve…). Vous pourrez ensuite attribuer chaque appareil à une zone dans le plan. Facultatif : vous pouvez aussi passer directement à l'écran suivant.</p>
+            <div className="flex flex-wrap gap-2 mb-2">
+              {toutesZones.filter((z) => z !== "Tous").map((z) => <span key={z} className="text-xs font-medium bg-[var(--bg)] border border-[var(--line)] rounded-full px-3 py-1">{z}</span>)}
+              {!toutesZones.filter((z) => z !== "Tous").length && <span className="text-xs text-[var(--steel)]">Aucune zone pour l'instant.</span>}
+            </div>
+            <div className="flex gap-2">
+              <input className={`${inputCls} flex-1`} placeholder="Nom d'une zone ou d'un poste" value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterZone(); }} autoFocus />
+              <Button variant="ghost" onClick={ajouterZone}><Plus size={14} /> Ajouter</Button>
+            </div>
+            <div className="flex justify-end gap-2 mt-5 border-t border-[var(--line)] pt-3">
+              <Button variant="ghost" onClick={onCancel}>Annuler</Button>
+              <Button onClick={() => setEcran(2)}>Suivant</Button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-sm font-semibold text-[var(--ink)] mt-3 mb-1">Ce qu'il y a dans votre cuisine</p>
+            <p className="text-xs text-[var(--steel)] mb-4">Indiquez seulement le nombre de chaque chose (laissez 0 ce que vous n'avez pas). Le plan est créé avec les fréquences du guide officiel ; vous réglerez ensuite chaque ligne (nom, zone et poste, quand, qui, sonde) directement dans le tableau du plan.</p>
+            {catalogue.map((c) => (
+              <div key={c.categorie} className="mb-5">
+                <p className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)]">{c.categorie}</p>
+                <p className="text-xs text-[var(--steel)] mb-1.5">{SECTIONS_INVENTAIRE[c.categorie]}</p>
+                <ul className="space-y-1">
+                  {c.items.map(([nom, preset, cherche]) => {
+                    const n = nb(c.categorie, nom);
+                    return (
+                      <li key={nom} className={`flex flex-wrap items-center gap-2 text-sm rounded-lg px-2 py-1.5 ${n ? "bg-[var(--accent-soft)]" : ""}`}>
                         <span className="flex-1 min-w-[10rem] text-[var(--ink)]">{nom}{dejaAuPlan(cherche) && <span className="ml-2 text-xs text-[var(--steel)]">✓ déjà dans votre plan</span>}</span>
                         <div className="flex items-center gap-1.5">
                           <button type="button" onClick={() => changer(c.categorie, nom, -1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none bg-white">−</button>
                           <span className="w-6 text-center font-semibold">{n}</span>
                           <button type="button" onClick={() => changer(c.categorie, nom, 1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none bg-white">+</button>
                         </div>
-                      </div>
-                      {l.map((u, k) => {
-                        const id = `${cle(c.categorie, nom)}#${k}`;
-                        const ouvert = ouverte === id;
-                        const lignes = lignesDe(u, preset);
-                        return (
-                          <div key={k} className="mt-2 ml-1 border border-[var(--line)] rounded-lg p-2.5 bg-white space-y-2">
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                              <div>
-                                <label className="block text-[11px] text-[var(--steel)] mb-0.5">Son nom{n > 1 ? ` (exemplaire ${k + 1})` : ""}</label>
-                                <input className={`${inputCls} w-full text-sm`} value={u.nom} placeholder={n > 1 ? `${nom} ${k + 1}` : nom} onChange={(e) => majUnite(c.categorie, nom, k, { nom: e.target.value })} />
-                              </div>
-                              <div>
-                                <label className="block text-[11px] text-[var(--steel)] mb-0.5">Zone et poste</label>
-                                <select className={`${inputCls} w-full text-sm`} value={u.zone} onChange={(e) => majUnite(c.categorie, nom, k, { zone: e.target.value })}>
-                                  {toutesZones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
-                                </select>
-                              </div>
-                            </div>
-                            {frigo && (
-                              <div>
-                                <label className="block text-[11px] text-[var(--steel)] mb-0.5">Numéro de sonde (facultatif)</label>
-                                <input className={`${inputCls} w-full text-sm`} value={u.sonde} placeholder="ex. 3" onChange={(e) => majUnite(c.categorie, nom, k, { sonde: e.target.value })} />
-                              </div>
-                            )}
-                            <div className="flex items-start justify-between gap-2">
-                              <p className="text-xs text-[var(--steel)] flex-1">{resume(u, preset)} · {libelleAssignationNet({ assigneA: u.assigneA, personnes: u.personnes, poste: u.zone }, employees)}</p>
-                              <button type="button" className="text-xs font-medium text-[var(--accent)] underline shrink-0" onClick={() => setOuverte(ouvert ? null : id)}>{ouvert ? "Fermer" : "Qui et quand ?"}</button>
-                            </div>
-                            {ouvert && (
-                              <div className="border-t border-[var(--line)] pt-2 space-y-3">
-                                <ChampsQuiNettoyage v={{ poste: u.zone, assigneA: u.assigneA, personnes: u.personnes }} maj={(p) => majUnite(c.categorie, nom, k, p)} employees={employees} />
-                                {lignes.map((x, i) => (
-                                  <div key={i} className="border border-[var(--line)] rounded-lg p-2.5 space-y-2">
-                                    <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
-                                      <input type="checkbox" checked={x.on} onChange={() => majLigne(c.categorie, nom, preset, k, i, { on: !x.on })} />
-                                      <span className="flex-1">{x.suffixe}</span>
-                                    </label>
-                                    {x.on && <ChampsFrequenceNettoyage v={x} maj={(p) => majLigne(c.categorie, nom, preset, k, i, p)} />}
-                                  </div>
-                                ))}
-                              </div>
-                            )}
-                          </div>
-                        );
-                      })}
-                    </li>
-                  );
-                })}
-              </ul>
-              <div className="flex gap-2 mt-1.5">
-                <input className={`${inputCls} flex-1 text-sm`} placeholder="+ Un élément qui n'est pas dans la liste (son nom)" value={saisie[c.categorie] || ""} onChange={(e) => setSaisie((x) => ({ ...x, [c.categorie]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") ajouterPerso(c.categorie); }} />
-                <Button variant="ghost" onClick={() => ajouterPerso(c.categorie)}>Ajouter</Button>
+                      </li>
+                    );
+                  })}
+                </ul>
+                <div className="flex gap-2 mt-1.5">
+                  <input className={`${inputCls} flex-1 text-sm`} placeholder="+ Un élément qui n'est pas dans la liste (son nom)" value={saisie[c.categorie] || ""} onChange={(e) => setSaisie((x) => ({ ...x, [c.categorie]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") ajouterPerso(c.categorie); }} />
+                  <Button variant="ghost" onClick={() => ajouterPerso(c.categorie)}>Ajouter</Button>
+                </div>
+              </div>
+            ))}
+            <p className="text-xs text-[var(--steel)] mb-3">Les éléments que vous ajoutez à la main sont signalés à l'équipe qui fait évoluer le logiciel, pour qu'ils rejoignent la liste.</p>
+            <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] pt-3">
+              <span className="text-sm text-[var(--ink)]">{apercu.length} tâche{apercu.length > 1 ? "s" : ""} seront ajoutées au plan.</span>
+              <div className="flex gap-2">
+                <Button variant="ghost" onClick={() => setEcran(1)}>Retour</Button>
+                <Button onClick={valider} disabled={!apercu.length && !zonesLocales.length}>Créer mon plan</Button>
               </div>
             </div>
-          );
-        })}
-        <p className="text-xs text-[var(--steel)] mb-3">Les éléments que vous ajoutez à la main sont signalés à l'équipe qui fait évoluer le logiciel, pour qu'ils rejoignent la liste. Après validation, chaque tâche reste modifiable dans le plan.</p>
-        {incomplet && <p className="text-xs text-[var(--warn)] mb-2">Un exemplaire demande « une ou plusieurs personnes précises » sans personne choisie, ou n'a pas de zone : complétez-le.</p>}
-        <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] pt-3">
-          <span className="text-sm text-[var(--ink)]">{apercu.length} tâche{apercu.length > 1 ? "s" : ""} seront ajoutées à votre plan.</span>
-          <div className="flex gap-2">
-            <Button variant="ghost" onClick={onCancel}>Annuler</Button>
-            <Button onClick={valider} disabled={incomplet || (!apercu.length && !zonesLocales.length)}>Ajouter à mon plan</Button>
-          </div>
-        </div>
+          </>
+        )}
       </div>
     </div>
+  );
+}
+
+// ---- Plan de nettoyage : un seul tableau, modifiable sur place (quoi / zone et poste / quand / qui) ----
+const LIBELLE_FREQ_COURT = { "À chaque utilisation": "Après chaque utilisation", "Quotidienne": "Chaque jour", "Hebdomadaire": "Chaque semaine", "Toutes les 2 semaines": "Toutes les 2 semaines", "Mensuelle": "Chaque mois", "Annuelle": "Chaque année", "Périodique (3-6 mois)": "Périodique (3-6 mois)" };
+const FREQ_AVEC_DATE = ["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle"];
+const normaliserTacheNet = (t) => ({ ...t, ...sortieFrequenceNettoyage(t) });
+const valeurQuiNet = (t) => { const p = t.personnes || []; return (t.assigneA || "tous") === "personnes" ? (p.length === 1 ? p[0] : "__plusieurs__") : "tous"; };
+const patchQuiNet = (val) => (val === "tous" ? { assigneA: "tous", personnes: undefined } : { assigneA: "personnes", personnes: [val] });
+const concerneNet = (t, id) => ((t.assigneA || "tous") !== "personnes") || (t.personnes || []).includes(id);
+
+// Champ texte qui n'enregistre qu'en quittant la case (évite une écriture à chaque lettre)
+function ChampTexteDiffere({ value, onCommit, multiline, className, placeholder }) {
+  const [v, setV] = useState(value || "");
+  useEffect(() => { setV(value || ""); }, [value]);
+  const p = { value: v, placeholder, className, onChange: (e) => setV(e.target.value), onBlur: () => { if (v !== (value || "")) onCommit(v); } };
+  return multiline ? <textarea rows={3} {...p} /> : <input {...p} />;
+}
+
+function LignePlanNettoyage({ t, zones, employees, choisie, onChoisir, maj, ouverte, onOuvrir, onSupprimer, onDupliquer }) {
+  const planifiee = FREQ_AVEC_DATE.includes(t.frequence);
+  const qui = valeurQuiNet(t);
+  const set = (p) => maj(t.id, p);
+  const setFreq = (f) => set(normaliserTacheNet({ ...t, frequence: f }));
+  const etapes = t.etapes || [];
+  return (
+    <div className={`border rounded-lg p-2.5 ${choisie ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
+      <div className="flex flex-wrap items-center gap-2">
+        <input type="checkbox" checked={choisie} onChange={onChoisir} title="Sélectionner pour modifier plusieurs lignes d'un coup" />
+        <ChampTexteDiffere value={t.tache} onCommit={(v) => v.trim() && set({ tache: v.trim() })} className={`${inputCls} flex-1 min-w-[12rem] text-sm`} />
+        <select className={`${inputCls} text-xs`} value={t.poste || "Tous"} onChange={(e) => set({ poste: e.target.value })} title="Zone et poste">
+          {[...new Set([...zones, t.poste || "Tous"])].map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
+        </select>
+        <select className={`${inputCls} text-xs`} value={t.frequence} onChange={(e) => setFreq(e.target.value)} title="Quand">
+          {FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{LIBELLE_FREQ_COURT[f] || f}</option>)}
+        </select>
+        <select className={`${inputCls} text-xs`} value={qui} onChange={(e) => { if (e.target.value === "__plusieurs__") onOuvrir(); else set(patchQuiNet(e.target.value)); }} title="Qui">
+          <option value="tous">Tous</option>
+          {(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+          <option value="__plusieurs__">{qui === "__plusieurs__" ? `${(t.personnes || []).length} personnes (modifier…)` : "Plusieurs personnes…"}</option>
+        </select>
+        <button type="button" onClick={onOuvrir} className="text-xs font-medium text-[var(--accent)] underline">{ouverte ? "Fermer" : "Détails"}</button>
+      </div>
+      <p className="text-xs text-[var(--gold)] font-medium mt-1 ml-6">
+        {planifiee ? `${libelleFrequenceNet(t)} · ${libelleMomentsNet(t)}` : (LIBELLE_FREQ_COURT[t.frequence] || t.frequence)}
+        {t.sonde ? ` · sonde ${t.sonde}` : ""}{etapes.length ? ` · ${etapes.length} étape${etapes.length > 1 ? "s" : ""}` : ""}
+      </p>
+      {ouverte && (
+        <div className="mt-2 pt-2 border-t border-[var(--line)] space-y-3">
+          <ChampsFrequenceNettoyage v={t} maj={(p) => set(normaliserTacheNet({ ...t, ...p }))} />
+          <ChampsQuiNettoyage v={{ ...t, poste: t.poste }} maj={(p) => set(p)} employees={employees} />
+          <Field label="Numéro de sonde (facultatif, pour un appareil réfrigéré)"><ChampTexteDiffere value={t.sonde || ""} onCommit={(v) => set({ sonde: v.trim() || undefined })} className={`${inputCls} w-full`} placeholder="ex. 3" /></Field>
+          <Field label="Produit, dosage et méthode"><ChampTexteDiffere multiline value={t.note || ""} onCommit={(v) => set({ note: v })} className={`${inputCls} w-full`} /></Field>
+          <Field label="Étapes à effectuer (facultatif)">
+            <div className="space-y-2">
+              {etapes.map((e, i) => (
+                <div key={i} className="flex gap-2">
+                  <span className="w-6 h-9 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
+                  <ChampTexteDiffere value={e} onCommit={(v) => set({ etapes: etapes.map((x, j) => (j === i ? v : x)) })} className={`${inputCls} flex-1`} placeholder="Décrire l'étape" />
+                  <button type="button" onClick={() => set({ etapes: etapes.filter((_, j) => j !== i) })} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
+                </div>
+              ))}
+              <Button variant="ghost" onClick={() => set({ etapes: [...etapes, ""] })}><Plus size={14} /> Ajouter une étape</Button>
+            </div>
+          </Field>
+          <div className="flex items-center gap-4">
+            <button type="button" onClick={onDupliquer} className="text-xs text-[var(--steel)] hover:text-[var(--accent)] underline decoration-dotted">Dupliquer cette ligne</button>
+            <BoutonSupprimer onConfirm={onSupprimer} size={14} libelle={t.tache} />
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function VueParJourNettoyage({ taches, employees }) {
+  const ligne = (t) => (
+    <li key={t.id} className="text-sm text-[var(--ink)]">
+      {t.tache} <span className="text-xs text-[var(--steel)]">· {libelleZone(t.poste)} · {libelleMomentsNet(t)} · {libelleAssignationNet(t, employees)}</span>
+    </li>
+  );
+  const duJour = (j) => taches.filter((t) => t.frequence === "Quotidienne" || ((t.frequence === "Hebdomadaire" || t.frequence === "Toutes les 2 semaines") && joursDeLaTache(t).includes(j)));
+  const bloc = (titre, liste) => liste.length ? (
+    <div className="mb-4">
+      <h4 className="text-sm font-bold text-[var(--ink)] mb-1.5">{titre}</h4>
+      <ul className="space-y-1">{liste.map(ligne)}</ul>
+    </div>
+  ) : null;
+  return (
+    <div>
+      <p className="text-xs text-[var(--steel)] mb-3">Ce qui tombe chaque jour de la semaine (les tâches « toutes les 2 semaines » une semaine sur deux). Les filtres ci-dessus s'appliquent aussi ici : choisissez une personne pour voir sa semaine.</p>
+      {JOURS.map((j) => bloc(j, duJour(j)))}
+      {bloc("Chaque mois", taches.filter((t) => t.frequence === "Mensuelle"))}
+      {bloc("Chaque année", taches.filter((t) => t.frequence === "Annuelle"))}
+      {bloc("Sans jour fixe (après utilisation, périodique)", taches.filter((t) => !FREQ_AVEC_DATE.includes(t.frequence)))}
+    </div>
+  );
+}
+
+function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActivity, setEditeur, chargerPlanDepart }) {
+  const [vue, setVue] = useState("tableau");
+  const [filtreZone, setFiltreZone] = useState("");
+  const [filtreQui, setFiltreQui] = useState("");
+  const [filtreFreq, setFiltreFreq] = useState("");
+  const [recherche, setRecherche] = useState("");
+  const [choisies, setChoisies] = useState([]);
+  const [ouverte, setOuverte] = useState(null);
+  const [confirmerVider, setConfirmerVider] = useState(false);
+  const [confirmerGroupe, setConfirmerGroupe] = useState(false);
+  const zonesListe = [...new Set([...zones, ...cleaning.map((t) => t.poste || "Tous")])];
+  const visibles = cleaning
+    .filter((t) => (!filtreZone || (t.poste || "Tous") === filtreZone) && (!filtreFreq || t.frequence === filtreFreq) && (!filtreQui || concerneNet(t, filtreQui)) && (!recherche.trim() || t.tache.toLowerCase().includes(recherche.trim().toLowerCase())))
+    .map((t, i) => ({ t, i }))
+    .sort((a, b) => FREQUENCES_NETTOYAGE.indexOf(a.t.frequence) - FREQUENCES_NETTOYAGE.indexOf(b.t.frequence) || a.i - b.i)
+    .map((x) => x.t);
+  const maj = (id, patch) => setCleaning(cleaning.map((t) => (t.id === id ? { ...t, ...patch } : t)));
+  const majGroupe = (patchDe) => setCleaning(cleaning.map((t) => (choisies.includes(t.id) ? { ...t, ...patchDe(t) } : t)));
+  const basculer = (id) => setChoisies((c) => (c.includes(id) ? c.filter((x) => x !== id) : [...c, id]));
+  const toutChoisi = visibles.length > 0 && visibles.every((t) => choisies.includes(t.id));
+  const supprimer = (id) => { setCleaning(cleaning.filter((t) => t.id !== id)); setChoisies((c) => c.filter((x) => x !== id)); };
+  const dupliquer = (t) => setEditeur({ id: null, initial: { tache: `${t.tache} (copie)`, poste: t.poste, frequence: t.frequence, jour: t.jour, jours: t.jours, moments: t.moments, assigneA: t.assigneA, personnes: t.personnes, semaineRef: t.semaineRef, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, moisAnnee: t.moisAnnee, jourAnnee: t.jourAnnee, etapes: t.etapes, note: t.note } });
+  let dernier = null;
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Plan de nettoyage</h3>
+      <p className="text-xs text-[var(--steel)] mb-3">Une ligne par chose à nettoyer. Changez directement le nom, la zone et poste, la fréquence et la personne ; « Détails » donne les jours, midi et soir, la sonde, le produit et les étapes. Cochez plusieurs lignes pour les modifier d'un coup.</p>
+      <div className="flex flex-wrap gap-2 mb-3">
+        <Button onClick={() => setEditeur({ mode: "inventaire" })}><Plus size={16} /> Inventaire de ma cuisine</Button>
+        <Button variant="ghost" onClick={() => setEditeur({ mode: "appareil" })}><Plus size={16} /> Ajouter un appareil ou une surface</Button>
+        <Button variant="ghost" onClick={() => setEditeur({ id: null, initial: {} })}><Plus size={16} /> Ajouter une tâche libre</Button>
+      </div>
+      {cleaning.length === 0 ? (
+        <div className="rounded-lg border border-[var(--line)] p-3 bg-[var(--bg)]">
+          <p className="text-sm text-[var(--ink)] mb-2">Aucune tâche pour l'instant. <strong>Faites l'inventaire de votre cuisine</strong> : vos zones, puis combien vous avez de chaque chose. Le plan est créé avec les fréquences du guide officiel de bonnes pratiques d'hygiène du restaurateur, et vous l'ajustez ici. Vous pouvez aussi partir d'un <strong>plan de 19 tâches communes à toute cuisine</strong> (sols, murs, plans de travail, poubelles, plonge, hotte…). Ce sont des propositions : c'est à l'établissement de fixer ses fréquences selon ses risques.</p>
+          {chargerPlanDepart && <Button variant="ghost" onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de départ (19 tâches)</Button>}
+        </div>
+      ) : (
+        <>
+          <div className="flex gap-1.5 mb-3">
+            {[["tableau", "Tableau"], ["jour", "Par jour"]].map(([k, lib]) => <button key={k} type="button" onClick={() => setVue(k)} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${vue === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{lib}</button>)}
+          </div>
+          <div className="flex flex-wrap gap-2 mb-3">
+            <input className={`${inputCls} text-xs flex-1 min-w-[8rem]`} placeholder="Rechercher…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+            <select className={`${inputCls} text-xs`} value={filtreZone} onChange={(e) => setFiltreZone(e.target.value)}><option value="">Toutes les zones</option>{zonesListe.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}</select>
+            <select className={`${inputCls} text-xs`} value={filtreQui} onChange={(e) => setFiltreQui(e.target.value)}><option value="">Toutes les personnes</option>{(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>
+            <select className={`${inputCls} text-xs`} value={filtreFreq} onChange={(e) => setFiltreFreq(e.target.value)}><option value="">Toutes les fréquences</option>{FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{LIBELLE_FREQ_COURT[f] || f}</option>)}</select>
+          </div>
+          {vue === "jour" ? <VueParJourNettoyage taches={visibles} employees={employees} /> : (
+            <>
+              <label className="flex items-center gap-2 text-xs text-[var(--steel)] mb-2">
+                <input type="checkbox" checked={toutChoisi} onChange={() => setChoisies(toutChoisi ? choisies.filter((id) => !visibles.some((t) => t.id === id)) : [...new Set([...choisies, ...visibles.map((t) => t.id)])])} />
+                Tout sélectionner ({visibles.length} ligne{visibles.length > 1 ? "s" : ""})
+              </label>
+              {choisies.length > 0 && (
+                <div className="sticky top-0 z-10 mb-3 rounded-lg border border-[var(--accent)] bg-[var(--accent-soft)] p-2.5 space-y-2">
+                  <p className="text-xs font-semibold text-[var(--ink)]">{choisies.length} ligne{choisies.length > 1 ? "s" : ""} sélectionnée{choisies.length > 1 ? "s" : ""} — appliquer à toutes :</p>
+                  <div className="flex flex-wrap gap-2">
+                    <select className={`${inputCls} text-xs`} value="" onChange={(e) => { if (e.target.value) majGroupe(() => ({ poste: e.target.value })); }}><option value="">Zone et poste…</option>{zonesListe.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}</select>
+                    <select className={`${inputCls} text-xs`} value="" onChange={(e) => { if (e.target.value) majGroupe(() => patchQuiNet(e.target.value)); }}><option value="">Qui…</option><option value="tous">Tous</option>{(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>
+                    <select className={`${inputCls} text-xs`} value="" onChange={(e) => { if (e.target.value) majGroupe((t) => normaliserTacheNet({ ...t, frequence: e.target.value })); }}><option value="">Quand…</option>{FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{LIBELLE_FREQ_COURT[f] || f}</option>)}</select>
+                    {confirmerGroupe
+                      ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Supprimer ces {choisies.length} lignes ?</span><Button variant="danger" onClick={() => { setCleaning(cleaning.filter((t) => !choisies.includes(t.id))); logActivity("Nettoyage", "Tâches du plan supprimées", `${choisies.length} lignes`); setChoisies([]); setConfirmerGroupe(false); }}>Oui</Button><Button variant="ghost" onClick={() => setConfirmerGroupe(false)}>Non</Button></span>
+                      : <Button variant="ghost" onClick={() => setConfirmerGroupe(true)}>Supprimer</Button>}
+                    <Button variant="ghost" onClick={() => setChoisies([])}>Désélectionner</Button>
+                  </div>
+                </div>
+              )}
+              <div className="space-y-1.5">
+                {visibles.map((t) => {
+                  const entete = t.frequence !== dernier ? (dernier = t.frequence, <h4 key={`h-${t.id}`} className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] pt-3 first:pt-0">{LIBELLE_FREQ_COURT[t.frequence] || t.frequence}</h4>) : null;
+                  return (
+                    <React.Fragment key={t.id}>
+                      {entete}
+                      <LignePlanNettoyage t={t} zones={zonesListe} employees={employees} choisie={choisies.includes(t.id)} onChoisir={() => basculer(t.id)} maj={maj} ouverte={ouverte === t.id} onOuvrir={() => setOuverte(ouverte === t.id ? null : t.id)} onSupprimer={() => supprimer(t.id)} onDupliquer={() => dupliquer(t)} />
+                    </React.Fragment>
+                  );
+                })}
+                {!visibles.length && <p className="text-sm text-[var(--steel)]">Aucune ligne ne correspond aux filtres.</p>}
+              </div>
+            </>
+          )}
+          <div className="flex flex-wrap gap-2 pt-3 mt-4 border-t border-[var(--line)]">
+            {confirmerVider
+              ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Effacer les {cleaning.length} tâches du plan ?</span><Button variant="danger" onClick={() => { setCleaning([]); setConfirmerVider(false); setChoisies([]); logActivity("Nettoyage", "Plan de nettoyage entièrement effacé", `${cleaning.length} tâches`); }}>Oui, tout effacer</Button><Button variant="ghost" onClick={() => setConfirmerVider(false)}>Non</Button></span>
+              : <Button variant="ghost" onClick={() => setConfirmerVider(true)}>Effacer tout le plan et recommencer</Button>}
+          </div>
+        </>
+      )}
+    </Card>
   );
 }
 
@@ -4708,11 +4840,11 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="Bonnes pratiques d'hygiène : boîtes de conserve et planches à découper" />
       {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
       {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage frequenceImposee={editeur.frequence} zones={zonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
-      {editeur && editeur.mode === "inventaire" && <AssistantInventaireNettoyage employees={employees} zones={zonesNettoyage} existantes={cleaning.map((t) => t.tache)} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerInventaire} onCancel={() => setEditeur(null)} />}
+      {editeur && editeur.mode === "inventaire" && <AssistantInventaireNettoyage zones={zonesNettoyage} existantes={cleaning.map((t) => t.tache)} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerInventaire} onCancel={() => setEditeur(null)} />}
       {editeur && editeur.mode !== "appareil" && editeur.mode !== "inventaire" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} employees={employees} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
       {editable && (
         <Card className="mb-4">
-          <p className="text-sm text-[var(--ink)]"><strong>Ce plan est le vôtre.</strong> Rien n'est imposé : vous créez vos zones, vous ajoutez les appareils et surfaces que vous avez vraiment, et pour chacun vous choisissez la fréquence (chaque jour, chaque semaine, 2 semaines, chaque mois), les jours, midi et/ou soir, et qui s'en occupe. Les cuisiniers voient et cochent les tâches ; seuls le responsable et le directeur peuvent modifier le plan.</p>
+          <p className="text-sm text-[var(--ink)]"><strong>Ce plan est le vôtre.</strong> Rien n'est imposé : vous créez vos zones et postes, vous indiquez ce que vous avez vraiment (inventaire), puis vous réglez chaque ligne dans le tableau : zone et poste, fréquence (après utilisation, chaque jour, chaque semaine, 2 semaines, chaque mois, chaque année), jours, midi et/ou soir, et qui s'en occupe. Les cuisiniers voient et cochent les tâches ; seuls le responsable et le directeur peuvent modifier le plan.</p>
         </Card>
       )}
       {!editable && <Card className="mb-4 bg-[var(--warn-soft)] border-[var(--warn)]/30">
@@ -4777,7 +4909,8 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
         </div>
       </Card>
 
-      <Card>
+      {editable && <PlanNettoyageTableau cleaning={cleaning} setCleaning={setCleaning} zones={zonesNettoyage} employees={employees} logActivity={logActivity} setEditeur={setEditeur} chargerPlanDepart={chargerPlanDepart} />}
+      {!editable && <Card>
       <h3 className="font-semibold text-[var(--ink)] mb-4">Plan de nettoyage</h3>
 
       {cleaning.length === 0 ? (
@@ -4909,7 +5042,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
         </Field>
         <Button onClick={addTask}><Plus size={16} /> Ajouter</Button>
       </div>}
-    </Card>
+    </Card>}
     </div>
   );
 }
