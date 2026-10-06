@@ -4173,14 +4173,14 @@ function ChampsFrequenceNettoyage({ v, maj }) {
   const moments = momentsDeLaTache(v);
   const aDesJours = v.frequence === "Hebdomadaire" || v.frequence === "Toutes les 2 semaines";
   const aMoments = ["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle"].includes(v.frequence);
-  const sel = `${inputCls} text-xs w-full`;
-  const lab = "block text-[11px] text-[var(--steel)] mb-0.5";
+  const sel = `${inputCls} text-sm w-full`;
+  const lab = "block text-xs font-medium text-[var(--ink)] mb-0.5";
   const majJours = (suite) => maj({ jours: JOURS.filter((x) => suite.includes(x)), jour: undefined });
   const changerJour = (i, j) => majJours(jours.map((x, k) => (k === i ? j : x)));
   const ajouterJour = () => { const libre = JOURS.find((x) => !jours.includes(x)); if (libre) majJours([...jours, libre]); };
   const retirerJour = (i) => { if (jours.length > 1) majJours(jours.filter((_, k) => k !== i)); };
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
       <div>
         <label className={lab}>Fréquence</label>
         <select className={sel} value={v.frequence} onChange={(e) => maj({ frequence: e.target.value, ...(e.target.value === "Toutes les 2 semaines" && !v.semaineRef ? { semaineRef: todayISO() } : {}), ...((e.target.value === "Hebdomadaire" || e.target.value === "Toutes les 2 semaines") && !jours.length ? { jours: ["Lundi"] } : {}) })}>
@@ -4237,22 +4237,22 @@ function ChampsFrequenceNettoyage({ v, maj }) {
 function QuiCompactNettoyage({ v, maj, employees }) {
   const [multi, setMulti] = useState(valeurQuiNet(v) === "__plusieurs__");
   const qui = multi ? "__plusieurs__" : valeurQuiNet(v);
-  const sel = `${inputCls} text-xs w-full`;
+  const sel = `${inputCls} text-sm w-full`;
   return (
     <div>
-      <label className="block text-[11px] text-[var(--steel)] mb-0.5">Qui le fait ?</label>
+      <label className="block text-xs font-medium text-[var(--ink)] mb-0.5">Qui le fait ?</label>
       <select className={sel} value={qui} onChange={(e) => { if (e.target.value === "__plusieurs__") { setMulti(true); maj({ assigneA: "personnes", personnes: v.personnes || [] }); } else { setMulti(false); maj(patchQuiNet(e.target.value)); } }}>
         <option value="tous">Tous</option>
         {(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
         <option value="__plusieurs__">Plusieurs personnes…</option>
       </select>
       {qui === "__plusieurs__" && (
-        <div className="flex flex-wrap gap-1 mt-1">
+        <div className="flex flex-wrap gap-1 mt-1 col-span-full">
           {(employees || []).filter((e) => e.id !== "direction").map((e) => {
             const on = (v.personnes || []).includes(e.id);
-            return <button type="button" key={e.id} onClick={() => maj({ assigneA: "personnes", personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-2 py-1 rounded-full text-[11px] font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{e.nom}</button>;
+            return <button type="button" key={e.id} onClick={() => maj({ assigneA: "personnes", personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{e.nom}</button>;
           })}
-          {!(v.personnes || []).length && <span className="text-[11px] text-[var(--warn)]">Choisissez au moins une personne.</span>}
+          {!(v.personnes || []).length && <span className="text-xs text-[var(--warn)]">Choisissez au moins une personne.</span>}
         </div>
       )}
     </div>
@@ -4282,6 +4282,26 @@ function libelleAssignationNet(t, employees) {
   }
   if (mode === "poste") return `équipe de ${t.poste}`;
   return "tâche générale (tous)";
+}
+
+function ZoneCompactNettoyage({ value, onChange, zones }) {
+  const [creer, setCreer] = useState(false);
+  return (
+    <div>
+      <label className="block text-xs font-medium text-[var(--ink)] mb-0.5">Zone et poste</label>
+      {creer ? (
+        <div className="flex gap-1">
+          <input className={`${inputCls} flex-1 text-sm`} placeholder="Nouvelle zone" onChange={(e) => onChange(e.target.value)} autoFocus />
+          <button type="button" className="text-xs text-[var(--steel)] underline" onClick={() => { setCreer(false); onChange("Tous"); }}>Annuler</button>
+        </div>
+      ) : (
+        <select className={`${inputCls} text-sm w-full`} value={value} onChange={(e) => { if (e.target.value === "__nouvelle__") { setCreer(true); onChange(""); } else onChange(e.target.value); }}>
+          {zones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
+          <option value="__nouvelle__">+ Nouvelle zone…</option>
+        </select>
+      )}
+    </div>
+  );
 }
 
 function ChampZoneNettoyage({ value, onChange, zones }) {
@@ -4378,8 +4398,8 @@ function BlocLignesAppareilNettoyage({ lignes, majLigne, nom }) {
     <div className="space-y-2">
       {lignes.map((l, i) => (
         <div key={i} className="border border-[var(--line)] rounded-lg p-2.5 bg-white space-y-2">
-          <label className="flex items-center gap-2 text-sm font-medium text-[var(--ink)]">
-            <input type="checkbox" checked={l.on} onChange={() => majLigne(i, { on: !l.on })} />
+          <label className="flex items-center gap-2 text-sm font-semibold text-[var(--ink)]">
+            <input type="checkbox" className="w-5 h-5" checked={l.on} onChange={() => majLigne(i, { on: !l.on })} />
             <span className="shrink-0">{nom || "L'appareil"} — </span>
             <input className={`${inputCls} flex-1 text-sm`} value={l.suffixe} onChange={(e) => majLigne(i, { suffixe: e.target.value })} disabled={!l.on} />
           </label>
@@ -4436,10 +4456,14 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
     if (estLibre(choix) && signalerAjout) signalerAjout("appareil_nettoyage", `${nom.trim()}::${choix[1]}`, `plan de nettoyage — zone « ${unites[0].poste} »`);
     onSave(sortie);
   };
-  const champsReglage = (k, partage) => (
-    <div className="space-y-3">
-      <ChampZoneNettoyage value={unites[k].poste} onChange={(z) => majUnite(k, { poste: z })} zones={zones} />
-      <QuiCompactNettoyage v={unites[k]} maj={(p) => majUnite(k, p)} employees={employees} />
+  const champsReglage = (k, partage, avecNom) => (
+    <div className="space-y-2">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+        {avecNom && <div><label className="block text-xs font-medium text-[var(--ink)] mb-0.5">Son nom</label><input className={`${inputCls} text-sm w-full`} value={unites[k].nomPerso} placeholder={`${nom.trim() || "Étagère"} ${k + 1}`} onChange={(e) => majUnite(k, { nomPerso: e.target.value })} /></div>}
+        {refrigere && (avecNom || nombre === 1) && <div><label className="block text-xs font-medium text-[var(--ink)] mb-0.5">Sonde n°</label><input className={`${inputCls} text-sm w-full`} value={unites[k].sonde} placeholder="facultatif" onChange={(e) => majUnite(k, { sonde: e.target.value })} /></div>}
+        <ZoneCompactNettoyage value={unites[k].poste} onChange={(z) => majUnite(k, { poste: z })} zones={zones} />
+        <QuiCompactNettoyage v={unites[k]} maj={(p) => majUnite(k, p)} employees={employees} />
+      </div>
       <BlocLignesAppareilNettoyage lignes={unites[k].lignes} majLigne={(i, p) => majLigneUnite(k, i, p)} nom={partage ? nom.trim() : nomUnite(k)} />
     </div>
   );
@@ -4475,23 +4499,14 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
                 <input type="checkbox" className="mt-1" checked={memes} onChange={() => setMemes(!memes)} />
                 <span>Tous identiques : même nom (numéroté), même zone, mêmes personnes et mêmes jours pour les {nombre} exemplaires.</span>
               </label>
-              <p className="text-xs text-[var(--steel)] mt-1 ml-6">{memes ? "Décochez pour régler chaque exemplaire séparément (son nom, sa zone et poste, qui, quel jour, midi ou soir)." : "Case décochée : chaque exemplaire est réglé séparément ci-dessous."}</p>
+              <p className="text-sm text-[var(--steel)] mt-1 ml-6">{memes ? "Décochez pour régler chaque exemplaire séparément (son nom, sa zone et poste, qui, quel jour, midi ou soir)." : "Case décochée : chaque exemplaire est réglé séparément ci-dessous."}</p>
             </div>
           )}
-          {memes || nombre === 1 ? (
-            <div className="space-y-3">
-              {refrigere && nombre === 1 && <Field label="Numéro de sonde (facultatif)"><input className={`${inputCls} w-full`} value={unites[0].sonde} placeholder="ex. 3" onChange={(e) => majUnite(0, { sonde: e.target.value })} /></Field>}
-              {champsReglage(0, nombre > 1)}
-            </div>
-          ) : (
+          {memes || nombre === 1 ? champsReglage(0, nombre > 1, false) : (
             exemplaires.map((k) => (
-              <div key={k} className="border-2 border-[var(--line)] rounded-lg p-3 space-y-3 bg-[var(--bg)]">
-                <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)]">Exemplaire {k + 1} sur {nombre}</p>
-                <div className={`grid grid-cols-1 ${refrigere ? "sm:grid-cols-2" : ""} gap-3`}>
-                  <Field label="Son nom"><input className={`${inputCls} w-full`} value={unites[k].nomPerso} placeholder={`${nom.trim() || "Étagère"} ${k + 1}`} onChange={(e) => majUnite(k, { nomPerso: e.target.value })} /></Field>
-                  {refrigere && <Field label="Numéro de sonde (facultatif)"><input className={`${inputCls} w-full`} value={unites[k].sonde} placeholder="ex. 3" onChange={(e) => majUnite(k, { sonde: e.target.value })} /></Field>}
-                </div>
-                {champsReglage(k, false)}
+              <div key={k} className="border-2 border-[var(--line)] rounded-lg p-3 bg-[var(--bg)] space-y-2">
+                <p className="text-sm font-bold text-[var(--ink)]">Exemplaire {k + 1} sur {nombre}</p>
+                {champsReglage(k, false, true)}
               </div>
             ))
           )}
@@ -4677,32 +4692,36 @@ function ChampTexteDiffere({ value, onCommit, multiline, className, placeholder 
   return multiline ? <textarea rows={3} {...p} /> : <input {...p} />;
 }
 
-// Dans « Détails » : il y en a plusieurs ? On ajoute des exemplaires identiques (mêmes nettoyages, mêmes réglages), chacun avec son nom et sa zone et poste.
-function AjoutExemplairesNettoyage({ t, zones, onAjouter }) {
-  const [ouvert, setOuvert] = useState(false);
-  const [lignes, setLignes] = useState([{ nom: "", zone: t.poste || "Tous", sonde: "" }]);
+// Dans « Détails » : combien en avez-vous ? Chaque exemplaire en plus a sa ligne : nom, zone et poste, qui, fréquence, jour, moment.
+const CHAMPS_QUAND_NET = ["frequence", "jours", "jour", "moments", "jourSemaineMois", "positionMois", "moisAnnee", "jourAnnee", "semaineRef"];
+function AjoutExemplairesNettoyage({ t, zones, employees, onAjouter }) {
   const base = String(t.tache).split(" — ")[0];
   const refrigere = estRefrigereNet(t);
-  const changerNombre = (n) => setLignes((l) => Array.from({ length: n }, (_, k) => l[k] || { nom: "", zone: l[l.length - 1]?.zone || t.poste || "Tous", sonde: "" }));
+  const modele = (k) => ({ nom: `${base} ${k + 2}`, zone: t.poste || "Tous", sonde: "", assigneA: t.assigneA, personnes: [...(t.personnes || [])], ...Object.fromEntries(CHAMPS_QUAND_NET.map((c) => [c, t[c]])) });
+  const [total, setTotal] = useState(1);
+  const [lignes, setLignes] = useState([]);
+  const changerTotal = (n) => { setTotal(n); setLignes((l) => Array.from({ length: n - 1 }, (_, k) => l[k] || (l.length ? { ...l[l.length - 1], nom: `${base} ${k + 2}`, sonde: "" } : modele(k)))); };
   const maj = (k, p) => setLignes((l) => l.map((x, i) => (i === k ? { ...x, ...p } : x)));
-  if (!ouvert) return <button type="button" onClick={() => setOuvert(true)} className="text-xs font-medium text-[var(--accent)] underline">Il y en a plusieurs ? Ajouter d'autres exemplaires de « {base} »</button>;
   return (
-    <div className="border border-[var(--line)] rounded-lg p-2.5 space-y-2 bg-[var(--bg)]">
-      <div className="flex items-center gap-2 text-sm">
-        <span className="text-[var(--ink)]">Combien d'autres exemplaires ?</span>
-        <select className={`${inputCls} text-sm`} value={lignes.length} onChange={(e) => changerNombre(Number(e.target.value))}>{Array.from({ length: 10 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select>
+    <div className="border-2 border-[var(--line)] rounded-lg p-3 space-y-3 bg-[var(--bg)]">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="text-sm font-semibold text-[var(--ink)]">Combien en avez-vous en tout dans votre cuisine ?</span>
+        <select className={`${inputCls} text-sm`} value={total} onChange={(e) => changerTotal(Number(e.target.value))}>{Array.from({ length: 10 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select>
+        {total === 1 && <span className="text-sm text-[var(--steel)]">Un seul : rien de plus à faire.</span>}
       </div>
+      {total > 1 && <p className="text-sm text-[var(--ink)]">« {base} » ci-dessus est le n° 1. Réglez ici les {total - 1} autre{total > 2 ? "s" : ""} :</p>}
       {lignes.map((x, k) => (
-        <div key={k} className="grid grid-cols-1 sm:grid-cols-3 gap-2">
-          <input className={`${inputCls} text-sm`} value={x.nom} placeholder={`${base} (autre ${k + 1})`} onChange={(e) => maj(k, { nom: e.target.value })} />
-          <select className={`${inputCls} text-sm`} value={x.zone} onChange={(e) => maj(k, { zone: e.target.value })}>{zones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}</select>
-          {refrigere ? <input className={`${inputCls} text-sm`} value={x.sonde} placeholder="Sonde n° (facultatif)" onChange={(e) => maj(k, { sonde: e.target.value })} /> : <span />}
+        <div key={k} className="border border-[var(--line)] rounded-lg p-2.5 bg-white space-y-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+            <div><label className="block text-xs font-medium text-[var(--ink)] mb-0.5">Nom (n° {k + 2})</label><input className={`${inputCls} text-sm w-full`} value={x.nom} onChange={(e) => maj(k, { nom: e.target.value })} /></div>
+            {refrigere && <div><label className="block text-xs font-medium text-[var(--ink)] mb-0.5">Sonde n°</label><input className={`${inputCls} text-sm w-full`} value={x.sonde} placeholder="facultatif" onChange={(e) => maj(k, { sonde: e.target.value })} /></div>}
+            <ZoneCompactNettoyage value={x.zone} onChange={(z) => maj(k, { zone: z })} zones={zones} />
+            <QuiCompactNettoyage v={x} maj={(p) => maj(k, p)} employees={employees} />
+          </div>
+          <ChampsFrequenceNettoyage v={x} maj={(p) => maj(k, p)} />
         </div>
       ))}
-      <div className="flex gap-2">
-        <Button onClick={() => { onAjouter(t, lignes.map((x, k) => ({ ...x, nom: x.nom.trim() || `${base} (autre ${k + 1})` }))); setOuvert(false); setLignes([{ nom: "", zone: t.poste || "Tous", sonde: "" }]); }}>Ajouter au plan</Button>
-        <Button variant="ghost" onClick={() => setOuvert(false)}>Annuler</Button>
-      </div>
+      {total > 1 && <Button onClick={() => { onAjouter(t, lignes.map((x, k) => ({ ...x, nom: x.nom.trim() || `${base} ${k + 2}` }))); changerTotal(1); }}>Ajouter ces {total - 1} exemplaire{total > 2 ? "s" : ""} au plan</Button>}
     </div>
   );
 }
@@ -4718,20 +4737,20 @@ function LignePlanNettoyage({ t, zones, employees, modeMulti, choisie, onChoisir
       <div className="flex flex-wrap items-center gap-2">
         {modeMulti && <input type="checkbox" className="w-5 h-5" checked={choisie} onChange={onChoisir} title="Sélectionner cette ligne" />}
         <ChampTexteDiffere value={t.tache} onCommit={(v) => v.trim() && set({ tache: v.trim() })} className={`${inputCls} flex-1 min-w-[12rem] text-sm`} />
-        <select className={`${inputCls} text-xs`} value={t.poste || "Tous"} onChange={(e) => set({ poste: e.target.value })} title="Zone et poste">
+        <select className={`${inputCls} text-sm`} value={t.poste || "Tous"} onChange={(e) => set({ poste: e.target.value })} title="Zone et poste">
           {[...new Set([...zones, t.poste || "Tous"])].map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
         </select>
-        <select className={`${inputCls} text-xs`} value={t.frequence} onChange={(e) => setFreq(e.target.value)} title="Quand">
+        <select className={`${inputCls} text-sm`} value={t.frequence} onChange={(e) => setFreq(e.target.value)} title="Quand">
           {FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{LIBELLE_FREQ_COURT[f] || f}</option>)}
         </select>
-        <select className={`${inputCls} text-xs`} value={qui} onChange={(e) => { if (e.target.value === "__plusieurs__") onOuvrir(); else set(patchQuiNet(e.target.value)); }} title="Qui">
+        <select className={`${inputCls} text-sm`} value={qui} onChange={(e) => { if (e.target.value === "__plusieurs__") onOuvrir(); else set(patchQuiNet(e.target.value)); }} title="Qui">
           <option value="tous">Tous</option>
           {(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
           <option value="__plusieurs__">{qui === "__plusieurs__" ? `${(t.personnes || []).length} personnes (modifier…)` : "Plusieurs personnes…"}</option>
         </select>
-        <button type="button" onClick={onOuvrir} className="text-xs font-medium text-[var(--accent)] underline">{ouverte ? "Fermer" : "Détails"}</button>
+        <button type="button" onClick={onOuvrir} className="text-sm font-medium text-[var(--accent)] underline">{ouverte ? "Fermer" : "Détails"}</button>
       </div>
-      <p className="text-xs text-[var(--gold)] font-medium mt-1 ml-6">
+      <p className="text-sm text-[var(--gold)] font-medium mt-1">
         {planifiee ? `${libelleFrequenceNet(t)} · ${libelleMomentsNet(t)}` : (LIBELLE_FREQ_COURT[t.frequence] || t.frequence)}
         {t.sonde ? ` · sonde ${t.sonde}` : ""}{etapes.length ? ` · ${etapes.length} étape${etapes.length > 1 ? "s" : ""}` : ""}
       </p>
@@ -4740,7 +4759,7 @@ function LignePlanNettoyage({ t, zones, employees, modeMulti, choisie, onChoisir
           <ChampsFrequenceNettoyage v={t} maj={(p) => set(normaliserTacheNet({ ...t, ...p }))} />
           <QuiCompactNettoyage v={t} maj={(p) => set(p)} employees={employees} />
           {estRefrigereNet(t) && <Field label="Numéro de sonde (facultatif)"><ChampTexteDiffere value={t.sonde || ""} onCommit={(v) => set({ sonde: v.trim() || undefined })} className={`${inputCls} w-full`} placeholder="ex. 3" /></Field>}
-          <AjoutExemplairesNettoyage t={t} zones={zones} onAjouter={onAjouterExemplaires} />
+          <AjoutExemplairesNettoyage t={t} zones={zones} employees={employees} onAjouter={onAjouterExemplaires} />
           <Field label="Produit, dosage et méthode"><ChampTexteDiffere multiline value={t.note || ""} onCommit={(v) => set({ note: v })} className={`${inputCls} w-full`} /></Field>
           <Field label="Étapes à effectuer (facultatif)">
             <div className="space-y-2">
@@ -4819,7 +4838,9 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
     const copies = [];
     nouveaux.forEach((n) => groupe.forEach((g) => {
       const suite = String(g.tache).includes(" — ") ? ` — ${String(g.tache).split(" — ").slice(1).join(" — ")}` : "";
-      copies.push({ ...g, id: uid(), tache: `${n.nom}${suite}`, poste: n.zone, sonde: estRefrigereNet(g) && n.sonde.trim() ? n.sonde.trim() : undefined, creeLe: todayISO(), fait: false, date: null, employeeId: null });
+      let c = { ...g, id: uid(), tache: `${n.nom}${suite}`, poste: n.zone, assigneA: n.assigneA, personnes: n.assigneA === "personnes" ? n.personnes : undefined, sonde: estRefrigereNet(g) && String(n.sonde || "").trim() ? n.sonde.trim() : undefined, creeLe: todayISO(), fait: false, date: null, employeeId: null };
+      if (g.id === t.id) c = normaliserTacheNet({ ...c, ...Object.fromEntries(CHAMPS_QUAND_NET.map((k) => [k, n[k]])) });
+      copies.push(c);
     }));
     setCleaning([...cleaning, ...copies]);
     logActivity("Nettoyage", "Exemplaires ajoutés au plan de nettoyage", nouveaux.map((n) => n.nom).join(" · "));
@@ -4829,7 +4850,7 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
   return (
     <Card>
       <h3 className="font-semibold text-[var(--ink)] mb-1">Plan de nettoyage</h3>
-      <p className="text-xs text-[var(--steel)] mb-3">Une ligne par chose à nettoyer. Changez directement le nom, la zone et poste, la fréquence et la personne ; « Détails » donne les jours, midi et soir, la sonde, le produit et les étapes. Cochez plusieurs lignes pour les modifier d'un coup.</p>
+      <p className="text-sm text-[var(--steel)] mb-3">Une ligne par chose à nettoyer. Changez directement le nom, la zone et poste, la fréquence et la personne ; « Détails » donne les jours, midi et soir, la sonde, le produit et les étapes. Cochez plusieurs lignes pour les modifier d'un coup.</p>
       <div className="flex flex-wrap gap-2 mb-3">
         <Button onClick={() => setEditeur({ mode: "inventaire" })}><Plus size={16} /> Inventaire de ma cuisine</Button>
         <Button variant="ghost" onClick={() => setEditeur({ mode: "appareil" })}><Plus size={16} /> Ajouter un appareil ou une surface</Button>
@@ -4848,10 +4869,10 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
           </div>
           {messageGroupe && !modeMulti && <p className="text-xs text-[var(--accent)] font-medium mb-2">{messageGroupe}</p>}
           <div className="flex flex-wrap gap-2 mb-3">
-            <input className={`${inputCls} text-xs flex-1 min-w-[8rem]`} placeholder="Rechercher…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
-            <select className={`${inputCls} text-xs`} value={filtreZone} onChange={(e) => setFiltreZone(e.target.value)}><option value="">Toutes les zones</option>{zonesListe.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}</select>
-            <select className={`${inputCls} text-xs`} value={filtreQui} onChange={(e) => setFiltreQui(e.target.value)}><option value="">Toutes les personnes</option>{(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>
-            <select className={`${inputCls} text-xs`} value={filtreFreq} onChange={(e) => setFiltreFreq(e.target.value)}><option value="">Toutes les fréquences</option>{FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{LIBELLE_FREQ_COURT[f] || f}</option>)}</select>
+            <input className={`${inputCls} text-sm flex-1 min-w-[8rem]`} placeholder="Rechercher…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+            <select className={`${inputCls} text-sm`} value={filtreZone} onChange={(e) => setFiltreZone(e.target.value)}><option value="">Toutes les zones</option>{zonesListe.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}</select>
+            <select className={`${inputCls} text-sm`} value={filtreQui} onChange={(e) => setFiltreQui(e.target.value)}><option value="">Toutes les personnes</option>{(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>
+            <select className={`${inputCls} text-sm`} value={filtreFreq} onChange={(e) => setFiltreFreq(e.target.value)}><option value="">Toutes les fréquences</option>{FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{LIBELLE_FREQ_COURT[f] || f}</option>)}</select>
           </div>
           {vue === "jour" ? <VueParJourNettoyage taches={visibles} employees={employees} /> : (
             <>
@@ -4884,9 +4905,9 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
               <div className="max-w-3xl mx-auto space-y-2">
                 <p className="text-sm font-bold text-[var(--ink)]">{choisies.length} ligne{choisies.length > 1 ? "s" : ""} cochée{choisies.length > 1 ? "s" : ""} : le réglage choisi sera appliqué à ces lignes seulement.</p>
                 <div className="flex flex-wrap gap-2 items-center">
-                  <select className={`${inputCls} text-xs`} value="" onChange={(e) => { if (e.target.value) majGroupe(() => ({ poste: e.target.value }), "Zone et poste"); }}><option value="">Zone et poste…</option>{zonesListe.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}</select>
-                  <select className={`${inputCls} text-xs`} value="" onChange={(e) => { if (e.target.value) majGroupe(() => patchQuiNet(e.target.value), "Personne"); }}><option value="">Qui…</option><option value="tous">Tous</option>{(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>
-                  <select className={`${inputCls} text-xs`} value="" onChange={(e) => { if (e.target.value) majGroupe((t) => normaliserTacheNet({ ...t, frequence: e.target.value }), "Fréquence"); }}><option value="">Quand…</option>{FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{LIBELLE_FREQ_COURT[f] || f}</option>)}</select>
+                  <select className={`${inputCls} text-sm`} value="" onChange={(e) => { if (e.target.value) majGroupe(() => ({ poste: e.target.value }), "Zone et poste"); }}><option value="">Zone et poste…</option>{zonesListe.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}</select>
+                  <select className={`${inputCls} text-sm`} value="" onChange={(e) => { if (e.target.value) majGroupe(() => patchQuiNet(e.target.value), "Personne"); }}><option value="">Qui…</option><option value="tous">Tous</option>{(employees || []).filter((e) => e.id !== "direction").map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>
+                  <select className={`${inputCls} text-sm`} value="" onChange={(e) => { if (e.target.value) majGroupe((t) => normaliserTacheNet({ ...t, frequence: e.target.value }), "Fréquence"); }}><option value="">Quand…</option>{FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{LIBELLE_FREQ_COURT[f] || f}</option>)}</select>
                   {confirmerGroupe
                     ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Supprimer ces {choisies.length} lignes ?</span><Button variant="danger" onClick={() => { setCleaning(cleaning.filter((t) => !choisies.includes(t.id))); logActivity("Nettoyage", "Tâches du plan supprimées", `${choisies.length} lignes`); setChoisies([]); setConfirmerGroupe(false); }}>Oui</Button><Button variant="ghost" onClick={() => setConfirmerGroupe(false)}>Non</Button></span>
                     : <Button variant="ghost" onClick={() => setConfirmerGroupe(true)}>Supprimer</Button>}
