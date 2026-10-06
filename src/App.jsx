@@ -1836,7 +1836,7 @@ function NettoyageFinServiceEmploye({ ctx, employees, currentUserId, logActivity
           {o.poste && o.poste !== "Tous" && <span className="text-[10px] uppercase tracking-wide text-[var(--steel)] shrink-0">{o.poste}</span>}
         </div>
         {o.enRetard && <p className="text-xs font-semibold text-[var(--warn)] mt-0.5">En retard — prévue le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"})</p>}
-        {o.note && o.statut === "a_faire" && <p className="text-xs text-[var(--steel)] mt-1 leading-snug">{o.note}</p>}
+        {o.note && o.statut === "a_faire" && <p className="text-xs text-[var(--steel)] mt-1 leading-snug whitespace-pre-line">{o.note}</p>}
         {p && <p className={`text-xs font-medium mt-1 ${p.cls}`}>{p.txt}{o.statut === "impossible" && ex?.motif ? ` : ${ex.motif}` : ""}{o.statut === "refuse" && ex?.noteChef ? ` : ${ex.noteChef}` : ""}</p>}
         {o.statut === "refuse" && ex?.photoChef && <img src={ex.photoChef} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1" />}
         {(o.statut === "fait" || o.statut === "valide") && ex?.employeNom && <p className="text-xs text-[var(--steel)]">Par {ex.employeNom}{ex.faitA ? ` à ${String(ex.faitA).slice(11, 16)}` : ""}</p>}
@@ -4095,7 +4095,11 @@ const TYPES_APPAREIL_NETTOYAGE = {
     { suffixe: "nettoyage complet (intérieur, extérieur, portes)", frequence: "Hebdomadaire", jours: ["Jeudi"], moments: ["soir"], note: PROTO_NET.degraisseur },
   ] },
   petit: { lignes: [
-    { suffixe: "nettoyage après utilisation", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
+    { suffixe: "nettoyage et désinfection après utilisation", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
+  ] },
+  sousvide: { lignes: [
+    { suffixe: "nettoyage après chaque série", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
+    { suffixe: "désinfection", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.simple },
   ] },
   hotte: { lignes: [
     { suffixe: "nettoyage", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.degraisseur },
@@ -4114,7 +4118,7 @@ const TYPES_APPAREIL_NETTOYAGE = {
 const CATALOGUE_APPAREILS_NETTOYAGE = [
   { categorie: "Froid et congélation", items: [["Frigo", "frigo"], ["Saladette / table réfrigérée", "frigo"], ["Chambre froide", "frigo"], ["Vitrine réfrigérée", "frigo"], ["Cellule de refroidissement", "frigo"], ["Machine à glaçons", "frigo"], ["Congélateur", "congel"], ["Congélateur à glace", "congel"]] },
   { categorie: "Cuisson", items: [["Four", "four"], ["Four mixte", "four"], ["Four à pizza", "four"], ["Plaque à induction", "four"], ["Piano / feux vifs", "four"], ["Plancha", "four"], ["Friteuse", "four"], ["Grill / salamandre", "four"], ["Bain-marie", "four"], ["Cuiseur multifonction / sauteuse", "four"], ["Micro-ondes", "petit"], ["Hotte et filtres", "hotte"]] },
-  { categorie: "Petit matériel", items: [["Robot batteur", "petit"], ["Robot coupe / mixeur", "petit"], ["Coupe-légumes", "petit"], ["Trancheuse", "petit"], ["Hachoir", "petit"], ["Pétrin", "petit"], ["Chauffe-pot", "petit"], ["Balance", "petit"], ["Pelle, planches et ustensiles", "petit"]] },
+  { categorie: "Petit matériel", items: [["Robot batteur", "petit"], ["Robot coupe / mixeur", "petit"], ["Coupe-légumes", "petit"], ["Trancheuse", "petit"], ["Hachoir", "petit"], ["Pétrin", "petit"], ["Chauffe-pot", "petit"], ["Machine sous vide", "sousvide"], ["Balance", "petit"], ["Pelle, planches et ustensiles", "petit"]] },
   { categorie: "Plonge et lavage", items: [["Lave-vaisselle", "lavage"], ["Plonge (bacs)", "lavage"], ["Évier de lavage des légumes", "lavage"], ["Lave-mains", "lavage"]] },
   { categorie: "Surfaces et locaux", items: [["Sol", "surface"], ["Carrelage mural", "surface"], ["Plans de travail", "surface"], ["Étagères et rangements", "surface"], ["Poubelles", "surface"], ["Bouche d'évacuation", "surface"], ["Réserve / stockage sec", "surface"]] },
   { categorie: "Autre", items: [["Autre (je saisis le nom)", "autre"]] },
@@ -4544,7 +4548,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
           <p className="text-sm text-[var(--steel)] mb-3">Aucune tâche définie.</p>
           {chargerPlanDepart && (
             <div className="rounded-lg border border-[var(--line)] p-3 bg-[var(--bg)]">
-              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, vous pouvez charger un <strong>plan de départ générique de 23 tâches</strong> : ce qu'on trouve dans toute cuisine, chaque jour, chaque semaine et chaque mois (sol, évacuations, poubelles, plans de travail, plonge, hotte, murs, réserve, chambres froides, congélateurs…), sans appareil précis. <strong>C'est une proposition de départ, pas une liste officielle</strong> : les textes officiels (guide de bonnes pratiques d'hygiène du restaurateur) ne donnent que des fréquences indicatives, et c'est à l'établissement de fixer les siennes selon ses risques. Ensuite, vous ajoutez <strong>vos</strong> appareils (frigos, fours, congélateurs, robots…) avec « Ajouter un appareil », dans vos propres zones, avec la fréquence et la personne de votre choix.</p>
+              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, vous pouvez charger un <strong>plan de départ générique de 23 tâches</strong>, aligné sur le tableau officiel des fréquences du guide de bonnes pratiques d'hygiène du restaurateur (le repère figure dans la note de chaque tâche concernée) : ce qu'on trouve dans toute cuisine, chaque jour, chaque semaine et chaque mois (sol, évacuations, poubelles, plans de travail, plonge, hotte, murs, réserve, chambres froides, congélateurs…), sans appareil précis. <strong>C'est une proposition de départ, pas une liste officielle</strong> : les textes officiels (guide de bonnes pratiques d'hygiène du restaurateur) ne donnent que des fréquences indicatives, et c'est à l'établissement de fixer les siennes selon ses risques. Ensuite, vous ajoutez <strong>vos</strong> appareils (frigos, fours, congélateurs, robots…) avec « Ajouter un appareil », dans vos propres zones, avec la fréquence et la personne de votre choix.</p>
               <Button onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de nettoyage de départ</Button>
             </div>
           )}
@@ -4578,7 +4582,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
                       {noteOuverte === t.id ? (
                         <input className={`${inputCls} w-full mt-1.5`} placeholder="Détail à respecter (produit, geste, point de vigilance...)" value={t.note || ""} onChange={(e) => updateNote(t.id, e.target.value)} autoFocus />
                       ) : t.note ? (
-                        <p className="text-xs text-[var(--steel)] italic mt-0.5">{t.note}</p>
+                        <p className="text-xs text-[var(--steel)] italic mt-0.5 whitespace-pre-line">{t.note}</p>
                       ) : null}
                     </li>
                 ))}
