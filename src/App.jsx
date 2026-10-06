@@ -7464,15 +7464,18 @@ const nbCarte = (x) => parseFloat(String(x == null ? "" : x).replace(",", "."));
 
 // Calcul des préparations d'un jour : quantité de plats × recette (ingrédients proportionnels aux portions de la fiche),
 // regroupé par poste. Une préparation (sous-recette) est rangée dans le poste de sa propre fiche.
-function calculerPreparationsCarte(carte, fiches, jour) {
+function calculerPreparationsCarte(carte, fiches, jour, restes) {
   const groupes = {}; const sansRendement = [];
   const g = (poste) => (groupes[poste] = groupes[poste] || { plats: [], lignes: {} });
   ((carte && carte.plats) || []).forEach((id) => {
     const f = (fiches || []).find((x) => x.id === id); if (!f) return;
-    const n = nbCarte(((carte.quantites || {})[id] || {})[jour]);
-    if (!(n > 0)) return;
+    const cible = nbCarte(((carte.quantites || {})[id] || {})[jour]);
+    if (!(cible > 0)) return;
+    const reste = Math.max(0, nbCarte((restes || {})[id]) || 0);
+    const n = Math.max(0, cible - reste);
     const poste = f.poste || "Sans poste";
-    g(poste).plats.push({ nom: f.nom, n });
+    g(poste).plats.push({ nom: f.nom, n, cible, reste });
+    if (n === 0) return;
     const r = (f.formulaire && f.formulaire.rendement) || {};
     const bp = nbCarte(r.portions);
     if (!(bp > 0)) { sansRendement.push(f.nom); return; }
@@ -7627,13 +7630,13 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                         <div className="mt-1.5">
                           {!ouvert && (
                             <div className="flex flex-wrap items-center gap-2">
-                              <span className="text-[var(--steel)]">{resume ? `Portions à produire : ${resume}` : "Aucune quantité à produire indiquée."}</span>
-                              {estChef && <button type="button" className="text-[var(--accent)] underline" onClick={() => setQuantiteOuverte(id)}>{resume ? "Modifier" : "Indiquer une quantité à produire"}</button>}
+                              <span className="text-[var(--steel)]">{resume ? `Portions à avoir en stock : ${resume}` : "Aucune quantité à avoir en stock indiquée."}</span>
+                              {estChef && <button type="button" className="text-[var(--accent)] underline" onClick={() => setQuantiteOuverte(id)}>{resume ? "Modifier" : "Indiquer la quantité à avoir en stock"}</button>}
                             </div>
                           )}
                           {ouvert && (
                             <div className="bg-[var(--bg)] border border-[var(--cadre)] rounded-lg p-2">
-                              <p className="text-[var(--steel)] mb-2">Nombre de portions à produire pour chaque jour (laissez vide si vous ne produisez pas ce jour-là).</p>
+                              <p className="text-[var(--steel)] mb-2">Nombre de portions que vous voulez avoir en stock pour chaque jour. Le logiciel déduira ce qui reste de la veille pour calculer ce qu'il faut produire. Laissez vide un jour sans service.</p>
                               <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
                                 {JOURS.map((j) => (
                                   <div key={j}><label className={libNet}>{j.slice(0, 3)}</label><ChampTexteDiffere value={q[j] || ""} onCommit={(v) => majQuantite(id, j, v.trim())} className={champNet} inputMode="numeric" /></div>
@@ -7662,7 +7665,10 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                 </div>
               );
             }
-            const { groupes, sansRendement } = calculerPreparationsCarte(carte, fiches, jourDetail);
+            const idxJ = JOURS.indexOf(jourDetail); const dateJ = addDays(todayISO(), (idxJ - ((new Date().getDay() + 6) % 7) + 7) % 7);
+            const restesJour = (carte.restes || {})[dateJ] || {};
+            const platsDuJour = idsCarte.filter((id) => nbCarte(quantites[id] && quantites[id][jourDetail]) > 0);
+            const { groupes, sansRendement } = calculerPreparationsCarte(carte, fiches, jourDetail, restesJour);
             const postes = Object.keys(groupes).sort((a, b) => a.localeCompare(b, "fr"));
             return (
               <div className="border-2 border-[var(--cadre)] rounded-xl p-3 mt-3 bg-[var(--bg)]">
@@ -7679,8 +7685,22 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                   const total = l.reduce((t, r) => t + (Number(r.personnes) || 0), 0);
                   return <p className="text-sm text-[var(--ink)] bg-white border border-[var(--cadre)] rounded-lg px-3 py-2 mb-3">Réservations déjà enregistrées {ecart === 0 ? "aujourd'hui" : `le ${fmtShort(d)}`} : <b>{l.length ? `${l.length} réservation${l.length > 1 ? "s" : ""}, ${total} personnes` : "aucune"}</b> — à prendre en compte pour vos quantités (les clients sans réservation ne sont pas comptés).</p>;
                 })()}
-                {!aDesQuantites && <p className="text-sm text-[var(--warn)] mb-2">Indiquez d'abord, sous chaque plat ci-dessus, le nombre de portions à produire par jour.</p>}
-                {aDesQuantites && postes.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune production prévue le {jourDetail.toLowerCase()}.</p>}
+                {platsDuJour.length > 0 && (
+                  <div className="bg-white border border-[var(--cadre)] rounded-lg p-3 mb-3">
+                    <p className="text-sm font-semibold text-[var(--ink)] mb-1">Ce qu'il vous reste en stock (de la veille)</p>
+                    <p className="text-xs text-[var(--steel)] mb-2">Indiquez le nombre de portions déjà prêtes : elles sont retirées de ce qu'il faut produire pour le {fmtShort(dateJ)}.</p>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {platsDuJour.map((id) => (
+                        <div key={id} className="flex items-center justify-between gap-2 text-sm text-[var(--ink)]">
+                          <span className="flex-1 min-w-0">{nomDe(id)} <span className="text-[var(--steel)]">(à avoir : {quantites[id][jourDetail]})</span></span>
+                          <ChampTexteDiffere value={restesJour[id] || ""} onCommit={(v) => majCarte({ restes: { ...(carte.restes || {}), [dateJ]: { ...restesJour, [id]: v.trim() } } })} className={`${champNet} !w-20`} inputMode="numeric" placeholder="0" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                {!aDesQuantites && <p className="text-sm text-[var(--warn)] mb-2">Indiquez d'abord, sous chaque plat ci-dessus, le nombre de portions à avoir en stock par jour.</p>}
+                {aDesQuantites && postes.length === 0 && <p className="text-sm text-[var(--steel)]">Rien à avoir en stock le {jourDetail.toLowerCase()}.</p>}
                 {sansRendement.length > 0 && <p className="text-sm text-[var(--warn)] mb-2">Calcul impossible pour : {sansRendement.join(", ")} — renseignez le nombre de portions dans la fiche technique (rendement).</p>}
                 {postes.map((poste) => {
                   const gr = groupes[poste]; const lignes = Object.values(gr.lignes).sort((a, b) => Number(b.prep) - Number(a.prep) || a.nom.localeCompare(b.nom, "fr"));
@@ -7691,7 +7711,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                         <h4 className="font-semibold text-[var(--ink)]">{poste}</h4>
                         <span className="text-xs text-[var(--steel)]">{equipe.length ? `Employé(s) : ${equipe.join(", ")}` : "Aucun employé rattaché à ce poste"}</span>
                       </div>
-                      {gr.plats.length > 0 && <ul className="text-sm text-[var(--ink)] mb-2">{gr.plats.map((p, i) => <li key={i}>• <b>{p.n} portions</b> — {p.nom}</li>)}</ul>}
+                      {gr.plats.length > 0 && <ul className="text-sm text-[var(--ink)] mb-2">{gr.plats.map((p, i) => <li key={i}>• {p.n > 0 ? <b>{p.n} portions à produire</b> : <b>Rien à produire</b>} — {p.nom} <span className="text-[var(--steel)]">({p.cible} à avoir{p.reste > 0 ? ` − ${p.reste} restantes` : ""})</span></li>)}</ul>}
                       {lignes.length > 0 && (
                         <table className="w-full text-sm">
                           <thead><tr className="text-left text-xs text-[var(--steel)]"><th className="py-1 pr-2 font-medium">À préparer</th><th className="py-1 pr-2 font-medium">Quantité</th><th className="py-1 font-medium">Pour</th></tr></thead>
