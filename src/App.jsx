@@ -3171,7 +3171,7 @@ function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityL
 
       {sousEcran === "pms" && (
         <div className="mb-6">
-          <NettoyagePage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} employees={employees} logActivity={logActivity} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} />
+          <NettoyagePage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} employees={employees} logActivity={logActivity} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
         </div>
       )}
 
@@ -4119,6 +4119,8 @@ const CATALOGUE_APPAREILS_NETTOYAGE = [
   { categorie: "Surfaces et locaux", items: [["Sol", "surface"], ["Carrelage mural", "surface"], ["Plans de travail", "surface"], ["Étagères et rangements", "surface"], ["Poubelles", "surface"], ["Bouche d'évacuation", "surface"], ["Réserve / stockage sec", "surface"]] },
   { categorie: "Autre", items: [["Autre (je saisis le nom)", "autre"]] },
 ];
+const ITEM_LIBRE_NETTOYAGE = "➕ Autre (je saisis le nom)";
+const PRESET_PAR_CATEGORIE_NETTOYAGE = { "Froid et congélation": "frigo", "Cuisson": "four", "Petit matériel": "petit", "Plonge et lavage": "lavage", "Surfaces et locaux": "surface", "Autre": "autre" };
 const libelleZone = (z) => (z === "Tous" || !z ? "Toute la cuisine (commun)" : z);
 const POSITIONS_MOIS = [[1, "1er"], [2, "2e"], [3, "3e"], [4, "4e"], ["dernier", "dernier"]];
 
@@ -4276,10 +4278,17 @@ function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCan
   );
 }
 
-function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
-  const [categorie, setCategorie] = useState(CATALOGUE_APPAREILS_NETTOYAGE[0].categorie);
-  const [choix, setChoix] = useState(CATALOGUE_APPAREILS_NETTOYAGE[0].items[0]);
-  const [nom, setNom] = useState(CATALOGUE_APPAREILS_NETTOYAGE[0].items[0][0]);
+function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandesAjout, signalerAjout }) {
+  // Catalogue = liste de base + appareils déjà ajoutés par cet établissement (ils sont aussi signalés à l'éditeur du logiciel).
+  const catalogue = CATALOGUE_APPAREILS_NETTOYAGE.map((c) => {
+    const base = c.items.filter((it) => it[0] !== ITEM_LIBRE_NETTOYAGE);
+    const ajoutes = (demandesAjout || []).filter((d) => d.type === "appareil_nettoyage").map((d) => String(d.valeur).split("::")).filter(([n, pr]) => n && (PRESET_PAR_CATEGORIE_NETTOYAGE[c.categorie] === (pr || "autre")) && !base.some((it) => it[0].toLowerCase() === n.toLowerCase())).map(([n, pr]) => [n, pr || "autre"]);
+    const libre = c.categorie === "Autre" ? [] : [[ITEM_LIBRE_NETTOYAGE, PRESET_PAR_CATEGORIE_NETTOYAGE[c.categorie]]];
+    return { categorie: c.categorie, items: c.categorie === "Autre" ? [...ajoutes, ...c.items] : [...base, ...ajoutes, ...libre] };
+  });
+  const [categorie, setCategorie] = useState(catalogue[0].categorie);
+  const [choix, setChoix] = useState(catalogue[0].items[0]);
+  const [nom, setNom] = useState(catalogue[0].items[0][0]);
   const [nombre, setNombre] = useState(1);
   const [memes, setMemes] = useState(true); // même zone et mêmes personnes pour tous les exemplaires
   const uniteVide = () => ({ poste: zones[0] || "Tous", assigneA: undefined, personnes: [], nomPerso: "" });
@@ -4289,9 +4298,10 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
   const reglage = (k) => (memes ? unites[0] : unites[k]);
   const modeDe = (r) => r.assigneA || "tous";
   const nomUnite = (k) => (!memes && unites[k].nomPerso.trim() ? unites[k].nomPerso.trim() : nombre > 1 ? `${nom.trim()} ${k + 1}` : nom.trim());
-  const [lignes, setLignes] = useState(() => TYPES_APPAREIL_NETTOYAGE[CATALOGUE_APPAREILS_NETTOYAGE[0].items[0][1]].lignes.map((l) => ({ ...l, on: true })));
-  const choisir = (item) => { setChoix(item); setNom(item[1] === "autre" ? "" : item[0]); setLignes(TYPES_APPAREIL_NETTOYAGE[item[1]].lignes.map((l) => ({ ...l, on: true }))); };
-  const changerCategorie = (c) => { setCategorie(c); choisir(CATALOGUE_APPAREILS_NETTOYAGE.find((x) => x.categorie === c).items[0]); };
+  const [lignes, setLignes] = useState(() => TYPES_APPAREIL_NETTOYAGE[catalogue[0].items[0][1]].lignes.map((l) => ({ ...l, on: true })));
+  const estLibre = (item) => item[0] === ITEM_LIBRE_NETTOYAGE || item[0].startsWith("Autre (");
+  const choisir = (item) => { setChoix(item); setNom(estLibre(item) ? "" : item[0]); setLignes(TYPES_APPAREIL_NETTOYAGE[item[1]].lignes.map((l) => ({ ...l, on: true }))); };
+  const changerCategorie = (c) => { setCategorie(c); choisir(catalogue.find((x) => x.categorie === c).items[0]); };
   const majLigne = (i, p) => setLignes((arr) => arr.map((l, idx) => (idx === i ? { ...l, ...p } : l)));
   const exemplaires = Array.from({ length: nombre }, (_, k) => k);
   const reglagesValides = exemplaires.every((k) => { const r = reglage(k); return (r.poste || "").trim() && !(modeDe(r) === "personnes" && !r.personnes.length); });
@@ -4301,6 +4311,7 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
     exemplaires.forEach((k) => { const r = reglage(k); const mode = modeDe(r); lignes.filter((l) => l.on).forEach((l) => sortie.push({
       tache: `${nomUnite(k)} — ${l.suffixe}`, poste: r.poste.trim(), note: l.note || "", assigneA: mode, personnes: mode === "personnes" ? r.personnes : undefined, ...sortieFrequenceNettoyage(l),
     })); });
+    if (estLibre(choix) && signalerAjout) signalerAjout("appareil_nettoyage", `${nom.trim()}::${choix[1]}`, `plan de nettoyage — zone « ${unites[0].poste} »`);
     onSave(sortie);
   };
   return (
@@ -4312,17 +4323,17 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <Field label="Catégorie">
               <select className={inputCls} value={categorie} onChange={(e) => changerCategorie(e.target.value)}>
-                {CATALOGUE_APPAREILS_NETTOYAGE.map((c) => <option key={c.categorie} value={c.categorie}>{c.categorie}</option>)}
+                {catalogue.map((c) => <option key={c.categorie} value={c.categorie}>{c.categorie}</option>)}
               </select>
             </Field>
             <Field label="Appareil ou surface">
-              <select className={inputCls} value={choix[0]} onChange={(e) => choisir(CATALOGUE_APPAREILS_NETTOYAGE.find((c) => c.categorie === categorie).items.find((it) => it[0] === e.target.value))}>
-                {CATALOGUE_APPAREILS_NETTOYAGE.find((c) => c.categorie === categorie).items.map((it) => <option key={it[0]} value={it[0]}>{it[0]}</option>)}
+              <select className={inputCls} value={choix[0]} onChange={(e) => choisir(catalogue.find((c) => c.categorie === categorie).items.find((it) => it[0] === e.target.value))}>
+                {catalogue.find((c) => c.categorie === categorie).items.map((it) => <option key={it[0]} value={it[0]}>{it[0]}</option>)}
               </select>
             </Field>
           </div>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-            <div className="sm:col-span-2"><Field label="Son nom chez vous (ex. Frigo desserts)"><input className={`${inputCls} w-full`} value={nom} onChange={(e) => setNom(e.target.value)} autoFocus /></Field></div>
+            <div className="sm:col-span-2"><Field label={estLibre(choix) ? "Son nom (il sera ajouté à votre liste)" : "Son nom chez vous (ex. Frigo desserts)"}><input className={`${inputCls} w-full`} value={nom} onChange={(e) => setNom(e.target.value)} autoFocus /></Field></div>
             <Field label="Combien ?">
               <select className={inputCls} value={nombre} onChange={(e) => changerNombre(Number(e.target.value))}>
                 {Array.from({ length: 10 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
@@ -4373,7 +4384,7 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
   );
 }
 
-function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage: zonesStockees, setZonesNettoyage, employees }) {
+function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage: zonesStockees, setZonesNettoyage, employees, demandesAjout, signalerAjout }) {
   const zonesNettoyage = [...new Set([...zonesStockees, ...cleaning.map((t) => t.poste || "Tous")])];
   const [infosFicheNettoyage, setInfosFicheNettoyage] = useState(null);
   const [nouveau, setNouveau] = useState({ tache: "", frequence: "Quotidienne", poste: "Tous" });
@@ -4447,7 +4458,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       <BoutonInfosNormes ficheKey="lavageLegumes" onClick={setInfosFicheNettoyage} label="Protocole de lavage des fruits et légumes" />
       <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="Bonnes pratiques d'hygiène : boîtes de conserve et planches à découper" />
       {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
-      {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage zones={zonesNettoyage} employees={employees} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
+      {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage zones={zonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
       {editeur && editeur.mode !== "appareil" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} employees={employees} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
       {editable && (
         <Card className="mb-4">
@@ -4640,7 +4651,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
   );
 }
 
-function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, employees, logActivity, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage }) {
+function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, employees, logActivity, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, demandesAjout, signalerAjout }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   return (
     <div>
@@ -4650,7 +4661,7 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
           <strong>À finaliser :</strong> détaillez pour chaque matériel les étapes de nettoyage selon le protocole HACCP (comme pour la friteuse), puis indiquez le produit utilisé par votre établissement avec sa quantité / dilution exacte. À compléter dans « Protocoles de nettoyage détaillés » ci-dessous, produit par produit.
         </p>
       </Card>
-      <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} />
+      <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
       <div className="mt-6">
         <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
       </div>
