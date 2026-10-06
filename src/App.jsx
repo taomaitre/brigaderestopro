@@ -4295,9 +4295,17 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facteur]);
 
-  const validerDlc = () => {
+  const [confirmationProd, setConfirmationProd] = useState(false);
+  // La quantité produite se préremplit avec la quantité demandée dans « Quantité à produire ».
+  useEffect(() => {
+    if (!avecModes) return;
+    if (voulu > 0) setQuantiteDlc(modeQuantite === "portions" ? `${quantiteVoulue} portions` : modeQuantite === "total" ? `${quantiteVoulue} ${baseTotalUnite}` : "");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [quantiteVoulue, modeQuantite]);
+  const validerDlc = (deduire = true) => {
     if (!quantiteDlc || !onEditerDlc) return;
-    const ingredientsUtilises = ingredientsDestockage.filter((x) => x.coche && Number(x.quantite) > 0).map((x) => ({ nom: x.nom, quantite: x.quantite }));
+    setConfirmationProd(false);
+    const ingredientsUtilises = deduire ? ingredientsDestockage.filter((x) => x.coche && Number(x.quantite) > 0).map((x) => ({ nom: x.nom, quantite: x.quantite })) : [];
     const entry = onEditerDlc(fiche, quantiteDlc, null, ingredientsUtilises.length > 0 ? ingredientsUtilises : null);
     if (entry) { setDlcEnregistree(entry.dlcDate); setEtiquetteCreee(entry); setQuantiteDlc(""); }
   };
@@ -4344,9 +4352,53 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </div>
       )}
 
+      {avecModes && fiche.ingredients.length > 0 && (
+        <Card className="mb-5 border-[var(--accent)]/30">
+          <h3 className="font-semibold text-[var(--ink)] mb-2">Quantité à produire</h3>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Je veux calculer avec">
+              <select className={inputCls} value={modeQuantite} onChange={(e) => { setModeQuantite(e.target.value); setQuantiteVoulue(""); }}>
+                {modesQuantite.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </Field>
+            <Field label={modeQuantite === "portions" ? "Portions voulues" : modeQuantite === "total" ? `Quantité voulue (${baseTotalUnite})` : "Facteur (ex. 2,5)"}>
+              <input className={`${inputCls} w-32`} inputMode="decimal" value={quantiteVoulue} onChange={(e) => setQuantiteVoulue(e.target.value)} placeholder={modeQuantite === "portions" ? String(basePortions) : modeQuantite === "total" ? String(baseTotalNb) : "1"} />
+            </Field>
+            {facteur !== 1 && <Button variant="ghost" onClick={() => setQuantiteVoulue("")}>Revenir à la recette de base</Button>}
+          </div>
+          <p className="text-xs text-[var(--steel)] mt-2">
+            {facteur === 1
+              ? `Recette de base${basePortions > 0 ? ` : ${basePortions} portions` : ""}${baseTotalNb > 0 ? ` · ${formaterNb(baseTotalNb)} ${baseTotalUnite}` : ""}. Entre la quantité dont tu as besoin : les ingrédients se recalculent.`
+              : `Recette multipliée par ${formaterNb(facteur)}. Attention : les quantités écrites dans le texte des étapes ne sont pas recalculées — suis le tableau des ingrédients ci-dessous. Les temps de cuisson et de refroidissement peuvent aussi changer avec la quantité : vérifie toujours à la sonde.`}
+          </p>
+        </Card>
+      )}
+      {avecModes && confirmationProd && (
+        <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl mt-10">
+            <div className="font-semibold text-[var(--ink)] mb-1">Confirmer la production — {quantiteDlc}</div>
+            <p className="text-sm text-[var(--steel)] mb-3">Veux-tu déduire ces quantités du stock ? Tu peux décocher un ingrédient ou corriger sa quantité avant de valider.</p>
+            <div className="space-y-1.5 mb-4">
+              {ingredientsDestockage.map((ing, i) => (
+                <label key={i} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={ing.coche} onChange={() => toggleIngredientDestockage(i)} />
+                  <span className={`flex-1 ${ing.coche ? "text-[var(--ink)]" : "text-[var(--steel)] line-through"}`}>{ing.nom}</span>
+                  <input className={`${inputCls} w-24`} value={ing.quantite} disabled={!ing.coche} onChange={(e) => changerQuantiteDestockage(i, e.target.value)} />
+                  <span className="text-xs text-[var(--steel)] w-10">{ing.unite}</span>
+                </label>
+              ))}
+            </div>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setConfirmationProd(false)}>Annuler</Button>
+              <Button variant="ghost" onClick={() => validerDlc(false)}>Produire sans toucher au stock</Button>
+              <Button onClick={() => validerDlc(true)}>Oui, déduire du stock</Button>
+            </div>
+          </div>
+        </div>
+      )}
       {(onDemarrerRefroidissement || onDemarrerCuisson || onDemarrerMaintienChaud || onEditerDlc || onTracabiliteIngredients) && (
         <Card className="mb-5 border-[var(--accent)]/30">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">Actions à partir de cette fiche</h3>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{avecModes ? "Produire cette fiche" : "Actions à partir de cette fiche"}</h3>
 
           {/* Ordre volontaire : d'abord on confirme ce qui a été réellement préparé (quantité +
               ingrédients décomptés du stock), ensuite seulement on enchaîne sur la cuisson, le
@@ -4356,7 +4408,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
               pour ne jamais fausser le stock. */}
           {onEditerDlc && (
             <div className="pb-3 mb-3 border-b border-[var(--line)]">
-              {ingredientsDestockage.length > 0 && (
+              {!avecModes && ingredientsDestockage.length > 0 && (
                 <div className="mb-3">
                   <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">1. Ingrédients à décompter du stock</p>
                   <p className="text-xs text-[var(--steel)] mb-2">Quantités de la fiche pour le rendement complet — si vous avez préparé plus (ex. double dose pour un gros service), modifiez chaque quantité ci-dessous avant d'enregistrer, ou décochez ce qui ne doit pas être décompté.</p>
@@ -4373,10 +4425,10 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
                 </div>
               )}
               <div className="flex flex-wrap items-end gap-2">
-                <Field label="2. Quantité produite (traçabilité + DLC)">
+                <Field label={avecModes ? "Quantité produite (traçabilité + DLC)" : "2. Quantité produite (traçabilité + DLC)"}>
                   <input className={`${inputCls} w-32`} placeholder="ex. 3 kg" value={quantiteDlc} onChange={(e) => setQuantiteDlc(e.target.value)} />
                 </Field>
-                <Button onClick={validerDlc} disabled={!quantiteDlc}>Valider le destockage</Button>
+                <Button onClick={() => (avecModes && ingredientsDestockage.length > 0 ? setConfirmationProd(true) : validerDlc(true))} disabled={!quantiteDlc}>{avecModes ? "Valider la production" : "Valider le destockage"}</Button>
                 {dlcEnregistree && <span className="text-xs text-[var(--accent)] font-medium">Enregistré — DLC {fmtLong ? fmtLong(dlcEnregistree) : dlcEnregistree}</span>}
               </div>
               {etiquetteCreee && (
@@ -4439,27 +4491,6 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </div>
       )}
 
-      {avecModes && fiche.ingredients.length > 0 && (
-        <Card className="mb-5 border-[var(--accent)]/30">
-          <h3 className="font-semibold text-[var(--ink)] mb-2">Quantité à produire</h3>
-          <div className="flex flex-wrap items-end gap-3">
-            <Field label="Je veux calculer avec">
-              <select className={inputCls} value={modeQuantite} onChange={(e) => { setModeQuantite(e.target.value); setQuantiteVoulue(""); }}>
-                {modesQuantite.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-              </select>
-            </Field>
-            <Field label={modeQuantite === "portions" ? "Portions voulues" : modeQuantite === "total" ? `Quantité voulue (${baseTotalUnite})` : "Facteur (ex. 2,5)"}>
-              <input className={`${inputCls} w-32`} inputMode="decimal" value={quantiteVoulue} onChange={(e) => setQuantiteVoulue(e.target.value)} placeholder={modeQuantite === "portions" ? String(basePortions) : modeQuantite === "total" ? String(baseTotalNb) : "1"} />
-            </Field>
-            {facteur !== 1 && <Button variant="ghost" onClick={() => setQuantiteVoulue("")}>Revenir à la recette de base</Button>}
-          </div>
-          <p className="text-xs text-[var(--steel)] mt-2">
-            {facteur === 1
-              ? `Recette de base${basePortions > 0 ? ` : ${basePortions} portions` : ""}${baseTotalNb > 0 ? ` · ${formaterNb(baseTotalNb)} ${baseTotalUnite}` : ""}. Entre la quantité dont tu as besoin : les ingrédients se recalculent.`
-              : `Recette multipliée par ${formaterNb(facteur)}. Attention : les quantités écrites dans le texte des étapes ne sont pas recalculées — suis le tableau des ingrédients ci-dessous. Les temps de cuisson et de refroidissement peuvent aussi changer avec la quantité : vérifie toujours à la sonde.`}
-          </p>
-        </Card>
-      )}
       {fiche.ingredients.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[1] || "1. Ingrédients"}{avecModes && facteur !== 1 ? <span className="ml-2 text-xs font-semibold text-[var(--accent)]">× {formaterNb(facteur)}</span> : null}</h3>
