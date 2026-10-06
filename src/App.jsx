@@ -2955,6 +2955,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
             logActivity={logActivity}
             allergenesProduits={allergenesProduits}
             allergenesStandard={allergenesStandard}
+            avecModes={!!stockCatalogue}
             estChef={!!(employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction")}
           />
         </div>
@@ -4159,8 +4160,11 @@ function normaliserRechercheFiche(s) {
 }
 
 /* ---------- Détail d'une fiche technique (lecture seule, fidèle au fichier fourni) ---------- */
-function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef }) {
+function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes }) {
   const whoSafe = who || (() => null);
+  // Mode classique (simple) ou expert, seulement dans la nouvelle version ; l'ancienne application affiche tout, comme avant.
+  const [modeVue, setModeVue] = useState("simple");
+  const expert = !avecModes || modeVue === "expert";
   const t = fiche.titresSections || {};
   const ligneBloc = (lignes) => (
     <div className="space-y-1">
@@ -4208,6 +4212,17 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       </div>
 
       {fiche.sousTitre && <p className="text-sm text-[var(--steel)] mb-4">{fiche.sousTitre}</p>}
+
+      {avecModes && (
+        <div className="flex items-center gap-2 mb-4">
+          <div className="inline-flex rounded-lg border border-[var(--line)] overflow-hidden text-xs font-semibold">
+            {[["simple", "Mode classique"], ["expert", "Mode expert"]].map(([v, lbl]) => (
+              <button key={v} type="button" onClick={() => setModeVue(v)} className={`px-3 py-1.5 ${modeVue === v ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--steel)]"}`}>{lbl}</button>
+            ))}
+          </div>
+          <span className="text-xs text-[var(--steel)]">{expert ? "Fiche complète, tous les détails." : "L'essentiel : ingrédients, étapes, contrôles."}</span>
+        </div>
+      )}
 
       {(onDemarrerRefroidissement || onDemarrerCuisson || onDemarrerMaintienChaud || onEditerDlc || onTracabiliteIngredients) && (
         <Card className="mb-5 border-[var(--accent)]/30">
@@ -4323,7 +4338,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </Card>
       )}
 
-      {fiche.groupesPortions.length > 0 && (
+      {expert && fiche.groupesPortions.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Portions</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -4346,7 +4361,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </Card>
       )}
 
-      {fiche.materiel.length > 0 && (
+      {expert && fiche.materiel.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[2] || "2. Matériel nécessaire"}</h3>
           {ligneBloc(fiche.materiel)}
@@ -4361,7 +4376,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
               <thead>
                 <tr className="text-left text-[var(--steel)] text-xs uppercase tracking-wide">
                   <th className="pb-2 pr-3 font-semibold">Étape</th>
-                  <th className="pb-2 pr-3 font-semibold">Point critique</th>
+                  {expert && <th className="pb-2 pr-3 font-semibold">Point critique</th>}
                   <th className="pb-2 font-semibold">À contrôler</th>
                 </tr>
               </thead>
@@ -4369,7 +4384,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
                 {fiche.haccp.map((h, i) => (
                   <tr key={i} className="border-t border-[var(--line)] align-top">
                     <td className="py-2 pr-3 font-medium text-[var(--ink)] whitespace-nowrap">{h.etape}</td>
-                    <td className="py-2 pr-3 text-[var(--ink)] whitespace-pre-line">{h.pointCritique}</td>
+                    {expert && <td className="py-2 pr-3 text-[var(--ink)] whitespace-pre-line">{h.pointCritique}</td>}
                     <td className="py-2 text-[var(--steel)] whitespace-pre-line">{h.aControler}</td>
                   </tr>
                 ))}
@@ -4402,14 +4417,14 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </Card>
       )}
 
-      {fiche.refroidissementStockage.length > 0 && (
+      {expert && fiche.refroidissementStockage.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[6] || "6. Refroidissement — stockage — utilisation"}</h3>
           {ligneBloc(fiche.refroidissementStockage)}
         </Card>
       )}
 
-      {(fiche.rendement.length > 0 || fiche.dureeConservation.length > 0) && (
+      {expert && (fiche.rendement.length > 0 || fiche.dureeConservation.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
           {fiche.rendement.length > 0 && (
             <Card>
@@ -4426,21 +4441,21 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </div>
       )}
 
-      {fiche.nonConformite.length > 0 && (
+      {expert && fiche.nonConformite.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[9] || "9. Conduite en cas de non-conformité"}</h3>
           {ligneBloc(fiche.nonConformite)}
         </Card>
       )}
 
-      {fiche.tracabilite.length > 0 && (
+      {expert && fiche.tracabilite.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[10] || "10. Traçabilité obligatoire"}</h3>
           {ligneBloc(fiche.tracabilite)}
         </Card>
       )}
 
-      {fiche.etiquetage.length > 0 && (
+      {expert && fiche.etiquetage.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[11] || "11. Étiquetage — exemple d'étiquette"}</h3>
           {ligneBloc(fiche.etiquetage)}
@@ -4485,14 +4500,14 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </Card>
       )}
 
-      {fiche.autresSections.map((s, i) => (
+      {expert && fiche.autresSections.map((s, i) => (
         <Card className="mb-5" key={i}>
           <h3 className="font-semibold text-[var(--ink)] mb-3">{s.titre}</h3>
           {ligneBloc(s.lignes)}
         </Card>
       ))}
 
-      {fiche.nonCategorise && fiche.nonCategorise.length > 0 && (
+      {expert && fiche.nonCategorise && fiche.nonCategorise.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Informations complémentaires</h3>
           {ligneBloc(fiche.nonCategorise.map((c) => c.texte))}
@@ -4503,7 +4518,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 }
 
 /* ---------- Liste des fiches techniques, groupée par catégorie, avec recherche ---------- */
-function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef }) {
+function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes }) {
   const [selectedId, setSelectedId] = useState(null);
   const [recherche, setRecherche] = useState("");
   const [categorieFiltre, setCategorieFiltre] = useState(null);
@@ -4539,7 +4554,7 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
   const categoriesAffichees = categorieFiltre ? [categorieFiltre] : categoriesPresentes;
 
   if (selected) {
-    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} />;
+    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} avecModes={avecModes} />;
   }
 
   return (
@@ -4792,6 +4807,46 @@ function convertirQuantiteFiche(qte, uniteSource, uniteCible) {
   }
   return null;
 }
+// Allergènes déduits du catalogue : chaque ingrédient lié à un produit apporte ses allergènes (fiche produit),
+// chaque sous-recette ses propres allergènes. Retourne aussi les ingrédients à vérifier (non liés / non renseignés).
+function allergenesDepuisCatalogue(ingredients, stock, fiches) {
+  const norm = (x) => String(x || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+  const trouves = new Set(), sansLien = [], sansInfo = [];
+  (ingredients || []).filter((i) => (i.nom || "").trim()).forEach((i) => {
+    const nom = i.nom.trim();
+    if (i.lienType === "fiche") {
+      const f = (fiches || []).find((x) => x.id === i.lienId);
+      ((f && f.allergenes) || []).forEach((a) => trouves.add(a));
+      return;
+    }
+    if (i.lienType !== "stock") { sansLien.push(nom); return; }
+    const art = (stock || []).find((x) => x.id === i.lienId);
+    const txt = art ? String(art.allergenesNorme || "") : "";
+    const morceaux = txt.split(/[,;/]/).map((t) => norm(t)).filter(Boolean);
+    if (!morceaux.length) { sansInfo.push(nom); return; }
+    morceaux.forEach((m) => {
+      if (m === "aucun" || m === "aucune" || m === "sans") return;
+      const a = ALLERGENES_14.find((x) => norm(x) === m) || ALLERGENES_14.find((x) => norm(x).includes(m) || m.includes(norm(x)));
+      if (a) trouves.add(a);
+    });
+  });
+  return { allergenes: [...trouves], sansLien, sansInfo };
+}
+// Pourquoi une ligne n'entre pas dans le coût matière (pour guider la saisie du catalogue).
+function diagnosticCout(ingredients, stock) {
+  const out = [];
+  (ingredients || []).filter((i) => (i.nom || "").trim()).forEach((ing) => {
+    const nom = ing.nom.trim();
+    if (ing.lienType !== "stock" || !ing.lienId) { out.push([nom, "pas relié au catalogue"]); return; }
+    const art = (stock || []).find((x) => x.id === ing.lienId);
+    if (!art) { out.push([nom, "produit introuvable"]); return; }
+    const prix = parserPrixUnitaire(art.prixUnitaire);
+    if (!prix) { out.push([nom, "prix d'achat absent du catalogue"]); return; }
+    if (convertirQuantiteFiche(ing.qte ?? ing.quantite, ing.unite, prix.unite) === null) out.push([nom, `quantité à saisir en ${prix.unite} (le prix est en €/${prix.unite})`]);
+  });
+  return out;
+}
+
 function calculerCoutRecette(ingredients, stock) {
   let total = 0, compte = 0, partiel = false;
   ingredients.forEach((ing) => {
@@ -4886,7 +4941,7 @@ function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selec
   );
 }
 
-function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard }) {
+function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard, avecModes }) {
   const [S, setS] = useState(ficheVideInit);
   const [step, setStep] = useState(0);
   const [confirmation, setConfirmation] = useState(null);
@@ -4894,7 +4949,7 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   const [iaEnCours, setIaEnCours] = useState(false);
   const [iaMessage, setIaMessage] = useState(null);
   // Mode simple (l'essentiel, guidé) ou expert (tous les champs). Même fiche enregistrée dans les deux cas.
-  const [modeFiche, setModeFiche] = useState("simple");
+  const [modeFiche, setModeFiche] = useState(avecModes ? "simple" : "expert");
 
   const [etablissementNom] = useStored("tiac-etablissement-nom", "Games Factory Salaise");
   const [congelPms, setCongelPms] = useStored("ft-reglage-congel-pms", false);
@@ -4977,10 +5032,13 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   const bloquant = problemes.some((p) => p[0] === "r");
   const ingOk = ingredientsRenseignes(S);
   const textesProduits = { ...(allergenesStandard || {}), ...(allergenesProduits || {}) };
-  const suggestions = suggererAllergenes(S.ingredients, textesProduits);
+  const infoCatalogue = avecModes ? allergenesDepuisCatalogue(S.ingredients, stock, toutesLesFiches) : { allergenes: [], sansLien: [], sansInfo: [] };
+  const suggestions = [...new Set([...suggererAllergenes(S.ingredients, textesProduits), ...infoCatalogue.allergenes])];
+  const diagCout = avecModes ? diagnosticCout(ingOk, stock) : [];
   // Les allergènes détectés sont cochés automatiquement (une seule fois : si le chef en décoche un, il reste décoché).
   const dejaSuggeres = useRef([]);
   useEffect(() => {
+    if (!avecModes) return;
     const nouveaux = suggestions.filter((a) => !dejaSuggeres.current.includes(a));
     dejaSuggeres.current = suggestions;
     if (nouveaux.length) setS((prev) => ({ ...prev, allergenes: [...new Set([...prev.allergenes, ...nouveaux])], allgConfirm: false }));
@@ -5148,7 +5206,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       {/* 2. Questionnaire */}
       <Card className="mb-5">
         <div className="flex flex-wrap gap-1.5 mb-4 pb-4 border-b border-[var(--line)]">
-          <div className="w-full flex items-center gap-2 mb-1">
+          {avecModes && <div className="w-full flex items-center gap-2 mb-1">
             <div className="inline-flex rounded-lg border border-[var(--line)] overflow-hidden text-xs font-semibold">
               {[["simple", "Mode simple"], ["expert", "Mode expert"]].map(([v, lbl]) => (
                 <button key={v} type="button" onClick={() => setModeFiche(v)}
@@ -5156,7 +5214,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               ))}
             </div>
             <span className="text-xs text-[var(--steel)]">{modeFiche === "simple" ? "L'essentiel, guidé. Le reste se complète tout seul." : "Tous les champs : réglages, durées, matériel, coût, dressage."}</span>
-          </div>
+          </div>}
           {etapesVisibles.map((i, pos) => { const t = STEPS_FICHE[i]; return (
             <button key={t} type="button" onClick={() => setStep(i)}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${i === step ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : etapeComplete(i) ? "border-[var(--line)] text-[var(--ink)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
@@ -5214,12 +5272,39 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   <select className={`${inputCls} w-28`} value={ing.unite} onChange={(e) => majIngredient(i, { unite: e.target.value })}>
                     {UNITES_FICHE.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
-                  {ing.lienType && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded bg-[var(--ok-soft,#e7f3e8)] text-[var(--accent)] shrink-0">{ing.lienType === "stock" ? "Stock" : "Fiche"}</span>}
+                  {ing.lienType && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded bg-[var(--ok-soft,#e7f3e8)] text-[var(--accent)] shrink-0">{ing.lienType === "stock" ? (avecModes ? "Catalogue" : "Stock") : "Fiche"}</span>}
+                  {avecModes && !ing.lienType && ing.nom.trim() && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded shrink-0" style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}>Hors catalogue</span>}
                   <button type="button" onClick={() => retirerIngredient(i)} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0"><X size={16} /></button>
                 </div>
               ))}
             </div>
             <Button variant="ghost" onClick={ajouterIngredient}><Plus size={14} /> Ajouter un ingrédient</Button>
+
+            {avecModes && ingOk.length > 0 && (
+              <div className="rounded-lg border border-[var(--line)] p-3 space-y-2">
+                <div className="flex flex-wrap items-end gap-3">
+                  <div>
+                    <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide">Coût matière (prix d'achat du catalogue)</div>
+                    <div className="text-sm text-[var(--ink)] mt-1">
+                      {coutApercu.coutRecette ? <><strong>{coutApercu.coutRecette} €</strong> la recette{coutPortionApercu ? <> · <strong>{coutPortionApercu} €</strong> la portion</> : null}</> : <span className="text-[var(--steel)]">Pas encore calculable.</span>}
+                      {coutApercu.coutRecette && coutApercu.partiel ? <span className="text-[var(--warn)]"> (partiel)</span> : null}
+                    </div>
+                  </div>
+                  <Field label="Nombre de portions"><input className={`${inputCls} w-28`} type="number" min="0" value={S.rendement.portions} onChange={(e) => majRendement({ portions: e.target.value })} placeholder="ex. 10" /></Field>
+                </div>
+                {diagCout.length > 0 && (
+                  <ul className="text-xs text-[var(--warn)] list-disc pl-4 space-y-0.5">
+                    {diagCout.map(([n, r]) => <li key={n}><strong>{n}</strong> : {r}</li>)}
+                  </ul>
+                )}
+                {(infoCatalogue.sansLien.length > 0 || infoCatalogue.sansInfo.length > 0) && (
+                  <p className="text-xs text-[var(--warn)]">
+                    {infoCatalogue.sansLien.length > 0 && <>Allergènes non vérifiables (hors catalogue) : {infoCatalogue.sansLien.join(", ")}. </>}
+                    {infoCatalogue.sansInfo.length > 0 && <>Allergènes à renseigner dans la fiche produit du catalogue : {infoCatalogue.sansInfo.join(", ")}.</>}
+                  </p>
+                )}
+              </div>
+            )}
 
             <div className="pt-3 border-t border-[var(--line)]">
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Allergènes (14 réglementaires)</div>
@@ -5297,7 +5382,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && <Field label="Durée en minutes (pour le chrono de cuisson)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value })} placeholder="ex. 14" /></Field>}
                 <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={`ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C`} /></Field>
               </div>
-                          {modeFiche === "expert" && (
+                          {modeFiche === "expert" && avecModes && (
                 <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
@@ -5320,7 +5405,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
                 <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
               </div>
-                          {modeFiche === "expert" && (
+                          {modeFiche === "expert" && avecModes && (
                 <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
@@ -5341,7 +5426,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>}
               </div>
               {Number(S.procedes.maintien.temp) < 63 && <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — le maintien au chaud doit être à +63 °C minimum. La fiche ne pourra pas être enregistrée.</p>}
-                          {modeFiche === "expert" && (
+                          {modeFiche === "expert" && avecModes && (
                 <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
@@ -15259,7 +15344,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            fichesProps={{ fiches, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef }}
+            fichesProps={{ fiches, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
             ouvrirIdAuto={ficheAutoOuvrirId}
