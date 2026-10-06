@@ -2591,34 +2591,44 @@ function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityL
     setMessageComptes(null);
   };
 
-  const SOUS_TUILES_CONTROLE_TOUTES = [
-    { id: "planning", label: "Tâches du jour", icon: ListChecks, couleur: TUILE_COULEURS.taches, section: "controle" },
-    { id: "temperatures", label: "Températures", icon: Thermometer, couleur: TUILE_COULEURS.haccpTemp, section: "controle" },
-    { id: "huile", label: "Huile", icon: Droplets, couleur: TUILE_COULEURS.haccpHuile, section: "controle" },
-    { id: "cuisson", label: "Cuisson", icon: Flame, couleur: TUILE_COULEURS.haccpCuisson, section: "controle" },
-    { id: "cellule", label: "Refroidissement rapide (cellule)", icon: Snowflake, couleur: TUILE_COULEURS.haccpRefroid, section: "controle" },
-    { id: "maintien", label: "Maintien au chaud", icon: Soup, couleur: TUILE_COULEURS.haccpChaud, section: "controle" },
-    { id: "tracabilite", label: "Traçabilité", icon: Camera, couleur: TUILE_COULEURS.tracabilite, section: "controle" },
-    { id: "reception", label: "Réception", icon: Truck, couleur: TUILE_COULEURS.reception, section: "controle" },
-    // Tuiles "gestion" — pour le moment Allergènes et Fournisseur ; d'autres tuiles de gestion
-    // pourront être ajoutées ici plus tard (il suffit de leur donner section: "gestion").
-    { id: "allergenes", label: "Allergènes", icon: AlertTriangle, couleur: TUILE_COULEURS.haccpChaud, section: "gestion" },
-    { id: "origine", label: "Origine des viandes", icon: MapPin, couleur: TUILE_COULEURS.reception, section: "gestion" },
-    { id: "tiac", label: "Déclaration TIAC", icon: Activity, couleur: TUILE_COULEURS.haccpCuisson, section: "gestion" },
-    { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, couleur: TUILE_COULEURS.stock, section: "gestion" },
-    { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, couleur: TUILE_COULEURS.reception, section: "gestion" },
-    { id: "comptes", label: "Gestion des comptes", icon: Users, couleur: TUILE_COULEURS.comptes, section: "gestion" },
-    { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, couleur: TUILE_COULEURS.haccpHuile, section: "gestion" },
-    { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, couleur: TUILE_COULEURS.fiches, section: "gestion" },
-    { id: "carte", label: "Ma carte", icon: BookOpen, couleur: TUILE_COULEURS.fiches, section: "gestion" },
+  // Quatre grandes rubriques, chacune avec sa couleur : tout ce que le chef et le directeur gèrent s'y range.
+  const SECTIONS_CG = [
+    { id: "equipe", label: "Équipe et planning", desc: "Horaires, heures de service, réservations, comptes", icon: Users, couleur: { fond: "linear-gradient(160deg, #2563B8 0%, #1D4E89 100%)", ombre: "rgba(29,78,137,0.35)" } },
+    { id: "controle", label: "Contrôles du jour", desc: "Températures, huile, cuisson, refroidissement, réception", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
+    { id: "cuisine", label: "Cuisine et achats", desc: "Fiches techniques, carte, fournisseurs, livraisons", icon: BookOpen, couleur: { fond: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", ombre: "rgba(180,83,9,0.35)" } },
+    { id: "hygiene", label: "Hygiène et réglementation", desc: "Plan de nettoyage, allergènes, origine des viandes, TIAC", icon: SprayCan, couleur: { fond: "linear-gradient(160deg, #B83A6B 0%, #8B2450 100%)", ombre: "rgba(139,36,80,0.35)" } },
   ];
+  const SOUS_TUILES_CONTROLE_TOUTES = [
+    { id: "planningEmploye", label: "Planning employé et heures de service", icon: ListChecks, section: "equipe", tab: "horaires" },
+    { id: "reservationsClient", label: "Réservations client", icon: CalendarDays, section: "equipe", tab: "reservations" },
+    { id: "comptes", label: "Gestion des comptes", icon: Users, section: "equipe" },
+    { id: "planning", label: "Tâches du jour", icon: ListChecks, section: "controle" },
+    { id: "temperatures", label: "Températures", icon: Thermometer, section: "controle" },
+    { id: "huile", label: "Huile", icon: Droplets, section: "controle" },
+    { id: "cuisson", label: "Cuisson", icon: Flame, section: "controle" },
+    { id: "cellule", label: "Refroidissement rapide (cellule)", icon: Snowflake, section: "controle" },
+    { id: "maintien", label: "Maintien au chaud", icon: Soup, section: "controle" },
+    { id: "tracabilite", label: "Traçabilité", icon: Camera, section: "controle" },
+    { id: "reception", label: "Réception", icon: Truck, section: "controle" },
+    { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
+    { id: "carte", label: "Ma carte", icon: BookOpen, section: "cuisine" },
+    { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "cuisine" },
+    { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "cuisine" },
+    { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
+    { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
+    { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
+    { id: "tiac", label: "Déclaration TIAC", icon: Activity, section: "hygiene" },
+  ];
+  const sectionInfo = SECTIONS_CG.find((x) => x.id === sectionActive);
   // "Planning employé" et "Réservation client" sont réservées à la direction : elles ne sont
   // plus des sous-tuiles de la section Gestion, mais deux grandes tuiles à part, tout en haut
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (t.id !== "commandes" || !!stockCatalogue));
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations));
   const ouvrirSousTuile = (id) => {
+    const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
+    if (tuile && tuile.tab) return setTab(tuile.tab);
     if (id === "reception") return setVerifReceptionsActif(true);
     if (id === "fournisseur") return setReferentielActif(true);
     if (id === "tracabilite") return setTracabiliteCompleteActif(true);
@@ -2720,39 +2730,6 @@ function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityL
         </Card>
       )}
 
-      <BoutonInfosNormes ficheKey="tiac" onClick={setInfosTiac} label="Procédure de déclaration d'une TIAC" />
-      {infosTiac && <ModalInfosNormes fiche={FICHES_NORMES[infosTiac] || infosTiac} onClose={() => setInfosTiac(null)} />}
-
-      <Card className="mb-6">
-        <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
-          <h3 className="font-semibold text-[var(--ink)]">Vérification RappelConso (DGCCRF)</h3>
-          <button onClick={onVerifierRappelConso} disabled={rappelConsoEnCours} className="text-xs text-[var(--accent)] font-medium disabled:opacity-50">
-            {rappelConsoEnCours ? "Vérification en cours..." : "Vérifier maintenant"}
-          </button>
-        </div>
-        <p className="text-xs text-[var(--steel)] mb-3">Croise automatiquement vos produits (stock + catalogue) avec la liste officielle des rappels sanitaires — automatique tous les jeudis et dimanches après les livraisons. Dernière vérification : {dernierControleRappelConso ? fmtLong(dernierControleRappelConso) : "jamais"}.</p>
-        {alertesRappelConso.length === 0 ? (
-          <p className="text-sm text-[var(--accent)]">Aucune correspondance avec un rappel officiel récent.</p>
-        ) : (
-          <ul className="divide-y divide-[var(--line)]">
-            {alertesRappelConso.map((a) => (
-              <li key={a.id} className="py-2 text-sm">
-                <div className={`font-medium ${a.traite ? "text-[var(--steel)]" : "text-[var(--warn)]"}`}>{a.produit} — {a.titre}</div>
-                <div className="text-xs text-[var(--steel)]">{a.motif}{a.date ? ` — publié le ${a.date}` : ""}</div>
-                <a href={a.lien} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] font-medium">Voir la fiche officielle →</a>
-                {a.traite ? (
-                  <div className="text-xs text-[var(--accent)] font-medium mt-1">✓ Traité{a.traiteDate ? ` le ${a.traiteDate}` : ""}</div>
-                ) : (
-                  <div className="mt-1.5">
-                    <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Rappel traité (produit retiré / vérifié)</Button>
-                  </div>
-                )}
-              </li>
-            ))}
-          </ul>
-        )}
-      </Card>
-
       {alertesNonVues.length > 0 && (
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-[var(--warn)] uppercase tracking-wide mb-3">Alertes qualité ({alertesNonVues.length})</h3>
@@ -2792,49 +2769,68 @@ function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityL
           Sur le compte direction, deux tuiles supplémentaires (Planning employé, Réservation
           client) arrivent en premier et ouvrent directement leur écran, sans passer par
           une section — avec un bouton de retour en haut de chaque écran. */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        {accesPlanningReservations && (
-          <>
-            <button onClick={() => setTab("horaires")}
-              style={{ background: "#1D4E89", boxShadow: "0 8px 20px rgba(29,78,137,0.35)" }}
-              className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform">
-              <ListChecks size={30} color="#ffffff" strokeWidth={2} />
-              <span className="text-sm font-bold text-white leading-tight">Planning employé</span>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        {SECTIONS_CG.map((x) => {
+          const Icon = x.icon;
+          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations)).length;
+          return (
+            <button key={x.id} onClick={() => setSectionActive(x.id)}
+              style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
+              className="rounded-2xl flex items-center gap-4 min-h-[110px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
+              <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
+              <span className="min-w-0">
+                <span className="block text-lg font-bold text-white leading-tight">{x.label}</span>
+                <span className="block text-sm text-white/90 mt-1 leading-snug">{x.desc}</span>
+                <span className="block text-xs text-white/80 mt-1">{nb} rubrique{nb > 1 ? "s" : ""}</span>
+              </span>
             </button>
-            <button onClick={() => setTab("reservations")}
-              style={{ background: "#6D28D9", boxShadow: "0 8px 20px rgba(109,40,217,0.35)" }}
-              className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform">
-              <CalendarDays size={30} color="#ffffff" strokeWidth={2} />
-              <span className="text-sm font-bold text-white leading-tight">Réservation client</span>
-            </button>
-          </>
-        )}
-        <button onClick={() => setSectionActive("controle")}
-          style={{ background: "#2F6B4F", boxShadow: "0 8px 20px rgba(47,107,79,0.35)" }}
-          className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform">
-          <ClipboardCheck size={30} color="#ffffff" strokeWidth={2} />
-          <span className="text-sm font-bold text-white leading-tight">Contrôle</span>
-        </button>
-        <button onClick={() => setSectionActive("gestion")}
-          style={{ background: "#B45309", boxShadow: "0 8px 20px rgba(180,83,9,0.35)" }}
-          className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform">
-          <Users size={30} color="#ffffff" strokeWidth={2} />
-          <span className="text-sm font-bold text-white leading-tight">Gestion</span>
-        </button>
+          );
+        })}
       </div>
+
+      <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">Veille sanitaire</h3>
+      <BoutonInfosNormes ficheKey="tiac" onClick={setInfosTiac} label="Procédure de déclaration d'une TIAC" />
+      {infosTiac && <ModalInfosNormes fiche={FICHES_NORMES[infosTiac] || infosTiac} onClose={() => setInfosTiac(null)} />}
+
+      <Card className="mb-6">
+        <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
+          <h3 className="font-semibold text-[var(--ink)]">Vérification RappelConso (DGCCRF)</h3>
+          <button onClick={onVerifierRappelConso} disabled={rappelConsoEnCours} className="text-xs text-[var(--accent)] font-medium disabled:opacity-50">
+            {rappelConsoEnCours ? "Vérification en cours..." : "Vérifier maintenant"}
+          </button>
+        </div>
+        <p className="text-xs text-[var(--steel)] mb-3">Croise automatiquement vos produits (stock + catalogue) avec la liste officielle des rappels sanitaires — automatique tous les jeudis et dimanches après les livraisons. Dernière vérification : {dernierControleRappelConso ? fmtLong(dernierControleRappelConso) : "jamais"}.</p>
+        {alertesRappelConso.length === 0 ? (
+          <p className="text-sm text-[var(--accent)]">Aucune correspondance avec un rappel officiel récent.</p>
+        ) : (
+          <ul className="divide-y divide-[var(--line)]">
+            {alertesRappelConso.map((a) => (
+              <li key={a.id} className="py-2 text-sm">
+                <div className={`font-medium ${a.traite ? "text-[var(--steel)]" : "text-[var(--warn)]"}`}>{a.produit} — {a.titre}</div>
+                <div className="text-xs text-[var(--steel)]">{a.motif}{a.date ? ` — publié le ${a.date}` : ""}</div>
+                <a href={a.lien} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] font-medium">Voir la fiche officielle →</a>
+                {a.traite ? (
+                  <div className="text-xs text-[var(--accent)] font-medium mt-1">✓ Traité{a.traiteDate ? ` le ${a.traiteDate}` : ""}</div>
+                ) : (
+                  <div className="mt-1.5">
+                    <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Rappel traité (produit retiré / vérifié)</Button>
+                  </div>
+                )}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
+
       </>
       ) : (
       <>
       <button onClick={() => setSectionActive(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
 
-      {sectionActive === "gestion" ? (
-        <SectionHeader title="Gestion" subtitle="Allergènes, fournisseurs — et les prochaines rubriques de gestion à venir" />
-      ) : (
-        <SectionHeader title="Contrôle" subtitle="Toutes les tuiles de contrôle du jour" />
-      )}
+      <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} />
 
       {sousEcran && (
-        <button onClick={() => setSousEcran(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à {sectionActive === "gestion" ? "Gestion" : "Contrôle"}</button>
+        <button onClick={() => setSousEcran(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à {sectionInfo.label}</button>
       )}
 
       {!sousEcran && (
@@ -2843,9 +2839,9 @@ function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityL
             const Icon = t.icon;
             return (
               <button key={t.id} onClick={() => ouvrirSousTuile(t.id)}
-                style={{ background: t.couleur.fond, boxShadow: `0 8px 20px ${t.couleur.ombre}` }}
-                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[80px] px-2 text-center active:scale-95 transition-transform">
-                <Icon size={26} color="#ffffff" strokeWidth={2} />
+                style={{ background: sectionInfo.couleur.fond, boxShadow: `0 8px 20px ${sectionInfo.couleur.ombre}` }}
+                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[88px] px-2 text-center active:scale-95 transition-transform">
+                <Icon size={28} color="#ffffff" strokeWidth={2} />
                 <span className="text-xs font-bold text-white leading-tight line-clamp-2">{t.label}</span>
               </button>
             );
