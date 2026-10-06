@@ -295,6 +295,13 @@ export default function ConnexionReelle() {
         conforme: x.conforme == null ? null : !!x.conforme, note: x.note || null, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null,
       }),
     },
+    cleaning: {
+      table: "pms_taches",
+      aDb: (x) => ({
+        zone: x.poste || "Tous", tache: x.tache || "Tâche sans nom", protocole: x.note || null,
+        frequence: x.frequence || null, poste: x.poste || null, donnees: x,
+      }),
+    },
     shifts: {
       table: "planning_creneaux",
       aDb: (x) => ({
@@ -390,7 +397,7 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
@@ -403,8 +410,10 @@ export default function ConnexionReelle() {
         supabasePublic.from("refroidissements").select("*").order("heure_depart", { ascending: false }).limit(300),
         supabasePublic.from("maintiens_chaud").select("*").order("heure_debut", { ascending: false }).limit(300),
         supabasePublic.from("fiches_techniques").select("*").order("created_at", { ascending: true }).limit(500),
+        supabasePublic.from("pms_taches").select("*").order("created_at", { ascending: true }).limit(500),
       ]);
       if (rfi.error) throw rfi.error;
+      if (rpm.error) throw rpm.error;
       if (rcu.error) throw rcu.error;
       if (rrf.error) throw rrf.error;
       if (rmc.error) throw rmc.error;
@@ -435,6 +444,7 @@ export default function ConnexionReelle() {
         refroidissements: (rrf.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         maintiens: (rmc.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         fiches: (rfi.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
+        cleaning: (rpm.data || []).map((r) => ({ fait: false, date: null, employeeId: null, ...(r.donnees || {}), id: r.id, tache: r.tache || (r.donnees && r.donnees.tache) || "", poste: r.poste || "Tous", frequence: r.frequence || "Quotidienne", note: r.protocole || "" })),
         huileTests: (rh.data || []).map((r) => ({
           id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
           valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
@@ -824,6 +834,7 @@ export default function ConnexionReelle() {
         refroidissements: { persister: fabriquerPersisterFroid("refroidissements") },
         maintiens: { persister: fabriquerPersisterFroid("maintiens") },
         fiches: { persister: fabriquerPersisterFroid("fiches") },
+        cleaning: { persister: fabriquerPersisterFroid("cleaning") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.

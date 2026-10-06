@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE } from './listesEquipe.js';
+import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
 
 /* ======================================================================================
@@ -2303,7 +2304,7 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
   );
 }
 
-function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -2959,7 +2960,7 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
 
       {sousEcran === "pms" && (
         <div className="mb-6">
-          <NettoyagePage cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} employees={employees} logActivity={logActivity} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} />
+          <NettoyagePage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} employees={employees} logActivity={logActivity} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} />
         </div>
       )}
 
@@ -3860,7 +3861,7 @@ function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId,
 
 const FREQUENCES_NETTOYAGE = ["À chaque utilisation", "Quotidienne", "Hebdomadaire", "Mensuelle", "Périodique (3-6 mois)"];
 
-function HaccpNettoyage({ cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage, setZonesNettoyage }) {
+function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage, setZonesNettoyage }) {
   const [infosFicheNettoyage, setInfosFicheNettoyage] = useState(null);
   const [nouveau, setNouveau] = useState({ tache: "", frequence: "Quotidienne", poste: "Tous" });
   const [noteOuverte, setNoteOuverte] = useState(null);
@@ -3980,7 +3981,15 @@ function HaccpNettoyage({ cleaning, setCleaning, currentUserId, logActivity, who
       <h3 className="font-semibold text-[var(--ink)] mb-4">Plan de nettoyage</h3>
 
       {cleaning.length === 0 ? (
-        <p className="text-sm text-[var(--steel)] mb-4">Aucune tâche définie.</p>
+        <div className="mb-4">
+          <p className="text-sm text-[var(--steel)] mb-3">Aucune tâche définie.</p>
+          {chargerPlanDepart && (
+            <div className="rounded-lg border border-[var(--line)] p-3 bg-[var(--bg)]">
+              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, vous pouvez charger un <strong>plan de nettoyage de départ</strong> : 49 tâches courantes d'une cuisine (sols, frigos, congélateurs, fours, plonge…) avec leur poste, leur fréquence, leur jour et leur protocole. Il est générique : adaptez ensuite les produits, les dosages et les équipements à votre établissement.</p>
+              <Button onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de nettoyage de départ</Button>
+            </div>
+          )}
+        </div>
       ) : (
         zonesNettoyage.filter((p) => parPoste[p]).map((poste) => {
           const parFrequence = parPoste[poste].reduce((acc, t) => { (acc[t.frequence] = acc[t.frequence] || []).push(t); return acc; }, {});
@@ -4041,17 +4050,17 @@ function HaccpNettoyage({ cleaning, setCleaning, currentUserId, logActivity, who
   );
 }
 
-function NettoyagePage({ cleaning, setCleaning, currentUserId, employees, logActivity, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage }) {
+function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, employees, logActivity, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   return (
     <div>
       <SectionHeader title="PMS — plan de nettoyage" subtitle="PMS = Plan de Maîtrise Sanitaire : le plan de nettoyage et d'hygiène de la cuisine" />
       <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-6">
         <p className="text-xs text-[var(--ink)]">
-          <strong>À finaliser :</strong> détailler pour chaque matériel les étapes de nettoyage selon le protocole HACCP (comme déjà fait pour la friteuse), et déterminer quel produit Keystone (Ecolab) utiliser pour chaque tâche, avec la quantité/dilution exacte. À compléter dans « Protocoles de nettoyage détaillés » ci-dessous, produit par produit.
+          <strong>À finaliser :</strong> détaillez pour chaque matériel les étapes de nettoyage selon le protocole HACCP (comme pour la friteuse), puis indiquez le produit utilisé par votre établissement avec sa quantité / dilution exacte. À compléter dans « Protocoles de nettoyage détaillés » ci-dessous, produit par produit.
         </p>
       </Card>
-      <HaccpNettoyage cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} />
+      <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} />
       <div className="mt-6">
         <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
       </div>
@@ -14616,7 +14625,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const [surveillancesFroidExternes, setSurveillancesFroidExternes] = useListeExterne(identiteExterne, "surveillances");
   const surveillancesFroid = modeExterne ? surveillancesFroidExternes : surveillancesFroidStockees;
   const setSurveillancesFroid = modeExterne ? setSurveillancesFroidExternes : setSurveillancesFroidStockees;
-  const [cleaning, setCleaning] = useStored("haccp-cleaning", [
+  const [cleaningStocke, setCleaningStocke] = useStored("haccp-cleaning", [
     // Tous
     { id: uid(), tache: "Sol cuisine", poste: "Tous", frequence: "Quotidienne", note: "Nettoyant désinfectant, eau chaude <60°C, 5 à 10 min, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
     { id: uid(), tache: "Bouche d'évacuation des eaux usées", poste: "Tous", frequence: "Quotidienne", note: "Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
@@ -14673,12 +14682,17 @@ function KitchenApp({ identiteExterne } = {}) {
     { id: uid(), tache: "Congélateur à glace", poste: "Poste Froid", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 2, note: "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Produits et quantité à déterminer.", fait: false, date: null, employeeId: null },
     { id: uid(), tache: "Évier — lavage des légumes", poste: "Poste Froid", frequence: "Quotidienne", note: "Double bac eau froide. Ajouter le produit : eau de Javel 2,6% (60ml pour 100L d'eau, laisser tremper 5 min) ou vinaigre blanc 6% (laisser tremper 10 min). Ne pas utiliser d'eau de Javel sur les végétaux poreux ou à couches. Produits et quantité à déterminer (dosage exact du produit réellement utilisé).", fait: false, date: null, employeeId: null },
   ]);
-  const [protocolesNettoyage, setProtocolesNettoyage] = useStored("protocoles-nettoyage", [
+  // Prévisualisation (nouvelle base) : le plan de nettoyage vient UNIQUEMENT de la nouvelle base — jamais de l'ancien stockage réel.
+  const [cleaningExterne, setCleaningExterne] = useListeExterne(identiteExterne, "cleaning");
+  const cleaning = modeExterne ? cleaningExterne : cleaningStocke;
+  const setCleaning = modeExterne ? setCleaningExterne : setCleaningStocke;
+  const chargerPlanDepart = modeExterne ? () => setCleaning(PLAN_NETTOYAGE_DEPART.map((t) => ({ id: uid(), ...t, fait: false, date: null, employeeId: null }))) : undefined;
+  const [protocolesNettoyage, setProtocolesNettoyage] = useStoredOuMemoire("protocoles-nettoyage", [
     { id: "friteuse-complet", nom: "Nettoyage complet friteuse (intérieur, extérieur, ustensiles)", produits: [], etapes: [] },
-  ]);
+  ], modeExterne);
   // Zones de nettoyage du plan de nettoyage (PMS) : liste éditable par le chef (ajout/suppression),
   // au départ les 3 postes de cuisine + "Tous". "Tous" ne peut pas être supprimée (tâches communes).
-  const [zonesNettoyage, setZonesNettoyage] = useStored("haccp-zones-nettoyage", ["Tous", "Poste Chaud", "Poste Pizza", "Poste Froid"]);
+  const [zonesNettoyage, setZonesNettoyage] = useStoredOuMemoire("haccp-zones-nettoyage", ["Tous", "Poste Chaud", "Poste Pizza", "Poste Froid"], modeExterne);
   // Stock : en usage normal, ancien stockage (inchangé). En prévisualisation « nouvelle base »
   // (identiteExterne), le stock vient UNIQUEMENT de la nouvelle base (catalogue de l'établissement) —
   // jamais du catalogue Games Factory intégré au code (DEFAULT_STOCK) — et les changements y sont enregistrés.
@@ -15899,7 +15913,7 @@ function KitchenApp({ identiteExterne } = {}) {
           />
         )}
         {tab === "controle" && (
-          <Controle employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
