@@ -4511,6 +4511,12 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </Card>
       )}
 
+      {avecModes && !(fiche.allergenes && fiche.allergenes.length > 0) && (
+        <Card className="mb-5">
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Allergènes</h3>
+          <p className="text-sm text-[var(--steel)]">{fiche.allergenesConfirmes ? "Aucun allergène déclaré (confirmé par le chef)." : "Aucune information donnée ni confirmée."}</p>
+        </Card>
+      )}
       {fiche.allergenes && fiche.allergenes.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes</h3>
@@ -4908,7 +4914,6 @@ function problemesFiche(S) {
   if (!S.poste) out.push(["r", "Poste manquant (étape 1 · Identité)."]);
   if (!ingOk.length) out.push(["r", "Aucun ingrédient (étape 2 · Ingrédients)."]);
   if (ingOk.some((i) => !i.qte && i.unite !== "QS")) out.push(["o", "Un ingrédient n'a pas de quantité (étape 2 · Ingrédients)."]);
-  if (!S.allgConfirm) out.push(["r", "Allergènes non confirmés par le chef (étape 2 · Ingrédients)."]);
   if (!Object.values(p).some((x) => x.on)) out.push(["r", "Aucun procédé choisi : cuisson, préparation froide… (étape 3 · Cuisson & températures)."]);
   if (p.cuisson.on && !p.cuisson.coeur && !(p.cuisson.controles && p.cuisson.controles.temp === false)) out.push(["o", "T° à cœur de cuisson non précisée (étape 3 · Cuisson & températures)."]);
   if (p.cuisson.on && p.cuisson.coeurAutre) {
@@ -5251,7 +5256,7 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   const etapeComplete = (i) => {
     switch (i) {
       case 0: return !!(S.nom.trim() && S.categorie && S.poste);
-      case 1: return ingredientsRenseignes(S).length > 0 && S.allgConfirm;
+      case 1: return ingredientsRenseignes(S).length > 0;
       case 2: return Object.values(S.procedes).some((p) => p.on);
       case 3: return S.appareils.length + S.materiel.length + S.ustensiles.length > 0;
       case 4: return S.etapes.some((e) => e.titre.trim() || e.texte.trim());
@@ -5382,7 +5387,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       ingredients: ingFinal, materiel, haccp, preparation, consignesImportantes,
       refroidissementStockage, rendement, dureeConservation, nonConformite, tracabilite, etiquetage,
       aRetenir: [], autresSections: [], groupesPortions: [], titresSections: {}, nonCategorise: [],
-      allergenes: [...S.allergenes],
+      allergenes: [...S.allergenes], allergenesConfirmes: !!S.allgConfirm,
       procedes: JSON.parse(JSON.stringify(S.procedes)),
       familleCuisson: S.procedes.cuisson.famille,
       cuissonDureeMin: Number(S.procedes.cuisson.dureeMin) || null,
@@ -5581,7 +5586,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               )}
               <label className="flex items-start gap-2 text-sm mt-2">
                 <input type="checkbox" className="mt-0.5" checked={S.allgConfirm} onChange={(e) => champ("allgConfirm", e.target.checked)} />
-                <span><strong>Je confirme la liste des allergènes</strong> (obligatoire — information écrite due au client).</span>
+                <span><strong>Cliquez ici si vous souhaitez enregistrer ces informations dans le tableau des allergènes.</strong> <span className="text-[var(--steel)]">Sans cette coche, les allergènes cochés s'affichent quand même sur la fiche technique ; s'il n'y en a aucun, la fiche indique « aucune information donnée ni confirmée ». Rien ne bloque l'enregistrement.</span></span>
               </label>
             </div>
           </div>
@@ -5982,9 +5987,11 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 ) : <ApercuVide texte="Ingrédients, quantités et unités — reliés au stock." />}
               </ApercuSection>
               <ApercuSection titre="3. Allergènes">
-                <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
+                {avecModes && S.allergenes.length === 0
+                  ? <p className="text-[11px] text-[var(--steel)] italic">{S.allgConfirm ? "Aucun allergène déclaré (confirmé)." : "Aucune information donnée ni confirmée."}</p>
+                  : <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
                   {ALLERGENES_14.map((a) => <span key={a} className={S.allergenes.includes(a) ? "font-semibold text-[var(--accent)]" : "text-[var(--steel)]"}>{S.allergenes.includes(a) ? "■" : "□"} {a}</span>)}
-                </div>
+                </div>}
               </ApercuSection>
               <ApercuSection titre="5. Préparation">
                 {S.etapes.some((e) => e.titre || e.texte) ? (
@@ -14649,7 +14656,7 @@ function KitchenApp({ identiteExterne } = {}) {
   useEffect(() => {
     if (!modeExterne) return;
     const derive = {};
-    fichesExternes.forEach((f) => { const t = f.allergenesTexte != null ? f.allergenesTexte : (f.allergenes || []).join(", "); if (t) derive[f.nom] = t; });
+    fichesExternes.forEach((f) => { if (f.allergenesConfirmes === false) return; const t = f.allergenesTexte != null ? f.allergenesTexte : (f.allergenes || []).join(", "); if (t) derive[f.nom] = t; });
     setAllergenesPlatsMemoire((prev) => { const next = { ...derive, ...prev }; allergenesPlatsRef.current = next; return next; });
   }, [modeExterne, fichesExternes]);
   const setAllergenesPlatsExterne = useCallback((maj) => {
