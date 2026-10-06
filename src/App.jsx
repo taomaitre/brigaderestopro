@@ -4849,7 +4849,7 @@ function problemesFiche(S) {
   if (p.cuisson.on && p.cuisson.coeurAutre) {
     const v = parseFloat(String(p.cuisson.coeurPerso == null ? "" : p.cuisson.coeurPerso).replace(",", "."));
     if (!Number.isFinite(v)) out.push(["r", "T° à cœur « Autre valeur » non renseignée (étape 3 · Cuisson & températures)."]);
-    else if (!String(p.cuisson.coeurJustif || "").trim()) out.push(["o", "Norme personnalisée : indique comment tu prouves que cette valeur est sûre (étape 3 · Cuisson & températures)."]);
+    else if (!String(p.cuisson.coeurJustif || "").trim()) out.push(["o", "Norme personnalisée sans justification : pense à noter la preuve (analyse de laboratoire, étude de cuisson…) — cela ne bloque pas, c'est ta responsabilité (étape 3 · Cuisson & températures)."]);
   }
   if (p.cuisson.on && p.cuisson.appareil === "Friteuse") {
     const t = parseFloat(String((p.cuisson.parametres || {}).temperature || "").replace(",", "."));
@@ -5584,7 +5584,8 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                                 <input className={`${inputCls} w-24`} type="number" step="1" value={c.coeurPerso} onChange={(e) => majProcede("cuisson", { coeurPerso: e.target.value })} />
                                 <span>°C</span>
                               </span>
-                              <input className={`${inputCls} mt-2`} value={c.coeurJustif || ""} onChange={(e) => majProcede("cuisson", { coeurJustif: e.target.value })} placeholder="Comment prouves-tu que c'est sûr ? (ex. étude de cuisson, couple temps/température, avis du consultant HACCP)" />
+                              <input className={`${inputCls} mt-2`} value={c.coeurJustif || ""} onChange={(e) => majProcede("cuisson", { coeurJustif: e.target.value })} placeholder="Justification / preuve (ex. analyse de laboratoire du 12/09, étude de cuisson, avis du consultant HACCP)" />
+                              <span className="block text-xs text-[var(--steel)] mt-1">Conseil : note ici la preuve que ta méthode est sûre (résultat d'analyse de laboratoire avec sa date, étude de cuisson, avis de ton consultant HACCP) et garde le document dans ton plan de maîtrise sanitaire pour un contrôle.</span>
                               <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la norme officielle pour cette fiche et pour l'écran Cuisson. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
                             </span>
                           )}
