@@ -4302,7 +4302,7 @@ function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCan
   const enregistrer = () => {
     if (!v.tache.trim()) return;
     const mode = v.assigneA || "tous";
-    const sortie = { tache: v.tache.trim(), poste: v.poste.trim(), note: v.note || "", ...sortieFrequenceNettoyage(v), assigneA: mode, personnes: mode === "personnes" ? (v.personnes || []) : undefined };
+    const sortie = { tache: v.tache.trim(), poste: v.poste.trim(), note: v.note || "", etapes: (v.etapes || []).map((e) => e.trim()).filter(Boolean), ...sortieFrequenceNettoyage(v), assigneA: mode, personnes: mode === "personnes" ? (v.personnes || []) : undefined };
     onSave(sortie);
   };
   return (
@@ -4315,6 +4315,18 @@ function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCan
           <ChampsFrequenceNettoyage v={v} maj={maj} />
           <ChampsQuiNettoyage v={v} maj={maj} employees={employees} />
           <Field label="Produit, dosage et méthode (protocole à respecter)"><textarea className={`${inputCls} w-full`} rows={4} value={v.note} onChange={(e) => maj({ note: e.target.value })} placeholder="ex. Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon la fiche du produit." /></Field>
+          <Field label="Étapes à effectuer (facultatif — ex. pour une friteuse : vidanger, dégraisser, rincer…)">
+            <div className="space-y-2">
+              {(v.etapes || []).map((e, i) => (
+                <div key={i} className="flex gap-2">
+                  <span className="w-6 h-9 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
+                  <input className={`${inputCls} flex-1`} placeholder="Décrire l'étape" value={e} onChange={(ev) => maj({ etapes: (v.etapes || []).map((x, j) => (j === i ? ev.target.value : x)) })} />
+                  <button type="button" onClick={() => maj({ etapes: (v.etapes || []).filter((_, j) => j !== i) })} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
+                </div>
+              ))}
+              <Button variant="ghost" onClick={() => maj({ etapes: [...(v.etapes || []), ""] })}><Plus size={14} /> Ajouter une étape</Button>
+            </div>
+          </Field>
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="ghost" onClick={onCancel}>Annuler</Button>
@@ -4685,7 +4697,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
     logActivity("Nettoyage", "Appareil ajouté au plan de nettoyage", taches.map((t) => t.tache).join(" · "));
     setEditeur(null);
   };
-  const dupliquerTache = (t) => setEditeur({ id: null, initial: { tache: `${t.tache} (copie)`, poste: t.poste, frequence: t.frequence, jour: t.jour, jours: t.jours, moments: t.moments, assigneA: t.assigneA, personnes: t.personnes, semaineRef: t.semaineRef, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, note: t.note } });
+  const dupliquerTache = (t) => setEditeur({ id: null, initial: { tache: `${t.tache} (copie)`, poste: t.poste, frequence: t.frequence, jour: t.jour, jours: t.jours, moments: t.moments, assigneA: t.assigneA, personnes: t.personnes, semaineRef: t.semaineRef, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, moisAnnee: t.moisAnnee, jourAnnee: t.jourAnnee, etapes: t.etapes, note: t.note } });
   const updateNote = (id, note) => setCleaning(cleaning.map((t) => (t.id === id ? { ...t, note } : t)));
 
   const parPoste = cleaning.reduce((acc, t) => { const p = t.poste || "Tous"; (acc[p] = acc[p] || []).push(t); return acc; }, {});
@@ -4798,7 +4810,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
                         {t.fait && t.date && <span className="text-xs text-[var(--accent)]">fait le {t.date}{who(t.employeeId) ? ` par ${who(t.employeeId)}` : ""}</span>}
                         {editable ? (
                           <>
-                            <button onClick={() => setEditeur({ id: t.id, initial: { tache: t.tache, poste: t.poste || "Tous", frequence: t.frequence, jour: t.jour, jours: t.jours, moments: t.moments, assigneA: t.assigneA, personnes: t.personnes, semaineRef: t.semaineRef, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, note: t.note || "" } })} className="text-xs text-[var(--accent)] font-medium underline">Modifier</button>
+                            <button onClick={() => setEditeur({ id: t.id, initial: { tache: t.tache, poste: t.poste || "Tous", frequence: t.frequence, jour: t.jour, jours: t.jours, moments: t.moments, assigneA: t.assigneA, personnes: t.personnes, semaineRef: t.semaineRef, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, moisAnnee: t.moisAnnee, jourAnnee: t.jourAnnee, etapes: t.etapes, note: t.note || "" } })} className="text-xs text-[var(--accent)] font-medium underline">Modifier</button>
                             <button onClick={() => dupliquerTache(t)} className="text-xs text-[var(--steel)] hover:text-[var(--accent)] underline decoration-dotted">Dupliquer</button>
                           </>
                         ) : (
@@ -4812,6 +4824,9 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
                       ) : t.note ? (
                         <p className="text-xs text-[var(--steel)] italic mt-0.5 whitespace-pre-line">{t.note}</p>
                       ) : null}
+                      {(t.etapes || []).length > 0 && (
+                        <ol className="text-xs text-[var(--steel)] mt-1 list-decimal ml-5 space-y-0.5">{t.etapes.map((e, i) => <li key={i}>{e}</li>)}</ol>
+                      )}
                     </li>
                 ))}
               </ul>
@@ -4904,15 +4919,15 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
   return (
     <div>
       <SectionHeader title="PMS — plan de nettoyage" subtitle="PMS = Plan de Maîtrise Sanitaire : le plan de nettoyage et d'hygiène de la cuisine" />
-      <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-6">
+      {!chargerPlanDepart && <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-6">
         <p className="text-xs text-[var(--ink)]">
           <strong>À finaliser :</strong> détaillez pour chaque matériel les étapes de nettoyage selon le protocole HACCP (comme pour la friteuse), puis indiquez le produit utilisé par votre établissement avec sa quantité / dilution exacte. À compléter dans « Protocoles de nettoyage détaillés » ci-dessous, produit par produit.
         </p>
-      </Card>
+      </Card>}
       <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
-      <div className="mt-6">
+      {!chargerPlanDepart && <div className="mt-6">
         <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
-      </div>
+      </div>}
     </div>
   );
 }
@@ -15542,7 +15557,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const chargerPlanDepart = modeExterne ? () => setCleaning(PLAN_NETTOYAGE_DEPART.map((t) => ({ id: uid(), ...t, creeLe: todayISO(), fait: false, date: null, employeeId: null }))) : undefined;
   const [protocolesNettoyage, setProtocolesNettoyage] = useStoredOuMemoire("protocoles-nettoyage", [
     { id: "friteuse-complet", nom: "Nettoyage complet friteuse (intérieur, extérieur, ustensiles)", produits: [], etapes: [] },
-  ], modeExterne);
+  ], modeExterne, []);
   // Zones de nettoyage du plan de nettoyage (PMS) : liste éditable par le chef (ajout/suppression),
   // au départ les 3 postes de cuisine + "Tous". "Tous" ne peut pas être supprimée (tâches communes).
   const [zonesNettoyage, setZonesNettoyage] = useStoredOuMemoire("haccp-zones-nettoyage", ["Tous", "Poste Chaud", "Poste Pizza", "Poste Froid"], modeExterne, ["Tous"]);
