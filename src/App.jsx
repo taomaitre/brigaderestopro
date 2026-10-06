@@ -4260,6 +4260,41 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
   const toggleIngredientDestockage = (i) => setIngredientsDestockage((arr) => arr.map((x, idx) => (idx === i ? { ...x, coche: !x.coche } : x)));
   const changerQuantiteDestockage = (i, val) => setIngredientsDestockage((arr) => arr.map((x, idx) => (idx === i ? { ...x, quantite: val } : x)));
 
+  // Quantité à produire (nouvelle version) : le cuisinier demande 15 portions ou 3 kg, les quantités des
+  // ingrédients se recalculent. Les textes libres des étapes ne sont pas recalculés (on le dit).
+  const rendBase = (fiche.formulaire && fiche.formulaire.rendement) || null;
+  const basePortions = rendBase ? parseFloat(String(rendBase.portions || "").replace(",", ".")) : NaN;
+  const baseTotalNb = rendBase ? parseFloat(String(rendBase.total || "").replace(",", ".")) : NaN;
+  const baseTotalUnite = rendBase ? ((String(rendBase.total || "").match(/[a-zA-Zµ]+\s*$/) || [null])[0] || rendBase.unite || "").trim() : "";
+  const modesQuantite = [
+    ...(basePortions > 0 ? [["portions", "Nombre de portions"]] : []),
+    ...(baseTotalNb > 0 ? [["total", `Quantité totale (${baseTotalUnite})`]] : []),
+    ["fois", "Multiplier la recette par"],
+  ];
+  const [modeQuantite, setModeQuantite] = useState(() => modesQuantite[0][0]);
+  const [quantiteVoulue, setQuantiteVoulue] = useState("");
+  const voulu = parseFloat(String(quantiteVoulue).replace(",", "."));
+  const facteur = !(voulu > 0) ? 1
+    : modeQuantite === "portions" ? voulu / basePortions
+    : modeQuantite === "total" ? voulu / baseTotalNb
+    : voulu;
+  const formaterNb = (n) => { const r = Math.round(n * 100) / 100; return String(r).replace(".", ","); };
+  const quantiteEchelle = (ing) => {
+    const q = parseFloat(String(ing.quantite == null ? "" : ing.quantite).replace(",", "."));
+    if (!Number.isFinite(q) || facteur === 1) return { quantite: ing.quantite, unite: ing.unite };
+    const v = q * facteur;
+    if (ing.unite === "g" && v >= 1000) return { quantite: formaterNb(v / 1000), unite: "kg" };
+    if (ing.unite === "ml" && v >= 1000) return { quantite: formaterNb(v / 1000), unite: "L" };
+    return { quantite: formaterNb(v), unite: ing.unite };
+  };
+  useEffect(() => {
+    setIngredientsDestockage((fiche.ingredients || []).map((ing) => {
+      const e = quantiteEchelle(ing);
+      return { nom: ing.nom, quantite: e.quantite, unite: e.unite, coche: true };
+    }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [facteur]);
+
   const validerDlc = () => {
     if (!quantiteDlc || !onEditerDlc) return;
     const ingredientsUtilises = ingredientsDestockage.filter((x) => x.coche && Number(x.quantite) > 0).map((x) => ({ nom: x.nom, quantite: x.quantite }));
@@ -4404,17 +4439,38 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </div>
       )}
 
+      {avecModes && fiche.ingredients.length > 0 && (
+        <Card className="mb-5 border-[var(--accent)]/30">
+          <h3 className="font-semibold text-[var(--ink)] mb-2">Quantité à produire</h3>
+          <div className="flex flex-wrap items-end gap-3">
+            <Field label="Je veux calculer avec">
+              <select className={inputCls} value={modeQuantite} onChange={(e) => { setModeQuantite(e.target.value); setQuantiteVoulue(""); }}>
+                {modesQuantite.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+              </select>
+            </Field>
+            <Field label={modeQuantite === "portions" ? "Portions voulues" : modeQuantite === "total" ? `Quantité voulue (${baseTotalUnite})` : "Facteur (ex. 2,5)"}>
+              <input className={`${inputCls} w-32`} inputMode="decimal" value={quantiteVoulue} onChange={(e) => setQuantiteVoulue(e.target.value)} placeholder={modeQuantite === "portions" ? String(basePortions) : modeQuantite === "total" ? String(baseTotalNb) : "1"} />
+            </Field>
+            {facteur !== 1 && <Button variant="ghost" onClick={() => setQuantiteVoulue("")}>Revenir à la recette de base</Button>}
+          </div>
+          <p className="text-xs text-[var(--steel)] mt-2">
+            {facteur === 1
+              ? `Recette de base${basePortions > 0 ? ` : ${basePortions} portions` : ""}${baseTotalNb > 0 ? ` · ${formaterNb(baseTotalNb)} ${baseTotalUnite}` : ""}. Entre la quantité dont tu as besoin : les ingrédients se recalculent.`
+              : `Recette multipliée par ${formaterNb(facteur)}. Attention : les quantités écrites dans le texte des étapes ne sont pas recalculées — suis le tableau des ingrédients ci-dessous. Les temps de cuisson et de refroidissement peuvent aussi changer avec la quantité : vérifie toujours à la sonde.`}
+          </p>
+        </Card>
+      )}
       {fiche.ingredients.length > 0 && (
         <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[1] || "1. Ingrédients"}</h3>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[1] || "1. Ingrédients"}{avecModes && facteur !== 1 ? <span className="ml-2 text-xs font-semibold text-[var(--accent)]">× {formaterNb(facteur)}</span> : null}</h3>
           <table className="w-full text-sm">
             <tbody>
-              {fiche.ingredients.map((ing, i) => (
+              {fiche.ingredients.map((ing, i) => { const e = avecModes ? quantiteEchelle(ing) : ing; return (
                 <tr key={i} className="border-b border-[var(--line)] last:border-0">
                   <td className="py-1.5 text-[var(--ink)]">{ing.nom}</td>
-                  <td className="py-1.5 text-[var(--steel)] text-right whitespace-nowrap pl-3">{ing.quantite} {ing.unite}</td>
+                  <td className={`py-1.5 text-right whitespace-nowrap pl-3 ${avecModes && facteur !== 1 ? "text-[var(--ink)] font-semibold" : "text-[var(--steel)]"}`}>{e.quantite} {e.unite}</td>
                 </tr>
-              ))}
+              ); })}
             </tbody>
           </table>
           {fiche.rendementAttendu && (
