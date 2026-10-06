@@ -7761,7 +7761,7 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
 
       {IA_ACTIVEE && !sansIA
-        ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} sansIA={modeExterne} />
+        ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} />
         : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} />}
 
       {!sansIA && <Card>
@@ -12259,7 +12259,7 @@ function ModalPreparationCulinaire({ mesProduits, fiches, produitEnPreparation, 
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-2xl w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
         {ficheOuverte ? (
-          <FicheDetail fiche={ficheOuverte} onBack={() => setFicheOuverte(null)} onRemove={() => {}} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={whoTaches} estChef={employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction"} />
+          <FicheDetail fiche={ficheOuverte} onBack={() => setFicheOuverte(null)} onRemove={() => {}} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={whoTaches} estChef={!!(moi && moi.estChef)} />
         ) : (
           <>
             <div className="flex items-center justify-between mb-4">
