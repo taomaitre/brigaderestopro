@@ -4933,6 +4933,8 @@ function problemesFiche(S) {
   if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["r", `DLC J+${S.conservation.jours} supérieure au maximum J+${dlcMaxFiche(S)} sans étude de vieillissement validée (étape 6 · Conservation & rendement).`]);
   if (!S.etapes.some((e) => e.titre.trim() || e.texte.trim())) out.push(["o", "Aucune étape de préparation (étape 5 · Préparation)."]);
   if (p.cuisson.on && !(p.cuisson.controles && p.cuisson.controles.temp === false) && !S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Aucune étape marquée « T° de cuisson à relever » (étape 5 · Préparation)."]);
+  if (!p.refroid.on && S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Une étape de préparation est marquée « début de refroidissement » mais Refroidissement n'est pas coché (étape 3 · Cuisson & températures) : le contrôle de refroidissement ne sera pas demandé."]);
+  if (!p.cuisson.on && S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Une étape de préparation est marquée « T° de cuisson à relever » mais Cuisson n'est pas cochée (étape 3 · Cuisson & températures)."]);
   if (p.refroid.on && !S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Aucune étape marquée « début de refroidissement » (étape 5 · Préparation)."]);
   return out;
 }
@@ -5370,7 +5372,8 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     const dureeConservation = [`${S.conservation.type} : J+${S.conservation.jours} (jour de fabrication compris)`, `Température : ${S.conservation.temp}${S.conservation.contenant ? ", " + S.conservation.contenant : ""}`];
     if (S.procedes.decongel.on) dureeConservation.push("Après décongélation : DLC J+3 à partir de la sortie du congélateur");
     const rendement = [];
-    if (S.rendement.total) rendement.push(`Total : ${S.rendement.total} ${S.rendement.unite}`);
+    const totalAvecUnite = /[a-zA-Zµ]/.test(String(S.rendement.total)) ? String(S.rendement.total).trim() : `${S.rendement.total} ${S.rendement.unite}`;
+    if (S.rendement.total) rendement.push(`Total : ${totalAvecUnite}`);
     if (S.rendement.portions) rendement.push(`${S.rendement.portions} portions${S.rendement.grammage ? " de " + S.rendement.grammage : ""}`);
     const dressage = [];
     if (S.dressage.assiette) dressage.push(`Contenant : ${S.dressage.assiette}`);
@@ -5383,7 +5386,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       id: modifier ? ficheInitiale.id : uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(),
       categorie: categorieLabelActuelle, sousCategorie: null,
       rendementCourt: S.badge.trim() || (S.rendement.portions ? `${S.rendement.portions} PORTIONS` : ""),
-      rendementAttendu: S.rendement.total ? `RENDEMENT ATTENDU : ${S.rendement.total} ${S.rendement.unite}${S.rendement.portions ? ` – ${S.rendement.portions} portions` : ""}${S.rendement.grammage ? ` de ${S.rendement.grammage}` : ""}` : "",
+      rendementAttendu: S.rendement.total ? `RENDEMENT ATTENDU : ${totalAvecUnite}${S.rendement.portions ? ` – ${S.rendement.portions} portions` : ""}${S.rendement.grammage ? ` de ${S.rendement.grammage}` : ""}` : "",
       ingredients: ingFinal, materiel, haccp, preparation, consignesImportantes,
       refroidissementStockage, rendement, dureeConservation, nonConformite, tracabilite, etiquetage,
       aRetenir: [], autresSections: [], groupesPortions: [], titresSections: {}, nonCategorise: [],
