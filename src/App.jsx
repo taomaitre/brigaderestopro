@@ -7498,6 +7498,133 @@ function calculerPreparationsCarte(carte, fiches, jour, restes) {
   return { groupes, sansRendement };
 }
 
+// Changements ponctuels sur une carte stable (saison, année, fixe) : plats ajoutés, retirés ou remplacés pour une durée limitée.
+const PORTEES_CARTE = [["jour", "Uniquement ce jour"], ["semaine", "Cette semaine"], ["mois", "Ce mois-ci"], ["saison", "Cette saison"], ["quotidien", "Au quotidien (tout le temps)"]];
+function finPorteeCarte(portee, depuis) {
+  if (portee === "jour") return depuis;
+  const d = dateDepuisIso(depuis);
+  if (portee === "semaine") return addDays(depuis, 6 - ((d.getDay() + 6) % 7));
+  if (portee === "mois") return isoDepuisDate(new Date(d.getFullYear(), d.getMonth() + 1, 0, 12));
+  if (portee === "saison") return periodeCarte("saison", depuis).fin;
+  return "9999-12-31";
+}
+function platsAuCarte(carte, date) {
+  const base = [...((carte && carte.plats) || [])];
+  const ex = (carte && carte.exceptions) || [];
+  const actif = (e) => e.debut <= date && date <= e.fin;
+  const res = [...base, ...ex.filter((e) => e.action === "ajout" && actif(e)).map((e) => e.platId)];
+  const retires = ex.filter((e) => e.action === "retrait" && actif(e)).map((e) => e.platId);
+  return [...new Set(res)].filter((id) => !retires.includes(id));
+}
+function libelleDuree(e) {
+  if (e.fin === "9999-12-31") return "tout le temps";
+  return e.debut === e.fin ? `le ${fmtShort(e.debut)}` : `du ${fmtShort(e.debut)} au ${fmtShort(e.fin)}`;
+}
+
+// « Changer la carte » : ajouter, retirer ou remplacer un plat, pour un jour, une semaine, un mois, une saison ou au quotidien.
+function ChangerCarte({ carte, majCarte, plats, categories, nomDe, aujourdhui }) {
+  const [mode, setMode] = useState(null); // "ajout" | "retrait" | "remplace"
+  const [cat, setCat] = useState(null);
+  const [nouveau, setNouveau] = useState(null);
+  const [ancien, setAncien] = useState(null);
+  const [portee, setPortee] = useState("jour");
+  const [depuis, setDepuis] = useState(aujourdhui);
+  const [msg, setMsg] = useState("");
+  const actuels = platsAuCarte(carte, depuis);
+  const exceptions = ((carte && carte.exceptions) || []).filter((e) => e.fin >= aujourdhui).sort((a, b) => a.debut.localeCompare(b.debut));
+  const reinit = () => { setMode(null); setCat(null); setNouveau(null); setAncien(null); setPortee("jour"); setDepuis(aujourdhui); };
+  const besoinAjout = mode === "ajout" || mode === "remplace";
+  const besoinRetrait = mode === "retrait" || mode === "remplace";
+  const pret = (!besoinAjout || nouveau) && (!besoinRetrait || ancien);
+  const valider = () => {
+    const fin = finPorteeCarte(portee, depuis);
+    let plansBase = [...(carte.plats || [])]; let exc = [...(carte.exceptions || [])]; const dates = { ...(carte.datesAjout || {}) };
+    if (besoinRetrait) {
+      if (portee === "quotidien") plansBase = plansBase.filter((x) => x !== ancien);
+      else exc.push({ id: uid(), platId: ancien, action: "retrait", portee, debut: depuis, fin });
+    }
+    if (besoinAjout) {
+      if (portee === "quotidien") { if (!plansBase.includes(nouveau)) plansBase.push(nouveau); }
+      else exc.push({ id: uid(), platId: nouveau, action: "ajout", portee, debut: depuis, fin });
+      dates[nouveau] = depuis;
+    }
+    majCarte({ plats: plansBase, exceptions: exc, datesAjout: dates });
+    setMsg(`${mode === "retrait" ? `« ${nomDe(ancien)} » retiré` : mode === "remplace" ? `« ${nomDe(ancien)} » remplacé par « ${nomDe(nouveau)} »` : `« ${nomDe(nouveau)} » ajouté`} — ${libelleDuree({ debut: depuis, fin })}.`);
+    reinit();
+  };
+  const bouton = (actif, onClick, children, k) => <button key={k} type="button" onClick={onClick} className={`px-3 py-2 rounded-lg text-sm font-medium border-2 ${actif ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{children}</button>;
+  const dispo = plats.filter((f) => !actuels.includes(f.id) || f.id === nouveau);
+  const catsDispo = categories.filter((c) => dispo.some((f) => f.categorie === c));
+  return (
+    <Card className="mb-4">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Changer la carte</h3>
+      <p className="text-sm text-[var(--steel)] mb-3">Ajoutez, retirez ou remplacez un plat sans refaire toute la carte : pour une journée, une semaine, un mois, une saison ou au quotidien.</p>
+      {msg && !mode && <p className="text-sm text-[var(--accent)] font-medium mb-3">✓ {msg}</p>}
+      {!mode && (
+        <div className="flex flex-wrap gap-2">
+          {bouton(false, () => { setMode("ajout"); setMsg(""); }, "+ Ajouter un plat", "a")}
+          {bouton(false, () => { setMode("retrait"); setMsg(""); }, "Retirer un plat", "r")}
+          {bouton(false, () => { setMode("remplace"); setMsg(""); }, "Remplacer un plat", "m")}
+        </div>
+      )}
+      {mode && (
+        <div className="border-2 border-[var(--cadre)] rounded-xl p-3 bg-[var(--bg)] space-y-4">
+          <p className="text-sm font-bold text-[var(--ink)]">{mode === "ajout" ? "Ajouter un plat" : mode === "retrait" ? "Retirer un plat" : "Remplacer un plat"}</p>
+          {besoinRetrait && (
+            <div>
+              <p className="text-sm font-semibold text-[var(--ink)] mb-1">{mode === "remplace" ? "1. Quel plat est remplacé ?" : "Quel plat retirer ?"}</p>
+              {actuels.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun plat sur la carte à cette date.</p> : (
+                <div className="flex flex-wrap gap-2">{actuels.filter((id) => nomDe(id)).map((id) => bouton(ancien === id, () => setAncien(id), nomDe(id), id))}</div>
+              )}
+            </div>
+          )}
+          {besoinAjout && (
+            <div>
+              <p className="text-sm font-semibold text-[var(--ink)] mb-1">{mode === "remplace" ? "2. Par quel plat ?" : "Quel plat ajouter ? Choisissez une catégorie"}</p>
+              {catsDispo.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun autre plat disponible : créez-en d'abord une fiche technique.</p> : (
+                <div className="flex flex-wrap gap-2 mb-2">{catsDispo.map((c) => bouton(cat === c, () => setCat(cat === c ? null : c), c, c))}</div>
+              )}
+              {cat && (
+                <ul className="space-y-1.5">
+                  {dispo.filter((f) => f.categorie === cat).map((f) => (
+                    <li key={f.id}><label className="flex items-center gap-3 text-sm text-[var(--ink)] bg-white border border-[var(--cadre)] rounded-lg px-3 py-2"><input type="radio" className="w-5 h-5" checked={nouveau === f.id} onChange={() => setNouveau(f.id)} /><span className="flex-1">{f.nom}</span></label></li>
+                  ))}
+                </ul>
+              )}
+              {nouveau && <p className="text-sm text-[var(--ink)] mt-1">Choisi : <b>{nomDe(nouveau)}</b></p>}
+            </div>
+          )}
+          <div>
+            <p className="text-sm font-semibold text-[var(--ink)] mb-1">{mode === "retrait" ? "Pendant combien de temps ?" : mode === "remplace" ? "3. Pendant combien de temps ?" : "Ce plat sera servi…"}</p>
+            <div className="flex flex-wrap gap-2 mb-2">{PORTEES_CARTE.map(([k, lib]) => bouton(portee === k, () => setPortee(k), mode === "retrait" && k === "quotidien" ? "Définitivement" : lib, k))}</div>
+            {portee !== "quotidien" && (
+              <div className="max-w-xs"><label className={libNet}>À partir du</label><input type="date" className={champNet} value={depuis} onChange={(e) => e.target.value && setDepuis(e.target.value)} /></div>
+            )}
+            {portee !== "quotidien" && <p className="text-xs text-[var(--steel)] mt-1">Jusqu'au {fmtShort(finPorteeCarte(portee, depuis))}. Après cette date, la carte revient comme avant.</p>}
+          </div>
+          <div className="flex gap-2">
+            <Button disabled={!pret} onClick={valider}>Valider</Button>
+            <Button variant="ghost" onClick={reinit}>Annuler</Button>
+          </div>
+        </div>
+      )}
+      {exceptions.length > 0 && !mode && (
+        <div className="mt-4">
+          <p className="text-sm font-semibold text-[var(--ink)] mb-1">Changements en cours ou à venir</p>
+          <ul className="space-y-1">
+            {exceptions.map((e) => (
+              <li key={e.id} className="flex items-center justify-between gap-2 text-sm text-[var(--ink)] border border-[var(--cadre)] rounded-lg px-3 py-2 bg-white">
+                <span><b>{e.action === "ajout" ? "Ajouté" : "Retiré"}</b> : {nomDe(e.platId) || "plat supprimé"} <span className="text-[var(--steel)]">— {libelleDuree(e)}</span></span>
+                <button type="button" onClick={() => majCarte({ exceptions: (carte.exceptions || []).filter((x) => x.id !== e.id) })} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Annuler ce changement"><X size={15} /></button>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </Card>
+  );
+}
+
 function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, reservations }) {
   const [quantiteOuverte, setQuantiteOuverte] = useState(null);
   const [jourDetail, setJourDetail] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
@@ -7514,6 +7641,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
   const categories = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
   const idsCarte = (carte && carte.plats) || [];
+  const idsAujourdhui = platsAuCarte(carte, aujourdhui);
   const nomDe = (id) => (plats.find((f) => f.id === id) || {}).nom;
   const majCarte = (patch) => setCartes(cartes.map((c) => (c.id === carte.id ? { ...c, ...patch } : c)));
   const quantites = (carte && carte.quantites) || {};
@@ -7562,7 +7690,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   }
 
   const libType = (TYPES_CARTE.find((x) => x[0] === type) || [])[1];
-  const parCategorie = categories.map((c) => ({ c, ids: idsCarte.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
+  const parCategorie = categories.map((c) => ({ c, ids: idsAujourdhui.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
   return (
     <div>
       <SectionHeader title="Ma carte" subtitle={`${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`} />
@@ -7583,6 +7711,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
           )}
         </Card>
       )}
+      {carte && estChef && <ChangerCarte carte={carte} majCarte={majCarte} plats={plats} categories={categories} nomDe={nomDe} aujourdhui={aujourdhui} />}
       {carte && (
         <Card className="mb-4">
           {estChef ? (
@@ -7623,7 +7752,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             </>
           )}
 
-          <p className="text-sm font-semibold text-[var(--ink)] mb-2">Plats de cette carte ({idsCarte.filter((id) => nomDe(id)).length})</p>
+          <p className="text-sm font-semibold text-[var(--ink)] mb-2">Plats de la carte aujourd'hui ({idsAujourdhui.filter((id) => nomDe(id)).length})</p>
           {parCategorie.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun plat pour l'instant.</p> : parCategorie.map(({ c, ids }) => (
             <div key={c} className="mb-3">
               <h4 className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-1">{c}</h4>
@@ -7632,7 +7761,10 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                   <li key={id} className="text-sm text-[var(--ink)] border border-[var(--cadre)] rounded-lg px-3 py-2 bg-white">
                     <div className="flex items-center justify-between gap-2">
                       <span className="font-medium">{nomDe(id)}</span>
-                      {estChef && <button type="button" onClick={() => basculer(id)} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer de la carte"><X size={15} /></button>}
+                      <span className="flex items-center gap-2">
+                        {(carte.exceptions || []).some((e) => e.action === "ajout" && e.platId === id && !idsCarte.includes(id)) && <span className="text-xs font-semibold text-[var(--accent)]">temporaire</span>}
+                        {estChef && idsCarte.includes(id) && <button type="button" onClick={() => basculer(id)} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer de la carte définitivement"><X size={15} /></button>}
+                      </span>
                     </div>
                     {(() => {
                       const q = quantites[id] || {}; const resume = JOURS.filter((j) => nbCarte(q[j]) > 0).map((j) => `${j.slice(0, 3)} ${q[j]}`).join(" · ");
@@ -7665,7 +7797,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             </div>
           ))}
           {(() => {
-            const aDesQuantites = idsCarte.some((id) => JOURS.some((j) => nbCarte((quantites[id] || {})[j]) > 0));
+            const aDesQuantites = idsAujourdhui.some((id) => JOURS.some((j) => nbCarte((quantites[id] || {})[j]) > 0));
             if (!estChef && !carte.detailPrep) return null;
             if (!carte.detailPrep) {
               return (
@@ -7678,10 +7810,10 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             }
             const idxJ = JOURS.indexOf(jourDetail); const dateJ = addDays(todayISO(), (idxJ - ((new Date().getDay() + 6) % 7) + 7) % 7);
             const restesSaisis = (carte.restes || {})[dateJ] || {};
-            const platsDuJour = idsCarte.filter((id) => nbCarte(quantites[id] && quantites[id][jourDetail]) > 0);
+            const platsDuJour = platsAuCarte(carte, dateJ).filter((id) => nbCarte(quantites[id] && quantites[id][jourDetail]) > 0);
             const nouveauxJour = platsDuJour.filter(estNouveau);
             const restesJour = Object.fromEntries(Object.entries(restesSaisis).filter(([id]) => !nouveauxJour.includes(id)));
-            const { groupes, sansRendement } = calculerPreparationsCarte(carte, fiches, jourDetail, restesJour);
+            const { groupes, sansRendement } = calculerPreparationsCarte({ ...carte, plats: platsAuCarte(carte, dateJ) }, fiches, jourDetail, restesJour);
             const postes = Object.keys(groupes).sort((a, b) => a.localeCompare(b, "fr"));
             return (
               <div className="border-2 border-[var(--cadre)] rounded-xl p-3 mt-3 bg-[var(--bg)]">
