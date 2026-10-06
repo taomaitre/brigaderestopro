@@ -4444,27 +4444,27 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 
           {(onDemarrerRefroidissement || onDemarrerCuisson || onDemarrerMaintienChaud) && (
             <div className={onTracabiliteIngredients ? "pb-3 mb-3 border-b border-[var(--line)]" : ""}>
-              {ingredientsDestockage.length > 0 && !dlcEnregistree && (
+              {!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree && (
                 <p className="text-xs text-[var(--warn)] mb-2">Validez d'abord la quantité produite et le destockage ci-dessus, puis démarrez l'étape suivante.</p>
               )}
               <div className="flex flex-wrap gap-2">
                 {onDemarrerRefroidissement && fiche.procedes?.refroid?.on !== false && (
-                  <Button variant="ghost" disabled={ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "positif")}>
+                  <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "positif")}>
                     <Snowflake size={15} /> {fiche.procedes?.refroid?.mode === "cellule" ? "Mettre en cellule" : "Démarrer un refroidissement"}
                   </Button>
                 )}
                 {onDemarrerRefroidissement && fiche.procedes?.congel?.on && (
-                  <Button variant="ghost" disabled={ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "negatif")}>
+                  <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "negatif")}>
                     <Snowflake size={15} /> Lancer la congélation
                   </Button>
                 )}
                 {onDemarrerCuisson && (
-                  <Button variant="ghost" disabled={ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerCuisson(fiche.nom, fiche.cuissonDureeMin, fiche.familleCuisson)}>
+                  <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerCuisson(fiche.nom, fiche.cuissonDureeMin, fiche.familleCuisson)}>
                     <Flame size={15} /> Démarrer une cuisson
                   </Button>
                 )}
                 {onDemarrerMaintienChaud && (
-                  <Button variant="ghost" disabled={ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerMaintienChaud(fiche.nom)}>
+                  <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerMaintienChaud(fiche.nom)}>
                     <Soup size={15} /> Démarrer un maintien au chaud
                   </Button>
                 )}
