@@ -5328,7 +5328,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
           <div className="flex-1 min-w-[220px]">
             <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)]">Création assistée par IA</div>
             <h3 className="font-semibold text-[var(--ink)] mt-0.5">Créer la fiche à partir d'une photo</h3>
-            <p className="text-sm text-[var(--steel)] mt-1">Prenez en photo une recette (fiche papier, carnet, écran) ou importez une image. L'IA remplit le questionnaire ci-dessous ; relisez et corrigez avant d'enregistrer — les allergènes ne sont jamais confirmés automatiquement.</p>
+            <p className="text-sm text-[var(--steel)] mt-1">Prenez en photo une recette (fiche papier, carnet, écran) ou importez une image. L'IA remplit le questionnaire ci-dessous{avecModes ? ", y compris les allergènes quand elle les trouve" : ""} ; relisez et corrigez avant d'enregistrer — {avecModes ? "vous confirmez vous-même la liste finale des allergènes." : "les allergènes ne sont jamais confirmés automatiquement."}</p>
           </div>
           <label className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium cursor-pointer" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
             <Camera size={16} /> Prendre / importer une photo
@@ -5457,6 +5457,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
 
             <div className="pt-3 border-t border-[var(--line)]">
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Allergènes (14 réglementaires)</div>
+              {avecModes && <p className="text-xs text-[var(--steel)] mb-2">Les allergènes se cochent tout seuls à partir des fiches produits du catalogue (et de la photo si l'IA les lit). Si une fiche produit est incomplète, il est signalé ci-dessous : complétez-la dans le catalogue pour que ce soit automatique la prochaine fois.</p>}
               <div className="flex flex-wrap gap-2 mb-2">
                 {ALLERGENES_14.map((a) => {
                   const actif = S.allergenes.includes(a);
