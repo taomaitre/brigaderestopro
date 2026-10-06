@@ -1004,7 +1004,7 @@ function useStored(key, initial) {
 
 function Card({ children, className = "" }) {
   return (
-    <div className={`bg-white border border-[var(--line)] rounded-xl p-5 ${className}`}>
+    <div className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
       {children}
     </div>
   );
@@ -1154,7 +1154,7 @@ function HorlogeCompacte() {
   const h = String(maintenant.getHours()).padStart(2, "0");
   const m = String(maintenant.getMinutes()).padStart(2, "0");
   return (
-    <div className="rounded-lg border border-[var(--line)] bg-[var(--bg)] flex items-center justify-center px-2.5 h-full shrink-0">
+    <div className="rounded-lg border border-[var(--cadre)] bg-[var(--bg)] flex items-center justify-center px-2.5 h-full shrink-0">
       <span className="text-sm font-semibold tracking-tight text-[var(--ink)] tabular-nums leading-none">{h}:{m}</span>
     </div>
   );
@@ -1170,7 +1170,7 @@ function Horloge() {
   const m = String(maintenant.getMinutes()).padStart(2, "0");
   const s = String(maintenant.getSeconds()).padStart(2, "0");
   return (
-    <div className="rounded-xl border border-[var(--line)] bg-white flex flex-col items-center justify-center px-5" style={{ minHeight: 58, minWidth: 110 }}>
+    <div className="rounded-xl border border-[var(--cadre)] bg-white flex flex-col items-center justify-center px-5" style={{ minHeight: 58, minWidth: 110 }}>
       <div className="text-2xl font-semibold tracking-tight text-[var(--ink)] tabular-nums leading-none">{h}:{m}</div>
       <div className="text-xs text-[var(--steel)] mt-1 tabular-nums">{s} s</div>
     </div>
@@ -1257,7 +1257,7 @@ function ModalConfirmerSuppression({ libelle, onConfirmer, onAnnuler }) {
           </div>
         </div>
         <div className="flex gap-2">
-          <button onClick={onAnnuler} className="flex-1 min-h-[44px] rounded-lg border border-[var(--line)] text-[var(--ink)] font-medium text-sm">Annuler</button>
+          <button onClick={onAnnuler} className="flex-1 min-h-[44px] rounded-lg border border-[var(--cadre)] text-[var(--ink)] font-medium text-sm">Annuler</button>
           <button onClick={onConfirmer} className="flex-1 min-h-[44px] rounded-lg text-white font-medium text-sm" style={{ backgroundColor: "#C1432D" }}>Oui, supprimer</button>
         </div>
       </div>
@@ -1301,12 +1301,12 @@ function Field({ label, children }) {
 }
 
 // Champs et listes compacts du plan de nettoyage : hauteur fixe, texte jamais plus grand que la case
-const bordNet = "!border-[color-mix(in_srgb,var(--steel)_45%,white)]";
-const champNetAuto = "h-10 min-w-0 max-w-full px-2.5 border border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg text-sm text-[var(--ink)] bg-white truncate focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)]";
+const bordNet = "!border-[var(--cadre)]";
+const champNetAuto = "h-10 min-w-0 max-w-full px-2.5 border border-[var(--cadre)] rounded-lg text-sm text-[var(--ink)] bg-white truncate focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)]";
 const champNet = `${champNetAuto} w-full`;
 const libNet = "block text-sm font-medium text-[var(--ink)] mb-1";
 const inputCls =
-  "border border-[var(--line)] rounded-lg px-3 py-2.5 min-h-[44px] text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)] bg-white";
+  "border border-[var(--cadre)] rounded-lg px-3 py-2.5 min-h-[44px] text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)] bg-white";
 
 function Avatar({ nom, size = 40, tone = "accent" }) {
   const bg = tone === "gold" ? "var(--gold-soft)" : "var(--accent-soft)";
@@ -1619,9 +1619,9 @@ function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFou
       <div className="bg-[var(--bg)] rounded-lg p-3 text-xs text-[var(--ink)] whitespace-pre-wrap mb-3">{notif.corps}</div>
       <div className="flex flex-wrap gap-2 mb-3">
         {(notif.photosBon && notif.photosBon.length > 0 ? notif.photosBon : notif.photoBon ? [notif.photoBon] : []).map((p, i) => (
-          <img key={i} src={p} alt="Bon de livraison" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />
+          <img key={i} src={p} alt="Bon de livraison" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)]" />
         ))}
-        {notif.nonConformes.filter((p) => p.photoNC).map((p, i) => <img key={i} src={p.photoNC} alt={p.nom} className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />)}
+        {notif.nonConformes.filter((p) => p.photoNC).map((p, i) => <img key={i} src={p.photoNC} alt={p.nom} className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)]" />)}
       </div>
       <div className="flex flex-wrap gap-2">
         <a href={mailtoHref}><Button variant="ghost"><Mail size={16} /> Ouvrir dans l'appli mail</Button></a>
@@ -1640,7 +1640,7 @@ function ArchiveNotificationsTraitees({ notifs, employees, emailsFournisseurs, o
   if (notifs.length === 0) return null;
   return (
     <div className="mt-3">
-      <button onClick={() => setOuvert(!ouvert)} className="w-full flex items-center justify-between rounded-lg border border-[var(--line)] bg-white px-3 py-2.5 text-sm font-medium text-[var(--ink)]">
+      <button onClick={() => setOuvert(!ouvert)} className="w-full flex items-center justify-between rounded-lg border border-[var(--cadre)] bg-white px-3 py-2.5 text-sm font-medium text-[var(--ink)]">
         <span>Notifications traitées ({notifs.length})</span>
         <span className="text-xs text-[var(--steel)]">{ouvert ? "Masquer" : "Afficher"}</span>
       </button>
@@ -1648,7 +1648,7 @@ function ArchiveNotificationsTraitees({ notifs, employees, emailsFournisseurs, o
         <div className="mt-2 space-y-1.5">
           {notifs.map((n) => (
             <div key={n.id}>
-              <button onClick={() => setDetail(detail === n.id ? null : n.id)} className="w-full text-left rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-sm">
+              <button onClick={() => setDetail(detail === n.id ? null : n.id)} className="w-full text-left rounded-lg border border-[var(--cadre)] bg-[var(--bg)] px-3 py-2 text-sm">
                 <span className="font-medium text-[var(--ink)]">{n.fournisseur || "Fournisseur"}</span>
                 <span className="text-xs text-[var(--steel)]"> · {n.date} · {n.modeTraitement === "telephone" ? "traité par téléphone" : "envoyé par e-mail"}{n.traiteParId && who(n.traiteParId) ? ` par ${who(n.traiteParId)}` : ""}</span>
               </button>
@@ -1694,7 +1694,7 @@ function TableauTemperaturesDuJour({ equipementsFroid, relevesFroid, who, replia
           <li key={eq.id} className={`rounded-lg p-2.5 border text-sm ${etat === "hors" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : etat === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
             <div className="flex items-center justify-between gap-2 flex-wrap">
               <span className="font-medium text-[var(--ink)]">{eq.nom}</span>
-              <span className={`text-xs px-2 py-0.5 rounded-full ${etat === "hors" ? "bg-[var(--warn)] text-white" : etat === "ok" ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--steel)] border border-[var(--line)]"}`}>
+              <span className={`text-xs px-2 py-0.5 rounded-full ${etat === "hors" ? "bg-[var(--warn)] text-white" : etat === "ok" ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--steel)] border border-[var(--cadre)]"}`}>
                 {etat === "hors" ? "Hors norme" : etat === "ok" ? "Conforme" : "Pas encore relevé"}
               </span>
             </div>
@@ -1744,7 +1744,7 @@ function CarteHuileDuJour({ huileTests, who }) {
   const ligne = (titre, h, attente) => (
     <div className="flex items-center justify-between gap-3 py-2.5 text-sm">
       <div className="flex items-center gap-3 min-w-0">
-        {h && h.photo && <img src={h.photo} alt="Bandelette" className="w-10 h-10 object-cover rounded-lg border border-[var(--line)]" />}
+        {h && h.photo && <img src={h.photo} alt="Bandelette" className="w-10 h-10 object-cover rounded-lg border border-[var(--cadre)]" />}
         <div className="min-w-0">
           <p className="text-[var(--ink)]">{titre}</p>
           {h && <p className="text-xs text-[var(--steel)]">{h.heure}{who(h.employeeId) ? ` · ${who(h.employeeId)}` : ""}</p>}
@@ -1843,7 +1843,7 @@ function NettoyageFinServiceEmploye({ ctx, employees, currentUserId, logActivity
         {o.enRetard && <p className="text-xs font-semibold text-[var(--warn)] mt-0.5">En retard — prévue le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"})</p>}
         {o.note && o.statut === "a_faire" && <p className="text-xs text-[var(--steel)] mt-1 leading-snug whitespace-pre-line">{o.note}</p>}
         {p && <p className={`text-xs font-medium mt-1 ${p.cls}`}>{p.txt}{o.statut === "impossible" && ex?.motif ? ` : ${ex.motif}` : ""}{o.statut === "refuse" && ex?.noteChef ? ` : ${ex.noteChef}` : ""}</p>}
-        {o.statut === "refuse" && ex?.photoChef && <img src={ex.photoChef} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1" />}
+        {o.statut === "refuse" && ex?.photoChef && <img src={ex.photoChef} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] mt-1" />}
         {(o.statut === "fait" || o.statut === "valide") && ex?.employeNom && <p className="text-xs text-[var(--steel)]">Par {ex.employeNom}{ex.faitA ? ` à ${String(ex.faitA).slice(11, 16)}` : ""}</p>}
         {ouvert === o.cle ? (
           <div className="mt-2 space-y-2">
@@ -1929,8 +1929,8 @@ function NettoyageFinServiceChef({ ctx, employees, currentUserId, logActivity, t
         {alertes.map((a, i) => <p key={i} className="text-xs font-medium text-[var(--warn)] mt-1">⚠ {a}</p>)}
         {p && <p className={`text-xs font-medium mt-1 ${p.cls}`}>{p.txt}</p>}
         {(o.statut === "fait" || o.statut === "valide") && ex?.employeNom && <p className="text-xs text-[var(--steel)]">Fait par {ex.employeNom}{ex.faitA ? ` à ${String(ex.faitA).slice(11, 16)}` : ""}</p>}
-        {o.statut === "impossible" && ex && <div className="mt-1"><p className="text-xs text-[var(--ink)]">« {ex.motif} » — {ex.employeNom || "employé"}</p>{ex.photo && <img src={ex.photo} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1" />}</div>}
-        {o.statut === "refuse" && ex && (ex.noteChef || ex.photoChef) && <div className="mt-1">{ex.noteChef && <p className="text-xs text-[var(--ink)]">Votre note : {ex.noteChef}</p>}{ex.photoChef && <img src={ex.photoChef} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1" />}</div>}
+        {o.statut === "impossible" && ex && <div className="mt-1"><p className="text-xs text-[var(--ink)]">« {ex.motif} » — {ex.employeNom || "employé"}</p>{ex.photo && <img src={ex.photo} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] mt-1" />}</div>}
+        {o.statut === "refuse" && ex && (ex.noteChef || ex.photoChef) && <div className="mt-1">{ex.noteChef && <p className="text-xs text-[var(--ink)]">Votre note : {ex.noteChef}</p>}{ex.photoChef && <img src={ex.photoChef} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] mt-1" />}</div>}
         {enRefus ? (
           <div className="mt-2 space-y-2">
             <p className="text-xs text-[var(--steel)]">La tâche est marquée « pas faite », reste en rouge et revient demain. Vous pouvez ajouter une note et/ou une photo.</p>
@@ -2350,7 +2350,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
         <h3 className="font-semibold text-[var(--ink)] mb-3">Liste des malades — à compléter</h3>
         <div className="space-y-3">
           {malades.map((m) => (
-            <div key={m.id} className="border border-[var(--line)] rounded-lg p-3">
+            <div key={m.id} className="border border-[var(--cadre)] rounded-lg p-3">
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                 <input className={inputCls} placeholder="Nom" value={m.nom} onChange={(e) => updateMalade(m.id, { nom: e.target.value })} />
                 <input className={inputCls} placeholder="Âge" value={m.age} onChange={(e) => updateMalade(m.id, { age: e.target.value })} />
@@ -2367,7 +2367,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-3">2. Alerte des autorités</h3>
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2 border border-[var(--line)] rounded-lg p-3">
+          <div className="flex items-center justify-between gap-2 border border-[var(--cadre)] rounded-lg p-3">
             <div>
               <p className="text-sm font-medium text-[var(--ink)]">Médecin Inspecteur ARS PACA</p>
               <a href="tel:0413558010" className="text-xs text-[var(--accent)]">04 13 55 80 10</a>
@@ -2377,7 +2377,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
             </label>
           </div>
           {arsFait && <input className={inputCls} placeholder="Date/heure du contact ARS" value={arsDateHeure} onChange={(e) => setArsDateHeure(e.target.value)} />}
-          <div className="flex items-center justify-between gap-2 border border-[var(--line)] rounded-lg p-3">
+          <div className="flex items-center justify-between gap-2 border border-[var(--cadre)] rounded-lg p-3">
             <div>
               <p className="text-sm font-medium text-[var(--ink)]">DDCSPP 06 (Sécurité sanitaire de l'alimentation)</p>
               <a href="tel:0493722800" className="text-xs text-[var(--accent)]">04 93 72 28 00</a>
@@ -2494,7 +2494,7 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
               <div className="mt-3 pt-3 border-t border-[var(--line)]">
                 <div className="space-y-1.5 mb-3">
                   {c.lignes.map((l) => (
-                    <div key={l.id} className="text-sm border border-[var(--line)] rounded-lg px-3 py-2">
+                    <div key={l.id} className="text-sm border border-[var(--cadre)] rounded-lg px-3 py-2">
                       <div className="flex items-center justify-between gap-2">
                         <strong className="text-[var(--ink)]">{l.produit}</strong>
                         <span className="text-xs font-semibold" style={{ color: l.conforme ? "#2F6B4F" : "#C1432D" }}>{statutLigne(l)}</span>
@@ -2504,7 +2504,7 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
                   ))}
                 </div>
                 {c.photosBon.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">{c.photosBon.map((p, i) => <img key={i} src={p} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--line)]" />)}</div>
+                  <div className="flex flex-wrap gap-2 mb-3">{c.photosBon.map((p, i) => <img key={i} src={p} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--cadre)]" />)}</div>
                 )}
                 <div className="flex flex-wrap gap-2">
                   <Button variant="ghost" onClick={() => partager(c)}>Partager</Button>
@@ -3252,7 +3252,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
       </div>
 
-      <div className="bg-white rounded-xl border border-[var(--line)] p-6 sm:p-8">
+      <div className="bg-white rounded-xl border border-[var(--cadre)] p-6 sm:p-8">
         <div className="flex items-center gap-2 mb-1">
           <ChefHat size={22} className="text-[var(--accent)]" />
           <span className="text-lg font-semibold text-[var(--ink)]">Ma Cuisine — Inventaire mensuel</span>
@@ -3485,7 +3485,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   const champTexte = (cle, label, requis) => (
     <label key={cle} className="block text-xs text-[var(--steel)]">
       {label}{requis ? " *" : ""}
-      <input autoComplete="off" value={v[cle] == null ? "" : v[cle]} onChange={(e) => maj(cle, e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
+      <input autoComplete="off" value={v[cle] == null ? "" : v[cle]} onChange={(e) => maj(cle, e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
     </label>
   );
   const valider = () => {
@@ -3526,22 +3526,22 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
           <>
             {champTexte("nom", "Nom du produit", true)}
             <label className="block text-xs text-[var(--steel)]">Fournisseur (choisir dans la liste)
-              <select value={v.fournisseur_id || ""} onChange={(e) => maj("fournisseur_id", e.target.value || null)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+              <select value={v.fournisseur_id || ""} onChange={(e) => maj("fournisseur_id", e.target.value || null)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">— Aucun —</option>
                 {fournisseurs.map((f) => <option key={f.id} value={f.id}>{f.nom}</option>)}
               </select>
             </label>
             {champTexte("reference", "Référence : code du produit chez le fournisseur (ex. FF-1001)")}
             <label className="block text-xs text-[var(--steel)]">Catégorie (choisir dans la liste)
-              <select value={categorieNouvelle ? "__nouvelle__" : (v.categorie || "")} onChange={(e) => { if (e.target.value === "__nouvelle__") { setCategorieNouvelle(true); maj("categorie", ""); } else { setCategorieNouvelle(false); maj("categorie", e.target.value); } }} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+              <select value={categorieNouvelle ? "__nouvelle__" : (v.categorie || "")} onChange={(e) => { if (e.target.value === "__nouvelle__") { setCategorieNouvelle(true); maj("categorie", ""); } else { setCategorieNouvelle(false); maj("categorie", e.target.value); } }} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">— Choisir —</option>
                 {[...new Set([...categories, ...(v.categorie && !categories.includes(v.categorie) && !categorieNouvelle ? [v.categorie] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}
                 <option value="__nouvelle__">+ Nouvelle catégorie…</option>
               </select>
-              {categorieNouvelle && <input autoComplete="off" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
+              {categorieNouvelle && <input autoComplete="off" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
             </label>
             <label className="block text-xs text-[var(--steel)]">Famille de température (frais, surgelé…)
-              <select value={v.conservation || ""} onChange={(e) => maj("conservation", e.target.value || null)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+              <select value={v.conservation || ""} onChange={(e) => maj("conservation", e.target.value || null)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">— Non précisé —</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
@@ -3549,14 +3549,14 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
             {champTexte("delai_apres_ouverture_jours", "DLC après ouverture (en jours) — celle indiquée sur l'emballage du fabricant, sinon celle du tableau des DLC")}
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
-              <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+              <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">—</option>
                 {UNITES_PRODUIT.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </label>
             {champTexte("prix_achat", "Prix d'achat (€)")}
             <label className="block text-xs text-[var(--steel)]">Le prix est exprimé en
-              <select value={v.prix_unite || ""} onChange={(e) => maj("prix_unite", e.target.value)} className="mt-0.5 w-full border border-[var(--line)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+              <select value={v.prix_unite || ""} onChange={(e) => maj("prix_unite", e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">—</option>
                 {UNITES_PRIX.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
@@ -3581,7 +3581,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
       {erreur && <div className="text-xs text-[var(--warn)] mt-2">{erreur}</div>}
       <div className="flex gap-2 mt-3">
         <button onClick={valider} disabled={enCours || !String(v.nom || "").trim()} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white disabled:opacity-50">{enCours ? "Enregistrement…" : "Enregistrer"}</button>
-        <button onClick={onAnnuler} disabled={enCours} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--line)] text-[var(--steel)] bg-white">Annuler</button>
+        <button onClick={onAnnuler} disabled={enCours} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white">Annuler</button>
       </div>
     </Card>
   );
@@ -3621,14 +3621,14 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
           <ArrowLeft size={15} /> Retour
         </button>
         <div className="flex items-center gap-2">
-          <button onClick={moisPrecedent} className="w-8 h-8 rounded-md border border-[var(--line)] flex items-center justify-center"><ChevronLeft size={16} /></button>
+          <button onClick={moisPrecedent} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronLeft size={16} /></button>
           <span className="text-sm font-medium text-[var(--ink)]">{titreMois}</span>
-          <button onClick={moisSuivant} className="w-8 h-8 rounded-md border border-[var(--line)] flex items-center justify-center"><ChevronRight size={16} /></button>
+          <button onClick={moisSuivant} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronRight size={16} /></button>
         </div>
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / PDF</Button>
       </div>
 
-      <div className="bg-white rounded-xl border border-[var(--line)] p-6 sm:p-8">
+      <div className="bg-white rounded-xl border border-[var(--cadre)] p-6 sm:p-8">
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <ChefHat size={22} className="text-[var(--accent)]" />
@@ -3647,7 +3647,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
             { label: "Cuissons", ok: nbConformesCuisson, nok: nbNonConformesCuisson },
             { label: "Préparations tracées", ok: prepsMois.length, nok: 0 },
           ].map((s, i) => (
-            <div key={i} className="border border-[var(--line)] rounded-lg p-3 text-center">
+            <div key={i} className="border border-[var(--cadre)] rounded-lg p-3 text-center">
               <div className="text-xs text-[var(--steel)] mb-1">{s.label}</div>
               <div className="text-lg font-bold" style={{ color: s.nok > 0 ? "#c0392b" : "#2F6B4F" }}>{s.ok + s.nok}</div>
               <div className="text-xs">{s.ok} ✓ {s.nok > 0 && <span className="text-[var(--warn)]">{s.nok} ✗</span>}</div>
@@ -3801,7 +3801,7 @@ function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissemen
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / Exporter</Button>
       </div>
 
-      <div className="bg-white rounded-xl border border-[var(--line)] p-6 sm:p-8">
+      <div className="bg-white rounded-xl border border-[var(--cadre)] p-6 sm:p-8">
         <div className="flex items-center gap-2 mb-1">
           <ChefHat size={22} className="text-[var(--accent)]" />
           <span className="text-lg font-semibold text-[var(--ink)]">Ma Cuisine — Relevé de contrôle</span>
@@ -4255,7 +4255,7 @@ function QuiCompactNettoyage({ v, maj, employees }) {
         <div className="flex flex-wrap gap-1 mt-1 col-span-full">
           {(employees || []).filter((e) => e.id !== "direction").map((e) => {
             const on = (v.personnes || []).includes(e.id);
-            return <button type="button" key={e.id} onClick={() => maj({ assigneA: "personnes", personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[color-mix(in_srgb,var(--steel)_45%,white)]"}`}>{e.nom}</button>;
+            return <button type="button" key={e.id} onClick={() => maj({ assigneA: "personnes", personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-2.5 py-1 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{e.nom}</button>;
           })}
           {!(v.personnes || []).length && <span className="text-xs text-[var(--warn)]">Choisissez au moins une personne.</span>}
         </div>
@@ -4344,7 +4344,7 @@ function ChampsQuiNettoyage({ v, maj, employees }) {
           <div className="flex flex-wrap gap-1.5">
             {(employees || []).filter((e) => e.id !== "direction").map((e) => {
               const on = (v.personnes || []).includes(e.id);
-              return <button type="button" key={e.id} onClick={() => maj({ personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[color-mix(in_srgb,var(--steel)_45%,white)]"}`}>{e.nom}</button>;
+              return <button type="button" key={e.id} onClick={() => maj({ personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{e.nom}</button>;
             })}
           </div>
           {!(v.personnes || []).length && <p className="text-xs text-[var(--warn)] mt-1">Choisissez au moins une personne.</p>}
@@ -4402,7 +4402,7 @@ function BlocLignesAppareilNettoyage({ lignes, majLigne }) {
   return (
     <div className="space-y-2">
       {lignes.map((l, i) => (
-        <div key={i} className={`border rounded-lg p-3 space-y-2 ${l.on ? "border-[color-mix(in_srgb,var(--steel)_45%,white)] bg-white" : "border-dashed border-[color-mix(in_srgb,var(--steel)_45%,white)] bg-[var(--bg)]"}`}>
+        <div key={i} className={`border rounded-lg p-3 space-y-2 ${l.on ? "border-[var(--cadre)] bg-white" : "border-dashed border-[var(--cadre)] bg-[var(--bg)]"}`}>
           <div className="flex items-center gap-2">
             <input type="checkbox" className="w-5 h-5 shrink-0" checked={l.on} onChange={() => majLigne(i, { on: !l.on })} />
             <input className={`${champNetAuto} flex-1`} value={l.suffixe} onChange={(e) => majLigne(i, { suffixe: e.target.value })} disabled={!l.on} title={l.suffixe} />
@@ -4509,7 +4509,7 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
           )}
           {memes || nombre === 1 ? champsReglage(0, nombre > 1, false) : (
             exemplaires.map((k) => (
-              <div key={k} className="border-2 border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg p-3 bg-[var(--bg)] space-y-2">
+              <div key={k} className="border-2 border-[var(--cadre)] rounded-lg p-3 bg-[var(--bg)] space-y-2">
                 <p className="text-sm font-bold text-[var(--ink)]">Exemplaire {k + 1} sur {nombre}</p>
                 {champsReglage(k, false, true)}
               </div>
@@ -4597,14 +4597,14 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
             <p className="text-sm font-semibold text-[var(--ink)] mt-3 mb-1">Vos zones et postes</p>
             <p className="text-xs text-[var(--steel)] mb-3">Les endroits ou postes de votre cuisine, nommés comme vous voulez (ex. Poste chaud, Pizza, Froid, Pâtisserie, Plonge, Réserve…). Vous pourrez ensuite attribuer chaque appareil à une zone dans le plan. Facultatif : vous pouvez aussi passer directement à l'écran suivant.</p>
             <div className="flex flex-wrap gap-2 mb-2">
-              {toutesZones.filter((z) => z !== "Tous").map((z) => <span key={z} className="text-xs font-medium bg-[var(--bg)] border border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-full px-3 py-1">{z}</span>)}
+              {toutesZones.filter((z) => z !== "Tous").map((z) => <span key={z} className="text-xs font-medium bg-[var(--bg)] border border-[var(--cadre)] rounded-full px-3 py-1">{z}</span>)}
               {!toutesZones.filter((z) => z !== "Tous").length && <span className="text-xs text-[var(--steel)]">Aucune zone pour l'instant.</span>}
             </div>
             <div className="flex gap-2">
               <input className={`${inputCls} ${bordNet} flex-1`} placeholder="Nom d'une zone ou d'un poste" value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterZone(); }} autoFocus />
               <Button variant="ghost" onClick={ajouterZone}><Plus size={14} /> Ajouter</Button>
             </div>
-            <div className="flex justify-end gap-2 mt-5 border-t border-[color-mix(in_srgb,var(--steel)_45%,white)] pt-3">
+            <div className="flex justify-end gap-2 mt-5 border-t border-[var(--cadre)] pt-3">
               <Button variant="ghost" onClick={onCancel}>Annuler</Button>
               <Button onClick={() => setEcran(2)}>Suivant</Button>
             </div>
@@ -4628,9 +4628,9 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
                         <div className="flex flex-wrap items-center gap-2 text-sm">
                           <span className="flex-1 min-w-[10rem] text-[var(--ink)]">{nom}{dejaAuPlan(cherche) && <span className="ml-2 text-xs text-[var(--steel)]">✓ déjà dans votre plan</span>}</span>
                           <div className="flex items-center gap-1.5">
-                            <button type="button" onClick={() => changer(c.categorie, nom, -1)} className="w-8 h-8 rounded-lg border border-[color-mix(in_srgb,var(--steel)_45%,white)] text-lg leading-none bg-white">−</button>
+                            <button type="button" onClick={() => changer(c.categorie, nom, -1)} className="w-8 h-8 rounded-lg border border-[var(--cadre)] text-lg leading-none bg-white">−</button>
                             <span className="w-6 text-center font-semibold">{n}</span>
-                            <button type="button" onClick={() => changer(c.categorie, nom, 1)} className="w-8 h-8 rounded-lg border border-[color-mix(in_srgb,var(--steel)_45%,white)] text-lg leading-none bg-white">+</button>
+                            <button type="button" onClick={() => changer(c.categorie, nom, 1)} className="w-8 h-8 rounded-lg border border-[var(--cadre)] text-lg leading-none bg-white">+</button>
                           </div>
                           {n > 0 && (
                             <select className={`${champNetAuto}`} value={l.every((u) => u.zone === l[0].zone) ? l[0].zone : "__varie__"} onChange={(e) => { if (e.target.value !== "__varie__") zoneDeTous(c.categorie, nom, e.target.value); }} title="Zone et poste">
@@ -4645,7 +4645,7 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
                         {n > 0 && detailOuvert[k0] && (
                           <div className="mt-2 space-y-2">
                             {l.map((u, k) => (
-                              <div key={k} className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-white border border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg p-2">
+                              <div key={k} className="grid grid-cols-1 sm:grid-cols-3 gap-2 bg-white border border-[var(--cadre)] rounded-lg p-2">
                                 <input className={`${champNetAuto}`} value={u.nom} placeholder={n > 1 ? `${nom} ${k + 1}` : nom} onChange={(e) => majUnite(c.categorie, nom, k, { nom: e.target.value })} />
                                 <select className={`${champNetAuto}`} value={u.zone} onChange={(e) => majUnite(c.categorie, nom, k, { zone: e.target.value })}>
                                   {toutesZones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
@@ -4666,7 +4666,7 @@ function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, dem
               </div>
             ))}
             <p className="text-xs text-[var(--steel)] mb-3">Les éléments que vous ajoutez à la main sont signalés à l'équipe qui fait évoluer le logiciel, pour qu'ils rejoignent la liste.</p>
-            <div className="flex items-center justify-between gap-2 border-t border-[color-mix(in_srgb,var(--steel)_45%,white)] pt-3">
+            <div className="flex items-center justify-between gap-2 border-t border-[var(--cadre)] pt-3">
               <span className="text-sm text-[var(--ink)]">{apercu.length} tâche{apercu.length > 1 ? "s" : ""} seront ajoutées au plan.</span>
               <div className="flex gap-2">
                 <Button variant="ghost" onClick={() => setEcran(1)}>Retour</Button>
@@ -4708,7 +4708,7 @@ function AjoutExemplairesNettoyage({ t, zones, employees, onAjouter }) {
   const changerTotal = (n) => { setTotal(n); setLignes((l) => Array.from({ length: n - 1 }, (_, k) => l[k] || (l.length ? { ...l[l.length - 1], nom: `${base} ${k + 2}`, sonde: "" } : modele(k)))); };
   const maj = (k, p) => setLignes((l) => l.map((x, i) => (i === k ? { ...x, ...p } : x)));
   return (
-    <div className="border-2 border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg p-3 space-y-3 bg-[var(--bg)]">
+    <div className="border-2 border-[var(--cadre)] rounded-lg p-3 space-y-3 bg-[var(--bg)]">
       <div className="flex flex-wrap items-center gap-2">
         <span className="text-sm font-semibold text-[var(--ink)]">Combien en avez-vous en tout dans votre cuisine ?</span>
         <select className={`${champNetAuto}`} value={total} onChange={(e) => changerTotal(Number(e.target.value))}>{Array.from({ length: 10 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}</select>
@@ -4716,7 +4716,7 @@ function AjoutExemplairesNettoyage({ t, zones, employees, onAjouter }) {
       </div>
       {total > 1 && <p className="text-sm text-[var(--ink)]">« {base} » ci-dessus est le n° 1. Réglez ici les {total - 1} autre{total > 2 ? "s" : ""} :</p>}
       {lignes.map((x, k) => (
-        <div key={k} className="border border-[color-mix(in_srgb,var(--steel)_45%,white)] rounded-lg p-2.5 bg-white space-y-2">
+        <div key={k} className="border border-[var(--cadre)] rounded-lg p-2.5 bg-white space-y-2">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className={refrigere ? "" : "sm:col-span-2"}><label className={libNet}>Nom (n° {k + 2})</label><input className={`${champNet}`} value={x.nom} onChange={(e) => maj(k, { nom: e.target.value })} /></div>
             {refrigere && <div><label className={libNet}>Sonde n°</label><input className={`${champNet}`} value={x.sonde} placeholder="facultatif" onChange={(e) => maj(k, { sonde: e.target.value })} /></div>}
@@ -4738,7 +4738,7 @@ function LignePlanNettoyage({ t, zones, employees, modeMulti, choisie, onChoisir
   const setFreq = (f) => set(normaliserTacheNet({ ...t, frequence: f }));
   const etapes = t.etapes || [];
   return (
-    <div className={`border rounded-lg p-2.5 ${choisie ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[color-mix(in_srgb,var(--steel)_45%,white)] bg-white"}`}>
+    <div className={`border rounded-lg p-2.5 ${choisie ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
       <div className="flex flex-wrap items-center gap-2">
         {modeMulti && <input type="checkbox" className="w-5 h-5" checked={choisie} onChange={onChoisir} title="Sélectionner cette ligne" />}
         <ChampTexteDiffere value={t.tache} onCommit={(v) => v.trim() && set({ tache: v.trim() })} className={`${champNetAuto} flex-1 min-w-[12rem]`} />
@@ -4760,7 +4760,7 @@ function LignePlanNettoyage({ t, zones, employees, modeMulti, choisie, onChoisir
         {t.sonde ? ` · sonde ${t.sonde}` : ""}{etapes.length ? ` · ${etapes.length} étape${etapes.length > 1 ? "s" : ""}` : ""}
       </p>
       {ouverte && (
-        <div className="mt-2 pt-2 border-t border-[color-mix(in_srgb,var(--steel)_45%,white)] space-y-3">
+        <div className="mt-2 pt-2 border-t border-[var(--cadre)] space-y-3">
           <ChampsFrequenceNettoyage v={t} maj={(p) => set(normaliserTacheNet({ ...t, ...p }))} />
           <QuiCompactNettoyage v={t} maj={(p) => set(p)} employees={employees} />
           {estRefrigereNet(t) && <Field label="Numéro de sonde (facultatif)"><ChampTexteDiffere value={t.sonde || ""} onCommit={(v) => set({ sonde: v.trim() || undefined })} className={`${inputCls} ${bordNet} w-full`} placeholder="ex. 3" /></Field>}
@@ -4862,15 +4862,15 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
         <Button variant="ghost" onClick={() => setEditeur({ id: null, initial: {} })}><Plus size={16} /> Ajouter une tâche libre</Button>
       </div>
       {cleaning.length === 0 ? (
-        <div className="rounded-lg border border-[color-mix(in_srgb,var(--steel)_45%,white)] p-3 bg-[var(--bg)]">
+        <div className="rounded-lg border border-[var(--cadre)] p-3 bg-[var(--bg)]">
           <p className="text-sm text-[var(--ink)] mb-2">Aucune tâche pour l'instant. <strong>Faites l'inventaire de votre cuisine</strong> : vos zones, puis combien vous avez de chaque chose. Le plan est créé avec les fréquences du guide officiel de bonnes pratiques d'hygiène du restaurateur, et vous l'ajustez ici. Vous pouvez aussi partir d'un <strong>plan de 19 tâches communes à toute cuisine</strong> (sols, murs, plans de travail, poubelles, plonge, hotte…). Ce sont des propositions : c'est à l'établissement de fixer ses fréquences selon ses risques.</p>
           {chargerPlanDepart && <Button variant="ghost" onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de départ (19 tâches)</Button>}
         </div>
       ) : (
         <>
           <div className="flex flex-wrap items-center gap-1.5 mb-3">
-            {[["tableau", "Tableau"], ["jour", "Par jour"]].map(([k, lib]) => <button key={k} type="button" onClick={() => setVue(k)} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${vue === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[color-mix(in_srgb,var(--steel)_45%,white)]"}`}>{lib}</button>)}
-            {vue === "tableau" && <button type="button" onClick={() => (modeMulti ? quitterMulti() : (setModeMulti(true), setMessageGroupe(null)))} className={`ml-auto px-3 py-1.5 rounded-full text-xs font-medium border ${modeMulti ? "bg-[var(--warn)] text-white border-[var(--warn)]" : "bg-white text-[var(--ink)] border-[color-mix(in_srgb,var(--steel)_45%,white)]"}`}>{modeMulti ? "Terminer la sélection multiple" : "Modifier plusieurs lignes à la fois"}</button>}
+            {[["tableau", "Tableau"], ["jour", "Par jour"]].map(([k, lib]) => <button key={k} type="button" onClick={() => setVue(k)} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${vue === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>)}
+            {vue === "tableau" && <button type="button" onClick={() => (modeMulti ? quitterMulti() : (setModeMulti(true), setMessageGroupe(null)))} className={`ml-auto px-3 py-1.5 rounded-full text-xs font-medium border ${modeMulti ? "bg-[var(--warn)] text-white border-[var(--warn)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{modeMulti ? "Terminer la sélection multiple" : "Modifier plusieurs lignes à la fois"}</button>}
           </div>
           {messageGroupe && !modeMulti && <p className="text-xs text-[var(--accent)] font-medium mb-2">{messageGroupe}</p>}
           <div className="flex flex-wrap gap-2 mb-3">
@@ -4921,7 +4921,7 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
               </div>
             </div>
           )}
-          <div className="flex flex-wrap gap-2 pt-3 mt-4 border-t border-[color-mix(in_srgb,var(--steel)_45%,white)]">
+          <div className="flex flex-wrap gap-2 pt-3 mt-4 border-t border-[var(--cadre)]">
             {confirmerVider
               ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Effacer les {cleaning.length} tâches du plan ?</span><Button variant="danger" onClick={() => { setCleaning([]); setConfirmerVider(false); setChoisies([]); logActivity("Nettoyage", "Plan de nettoyage entièrement effacé", `${cleaning.length} tâches`); }}>Oui, tout effacer</Button><Button variant="ghost" onClick={() => setConfirmerVider(false)}>Non</Button></span>
               : <Button variant="ghost" onClick={() => setConfirmerVider(true)}>Effacer tout le plan et recommencer</Button>}
@@ -5064,7 +5064,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
         )}
         <div className="flex flex-wrap gap-2 mb-3">
           {zonesNettoyage.map((z) => (
-            <span key={z} className="inline-flex items-center gap-1.5 text-xs font-medium bg-[var(--surface,#f4f2ee)] border border-[var(--line)] rounded-full pl-3 pr-1.5 py-1">
+            <span key={z} className="inline-flex items-center gap-1.5 text-xs font-medium bg-[var(--surface,#f4f2ee)] border border-[var(--cadre)] rounded-full pl-3 pr-1.5 py-1">
               {libelleZone(z)}
               {z !== "Tous" && (
                 <button onClick={() => supprimerZone(z)} className="text-[var(--steel)] hover:text-[var(--warn)]" title={`Supprimer ${z}`}>
@@ -5090,7 +5090,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
         <div className="mb-4">
           <p className="text-sm text-[var(--steel)] mb-3">Aucune tâche définie.</p>
           {chargerPlanDepart && (
-            <div className="rounded-lg border border-[var(--line)] p-3 bg-[var(--bg)]">
+            <div className="rounded-lg border border-[var(--cadre)] p-3 bg-[var(--bg)]">
               <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, <strong>faites l'inventaire de votre cuisine</strong> : vous indiquez vos zones, puis combien vous avez de chaque appareil (frigos, congélateurs, cellules, fours…), et le plan est créé avec les fréquences du guide officiel de bonnes pratiques d'hygiène du restaurateur (le repère figure dans la note de chaque tâche). Vous pouvez aussi charger un <strong>plan de départ de 19 tâches communes à toute cuisine</strong> (sols, murs, plans de travail, poubelles, plonge, hotte…). Ce sont des propositions, pas une liste officielle : c'est à l'établissement de fixer ses fréquences selon ses risques.</p>
               <div className="flex flex-wrap gap-2">
                 <Button onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de nettoyage de départ</Button>
@@ -5506,7 +5506,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           {fiche.code && <span className="text-xs font-bold px-2 py-1 rounded shrink-0" style={{ backgroundColor: "#C1432D", color: "#fff" }}>{fiche.code}</span>}
           <h2 className="text-lg font-semibold text-[var(--ink)] tracking-tight">{fiche.nom}</h2>
         </div>
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)] hover:text-[var(--accent)] shrink-0 px-3 py-1.5 rounded-lg border border-[var(--line)] bg-white">
+        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)] hover:text-[var(--accent)] shrink-0 px-3 py-1.5 rounded-lg border border-[var(--cadre)] bg-white">
           <ArrowLeft size={15} /> Retour
         </button>
       </div>
@@ -5526,7 +5526,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 
       {avecModes && (
         <div className="flex items-center gap-2 mb-4">
-          <div className="inline-flex rounded-lg border border-[var(--line)] overflow-hidden text-xs font-semibold">
+          <div className="inline-flex rounded-lg border border-[var(--cadre)] overflow-hidden text-xs font-semibold">
             {[["simple", "Mode simple"], ["expert", "Mode expert"]].map(([v, lbl]) => (
               <button key={v} type="button" onClick={() => setModeVue(v)} className={`px-3 py-1.5 ${modeVue === v ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--steel)]"}`}>{lbl}</button>
             ))}
@@ -5919,7 +5919,7 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
     return (
       <div>
         <div className="flex justify-end mb-3">
-          <button onClick={() => setEdition(null)} className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)] px-3 py-1.5 rounded-lg border border-[var(--line)] bg-white">
+          <button onClick={() => setEdition(null)} className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)] px-3 py-1.5 rounded-lg border border-[var(--cadre)] bg-white">
             <ArrowLeft size={15} /> Annuler et revenir à la fiche
           </button>
         </div>
@@ -6135,7 +6135,7 @@ function dlcMaxFiche(S) { return S.conservation.etude ? 30 : 3; }
 // la norme officielle ; l'établissement peut saisir la sienne, sous sa seule responsabilité, avec sa justification.
 function NormeAutreBloc({ titre, norme, note, autre, valeur, justif, unite, texte, onNorme, onAutre, onValeur, onJustif }) {
   return (
-    <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
+    <div className="mt-3 rounded-lg border border-[var(--cadre)] p-3">
       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">{titre}</div>
       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!autre ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
         <input type="radio" className="mt-0.5" checked={!autre} onChange={onNorme} />
@@ -6428,7 +6428,7 @@ function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selec
           const actif = selected.includes(o);
           return (
             <button key={o} type="button" onClick={() => onToggle(o)}
-              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : estCustom ? "border-dashed border-[var(--line)] text-[var(--steel)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+              className={`text-xs font-medium px-3 py-1.5 rounded-full border transition-colors ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : estCustom ? "border-dashed border-[var(--cadre)] text-[var(--steel)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
               {o}
             </button>
           );
@@ -6779,7 +6779,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         </div>
         {(photoApercu || iaEnCours || iaMessage) && (
           <div className="flex items-start gap-3 mt-3 pt-3 border-t border-[var(--accent)]/20">
-            {photoApercu && <img src={photoApercu} alt="Photo importée" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />}
+            {photoApercu && <img src={photoApercu} alt="Photo importée" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)]" />}
             {iaEnCours && <p className="text-sm text-[var(--ink)]">Lecture de la recette en cours…</p>}
             {!iaEnCours && iaMessage && (
               <p className={`text-sm ${iaMessage.type === "err" ? "text-[var(--warn)]" : "text-[var(--ink)]"}`}><strong>{iaMessage.type === "err" ? "Erreur" : "À relire"}</strong> — {iaMessage.texte}</p>
@@ -6795,7 +6795,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       <Card className="mb-5">
         <div className="flex flex-wrap gap-1.5 mb-4 pb-4 border-b border-[var(--line)]">
           {avecModes && <div className="w-full flex items-center gap-2 mb-1">
-            <div className="inline-flex rounded-lg border border-[var(--line)] overflow-hidden text-xs font-semibold">
+            <div className="inline-flex rounded-lg border border-[var(--cadre)] overflow-hidden text-xs font-semibold">
               {[["simple", "Mode simple"], ["expert", "Mode expert"]].map(([v, lbl]) => (
                 <button key={v} type="button" onClick={() => setModeFiche(v)}
                   className={`px-3 py-1.5 ${modeFiche === v ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--steel)]"}`}>{lbl}</button>
@@ -6806,7 +6806,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
           {etapesVisibles.map((i, pos) => { const t = STEPS_FICHE[i]; return (
             <button key={t} type="button" onClick={() => setStep(i)}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${i === step ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : etapeComplete(i) ? "border-[var(--line)] text-[var(--ink)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${etapeComplete(i) ? "bg-[var(--accent)] text-white" : "border border-[var(--line)]"}`}>{etapeComplete(i) ? "✓" : pos + 1}</span>
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${etapeComplete(i) ? "bg-[var(--accent)] text-white" : "border border-[var(--cadre)]"}`}>{etapeComplete(i) ? "✓" : pos + 1}</span>
               {t}
             </button>
           ); })}
@@ -6879,7 +6879,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             <Button variant="ghost" onClick={ajouterIngredient}><Plus size={14} /> Ajouter un ingrédient</Button>
 
             {avecModes && ingOk.length > 0 && (
-              <div className="rounded-lg border border-[var(--line)] p-3 space-y-2">
+              <div className="rounded-lg border border-[var(--cadre)] p-3 space-y-2">
                 <div className="flex flex-wrap items-end gap-3">
                   <div>
                     <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide">Coût matière (prix d'achat du catalogue)</div>
@@ -6970,7 +6970,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   </select>
                 </Field>
                 {modeFiche === "expert" && avecModes && (PARAMETRES_APPAREIL[S.procedes.cuisson.appareil] || []).length > 0 && (
-                  <div className="sm:col-span-2 rounded-lg border border-[var(--line)] p-3">
+                  <div className="sm:col-span-2 rounded-lg border border-[var(--cadre)] p-3">
                     <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Réglages de l'appareil — {S.procedes.cuisson.appareil}</div>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                       {PARAMETRES_APPAREIL[S.procedes.cuisson.appareil].map((d) => {
@@ -7004,7 +7004,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   const fam = cuissonFamille(c.famille);
                   const perso = !!c.coeurAutre;
                   return (
-                    <div className="sm:col-span-2 rounded-lg border border-[var(--line)] p-3">
+                    <div className="sm:col-span-2 rounded-lg border border-[var(--cadre)] p-3">
                       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">T° à cœur visée</div>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                         <input type="radio" className="mt-0.5" checked={!perso} onChange={() => majProcede("cuisson", { coeurAutre: false, coeurPerso: "", coeurJustif: "" })} />
@@ -7033,7 +7033,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 })()}
               </div>
                           {modeFiche === "expert" && avecModes && (
-                <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
+                <div className="mt-3 rounded-lg border border-[var(--cadre)] p-3">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
                     <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.cuisson.controles || {}).temp} onChange={(e) => majProcede("cuisson", { controles: { ...(S.procedes.cuisson.controles || {}), temp: e.target.checked } })} /> Température à cœur</label> <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.cuisson.controles || {}).duree} onChange={(e) => majProcede("cuisson", { controles: { ...(S.procedes.cuisson.controles || {}), duree: e.target.checked } })} /> Durée / chrono</label> <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.cuisson.controles || {}).visuel} onChange={(e) => majProcede("cuisson", { controles: { ...(S.procedes.cuisson.controles || {}), visuel: e.target.checked } })} /> Contrôle visuel</label>
@@ -7060,7 +7060,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 onNorme={() => majProcede("refroid", { autre: false, cibleTxt: "", justif: "" })} onAutre={() => majProcede("refroid", { autre: true })}
                 onValeur={(v) => majProcede("refroid", { cibleTxt: v })} onJustif={(v) => majProcede("refroid", { justif: v })} />}
                           {modeFiche === "expert" && avecModes && (
-                <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
+                <div className="mt-3 rounded-lg border border-[var(--cadre)] p-3">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
                     <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.refroid.controles || {}).temp} onChange={(e) => majProcede("refroid", { controles: { ...(S.procedes.refroid.controles || {}), temp: e.target.checked } })} /> Température à cœur</label> <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.refroid.controles || {}).temps} onChange={(e) => majProcede("refroid", { controles: { ...(S.procedes.refroid.controles || {}), temps: e.target.checked } })} /> Temps (chrono 2 h)</label> <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.refroid.controles || {}).bac} onChange={(e) => majProcede("refroid", { controles: { ...(S.procedes.refroid.controles || {}), bac: e.target.checked } })} /> Épaisseur du bac</label>
@@ -7085,7 +7085,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 onValeur={(v) => majProcede("maintien", { temp: v })} onJustif={(v) => majProcede("maintien", { justif: v })} />}
               {!avecModes && Number(S.procedes.maintien.temp) < 63 && <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — le maintien au chaud doit être à +63 °C minimum. La fiche ne pourra pas être enregistrée.</p>}
                           {modeFiche === "expert" && avecModes && (
-                <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
+                <div className="mt-3 rounded-lg border border-[var(--cadre)] p-3">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
                   <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
                     <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.maintien.controles || {}).temp} onChange={(e) => majProcede("maintien", { controles: { ...(S.procedes.maintien.controles || {}), temp: e.target.checked } })} /> Température à cœur</label>
@@ -7160,7 +7160,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             <p className="text-xs text-[var(--steel)]">Décrivez les étapes dans l'ordre. Une étape marquée « point critique » rappellera à l'employé de faire le relevé correspondant pendant la fabrication.</p>
             <div className="space-y-3">
               {S.etapes.map((e, i) => (
-                <div key={i} className="border border-[var(--line)] rounded-lg p-3">
+                <div key={i} className="border border-[var(--cadre)] rounded-lg p-3">
                   <div className="flex items-center justify-between mb-2">
                     <span className="text-xs font-bold text-[var(--accent)]">Étape {i + 1}</span>
                     <div className="flex items-center gap-1">
@@ -7265,7 +7265,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       </Card>
 
       {/* Réglages de l'établissement */}
-      <details open={avecModes ? true : undefined} className="mb-5 bg-white border border-[var(--line)] rounded-xl">
+      <details open={avecModes ? true : undefined} className="mb-5 bg-white border border-[var(--cadre)] rounded-xl">
         <summary className="px-5 py-3.5 cursor-pointer font-semibold text-[var(--ink)] text-sm">Réglages de l'établissement <span className="font-normal text-[var(--steel)]">— débloquent le procédé congélation</span></summary>
         <div className="px-5 pb-4 space-y-2.5">
           <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong>{avecModes ? "" : " — modifiable dans Contrôle & Gestion → Déclaration TIAC."}</p>
@@ -7301,7 +7301,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         <h3 className="font-semibold text-[var(--ink)] text-lg mb-1">Aperçu de la fiche technique</h3>
         <p className="text-xs text-[var(--steel)] mb-3">Se remplit au fur et à mesure du questionnaire.</p>
         </>)}
-        <div className="bg-white border border-[var(--line)] rounded-xl p-5 sm:p-6">
+        <div className="bg-white border border-[var(--cadre)] rounded-xl p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 border-b-2 border-[var(--ink)] pb-3 mb-3 flex-wrap">
             <div className="font-bold uppercase text-lg text-[var(--ink)]" style={{ fontFamily: "inherit" }}>{etablissementNom}</div>
             <div className="text-right text-[10px] text-[var(--steel)]">Fiche générée par<br /><strong>BrigadeRestoPro</strong></div>
@@ -7403,7 +7403,7 @@ function ProcedeCard({ titre, regle, actif, onToggle, locked, lockMsg, children 
 
 function ApercuSection({ titre, children }) {
   return (
-    <div className="border border-[var(--line)] rounded-lg p-2.5">
+    <div className="border border-[var(--cadre)] rounded-lg p-2.5">
       <div className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#C1432D" }}>{titre}</div>
       {children}
     </div>
@@ -7452,7 +7452,7 @@ function FichesTechniquesMenu({ fichesProps, creationProps, consentementAccorde,
     <div>
       <div className="flex justify-end mb-3">
         <button onClick={() => setSub(null)}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--line)] text-[var(--steel)] bg-white">
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white">
           <ChevronLeft size={14} />
           Retour Fiches techniques
         </button>
@@ -7704,7 +7704,7 @@ function HaccpTemperatures({
         <h3 className="font-semibold text-[var(--ink)] mb-1">Relevés — frigos &amp; congélateurs</h3>
         <p className="text-xs text-[var(--steel)] mb-2">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
         <p className="text-xs text-[var(--steel)] mb-4">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
-        <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
+        <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-[var(--bg)]">
@@ -8535,7 +8535,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
             <p className="text-xs text-[var(--steel)] mb-3">Ces produits sont déjà pris en charge dans « Refroidissement rapide » — rien à relancer ici.</p>
             <div className="space-y-2">
               {suivis.map(({ c, r }) => (
-                <div key={c.id} className="border border-[var(--line)] rounded-lg p-3 flex items-center justify-between gap-2">
+                <div key={c.id} className="border border-[var(--cadre)] rounded-lg p-3 flex items-center justify-between gap-2">
                   <div>
                     <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
                     <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.controleVisuel ? "contrôle visuel" : `${c.temperature}°C à cœur`}</div>
@@ -8556,7 +8556,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
           <p className="text-xs text-[var(--steel)] mb-3">Mettez d'abord le produit en gastro ou en bac, puis cochez-le : la température à cœur de fin de cuisson est reprise automatiquement comme température de départ (conforme si ≥ {REFROIDISSEMENT_NORME.debutMin}°C). Confirmez-la, ou corrigez-la si elle a changé, puis lancez le refroidissement.</p>
           <div className="space-y-2 mb-4">
             {pretesPourRefroidissement.map((c) => (
-              <div key={c.id} className="border border-[var(--line)] rounded-lg p-3 flex items-center gap-2">
+              <div key={c.id} className="border border-[var(--cadre)] rounded-lg p-3 flex items-center gap-2">
                 <input type="checkbox" checked={selectionRefroid.includes(c.id)} onChange={() => toggleSelectionRefroid(c.id)} />
                 <div className="flex-1">
                   <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
@@ -8615,7 +8615,7 @@ function HaccpHuile({ huileTests, who, manuelPossible }) {
             {huileTests.map((h) => (
               <div key={h.id} className="flex items-center justify-between py-2.5 text-sm">
                 <div className="flex items-center gap-3">
-                  {h.photo && <img src={h.photo} alt="Bandelette" className="w-12 h-12 object-cover rounded-lg border border-[var(--line)]" />}
+                  {h.photo && <img src={h.photo} alt="Bandelette" className="w-12 h-12 object-cover rounded-lg border border-[var(--cadre)]" />}
                   <div className="text-xs text-[var(--steel)]">{h.date} à {h.heure}{who(h.employeeId) ? ` · ${who(h.employeeId)}` : ""}</div>
                 </div>
                 <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(h.resultat) ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{h.resultat}</span>
@@ -8740,7 +8740,7 @@ function HaccpDlc({ preparations, produits, who, jeterPreparation, today, stock,
         </div>
 
         {pickerRetirer && (
-          <div className="mb-4 p-3 rounded-lg border border-[var(--line)] bg-[var(--bg)]">
+          <div className="mb-4 p-3 rounded-lg border border-[var(--cadre)] bg-[var(--bg)]">
             <Field label="Chercher un produit à retirer (stock ou préparation)">
               <input className={inputCls} value={rechercheRetirer} onChange={(e) => setRechercheRetirer(e.target.value)} placeholder="Nom du produit" />
             </Field>
@@ -8915,7 +8915,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
             const connu = !!(produitCatalogue && dlcCalculeeProduit(produitCatalogue));
             const dlcDate = dlcDuProduit(it);
             return (
-              <div key={it.nom} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--line)]">
+              <div key={it.nom} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--cadre)]">
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-[var(--ink)] truncate">{it.nom}</div>
                   {connu
@@ -9016,11 +9016,11 @@ function EditeurEtiquette({ nom, historique, creerEtiquetteDlc, currentUserId, w
             <div className="grid grid-cols-2 gap-2 mb-4">
               <div>
                 <div className="text-xs text-[var(--steel)] mb-1">Numéro de lot (calculé, non modifiable)</div>
-                <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{lot}</div>
+                <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--cadre)]">{lot}</div>
               </div>
               <div>
                 <div className="text-xs text-[var(--steel)] mb-1">Date limite DLC/DDM (calculée, non modifiable)</div>
-                <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{dlcDate || "non disponible"}</div>
+                <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--cadre)]">{dlcDate || "non disponible"}</div>
               </div>
               <Field label="Quantité utilisée (optionnel — déstocke automatiquement)"><input className={inputCls} value={quantiteUtilisee} onChange={(e) => setQuantiteUtilisee(e.target.value)} /></Field>
               <Field label="Nombre d'étiquettes à imprimer"><input className={inputCls} type="number" min="1" value={nbEtiquettes} onChange={(e) => setNbEtiquettes(e.target.value)} /></Field>
@@ -9039,7 +9039,7 @@ function EditeurEtiquette({ nom, historique, creerEtiquetteDlc, currentUserId, w
             {historique.map((h) => (
               <div key={h.id} className="flex items-center justify-between py-2.5 text-sm">
                 <div className="flex items-center gap-3">
-                  {h.photo && <img src={h.photo} alt="Étiquette" className="w-12 h-12 object-cover rounded-lg border border-[var(--line)]" />}
+                  {h.photo && <img src={h.photo} alt="Étiquette" className="w-12 h-12 object-cover rounded-lg border border-[var(--cadre)]" />}
                   <div>
                     <div className="text-[var(--ink)] font-medium">Lot {h.lot || "—"} · DLC/DDM {h.dlcDate}</div>
                     <div className="text-xs text-[var(--steel)]">{h.date} à {h.heure}{who(h.employeeId) ? ` · ${who(h.employeeId)}` : ""}{h.jete ? " · jeté" : ""}</div>
@@ -9380,7 +9380,7 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
           <div className="divide-y divide-[var(--line)] mt-3">
             {resultats.map((r) => (
               <div key={r.id} className="flex items-center gap-3 py-2.5 text-sm">
-                {r.photo && <img src={r.photo} alt="" className="w-10 h-10 object-cover rounded-lg border border-[var(--line)]" />}
+                {r.photo && <img src={r.photo} alt="" className="w-10 h-10 object-cover rounded-lg border border-[var(--cadre)]" />}
                 <div>
                   <div className="text-[var(--ink)] font-medium">{r.nomLibre || "Traçabilité par photo"}</div>
                   <div className="text-xs text-[var(--steel)]">{r.lot ? `Lot ${r.lot} · ` : ""}{r.dlcDate ? `DLC/DDM ${r.dlcDate} · ` : ""}{r.date}{who(r.employeeId) ? " · " + who(r.employeeId) : ""}</div>
@@ -9605,14 +9605,14 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         </div>
 
         {panneauOuvert === "produits" && (
-          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-[var(--line)] divide-y divide-[var(--line)]">
+          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-[var(--cadre)] divide-y divide-[var(--line)]">
             {produitsTries.map((p) => (
               <button key={p.id} onClick={() => allerAuProduit(p.id)} className="w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--bg)]">{p.nom}</button>
             ))}
           </div>
         )}
         {panneauOuvert === "categories" && (
-          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-[var(--line)] divide-y divide-[var(--line)]">
+          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-[var(--cadre)] divide-y divide-[var(--line)]">
             {categoriesPresentes.map((cat) => (
               <button key={cat} onClick={() => allerALaCategorie(cat)} className="w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--bg)]">{cat}</button>
             ))}
@@ -9654,16 +9654,16 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
           <p className="text-xs text-[var(--steel)] mb-4">Lot et DLC/DDM sont calculés automatiquement par le logiciel à partir du catalogue produits — ils ne se saisissent pas à la main. Indiquez juste la quantité utilisée et le nombre d'étiquettes à imprimer.</p>
           <div className="space-y-4">
             {assistantLignes.map((l) => (
-              <div key={l.produitId} className="border border-[var(--line)] rounded-lg p-3">
+              <div key={l.produitId} className="border border-[var(--cadre)] rounded-lg p-3">
                 <div className="font-medium text-[var(--ink)] mb-2">{l.nom}</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
                     <div className="text-xs text-[var(--steel)] mb-1">Numéro de lot (calculé, non modifiable)</div>
-                    <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{l.lot}</div>
+                    <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--cadre)]">{l.lot}</div>
                   </div>
                   <div>
                     <div className="text-xs text-[var(--steel)] mb-1">Date limite DLC/DDM (calculée, non modifiable)</div>
-                    <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--line)]">{l.decongele ? (l.decongelDate ? addDays(l.decongelDate, 2) : "—") : (l.dlcDate || "non disponible")}</div>
+                    <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--cadre)]">{l.decongele ? (l.decongelDate ? addDays(l.decongelDate, 2) : "—") : (l.dlcDate || "non disponible")}</div>
                   </div>
                   <Field label="Quantité utilisée"><input className={inputCls} value={l.quantiteUtilisee} onChange={(e) => majLigne(l.produitId, "quantiteUtilisee", e.target.value)} placeholder="ex : 2 kg" /></Field>
                   <Field label="Nombre d'étiquettes"><input className={inputCls} type="number" min="1" value={l.nbEtiquettes} onChange={(e) => majLigne(l.produitId, "nbEtiquettes", e.target.value)} /></Field>
@@ -9710,7 +9710,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         </div>
 
         {ongletAjoutRetrait === "ajouter" && (
-          <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--bg)]">
+          <div className="p-3 rounded-lg border border-[var(--cadre)] bg-[var(--bg)]">
             <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
               <Field label="Nom du produit"><input className={inputCls} value={nouveauProduit.nom} onChange={(e) => majNouveauProduit("nom", e.target.value)} /></Field>
               <Field label="Catégorie">
@@ -9749,7 +9749,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         )}
 
         {ongletAjoutRetrait === "retirer" && (
-          <div className="p-3 rounded-lg border border-[var(--line)] bg-[var(--bg)]">
+          <div className="p-3 rounded-lg border border-[var(--cadre)] bg-[var(--bg)]">
             <Field label="Rechercher un produit à retirer"><input className={inputCls} value={rechercheRetrait} onChange={(e) => setRechercheRetrait(e.target.value)} /></Field>
             {retirerProduitsResultats.length > 0 && (
               <div className="divide-y divide-[var(--line)] mt-2">
@@ -10003,9 +10003,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                       </div>
                       <div className="flex items-center justify-between gap-3 flex-wrap">
                         <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => adjustQty(s.id, -1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--line)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">−</button>
+                          <button onClick={() => adjustQty(s.id, -1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--cadre)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">−</button>
                           {saisieManuelle ? <QuantiteEditable valeur={s.quantite} unite={s.unite} onCommit={(n) => fixerQty(s.id, n)} /> : <span className="text-center font-semibold text-[var(--ink)] whitespace-nowrap">{s.quantite} {s.unite}</span>}
-                          <button onClick={() => adjustQty(s.id, 1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--line)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">+</button>
+                          <button onClick={() => adjustQty(s.id, 1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--cadre)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">+</button>
                         </div>
                         <div className="flex items-center gap-1.5 shrink-0">
                           <span className="text-xs text-[var(--steel)] whitespace-nowrap" title="Quantité que vous voulez toujours avoir en réserve. Sous ce niveau, le produit passe dans la liste de commande.">Stock à avoir en réserve :</span>
@@ -10862,7 +10862,7 @@ function ModalInfosNormes({ fiche, onClose }) {
           <div key={i} className="mb-4">
             <h3 className="text-sm font-semibold text-[var(--accent)] mb-1.5">{s.titre}</h3>
             {s.type === "tableau" ? (
-              <div className="overflow-x-auto rounded-lg border border-[var(--line)]">
+              <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
                 <table className="w-full text-sm border-collapse">
                   <thead>
                     <tr className="bg-[var(--bg)]">
@@ -10924,11 +10924,11 @@ function PhotoInput({ value, onChange, label = "Prendre la photo", small = false
     <div>
       {value ? (
         <div className="flex items-center gap-2.5">
-          <img src={value} alt="" className={`${small ? "w-12 h-12" : "w-16 h-16"} object-cover rounded-lg border border-[var(--line)]`} />
+          <img src={value} alt="" className={`${small ? "w-12 h-12" : "w-16 h-16"} object-cover rounded-lg border border-[var(--cadre)]`} />
           <label htmlFor={inputId} className="text-xs text-[var(--accent)] font-medium cursor-pointer">Reprendre</label>
         </div>
       ) : (
-        <label htmlFor={inputId} style={grand ? { backgroundColor: "#C1432D", color: "#ffffff", borderColor: "#C1432D" } : undefined} className={`inline-flex items-center gap-1.5 ${grand ? "px-5 py-3.5 text-base font-semibold border-solid" : "px-3 py-1.5 text-xs font-medium border-dashed"} rounded-lg border border-[var(--line)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]`}>
+        <label htmlFor={inputId} style={grand ? { backgroundColor: "#C1432D", color: "#ffffff", borderColor: "#C1432D" } : undefined} className={`inline-flex items-center gap-1.5 ${grand ? "px-5 py-3.5 text-base font-semibold border-solid" : "px-3 py-1.5 text-xs font-medium border-dashed"} rounded-lg border border-[var(--cadre)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]`}>
           <Camera size={14} /> {label}
         </label>
       )}
@@ -10954,9 +10954,9 @@ function PhotoVignetteZoomable({ src, onRetake, onRemove }) {
   return (
     <>
       <div className="relative">
-        <img src={src} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] cursor-pointer" onClick={() => setAgrandie(true)} />
+        <img src={src} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] cursor-pointer" onClick={() => setAgrandie(true)} />
         {onRemove && (
-          <button onClick={onRemove} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--line)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
+          <button onClick={onRemove} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--cadre)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
         )}
       </div>
       {agrandie && (
@@ -11009,8 +11009,8 @@ function ImportPhotoIA({ titre, description, consigne, onResultats, boutonLabel 
       <h3 className="font-semibold text-[var(--ink)] mb-1">{titre}</h3>
       <p className="text-xs text-[var(--steel)] mb-3">{description}</p>
       <div className="flex flex-wrap items-center gap-2">
-        {photo && <img src={photo} alt="" className="w-14 h-14 object-cover rounded-lg border border-[var(--line)]" />}
-        <label htmlFor={inputId} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-dashed border-[var(--line)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]">
+        {photo && <img src={photo} alt="" className="w-14 h-14 object-cover rounded-lg border border-[var(--cadre)]" />}
+        <label htmlFor={inputId} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-dashed border-[var(--cadre)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]">
           <Camera size={16} /> {photo ? "Reprendre la photo" : "Prendre une photo / capture d'écran"}
         </label>
         <input id={inputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
@@ -11079,7 +11079,7 @@ function ChampDateSaisie({ value, onChange, placeholder = "JJ/MM/AAAA ou MM/AAAA
           onChange={(e) => { setTexte(e.target.value); const iso = analyserDateSaisie(e.target.value); if (iso !== null) onChange(iso); }}
         />
         <button type="button" title="Choisir dans le calendrier" onClick={() => { try { refDate.current && (refDate.current.showPicker ? refDate.current.showPicker() : refDate.current.click()); } catch (e) { refDate.current && refDate.current.click(); } }}
-          className="border border-[var(--line)] rounded-lg px-2 text-[var(--steel)] hover:text-[var(--accent)]"><CalendarDays size={16} /></button>
+          className="border border-[var(--cadre)] rounded-lg px-2 text-[var(--steel)] hover:text-[var(--accent)]"><CalendarDays size={16} /></button>
         <input ref={refDate} type="date" tabIndex={-1} value={value || ""} onChange={(e) => { onChange(e.target.value); setTexte(versTexte(e.target.value)); }} style={{ position: "absolute", opacity: 0, pointerEvents: "none", width: 0, height: 0 }} />
       </div>
       {invalide && <span className="text-xs text-[var(--warn)] block mt-0.5">Date non reconnue (ex. 25/12/2027 ou 12/2027)</span>}
@@ -11683,7 +11683,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         <StepShell titre="Informations générales" nextLabel="Suivant" onNext={() => { setDateHeureVerrouillees(true); setStep(2); }} nextDisabled={modeManuel && !fournisseur.trim()}>
           <div className="grid grid-cols-2 gap-3 mb-3">
             <Field label="Réceptionné par">
-              <div className="flex items-center gap-2 border border-[var(--line)] rounded-lg px-3 py-2 bg-[var(--bg)]">
+              <div className="flex items-center gap-2 border border-[var(--cadre)] rounded-lg px-3 py-2 bg-[var(--bg)]">
                 <Avatar nom={moi?.nom || (optionsExterne && optionsExterne.moiNom)} size={22} />
                 <span className="text-sm text-[var(--ink)]">{moi?.nom || (optionsExterne && optionsExterne.moiNom)}</span>
               </div>
@@ -11709,14 +11709,14 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             </Field>
             <Field label="Date de livraison">
               {dateHeureVerrouillees ? (
-                <div className="border border-[var(--line)] rounded-lg px-3 py-2 bg-[var(--bg)] text-sm text-[var(--ink)]">{date}</div>
+                <div className="border border-[var(--cadre)] rounded-lg px-3 py-2 bg-[var(--bg)] text-sm text-[var(--ink)]">{date}</div>
               ) : (
                 <input className={inputCls} type="date" value={date} onChange={(e) => setDate(e.target.value)} />
               )}
             </Field>
             <Field label="Heure de livraison">
               {dateHeureVerrouillees ? (
-                <div className="border border-[var(--line)] rounded-lg px-3 py-2 bg-[var(--bg)] text-sm text-[var(--ink)]">{heure}</div>
+                <div className="border border-[var(--cadre)] rounded-lg px-3 py-2 bg-[var(--bg)] text-sm text-[var(--ink)]">{heure}</div>
               ) : (
                 <input className={inputCls} type="time" value={heure} onChange={(e) => setHeure(e.target.value)} />
               )}
@@ -11733,8 +11733,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               <div className="flex flex-wrap gap-2 mb-3">
                 {photosBon.map((p, i) => (
                   <div key={i} className="relative">
-                    <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />
-                    <button onClick={() => setPhotosBon(photosBon.filter((_, idx) => idx !== i))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--line)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
+                    <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)]" />
+                    <button onClick={() => setPhotosBon(photosBon.filter((_, idx) => idx !== i))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--cadre)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
                   </div>
                 ))}
               </div>
@@ -11782,8 +11782,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             <div className="flex flex-wrap gap-2 mb-3">
               {photosBon.map((p, i) => (
                 <div key={i} className="relative">
-                  <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />
-                  <button onClick={() => setPhotosBon(photosBon.filter((_, idx) => idx !== i))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--line)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
+                  <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)]" />
+                  <button onClick={() => setPhotosBon(photosBon.filter((_, idx) => idx !== i))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--cadre)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
                 </div>
               ))}
             </div>
@@ -11834,7 +11834,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               </Card>
               <div className="space-y-3 mb-4">
                 {lignesBon.map((l) => (
-                  <div key={l.id} className="flex items-center justify-between border border-[var(--line)] rounded-lg p-3">
+                  <div key={l.id} className="flex items-center justify-between border border-[var(--cadre)] rounded-lg p-3">
                     <div>
                       <div className="text-sm text-[var(--ink)] font-medium">{l.nom || "(sans nom)"}</div>
                       {tempRejets[l.id] && <div className="mt-2"><PhotoInput small value={tempRejets[l.id].photo} onChange={(v) => setTempRejets((prev) => ({ ...prev, [l.id]: { photo: v } }))} label="Photo produit + thermomètre" /></div>}
@@ -11889,7 +11889,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               }
               const correspondanceStock = (p.nom || "").trim() ? trouverCorrespondance(p.nom, stock, (s) => s.nom) : null;
               return (
-                <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
+                <div key={p.id} className="border border-[var(--cadre)] rounded-lg p-3">
                   <div className="flex items-start gap-3 mb-3">
                     <PhotoInput value={p.photo} onChange={(v) => updateProduit(p.id, { photo: v })} label="Photographier le produit" />
                     {p.photo && !modeManuel && (
@@ -11993,7 +11993,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
           {produits.length > 0 && (
             <div className="space-y-2">
               {produits.map((p) => (
-                <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
+                <div key={p.id} className="border border-[var(--cadre)] rounded-lg p-3">
                   <div className="flex items-center justify-between gap-2">
                     <div>
                       <div className="text-sm font-medium text-[var(--ink)]">{p.nom}</div>
@@ -12033,7 +12033,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               <p className="text-sm text-[var(--ink)] mb-3">Sélectionnez le ou les produits concernés, photographiez-les, puis indiquez la cause{IA_ACTIVEE ? " — à l'écrit ou à la voix" : ""}.</p>
               <div className="space-y-3">
                 {produits.filter((p) => !p.tempRejete && !p.tempNC).map((p) => (
-                  <div key={p.id} className="border border-[var(--line)] rounded-lg p-3">
+                  <div key={p.id} className="border border-[var(--cadre)] rounded-lg p-3">
                     <div className="flex items-center justify-between mb-2 gap-2">
                       <div className="text-sm font-medium text-[var(--ink)]">{p.nom}</div>
                       <Button
@@ -12150,7 +12150,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
                   <div className="mt-3">
                     <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Photos jointes au dossier (visibles par le chef et le directeur) :</p>
                     <div className="flex flex-wrap gap-2">
-                      {photosBon.map((ph, i) => <img key={"b" + i} src={ph} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--line)]" />)}
+                      {photosBon.map((ph, i) => <img key={"b" + i} src={ph} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--cadre)]" />)}
                       {nonConformesActuels.filter((p) => p.photoNC).map((p) => <img key={p.id} src={p.photoNC} alt={p.nom} className="w-20 h-20 object-cover rounded-lg border-2" style={{ borderColor: "var(--warn)" }} />)}
                     </div>
                   </div>
@@ -12339,7 +12339,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
     setFini(true);
   };
 
-  const gros = "w-full text-left rounded-xl border-2 border-[var(--line)] px-4 py-4 text-base font-semibold text-[var(--ink)] hover:border-[var(--accent)] active:scale-[0.98] transition-all";
+  const gros = "w-full text-left rounded-xl border-2 border-[var(--cadre)] px-4 py-4 text-base font-semibold text-[var(--ink)] hover:border-[var(--accent)] active:scale-[0.98] transition-all";
   const libelleEtapes = ["Fournisseur", "Produits", "Problèmes", "Récapitulatif"];
   const entete = (
     <div className="flex items-center justify-between mb-4">
@@ -12388,8 +12388,8 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               <div className="flex flex-wrap gap-2 mb-2">
                 {photosBon.map((p, i) => (
                   <div key={i} className="relative">
-                    <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)]" />
-                    <button onClick={() => setPhotosBon(photosBon.filter((_, k) => k !== i))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--line)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
+                    <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)]" />
+                    <button onClick={() => setPhotosBon(photosBon.filter((_, k) => k !== i))} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--cadre)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
                   </div>
                 ))}
               </div>
@@ -12413,7 +12413,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             <h3 className="font-semibold text-lg text-[var(--ink)] mb-3">Produits saisis ({produits.length})</h3>
             <div className="space-y-2 mb-4">
               {produits.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-2 border border-[var(--line)] rounded-lg px-3 py-2">
+                <div key={p.id} className="flex items-center justify-between gap-2 border border-[var(--cadre)] rounded-lg px-3 py-2">
                   <div className="text-sm text-[var(--ink)]"><strong>{p.nom}</strong> — {p.quantite} <span className="text-xs text-[var(--steel)]">{LIBELLE_CONSERVATION[p.conservation] || ""}</span></div>
                   <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: p.conforme ? "#2F6B4F" : "#C1432D" }}>{p.conforme ? "Accepté" : "Refusé"}</span>
                 </div>
@@ -12563,11 +12563,11 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
           <p className="text-sm text-[var(--steel)] mb-4">Un produit manquant, ou un produit livré en plus. Sinon, passez au récapitulatif.</p>
           {extras.length > 0 && (
             <div className="space-y-1.5 mb-4">
-              {extras.map((p) => <div key={p.id} className="text-sm border border-[var(--line)] rounded-lg px-3 py-2"><strong>{p.nom}</strong> — {p.manquant ? `${p.quantiteNC} manquant(s)` : (p.conforme ? "en plus, conservé" : "en plus, renvoyé")}</div>)}
+              {extras.map((p) => <div key={p.id} className="text-sm border border-[var(--cadre)] rounded-lg px-3 py-2"><strong>{p.nom}</strong> — {p.manquant ? `${p.quantiteNC} manquant(s)` : (p.conforme ? "en plus, conservé" : "en plus, renvoyé")}</div>)}
             </div>
           )}
           {mode3 === "manquant" ? (
-            <div className="rounded-xl border-2 border-[var(--line)] p-4 space-y-2 mb-3">
+            <div className="rounded-xl border-2 border-[var(--cadre)] p-4 space-y-2 mb-3">
               <p className="text-sm text-[var(--steel)]">Un produit commandé (ou facturé) mais pas livré. Pas de photo : il sera indiqué dans le mail.</p>
               <input className={inputCls} placeholder="Nom du produit manquant" value={manqNom} onChange={(e) => setManqNom(e.target.value)} />
               <input className={inputCls} type="number" placeholder="Quantité manquante" value={manqQte} onChange={(e) => setManqQte(e.target.value)} />
@@ -12598,7 +12598,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
         {erreur && <p className="text-sm text-[var(--warn)] mb-3">{erreur}</p>}
         <div className="space-y-2 mb-4">
           {produits.map((p) => (
-            <div key={p.id} className="flex items-start justify-between gap-2 border border-[var(--line)] rounded-lg px-3 py-2">
+            <div key={p.id} className="flex items-start justify-between gap-2 border border-[var(--cadre)] rounded-lg px-3 py-2">
               <div className="text-sm text-[var(--ink)]">
                 <div><strong>{p.nom}</strong> — {p.quantite} {p.conservation ? <span className="text-xs text-[var(--steel)]">· {LIBELLE_CONSERVATION[p.conservation]}</span> : null}</div>
                 <div className="text-xs text-[var(--steel)]">{p.manquant ? "Manquant (non livré)" : `Lot ${p.lot || "—"} · DLC ${p.dlc || "—"}${p.temperature !== "" ? ` · ${p.temperature} °C` : ""}`}{!p.conforme && !p.manquant ? ` · ${p.raison}` : ""}</div>
@@ -12617,7 +12617,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             <div className="bg-[var(--bg)] rounded-lg p-3 text-xs text-[var(--ink)] whitespace-pre-wrap"><div className="font-semibold mb-1">Objet : {m.sujet}</div>{m.corps}</div>
             {(photosBon.length > 0 || nonConformes.some((p) => p.photoNC)) && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {photosBon.map((ph, i) => <img key={"b" + i} src={ph} alt="Bon" className="w-20 h-20 object-cover rounded-lg border border-[var(--line)]" />)}
+                {photosBon.map((ph, i) => <img key={"b" + i} src={ph} alt="Bon" className="w-20 h-20 object-cover rounded-lg border border-[var(--cadre)]" />)}
                 {nonConformes.filter((p) => p.photoNC).map((p) => <img key={p.id} src={p.photoNC} alt={p.nom} className="w-20 h-20 object-cover rounded-lg border-2" style={{ borderColor: "var(--warn)" }} />)}
               </div>
             )}
@@ -12723,7 +12723,7 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
         <p className="text-xs text-[var(--steel)] mb-3">Un produit commandé mais non livré, ou livré en trop sans avoir été commandé — pour garder une trace et, si besoin, le renvoyer au fournisseur.</p>
 
         {nouvelEcart && (
-          <div className="rounded-lg border border-[var(--line)] p-3 mb-3 space-y-2">
+          <div className="rounded-lg border border-[var(--cadre)] p-3 mb-3 space-y-2">
             <p className="text-sm font-medium text-[var(--ink)]">{nouvelEcart.type === "manquant" ? "Nouveau produit manquant" : "Nouveau produit livré en trop"}</p>
             <Field label="Produit"><input className={inputCls} value={nouvelEcart.produit || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, produit: e.target.value })} /></Field>
             <Field label="Fournisseur"><input className={inputCls} value={nouvelEcart.fournisseur || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, fournisseur: e.target.value })} /></Field>
@@ -12785,7 +12785,7 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
                     <div className="mb-3">
                       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Bon de livraison ({photosBonGroupe.length} photo{photosBonGroupe.length > 1 ? "s" : ""})</div>
                       <div className="flex flex-wrap gap-2">
-                        {photosBonGroupe.map((p, i) => <img key={i} src={p} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--line)]" />)}
+                        {photosBonGroupe.map((p, i) => <img key={i} src={p} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--cadre)]" />)}
                       </div>
                     </div>
                   ) : null;
@@ -12816,7 +12816,7 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
                             <span className="text-xs text-[var(--warn)]">{l.quantiteNC || l.quantite} non conforme(s)</span>
                           </div>
                           <div className="text-xs text-[var(--steel)]">{l.raison || "Motif non précisé"}</div>
-                          {l.photoNC && <img src={l.photoNC} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1.5" />}
+                          {l.photoNC && <img src={l.photoNC} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] mt-1.5" />}
                         </li>
                       ))}
                     </ul>
@@ -12882,7 +12882,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
                 <div className="flex items-center gap-3 min-w-0">
                   <div className="flex gap-1 shrink-0">
                     {(p.photos && p.photos.length > 0 ? p.photos : [p.photo, p.photoEtiquette].filter(Boolean)).map((src, i) => (
-                      <img key={i} src={src} alt="" className="w-12 h-12 object-cover rounded-lg border border-[var(--line)]" />
+                      <img key={i} src={src} alt="" className="w-12 h-12 object-cover rounded-lg border border-[var(--cadre)]" />
                     ))}
                   </div>
                   <div className="min-w-0">
@@ -12974,11 +12974,11 @@ function HorlogeLive() {
 function CalendarNav({ label, onPrev, onNext, avecHeure }) {
   return (
     <div className="flex items-center gap-2 flex-wrap w-full">
-      <button type="button" onClick={onPrev} className="w-10 h-10 shrink-0 rounded-md border border-[var(--line)] flex items-center justify-center text-[var(--steel)] hover:text-[var(--ink)] active:bg-[var(--bg)]"><ChevronLeft size={18} /></button>
+      <button type="button" onClick={onPrev} className="w-10 h-10 shrink-0 rounded-md border border-[var(--cadre)] flex items-center justify-center text-[var(--steel)] hover:text-[var(--ink)] active:bg-[var(--bg)]"><ChevronLeft size={18} /></button>
       <span className="text-sm font-medium text-[var(--ink)] text-center capitalize flex-1 min-w-0 truncate">{label}</span>
-      <button type="button" onClick={onNext} className="w-10 h-10 shrink-0 rounded-md border border-[var(--line)] flex items-center justify-center text-[var(--steel)] hover:text-[var(--ink)] active:bg-[var(--bg)]"><ChevronRight size={18} /></button>
+      <button type="button" onClick={onNext} className="w-10 h-10 shrink-0 rounded-md border border-[var(--cadre)] flex items-center justify-center text-[var(--steel)] hover:text-[var(--ink)] active:bg-[var(--bg)]"><ChevronRight size={18} /></button>
       {avecHeure && (
-        <div className="px-3 h-10 shrink-0 rounded-md border border-[var(--line)] flex items-center justify-center">
+        <div className="px-3 h-10 shrink-0 rounded-md border border-[var(--cadre)] flex items-center justify-center">
           <HorlogeLive />
         </div>
       )}
@@ -13020,7 +13020,7 @@ function AgendaGrille({ reservations, isToday, who, onRemove, plage, onUpdateNot
 
   return (
     <div>
-      <div className="relative border border-[var(--line)] rounded-lg overflow-hidden" style={{ height: hauteurTotale }}>
+      <div className="relative border border-[var(--cadre)] rounded-lg overflow-hidden" style={{ height: hauteurTotale }}>
         {Array.from({ length: nbQuarts }, (_, i) => {
           const heureDecimale = plage.debut + i * 0.25;
           const estHeurePile = Math.abs(heureDecimale - Math.round(heureDecimale)) < 0.01;
@@ -13271,7 +13271,7 @@ function PlanningGrille({ tasks, employeeId, date, actorId, onToggle, protocoles
 
   return (
     <div>
-      <div className="relative border border-[var(--line)] rounded-lg overflow-hidden" style={{ height: hauteurTotale }}>
+      <div className="relative border border-[var(--cadre)] rounded-lg overflow-hidden" style={{ height: hauteurTotale }}>
         {Array.from({ length: nbQuarts }, (_, i) => {
           const heureDecimale = plage.debut + i * 0.25;
           const estHeurePile = Math.abs(heureDecimale - Math.round(heureDecimale)) < 0.01;
@@ -14195,7 +14195,7 @@ function CarteRemarquesChef({ remarquesChef, setRemarquesChef, currentUserId, to
           <div key={r.id} className="rounded-lg bg-white border border-[var(--warn)]/30 p-3">
             <p className="text-sm font-medium text-[var(--ink)] mb-1">{r.taskTitre}</p>
             <p className="text-sm text-[var(--ink)]">{r.note}</p>
-            {r.photo && <img src={r.photo} alt="Photo du chef" className="w-full max-w-xs rounded-lg border border-[var(--line)] mt-2" />}
+            {r.photo && <img src={r.photo} alt="Photo du chef" className="w-full max-w-xs rounded-lg border border-[var(--cadre)] mt-2" />}
             <p className="text-xs text-[var(--steel)] mt-1.5">Remarque du chef — {r.date} à {r.heure}</p>
             <button onClick={() => setRemarquesChef(remarquesChef.map((x) => (x.id === r.id ? { ...x, vue: true } : x)))}
               className="mt-2 text-xs text-[var(--accent)] font-medium">
@@ -14697,7 +14697,7 @@ function CarteImportExcelReservations({ reservations, setReservations, logActivi
     <Card className="mb-4">
       <p className="text-sm text-[var(--ink)] mb-1">Importer ou mettre à jour les réservations depuis un fichier Excel.</p>
       <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues : <strong>Date, Heure, Nom, Personnes, Table, Statut, Téléphone, Notes</strong>. Une ligne = une réservation ; une ligne avec la même date/heure/nom qu'une réservation existante la remplace.</p>
-      <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--line)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
+      <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--cadre)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
         <Plus size={16} /> {importEnCours ? "Import en cours..." : "Importer un fichier .xlsx"}
         <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
       </label>
@@ -14771,7 +14771,7 @@ function CarteGestionHorairesDirection({ employees, shifts, setShifts, logActivi
       <p className="text-sm text-[var(--ink)] mb-1">En tant que Direction, gérez ici les horaires de toute l'équipe.</p>
       <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues dans le fichier : <strong>Employé, Jour, Service (Midi/Soir), Début, Fin</strong>. Une ligne = un créneau — les noms sont reconnus même approximatifs.</p>
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--line)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
+        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--cadre)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
           <Plus size={16} /> {importEnCours ? "Import en cours..." : "Importer un planning .xlsx"}
           <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
         </label>
@@ -15435,7 +15435,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Importer un planning depuis Excel</h3>
         <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues : <strong>Employé, Jour, Service (Midi/Soir), Début, Fin</strong>. Une ligne = un créneau — les noms sont reconnus même approximatifs, une ligne non reconnue est simplement ignorée.</p>
-        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--line)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
+        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--cadre)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
           <Plus size={16} /> {importEnCours ? "Import en cours..." : "Choisir un fichier .xlsx"}
           <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
         </label>
@@ -15494,7 +15494,7 @@ Une entrée par créneau de travail visible — si un même employé travaille m
                     {!nouvelleBase && <div className="mt-1.5 flex items-center gap-1">
                       <label className="text-[10px] text-[var(--steel)]">Code tel.</label>
                       <input
-                        className="text-[11px] border border-[var(--line)] rounded px-1.5 py-1 w-16 min-h-[28px]"
+                        className="text-[11px] border border-[var(--cadre)] rounded px-1.5 py-1 w-16 min-h-[28px]"
                         placeholder="—"
                         defaultValue={emp.code || ""}
                         onBlur={(e) => setEmployeeCode(emp.id, e.target.value)}
@@ -15517,7 +15517,7 @@ Une entrée par créneau de travail visible — si un même employé travaille m
                           <button
                             key={service}
                             onClick={() => setPicker({ employeeId: emp.id, jour, service })}
-                            className={`w-full text-[11px] rounded-md px-1.5 py-1 border ${s ? "bg-[var(--gold-soft)] text-[var(--ink)] border-[var(--gold)]/30" : "border-dashed border-[var(--line)] text-[var(--steel)]"}`}
+                            className={`w-full text-[11px] rounded-md px-1.5 py-1 border ${s ? "bg-[var(--gold-soft)] text-[var(--ink)] border-[var(--gold)]/30" : "border-dashed border-[var(--cadre)] text-[var(--steel)]"}`}
                           >
                             {s ? `${service} ${s.debut}–${s.fin}` : `${service} —`}
                           </button>
@@ -15541,9 +15541,9 @@ function ShiftEditor({ initial, onSave, onCancel }) {
   const [debut, setDebut] = useState(initial?.debut || "");
   const [fin, setFin] = useState(initial?.fin || "");
   return (
-    <div className="bg-white border border-[var(--line)] rounded-md p-2 space-y-1.5 shadow-sm">
-      <input type="time" value={debut} onChange={(e) => setDebut(e.target.value)} className="w-full text-xs border border-[var(--line)] rounded px-1.5 py-1" />
-      <input type="time" value={fin} onChange={(e) => setFin(e.target.value)} className="w-full text-xs border border-[var(--line)] rounded px-1.5 py-1" />
+    <div className="bg-white border border-[var(--cadre)] rounded-md p-2 space-y-1.5 shadow-sm">
+      <input type="time" value={debut} onChange={(e) => setDebut(e.target.value)} className="w-full text-xs border border-[var(--cadre)] rounded px-1.5 py-1" />
+      <input type="time" value={fin} onChange={(e) => setFin(e.target.value)} className="w-full text-xs border border-[var(--cadre)] rounded px-1.5 py-1" />
       <div className="flex justify-between gap-1">
         <button onClick={() => onSave(debut, fin)} style={{ backgroundColor: "#2F6B4F", color: "#ffffff" }} className="flex-1 text-xs rounded px-1.5 py-1">OK</button>
         <button onClick={onCancel} className="text-xs text-[var(--steel)] px-1.5"><X size={12} /></button>
@@ -16881,7 +16881,7 @@ function KitchenApp({ identiteExterne } = {}) {
             <div key={r.id} className="border-b border-[var(--line)] pb-4 last:border-0 last:pb-0">
               <div className="font-semibold text-[var(--ink)]">{r.taskTitre}</div>
               <div className="text-sm text-[var(--ink)] mt-1">{r.note}</div>
-              {r.photo && <img src={r.photo} alt="Photo du chef" className="w-full max-w-xs rounded-lg border border-[var(--line)] mt-2" />}
+              {r.photo && <img src={r.photo} alt="Photo du chef" className="w-full max-w-xs rounded-lg border border-[var(--cadre)] mt-2" />}
               <div className="text-xs text-[var(--steel)] mt-1.5">Remarque du {r.date} à {r.heure}</div>
               <div className="mt-2.5">
                 <Button variant="danger" onClick={() => setRemarquesChef((remarquesChef || []).map((x) => (x.id === r.id ? { ...x, vue: true } : x)))}>J'ai lu et compris</Button>
@@ -16979,7 +16979,7 @@ function KitchenApp({ identiteExterne } = {}) {
       {tab !== "accueil" && (
         <div className="md:hidden px-4 pt-3 bg-white">
           <button onClick={() => setTab("accueil")}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--line)] text-[var(--steel)] bg-white">
+            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white">
             <ChevronLeft size={14} />
             Retour Accueil
           </button>
