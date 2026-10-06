@@ -803,6 +803,11 @@ export default function ConnexionReelle() {
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
       gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
       signalerAjout,
+      // Autorisation ponctuelle : le responsable cuisine / directeur saisit son code pour débloquer une action réservée.
+      verifierCodeChef: async (codeSaisi) => {
+        const data = await appelerEmployes(session.token, "verifier", { code: codeSaisi });
+        return estChefOuDirecteur(data.employe.role) ? { ok: true, nom: data.employe.nom } : { ok: false };
+      },
       reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab } : undefined,
       demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,

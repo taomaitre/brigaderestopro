@@ -4202,7 +4202,39 @@ function normaliserRechercheFiche(s) {
 }
 
 /* ---------- Détail d'une fiche technique (lecture seule, fidèle au fichier fourni) ---------- */
-function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes, onModifier }) {
+function DemandeCodeChef({ action, onAutorise, onAnnuler, verifierCodeChef }) {
+  const [code, setCode] = useState("");
+  const [erreur, setErreur] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const valider = async (e) => {
+    e.preventDefault();
+    if (code.length !== 4 || !verifierCodeChef) return;
+    setEnCours(true); setErreur("");
+    try {
+      const r = await verifierCodeChef(code);
+      if (r && r.ok) { onAutorise(r.nom); return; }
+      setErreur("Ce code n'appartient pas à un responsable cuisine ou à un directeur.");
+    } catch (err) { setErreur("Code incorrect."); }
+    setCode(""); setEnCours(false);
+  };
+  return (
+    <div className="fixed inset-0 z-[9000] bg-black/40 flex items-center justify-center p-4">
+      <form onSubmit={valider} className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
+        <div className="font-semibold text-[var(--ink)] mb-1">Autorisation du responsable</div>
+        <p className="text-sm text-[var(--steel)] mb-3">Seuls le responsable cuisine ou le directeur peuvent {action} une fiche technique. Va voir ton responsable : s'il est d'accord, il saisit son code ici pour débloquer.</p>
+        <input autoFocus type="password" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Code du responsable (4 chiffres)" className={`${inputCls} text-center tracking-widest`} />
+        {erreur && <p className="text-xs text-[var(--warn)] mt-2">{erreur}</p>}
+        <div className="flex gap-2 mt-4 justify-end">
+          <Button variant="ghost" type="button" onClick={onAnnuler}>Annuler</Button>
+          <Button type="submit" disabled={code.length !== 4 || enCours}>{enCours ? "Vérification…" : "Débloquer"}</Button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
+function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes, onModifier, verifierCodeChef }) {
+  const [demandeCode, setDemandeCode] = useState(null);
   const whoSafe = who || (() => null);
   // Mode classique (simple) ou expert, seulement dans la nouvelle version ; l'ancienne application affiche tout, comme avant.
   const [modeVue, setModeVue] = useState("simple");
@@ -4255,11 +4287,15 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 
       {fiche.sousTitre && <p className="text-sm text-[var(--steel)] mb-4">{fiche.sousTitre}</p>}
 
-      {avecModes && estChef && onModifier && (
+      {avecModes && onModifier && (
         <div className="flex flex-wrap gap-2 mb-4">
-          <Button variant="ghost" onClick={() => onModifier(fiche, "modifier")}>Modifier cette fiche</Button>
-          <Button variant="ghost" onClick={() => onModifier(fiche, "dupliquer")}>Dupliquer</Button>
+          <Button variant="ghost" onClick={() => (estChef ? onModifier(fiche, "modifier") : setDemandeCode("modifier"))}>Modifier cette fiche</Button>
+          <Button variant="ghost" onClick={() => (estChef ? onModifier(fiche, "dupliquer") : setDemandeCode("dupliquer"))}>Dupliquer</Button>
         </div>
+      )}
+      {demandeCode && (
+        <DemandeCodeChef action={demandeCode === "modifier" ? "modifier" : "dupliquer"} verifierCodeChef={verifierCodeChef}
+          onAnnuler={() => setDemandeCode(null)} onAutorise={() => { const m = demandeCode; setDemandeCode(null); onModifier(fiche, m); }} />
       )}
 
       {avecModes && (
@@ -4573,7 +4609,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 }
 
 /* ---------- Liste des fiches techniques, groupée par catégorie, avec recherche ---------- */
-function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps }) {
+function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef }) {
   const [selectedId, setSelectedId] = useState(null);
   const [edition, setEdition] = useState(null);
   const [recherche, setRecherche] = useState("");
@@ -4624,7 +4660,7 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
   }
 
   if (selected) {
-    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} avecModes={avecModes} onModifier={editionProps ? (f, mode) => setEdition({ fiche: f, mode }) : undefined} />;
+    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} avecModes={avecModes} verifierCodeChef={verifierCodeChef} onModifier={editionProps ? (f, mode) => setEdition({ fiche: f, mode }) : undefined} />;
   }
 
   return (
@@ -15732,7 +15768,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            fichesProps={{ fiches, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement: identiteExterne.reglagesEtablissement, demandesAjout: identiteExterne.demandesAjout, signalerAjout: identiteExterne.signalerAjout, gestionCatalogue: identiteExterne.gestionCatalogue, fournisseursCatalogue: identiteExterne.fournisseurs } : undefined }}
+            fichesProps={{ fiches, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement: identiteExterne.reglagesEtablissement, demandesAjout: identiteExterne.demandesAjout, signalerAjout: identiteExterne.signalerAjout, gestionCatalogue: identiteExterne.gestionCatalogue, fournisseursCatalogue: identiteExterne.fournisseurs } : undefined }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
             ouvrirIdAuto={ficheAutoOuvrirId}
