@@ -4283,8 +4283,11 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
     const q = parseFloat(String(ing.quantite == null ? "" : ing.quantite).replace(",", "."));
     if (!Number.isFinite(q) || facteur === 1) return { quantite: ing.quantite, unite: ing.unite };
     const v = q * facteur;
+    // Valeurs arrondies à l'entier le plus proche (pas de virgule en g / ml / cl / pièces) ; au-delà de 1000 : kg / L à 2 décimales max.
+    const entier = (n) => String(Math.max(v > 0 ? 1 : 0, Math.round(n)));
     if (ing.unite === "g" && v >= 1000) return { quantite: formaterNb(v / 1000), unite: "kg" };
     if (ing.unite === "ml" && v >= 1000) return { quantite: formaterNb(v / 1000), unite: "L" };
+    if (["g", "ml", "cl"].includes(ing.unite) || /pi[eè]ce|^pc$/i.test(ing.unite || "")) return { quantite: entier(v), unite: ing.unite };
     return { quantite: formaterNb(v), unite: ing.unite };
   };
   useEffect(() => {
