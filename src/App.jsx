@@ -4082,22 +4082,44 @@ const PROTO_NET = {
   simple: "Nettoyant désinfectant alimentaire, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.",
 };
 const TYPES_APPAREIL_NETTOYAGE = {
-  frigo: { label: "Frigo, saladette, chambre froide", lignes: [
-    { suffixe: "portes, poignées et intérieur", frequence: "Quotidienne", note: PROTO_NET.contact },
-    { suffixe: "nettoyage complet (joints compris)", frequence: "Hebdomadaire", jour: "Mardi", note: PROTO_NET.complet },
+  frigo: { lignes: [
+    { suffixe: "portes, poignées et intérieur", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.contact },
+    { suffixe: "nettoyage complet (joints compris)", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.complet },
   ] },
-  congel: { label: "Congélateur", lignes: [
-    { suffixe: "portes, poignées et extérieur", frequence: "Quotidienne", note: PROTO_NET.contact },
-    { suffixe: "nettoyage complet après dégivrage", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 1, note: PROTO_NET.degivrage },
+  congel: { lignes: [
+    { suffixe: "portes, poignées et extérieur", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.contact },
+    { suffixe: "nettoyage complet après dégivrage", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 1, moments: ["soir"], note: PROTO_NET.degivrage },
   ] },
-  four: { label: "Four, plaque, appareil de cuisson", lignes: [
-    { suffixe: "nettoyage après service", frequence: "Quotidienne", note: PROTO_NET.degraisseur },
-    { suffixe: "nettoyage complet (intérieur, extérieur, portes)", frequence: "Hebdomadaire", jour: "Jeudi", note: PROTO_NET.degraisseur },
+  four: { lignes: [
+    { suffixe: "nettoyage après service", frequence: "Quotidienne", moments: ["midi", "soir"], note: PROTO_NET.degraisseur },
+    { suffixe: "nettoyage complet (intérieur, extérieur, portes)", frequence: "Hebdomadaire", jours: ["Jeudi"], moments: ["soir"], note: PROTO_NET.degraisseur },
   ] },
-  autre: { label: "Autre appareil ou surface", lignes: [
-    { suffixe: "nettoyage", frequence: "Quotidienne", note: PROTO_NET.simple },
+  petit: { lignes: [
+    { suffixe: "nettoyage après utilisation", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
+  ] },
+  hotte: { lignes: [
+    { suffixe: "nettoyage", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.degraisseur },
+  ] },
+  lavage: { lignes: [
+    { suffixe: "vider et nettoyer", frequence: "Quotidienne", moments: ["midi", "soir"], note: PROTO_NET.simple },
+  ] },
+  surface: { lignes: [
+    { suffixe: "nettoyage et désinfection", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
+  ] },
+  autre: { lignes: [
+    { suffixe: "nettoyage", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
   ] },
 };
+// Liste des appareils et surfaces d'une cuisine : le chef coche ce qu'il a réellement (rien n'est obligatoire).
+const CATALOGUE_APPAREILS_NETTOYAGE = [
+  { categorie: "Froid et congélation", items: [["Frigo", "frigo"], ["Saladette / table réfrigérée", "frigo"], ["Chambre froide", "frigo"], ["Vitrine réfrigérée", "frigo"], ["Cellule de refroidissement", "frigo"], ["Machine à glaçons", "frigo"], ["Congélateur", "congel"], ["Congélateur à glace", "congel"]] },
+  { categorie: "Cuisson", items: [["Four", "four"], ["Four mixte", "four"], ["Four à pizza", "four"], ["Plaque à induction", "four"], ["Piano / feux vifs", "four"], ["Plancha", "four"], ["Friteuse", "four"], ["Grill / salamandre", "four"], ["Bain-marie", "four"], ["Cuiseur multifonction / sauteuse", "four"], ["Micro-ondes", "petit"], ["Hotte et filtres", "hotte"]] },
+  { categorie: "Petit matériel", items: [["Robot batteur", "petit"], ["Robot coupe / mixeur", "petit"], ["Coupe-légumes", "petit"], ["Trancheuse", "petit"], ["Hachoir", "petit"], ["Pétrin", "petit"], ["Chauffe-pot", "petit"], ["Balance", "petit"], ["Pelle, planches et ustensiles", "petit"]] },
+  { categorie: "Plonge et lavage", items: [["Lave-vaisselle", "lavage"], ["Plonge (bacs)", "lavage"], ["Évier de lavage des légumes", "lavage"], ["Lave-mains", "lavage"]] },
+  { categorie: "Surfaces et locaux", items: [["Sol", "surface"], ["Carrelage mural", "surface"], ["Plans de travail", "surface"], ["Étagères et rangements", "surface"], ["Poubelles", "surface"], ["Bouche d'évacuation", "surface"], ["Réserve / stockage sec", "surface"]] },
+  { categorie: "Autre", items: [["Autre (je saisis le nom)", "autre"]] },
+];
+const libelleZone = (z) => (z === "Tous" || !z ? "Toute la cuisine (commun)" : z);
 const POSITIONS_MOIS = [[1, "1er"], [2, "2e"], [3, "3e"], [4, "4e"], ["dernier", "dernier"]];
 
 function ChampsFrequenceNettoyage({ v, maj }) {
@@ -4179,13 +4201,59 @@ function libelleAssignationNet(t, employees) {
   return "tâche générale (tous)";
 }
 
+function ChampZoneNettoyage({ value, onChange, zones }) {
+  const [creer, setCreer] = useState(false);
+  return (
+    <Field label="Zone ou poste (vous les nommez comme vous voulez : Poste chaud, Pâtisserie, Plonge…)">
+      {creer ? (
+        <div className="flex gap-2">
+          <input className={`${inputCls} flex-1`} placeholder="Nom de la nouvelle zone" onChange={(e) => onChange(e.target.value)} autoFocus />
+          <button type="button" className="text-xs text-[var(--steel)] underline" onClick={() => { setCreer(false); onChange("Tous"); }}>Annuler</button>
+        </div>
+      ) : (
+        <select className={inputCls} value={value} onChange={(e) => { if (e.target.value === "__nouvelle__") { setCreer(true); onChange(""); } else onChange(e.target.value); }}>
+          {zones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
+          <option value="__nouvelle__">+ Nouvelle zone…</option>
+        </select>
+      )}
+    </Field>
+  );
+}
+
+function ChampsQuiNettoyage({ v, maj, employees }) {
+  const mode = v.assigneA || (v.poste && v.poste !== "Tous" ? "poste" : "tous");
+  return (
+    <>
+      <Field label="Qui fait cette tâche ?">
+        <select className={inputCls} value={mode} onChange={(e) => maj({ assigneA: e.target.value })}>
+          <option value="tous">Tâche générale : visible par tous ceux qui travaillent ce jour-là</option>
+          {v.poste && v.poste !== "Tous" && <option value="poste">Les employés de la zone « {v.poste} »</option>}
+          <option value="personnes">Une ou plusieurs personnes précises</option>
+        </select>
+      </Field>
+      {mode === "personnes" && (
+        <Field label="Choisissez la ou les personnes">
+          <div className="flex flex-wrap gap-1.5">
+            {(employees || []).filter((e) => e.id !== "direction").map((e) => {
+              const on = (v.personnes || []).includes(e.id);
+              return <button type="button" key={e.id} onClick={() => maj({ personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{e.nom}</button>;
+            })}
+          </div>
+          {!(v.personnes || []).length && <p className="text-xs text-[var(--warn)] mt-1">Choisissez au moins une personne.</p>}
+        </Field>
+      )}
+      <p className="text-xs text-[var(--steel)]">Un employé en repos ce jour-là ne voit pas la tâche ; si la personne choisie est en repos, le responsable est prévenu.</p>
+    </>
+  );
+}
+
 function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCancel }) {
   const [v, setV] = useState(() => ({ tache: "", poste: "Tous", frequence: "Quotidienne", note: "", ...initial }));
   const maj = (p) => setV((x) => ({ ...x, ...p }));
   const enregistrer = () => {
     if (!v.tache.trim()) return;
     const mode = v.assigneA || (v.poste && v.poste !== "Tous" ? "poste" : "tous");
-    const sortie = { tache: v.tache.trim(), poste: v.poste, note: v.note || "", ...sortieFrequenceNettoyage(v), assigneA: mode, personnes: mode === "personnes" ? (v.personnes || []) : undefined };
+    const sortie = { tache: v.tache.trim(), poste: v.poste.trim(), note: v.note || "", ...sortieFrequenceNettoyage(v), assigneA: mode, personnes: mode === "personnes" ? (v.personnes || []) : undefined };
     onSave(sortie);
   };
   return (
@@ -4194,74 +4262,69 @@ function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCan
         <div className="font-semibold text-[var(--ink)] mb-3">{titre}</div>
         <div className="space-y-3">
           <Field label="Quelle tâche ? (ex. Frigo viande — portes et intérieur)"><input className={`${inputCls} w-full`} value={v.tache} onChange={(e) => maj({ tache: e.target.value })} autoFocus /></Field>
-          <Field label="Zone ou poste concerné">
-            <select className={inputCls} value={v.poste} onChange={(e) => maj({ poste: e.target.value })}>
-              {zones.map((z) => <option key={z} value={z}>{z}</option>)}
-            </select>
-          </Field>
+          <ChampZoneNettoyage value={v.poste} onChange={(z) => maj({ poste: z })} zones={zones} />
           <ChampsFrequenceNettoyage v={v} maj={maj} />
-          <Field label="Qui fait cette tâche ?">
-            <select className={inputCls} value={v.assigneA || (v.poste && v.poste !== "Tous" ? "poste" : "tous")} onChange={(e) => maj({ assigneA: e.target.value })}>
-              <option value="tous">Tâche générale : visible par tous ceux qui travaillent ce jour-là</option>
-              {v.poste && v.poste !== "Tous" && <option value="poste">Les employés de « {v.poste} »</option>}
-              <option value="personnes">Une ou plusieurs personnes précises</option>
-            </select>
-          </Field>
-          {(v.assigneA === "personnes") && (
-            <Field label="Choisissez la ou les personnes">
-              <div className="flex flex-wrap gap-1.5">
-                {(employees || []).filter((e) => e.id !== "direction").map((e) => {
-                  const on = (v.personnes || []).includes(e.id);
-                  return <button type="button" key={e.id} onClick={() => maj({ personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{e.nom}</button>;
-                })}
-              </div>
-              {!(v.personnes || []).length && <p className="text-xs text-[var(--warn)] mt-1">Choisissez au moins une personne.</p>}
-            </Field>
-          )}
-          <p className="text-xs text-[var(--steel)]">Un employé en repos ce jour-là ne voit pas la tâche ; si la personne choisie est en repos, le responsable est prévenu.</p>
+          <ChampsQuiNettoyage v={v} maj={maj} employees={employees} />
           <Field label="Produit, dosage et méthode (protocole à respecter)"><textarea className={`${inputCls} w-full`} rows={4} value={v.note} onChange={(e) => maj({ note: e.target.value })} placeholder="ex. Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon la fiche du produit." /></Field>
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="ghost" onClick={onCancel}>Annuler</Button>
-          <Button onClick={enregistrer} disabled={!v.tache.trim() || (v.assigneA === "personnes" && !(v.personnes || []).length)}>Enregistrer</Button>
+          <Button onClick={enregistrer} disabled={!v.tache.trim() || !(v.poste || "").trim() || (v.assigneA === "personnes" && !(v.personnes || []).length)}>Enregistrer</Button>
         </div>
       </div>
     </div>
   );
 }
 
-function EditeurAppareilNettoyage({ zones, onSave, onCancel }) {
-  const [nom, setNom] = useState("");
-  const [poste, setPoste] = useState(zones[0] || "Tous");
-  const [type, setType] = useState("frigo");
-  const [lignes, setLignes] = useState(() => TYPES_APPAREIL_NETTOYAGE.frigo.lignes.map((l) => ({ ...l, on: true })));
-  const changerType = (t) => { setType(t); setLignes(TYPES_APPAREIL_NETTOYAGE[t].lignes.map((l) => ({ ...l, on: true }))); };
+function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
+  const [categorie, setCategorie] = useState(CATALOGUE_APPAREILS_NETTOYAGE[0].categorie);
+  const [choix, setChoix] = useState(CATALOGUE_APPAREILS_NETTOYAGE[0].items[0]);
+  const [nom, setNom] = useState(CATALOGUE_APPAREILS_NETTOYAGE[0].items[0][0]);
+  const [nombre, setNombre] = useState(1);
+  const [qui, setQui] = useState({ poste: zones[0] || "Tous", assigneA: undefined, personnes: [] });
+  const [lignes, setLignes] = useState(() => TYPES_APPAREIL_NETTOYAGE[CATALOGUE_APPAREILS_NETTOYAGE[0].items[0][1]].lignes.map((l) => ({ ...l, on: true })));
+  const choisir = (item) => { setChoix(item); setNom(item[1] === "autre" ? "" : item[0]); setLignes(TYPES_APPAREIL_NETTOYAGE[item[1]].lignes.map((l) => ({ ...l, on: true }))); };
+  const changerCategorie = (c) => { setCategorie(c); choisir(CATALOGUE_APPAREILS_NETTOYAGE.find((x) => x.categorie === c).items[0]); };
   const majLigne = (i, p) => setLignes((arr) => arr.map((l, idx) => (idx === i ? { ...l, ...p } : l)));
+  const noms = nombre > 1 ? Array.from({ length: nombre }, (_, k) => `${nom.trim()} ${k + 1}`) : [nom.trim()];
+  const mode = qui.assigneA || (qui.poste && qui.poste !== "Tous" ? "poste" : "tous");
   const enregistrer = () => {
-    if (!nom.trim()) return;
-    onSave(lignes.filter((l) => l.on).map((l) => ({
-      tache: `${nom.trim()} — ${l.suffixe}`, poste, note: l.note || "", assigneA: poste !== "Tous" ? "poste" : "tous", ...sortieFrequenceNettoyage(l),
+    if (!nom.trim() || !(qui.poste || "").trim()) return;
+    const sortie = [];
+    noms.forEach((n) => lignes.filter((l) => l.on).forEach((l) => sortie.push({
+      tache: `${n} — ${l.suffixe}`, poste: qui.poste.trim(), note: l.note || "", assigneA: mode, personnes: mode === "personnes" ? qui.personnes : undefined, ...sortieFrequenceNettoyage(l),
     })));
+    onSave(sortie);
   };
   return (
     <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
       <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl mt-10">
-        <div className="font-semibold text-[var(--ink)] mb-1">Ajouter un appareil à nettoyer</div>
-        <p className="text-xs text-[var(--steel)] mb-3">Indiquez l'appareil : nous proposons ses nettoyages habituels (ex. un frigo : portes et intérieur chaque jour, nettoyage complet chaque semaine). Vous pouvez tout modifier, décocher ou changer la fréquence.</p>
+        <div className="font-semibold text-[var(--ink)] mb-1">Ajouter un appareil ou une surface à nettoyer</div>
+        <p className="text-xs text-[var(--steel)] mb-3">Choisissez ce qui existe dans votre cuisine : nous proposons les nettoyages habituels (ex. un frigo : portes et intérieur chaque jour, nettoyage complet chaque semaine). Tout est modifiable : fréquence, jours, midi et/ou soir, personne chargée du nettoyage.</p>
         <div className="space-y-3">
-          <Field label="Nom de l'appareil (ex. Frigo desserts)"><input className={`${inputCls} w-full`} value={nom} onChange={(e) => setNom(e.target.value)} autoFocus /></Field>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Type d'appareil">
-              <select className={inputCls} value={type} onChange={(e) => changerType(e.target.value)}>
-                {Object.entries(TYPES_APPAREIL_NETTOYAGE).map(([k, t]) => <option key={k} value={k}>{t.label}</option>)}
+            <Field label="Catégorie">
+              <select className={inputCls} value={categorie} onChange={(e) => changerCategorie(e.target.value)}>
+                {CATALOGUE_APPAREILS_NETTOYAGE.map((c) => <option key={c.categorie} value={c.categorie}>{c.categorie}</option>)}
               </select>
             </Field>
-            <Field label="Zone ou poste concerné">
-              <select className={inputCls} value={poste} onChange={(e) => setPoste(e.target.value)}>
-                {zones.map((z) => <option key={z} value={z}>{z}</option>)}
+            <Field label="Appareil ou surface">
+              <select className={inputCls} value={choix[0]} onChange={(e) => choisir(CATALOGUE_APPAREILS_NETTOYAGE.find((c) => c.categorie === categorie).items.find((it) => it[0] === e.target.value))}>
+                {CATALOGUE_APPAREILS_NETTOYAGE.find((c) => c.categorie === categorie).items.map((it) => <option key={it[0]} value={it[0]}>{it[0]}</option>)}
               </select>
             </Field>
           </div>
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="sm:col-span-2"><Field label="Son nom chez vous (ex. Frigo desserts)"><input className={`${inputCls} w-full`} value={nom} onChange={(e) => setNom(e.target.value)} autoFocus /></Field></div>
+            <Field label="Combien ?">
+              <select className={inputCls} value={nombre} onChange={(e) => setNombre(Number(e.target.value))}>
+                {Array.from({ length: 10 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+              </select>
+            </Field>
+          </div>
+          {nombre > 1 && nom.trim() && <p className="text-xs text-[var(--steel)]">Ils seront nommés : {noms.join(", ")}.</p>}
+          <ChampZoneNettoyage value={qui.poste} onChange={(z) => setQui((q) => ({ ...q, poste: z }))} zones={zones} />
+          <ChampsQuiNettoyage v={qui} maj={(p) => setQui((q) => ({ ...q, ...p }))} employees={employees} />
           <div className="space-y-3">
             {lignes.map((l, i) => (
               <div key={i} className="border border-[var(--line)] rounded-lg p-3">
@@ -4270,21 +4333,22 @@ function EditeurAppareilNettoyage({ zones, onSave, onCancel }) {
                   <span>{nom.trim() || "L'appareil"} — </span>
                   <input className={`${inputCls} flex-1`} value={l.suffixe} onChange={(e) => majLigne(i, { suffixe: e.target.value })} disabled={!l.on} />
                 </label>
-                {l.on && <div className="grid grid-cols-1 sm:grid-cols-2 gap-3"><ChampsFrequenceNettoyage v={l} maj={(p) => majLigne(i, p)} /></div>}
+                {l.on && <div className="grid grid-cols-1 gap-3"><ChampsFrequenceNettoyage v={l} maj={(p) => majLigne(i, p)} /></div>}
               </div>
             ))}
           </div>
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="ghost" onClick={onCancel}>Annuler</Button>
-          <Button onClick={enregistrer} disabled={!nom.trim() || !lignes.some((l) => l.on)}>Ajouter au plan</Button>
+          <Button onClick={enregistrer} disabled={!nom.trim() || !(qui.poste || "").trim() || !lignes.some((l) => l.on) || (mode === "personnes" && !qui.personnes.length)}>Ajouter au plan</Button>
         </div>
       </div>
     </div>
   );
 }
 
-function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage, setZonesNettoyage, employees }) {
+function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage: zonesStockees, setZonesNettoyage, employees }) {
+  const zonesNettoyage = [...new Set([...zonesStockees, ...cleaning.map((t) => t.poste || "Tous")])];
   const [infosFicheNettoyage, setInfosFicheNettoyage] = useState(null);
   const [nouveau, setNouveau] = useState({ tache: "", frequence: "Quotidienne", poste: "Tous" });
   const [noteOuverte, setNoteOuverte] = useState(null);
@@ -4292,6 +4356,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
   const [messageZones, setMessageZones] = useState(null);
   const editable = !!chargerPlanDepart; // nouvelle version : le chef organise son plan comme il veut
   const [editeur, setEditeur] = useState(null);
+  const [confirmerVider, setConfirmerVider] = useState(false);
 
   const ajouterZone = () => {
     const nom = nouvelleZone.trim();
@@ -4300,7 +4365,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       setMessageZones("Cette zone existe déjà.");
       return;
     }
-    setZonesNettoyage([...zonesNettoyage, nom]);
+    setZonesNettoyage([...zonesStockees, nom]);
     setNouvelleZone("");
     setMessageZones(null);
   };
@@ -4313,7 +4378,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       setMessageZones(`Impossible de supprimer "${zone}" : des tâches de nettoyage y sont encore rattachées.`);
       return;
     }
-    setZonesNettoyage(zonesNettoyage.filter((z) => z !== zone));
+    setZonesNettoyage(zonesStockees.filter((z) => z !== zone));
     setMessageZones(null);
   };
 
@@ -4356,11 +4421,11 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       <BoutonInfosNormes ficheKey="lavageLegumes" onClick={setInfosFicheNettoyage} label="Protocole de lavage des fruits et légumes" />
       <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="Bonnes pratiques d'hygiène : boîtes de conserve et planches à découper" />
       {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
-      {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage zones={zonesNettoyage} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
+      {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage zones={zonesNettoyage} employees={employees} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
       {editeur && editeur.mode !== "appareil" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} employees={employees} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
       {editable && (
         <Card className="mb-4">
-          <p className="text-sm text-[var(--ink)]"><strong>Ce plan est le vôtre.</strong> Nous vous proposons un point de départ : vous pouvez modifier chaque tâche (fréquence, jour, produit, protocole), en supprimer, en ajouter, ajouter un appareil ou une zone, et l'organiser exactement comme vous nettoyez dans votre cuisine. Les cuisiniers voient et cochent les tâches ; seuls le responsable et le directeur peuvent modifier le plan.</p>
+          <p className="text-sm text-[var(--ink)]"><strong>Ce plan est le vôtre.</strong> Rien n'est imposé : vous créez vos zones, vous ajoutez les appareils et surfaces que vous avez vraiment, et pour chacun vous choisissez la fréquence (chaque jour, chaque semaine, 2 semaines, chaque mois), les jours, midi et/ou soir, et qui s'en occupe. Les cuisiniers voient et cochent les tâches ; seuls le responsable et le directeur peuvent modifier le plan.</p>
         </Card>
       )}
       {!editable && <Card className="mb-4 bg-[var(--warn-soft)] border-[var(--warn)]/30">
@@ -4408,7 +4473,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
         <div className="flex flex-wrap gap-2 mb-3">
           {zonesNettoyage.map((z) => (
             <span key={z} className="inline-flex items-center gap-1.5 text-xs font-medium bg-[var(--surface,#f4f2ee)] border border-[var(--line)] rounded-full pl-3 pr-1.5 py-1">
-              {z}
+              {libelleZone(z)}
               {z !== "Tous" && (
                 <button onClick={() => supprimerZone(z)} className="text-[var(--steel)] hover:text-[var(--warn)]" title={`Supprimer ${z}`}>
                   <X size={13} />
@@ -4433,13 +4498,48 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
           <p className="text-sm text-[var(--steel)] mb-3">Aucune tâche définie.</p>
           {chargerPlanDepart && (
             <div className="rounded-lg border border-[var(--line)] p-3 bg-[var(--bg)]">
-              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, vous pouvez charger un <strong>plan de nettoyage de départ</strong> : 49 tâches courantes d'une cuisine (sols, frigos, congélateurs, fours, plonge…) avec leur poste, leur fréquence, leur jour et leur protocole. Il est générique : adaptez ensuite les produits, les dosages et les équipements à votre établissement.</p>
+              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, vous pouvez charger un <strong>plan de départ très court</strong> : seulement ce qu'on trouve dans toute cuisine (sol, évacuations, poubelles, plans de travail, plonge, hotte, murs). Ensuite, vous ajoutez <strong>vos</strong> appareils (frigos, fours, congélateurs, robots…) avec « Ajouter un appareil », dans vos propres zones, avec la fréquence et la personne de votre choix.</p>
               <Button onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de nettoyage de départ</Button>
             </div>
           )}
         </div>
       ) : (
-        zonesNettoyage.filter((p) => parPoste[p]).map((poste) => {
+        editable ? (
+          FREQUENCES_NETTOYAGE.filter((f) => cleaning.some((t) => t.frequence === f)).map((freq) => (
+            <div key={freq} className="mb-5 last:mb-0">
+              <h4 className="text-sm font-bold text-[var(--ink)] mb-2">{freq === "Quotidienne" ? "Tâches quotidiennes" : freq === "Hebdomadaire" ? "Tâches hebdomadaires" : freq === "Toutes les 2 semaines" ? "Tâches toutes les 2 semaines" : freq === "Mensuelle" ? "Tâches mensuelles" : freq}</h4>
+              <ul className="space-y-1.5">
+                {cleaning.filter((t) => t.frequence === freq).map((t) => (
+                      <li key={t.id}>
+                      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+                        <span className={`flex-1 ${t.fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{t.tache} <span className="text-xs text-[var(--steel)]">· {libelleZone(t.poste)}</span></span>
+                        {editable && t.frequence !== "À chaque utilisation" && !String(t.frequence).startsWith("Périodique") && <span className="basis-full order-last text-xs text-[var(--gold)] font-medium">{libelleFrequenceNet(t)} · {libelleMomentsNet(t)} · {libelleAssignationNet(t, employees)}</span>}
+                        {!editable && t.jour && <span className="text-xs text-[var(--gold)] font-medium">{t.jour}</span>}
+                        {!editable && t.jourSemaineMois && <span className="text-xs text-[var(--gold)] font-medium">{t.positionMois === "dernier" ? "dernier" : `${t.positionMois}${t.positionMois === 1 ? "er" : "e"}`} {t.jourSemaineMois} du mois</span>}
+                        {t.jourDuMois && <span className="text-xs text-[var(--gold)] font-medium">le {t.jourDuMois}</span>}
+                        {t.fait && t.date && <span className="text-xs text-[var(--accent)]">fait le {t.date}{who(t.employeeId) ? ` par ${who(t.employeeId)}` : ""}</span>}
+                        {editable ? (
+                          <>
+                            <button onClick={() => setEditeur({ id: t.id, initial: { tache: t.tache, poste: t.poste || "Tous", frequence: t.frequence, jour: t.jour, jours: t.jours, moments: t.moments, assigneA: t.assigneA, personnes: t.personnes, semaineRef: t.semaineRef, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, note: t.note || "" } })} className="text-xs text-[var(--accent)] font-medium underline">Modifier</button>
+                            <button onClick={() => dupliquerTache(t)} className="text-xs text-[var(--steel)] hover:text-[var(--accent)] underline decoration-dotted">Dupliquer</button>
+                          </>
+                        ) : (
+                        <button onClick={() => setNoteOuverte(noteOuverte === t.id ? null : t.id)} className="text-xs text-[var(--steel)] hover:text-[var(--accent)] underline decoration-dotted">
+                          {t.note ? "Note" : "+ Note"}
+                        </button>)}
+                        <BoutonSupprimer onConfirm={() => removeTask(t.id)} size={14} libelle={t.tache} />
+                      </div>
+                      {noteOuverte === t.id ? (
+                        <input className={`${inputCls} w-full mt-1.5`} placeholder="Détail à respecter (produit, geste, point de vigilance...)" value={t.note || ""} onChange={(e) => updateNote(t.id, e.target.value)} autoFocus />
+                      ) : t.note ? (
+                        <p className="text-xs text-[var(--steel)] italic mt-0.5">{t.note}</p>
+                      ) : null}
+                    </li>
+                ))}
+              </ul>
+            </div>
+          ))
+        ) : zonesNettoyage.filter((p) => parPoste[p]).map((poste) => {
           const parFrequence = parPoste[poste].reduce((acc, t) => { (acc[t.frequence] = acc[t.frequence] || []).push(t); return acc; }, {});
           return (
             <div key={poste} className="mb-6 last:mb-0">
@@ -4489,7 +4589,10 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       {editable && (
         <div className="flex flex-wrap gap-2 pt-3 border-t border-[var(--line)]">
           <Button onClick={() => setEditeur({ id: null, initial: {} })}><Plus size={16} /> Ajouter une tâche</Button>
-          <Button variant="ghost" onClick={() => setEditeur({ mode: "appareil" })}><Plus size={16} /> Ajouter un appareil (avec son nettoyage)</Button>
+          <Button variant="ghost" onClick={() => setEditeur({ mode: "appareil" })}><Plus size={16} /> Ajouter un appareil ou une surface</Button>
+          {cleaning.length > 0 && (confirmerVider
+            ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Effacer les {cleaning.length} tâches du plan ?</span><Button variant="danger" onClick={() => { setCleaning([]); setConfirmerVider(false); logActivity("Nettoyage", "Plan de nettoyage entièrement effacé", `${cleaning.length} tâches`); }}>Oui, tout effacer</Button><Button variant="ghost" onClick={() => setConfirmerVider(false)}>Non</Button></span>
+            : <Button variant="ghost" onClick={() => setConfirmerVider(true)}>Effacer tout le plan et recommencer</Button>)}
         </div>
       )}
       {!editable && <div className="flex flex-wrap items-end gap-2 pt-3 border-t border-[var(--line)]">
@@ -15157,7 +15260,7 @@ function KitchenApp({ identiteExterne } = {}) {
   ], modeExterne);
   // Zones de nettoyage du plan de nettoyage (PMS) : liste éditable par le chef (ajout/suppression),
   // au départ les 3 postes de cuisine + "Tous". "Tous" ne peut pas être supprimée (tâches communes).
-  const [zonesNettoyage, setZonesNettoyage] = useStoredOuMemoire("haccp-zones-nettoyage", ["Tous", "Poste Chaud", "Poste Pizza", "Poste Froid"], modeExterne);
+  const [zonesNettoyage, setZonesNettoyage] = useStoredOuMemoire("haccp-zones-nettoyage", ["Tous", "Poste Chaud", "Poste Pizza", "Poste Froid"], modeExterne, ["Tous"]);
   // Stock : en usage normal, ancien stockage (inchangé). En prévisualisation « nouvelle base »
   // (identiteExterne), le stock vient UNIQUEMENT de la nouvelle base (catalogue de l'établissement) —
   // jamais du catalogue Games Factory intégré au code (DEFAULT_STOCK) — et les changements y sont enregistrés.
