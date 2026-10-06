@@ -4255,7 +4255,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
   // Pré-rempli avec les quantités de la fiche (pour le rendement complet), l'employé les ajuste
   // à la quantité réellement produite avant de valider — on ne devine jamais un facteur d'échelle.
   const [ingredientsDestockage, setIngredientsDestockage] = useState(
-    () => (fiche.ingredients || []).map((ing) => ({ nom: ing.nom, quantite: ing.quantite, unite: ing.unite, coche: true }))
+    () => (fiche.ingredients || []).map((ing) => ({ nom: ing.nom, quantite: ing.quantite, unite: ing.unite, lienId: ing.lienId, lienType: ing.lienType, coche: true }))
   );
   const toggleIngredientDestockage = (i) => setIngredientsDestockage((arr) => arr.map((x, idx) => (idx === i ? { ...x, coche: !x.coche } : x)));
   const changerQuantiteDestockage = (i, val) => setIngredientsDestockage((arr) => arr.map((x, idx) => (idx === i ? { ...x, quantite: val } : x)));
@@ -4290,7 +4290,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
   useEffect(() => {
     setIngredientsDestockage((fiche.ingredients || []).map((ing) => {
       const e = quantiteEchelle(ing);
-      return { nom: ing.nom, quantite: e.quantite, unite: e.unite, coche: true };
+      return { nom: ing.nom, quantite: e.quantite, unite: e.unite, lienId: ing.lienId, lienType: ing.lienType, coche: true };
     }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [facteur]);
@@ -4305,7 +4305,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
   const validerDlc = (deduire = true) => {
     if (!quantiteDlc || !onEditerDlc) return;
     setConfirmationProd(false);
-    const ingredientsUtilises = deduire ? ingredientsDestockage.filter((x) => x.coche && Number(x.quantite) > 0).map((x) => ({ nom: x.nom, quantite: x.quantite })) : [];
+    const ingredientsUtilises = deduire ? ingredientsDestockage.filter((x) => x.coche && parseFloat(String(x.quantite).replace(",", ".")) > 0).map((x) => ({ nom: x.nom, quantite: x.quantite, unite: x.unite, lienId: x.lienId, lienType: x.lienType })) : [];
     const entry = onEditerDlc(fiche, quantiteDlc, null, ingredientsUtilises.length > 0 ? ingredientsUtilises : null);
     if (entry) { setDlcEnregistree(entry.dlcDate); setEtiquetteCreee(entry); setQuantiteDlc(""); }
   };
@@ -15222,10 +15222,18 @@ function KitchenApp({ identiteExterne } = {}) {
       setStock((prevStock) => {
         let next = prevStock;
         ingredientsUtilises.forEach((ing) => {
-          const qte = Number(ing.quantite) || 0;
+          let qte = parseFloat(String(ing.quantite).replace(",", ".")) || 0;
           if (qte <= 0) return;
-          const stockItem = trouverCorrespondance(ing.nom, next, (s) => s.nom);
-          if (stockItem) next = next.map((s) => (s.id === stockItem.id ? { ...s, quantite: Math.max(0, Number(s.quantite) - qte) } : s));
+          const parId = ing.lienType === "stock" && ing.lienId ? next.find((s) => s.id === ing.lienId) : null;
+          const stockItem = parId || trouverCorrespondance(ing.nom, next, (s) => s.nom);
+          if (!stockItem) return;
+          // Conversion dans l'unité du stock (ex. 867 g de lait → 0,87 L ; 1 g est compté comme 1 ml).
+          if (ing.unite && stockItem.unite) {
+            const c = convertirQuantiteCout(qte, ing.unite, stockItem.unite);
+            if (c) qte = c.val;
+          }
+          qte = Math.round(qte * 1000) / 1000;
+          next = next.map((s) => (s.id === stockItem.id ? { ...s, quantite: Math.max(0, Math.round((Number(s.quantite) - qte) * 1000) / 1000) } : s));
         });
         return next;
       });
