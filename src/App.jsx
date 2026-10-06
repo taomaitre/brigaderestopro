@@ -4192,7 +4192,7 @@ function sortieFrequenceNettoyage(v) {
 }
 
 function libelleAssignationNet(t, employees) {
-  const mode = t.assigneA || (t.poste && t.poste !== "Tous" ? "poste" : "tous");
+  const mode = t.assigneA || "tous";
   if (mode === "personnes") {
     const noms = (t.personnes || []).map((id) => (employees || []).find((e) => e.id === id)?.nom).filter(Boolean);
     return noms.length ? `pour : ${noms.join(", ")}` : "personne choisie";
@@ -4221,13 +4221,13 @@ function ChampZoneNettoyage({ value, onChange, zones }) {
 }
 
 function ChampsQuiNettoyage({ v, maj, employees }) {
-  const mode = v.assigneA || (v.poste && v.poste !== "Tous" ? "poste" : "tous");
+  const mode = v.assigneA || "tous";
   return (
     <>
       <Field label="Qui fait cette tâche ?">
         <select className={inputCls} value={mode} onChange={(e) => maj({ assigneA: e.target.value })}>
           <option value="tous">Tâche générale : visible par tous ceux qui travaillent ce jour-là</option>
-          {v.poste && v.poste !== "Tous" && <option value="poste">Les employés de la zone « {v.poste} »</option>}
+          {v.poste && v.poste !== "Tous" && (employees || []).some((e) => String(e.poste || "").toLowerCase().includes(String(v.poste).replace(/^Poste\s*/i, "").trim().toLowerCase())) && <option value="poste">Les employés de la zone « {v.poste} »</option>}
           <option value="personnes">Une ou plusieurs personnes précises</option>
         </select>
       </Field>
@@ -4252,7 +4252,7 @@ function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCan
   const maj = (p) => setV((x) => ({ ...x, ...p }));
   const enregistrer = () => {
     if (!v.tache.trim()) return;
-    const mode = v.assigneA || (v.poste && v.poste !== "Tous" ? "poste" : "tous");
+    const mode = v.assigneA || "tous";
     const sortie = { tache: v.tache.trim(), poste: v.poste.trim(), note: v.note || "", ...sortieFrequenceNettoyage(v), assigneA: mode, personnes: mode === "personnes" ? (v.personnes || []) : undefined };
     onSave(sortie);
   };
@@ -4281,19 +4281,26 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
   const [choix, setChoix] = useState(CATALOGUE_APPAREILS_NETTOYAGE[0].items[0]);
   const [nom, setNom] = useState(CATALOGUE_APPAREILS_NETTOYAGE[0].items[0][0]);
   const [nombre, setNombre] = useState(1);
-  const [qui, setQui] = useState({ poste: zones[0] || "Tous", assigneA: undefined, personnes: [] });
+  const [memes, setMemes] = useState(true); // même zone et mêmes personnes pour tous les exemplaires
+  const uniteVide = () => ({ poste: zones[0] || "Tous", assigneA: undefined, personnes: [], nomPerso: "" });
+  const [unites, setUnites] = useState(() => [uniteVide()]);
+  const changerNombre = (n) => { setNombre(n); setUnites((u) => Array.from({ length: n }, (_, k) => u[k] || { ...u[0], nomPerso: "" })); };
+  const majUnite = (k, p) => setUnites((u) => u.map((x, i) => (i === k ? { ...x, ...p } : x)));
+  const reglage = (k) => (memes ? unites[0] : unites[k]);
+  const modeDe = (r) => r.assigneA || "tous";
+  const nomUnite = (k) => (!memes && unites[k].nomPerso.trim() ? unites[k].nomPerso.trim() : nombre > 1 ? `${nom.trim()} ${k + 1}` : nom.trim());
   const [lignes, setLignes] = useState(() => TYPES_APPAREIL_NETTOYAGE[CATALOGUE_APPAREILS_NETTOYAGE[0].items[0][1]].lignes.map((l) => ({ ...l, on: true })));
   const choisir = (item) => { setChoix(item); setNom(item[1] === "autre" ? "" : item[0]); setLignes(TYPES_APPAREIL_NETTOYAGE[item[1]].lignes.map((l) => ({ ...l, on: true }))); };
   const changerCategorie = (c) => { setCategorie(c); choisir(CATALOGUE_APPAREILS_NETTOYAGE.find((x) => x.categorie === c).items[0]); };
   const majLigne = (i, p) => setLignes((arr) => arr.map((l, idx) => (idx === i ? { ...l, ...p } : l)));
-  const noms = nombre > 1 ? Array.from({ length: nombre }, (_, k) => `${nom.trim()} ${k + 1}`) : [nom.trim()];
-  const mode = qui.assigneA || (qui.poste && qui.poste !== "Tous" ? "poste" : "tous");
+  const exemplaires = Array.from({ length: nombre }, (_, k) => k);
+  const reglagesValides = exemplaires.every((k) => { const r = reglage(k); return (r.poste || "").trim() && !(modeDe(r) === "personnes" && !r.personnes.length); });
   const enregistrer = () => {
-    if (!nom.trim() || !(qui.poste || "").trim()) return;
+    if (!nom.trim() || !reglagesValides) return;
     const sortie = [];
-    noms.forEach((n) => lignes.filter((l) => l.on).forEach((l) => sortie.push({
-      tache: `${n} — ${l.suffixe}`, poste: qui.poste.trim(), note: l.note || "", assigneA: mode, personnes: mode === "personnes" ? qui.personnes : undefined, ...sortieFrequenceNettoyage(l),
-    })));
+    exemplaires.forEach((k) => { const r = reglage(k); const mode = modeDe(r); lignes.filter((l) => l.on).forEach((l) => sortie.push({
+      tache: `${nomUnite(k)} — ${l.suffixe}`, poste: r.poste.trim(), note: l.note || "", assigneA: mode, personnes: mode === "personnes" ? r.personnes : undefined, ...sortieFrequenceNettoyage(l),
+    })); });
     onSave(sortie);
   };
   return (
@@ -4317,14 +4324,33 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             <div className="sm:col-span-2"><Field label="Son nom chez vous (ex. Frigo desserts)"><input className={`${inputCls} w-full`} value={nom} onChange={(e) => setNom(e.target.value)} autoFocus /></Field></div>
             <Field label="Combien ?">
-              <select className={inputCls} value={nombre} onChange={(e) => setNombre(Number(e.target.value))}>
+              <select className={inputCls} value={nombre} onChange={(e) => changerNombre(Number(e.target.value))}>
                 {Array.from({ length: 10 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
               </select>
             </Field>
           </div>
-          {nombre > 1 && nom.trim() && <p className="text-xs text-[var(--steel)]">Ils seront nommés : {noms.join(", ")}.</p>}
-          <ChampZoneNettoyage value={qui.poste} onChange={(z) => setQui((q) => ({ ...q, poste: z }))} zones={zones} />
-          <ChampsQuiNettoyage v={qui} maj={(p) => setQui((q) => ({ ...q, ...p }))} employees={employees} />
+          {nombre > 1 && (
+            <label className="flex items-start gap-2 text-sm text-[var(--ink)]">
+              <input type="checkbox" className="mt-1" checked={memes} onChange={() => setMemes(!memes)} />
+              <span>Même zone et mêmes personnes pour les {nombre} exemplaires. <span className="text-xs text-[var(--steel)]">Décochez pour régler chacun : ex. l'étagère du poste chaud par Marc, celle du poste froid par Julie.</span></span>
+            </label>
+          )}
+          {memes ? (
+            <>
+              <ChampZoneNettoyage value={unites[0].poste} onChange={(z) => majUnite(0, { poste: z })} zones={zones} />
+              <ChampsQuiNettoyage v={unites[0]} maj={(p) => majUnite(0, p)} employees={employees} />
+            </>
+          ) : (
+            exemplaires.map((k) => (
+              <div key={k} className="border border-[var(--line)] rounded-lg p-3 space-y-3 bg-[var(--bg)]">
+                <Field label={`Exemplaire ${k + 1} — son nom (ex. ${nom.trim() || "Étagère"} du poste chaud)`}>
+                  <input className={`${inputCls} w-full`} value={unites[k].nomPerso} placeholder={`${nom.trim()} ${k + 1}`} onChange={(e) => majUnite(k, { nomPerso: e.target.value })} />
+                </Field>
+                <ChampZoneNettoyage value={unites[k].poste} onChange={(z) => majUnite(k, { poste: z })} zones={zones} />
+                <ChampsQuiNettoyage v={unites[k]} maj={(p) => majUnite(k, p)} employees={employees} />
+              </div>
+            ))
+          )}
           <div className="space-y-3">
             {lignes.map((l, i) => (
               <div key={i} className="border border-[var(--line)] rounded-lg p-3">
@@ -4340,7 +4366,7 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel }) {
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="ghost" onClick={onCancel}>Annuler</Button>
-          <Button onClick={enregistrer} disabled={!nom.trim() || !(qui.poste || "").trim() || !lignes.some((l) => l.on) || (mode === "personnes" && !qui.personnes.length)}>Ajouter au plan</Button>
+          <Button onClick={enregistrer} disabled={!nom.trim() || !reglagesValides || !lignes.some((l) => l.on)}>Ajouter au plan</Button>
         </div>
       </div>
     </div>

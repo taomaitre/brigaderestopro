@@ -120,10 +120,13 @@ export function travaille(emp, iso, moment, shifts) {
 // - « tous » : tous les employés présents ; - « poste » : les employés présents de ce poste ; - « personnes » : celles choisies.
 export function personnesConcernees(t, iso, moment, employees, shifts) {
   const equipe = (employees || []).filter((e) => e.id !== "direction");
-  const mode = t.assigneA || (t.poste && t.poste !== "Tous" ? "poste" : "tous");
+  const mode = t.assigneA || "tous";
   let cibles;
   if (mode === "personnes") cibles = equipe.filter((e) => (t.personnes || []).includes(e.id));
-  else if (mode === "poste" && t.poste && t.poste !== "Tous") cibles = equipe.filter((e) => clePosteN(e.poste) === clePosteN(t.poste));
+  else if (mode === "poste" && t.poste && t.poste !== "Tous") {
+    cibles = equipe.filter((e) => clePosteN(e.poste) === clePosteN(t.poste));
+    if (!cibles.length) cibles = equipe; // aucun employé de ce poste : la tâche est générale
+  }
   else cibles = equipe;
   const presents = cibles.filter((e) => travaille(e, iso, moment, shifts));
   const enRepos = cibles.filter((e) => !presents.includes(e));
