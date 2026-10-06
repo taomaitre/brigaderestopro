@@ -436,14 +436,14 @@ function effacerTypeAppareil() {
   try { localStorage.removeItem(CLE_TYPE_APPAREIL); } catch (e) { /* stockage indisponible */ }
 }
 
-// Le code, une fois entré, reste valable jusqu'au lendemain 9h — peu importe l'heure à laquelle
-// il a été saisi (9h du matin, 13h ou 23h) : toujours redemandé au prochain passage de 9h, jamais
-// avant. Ça évite de retaper son code plusieurs fois dans la même journée tout en forçant une
-// nouvelle vérification chaque matin.
-function prochaineEcheance9h() {
+// Le code personnel (téléphone personnel uniquement ; la tablette partagée n'en a pas) est redemandé
+// une seule fois par jour : il reste valable jusqu'au prochain passage de 4h du matin, quelle que soit
+// l'heure de saisie (9h, 13h, 23h ou même 2h du matin, auquel cas il expire à 4h le jour même).
+const HEURE_RENOUVELLEMENT_CODE = 4;
+function prochaineEcheanceCode() {
   const d = new Date();
-  d.setDate(d.getDate() + 1);
-  d.setHours(9, 0, 0, 0);
+  d.setHours(HEURE_RENOUVELLEMENT_CODE, 0, 0, 0);
+  if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
   return d.toISOString();
 }
 function sessionCodeValide() {
@@ -457,7 +457,7 @@ function sessionCodeValide() {
 }
 function enregistrerSessionCode(employeId) {
   try {
-    localStorage.setItem(CLE_CODE_VALIDE_JUSQUA, prochaineEcheance9h());
+    localStorage.setItem(CLE_CODE_VALIDE_JUSQUA, prochaineEcheanceCode());
     localStorage.setItem(CLE_CODE_EMPLOYE_ID, employeId);
   } catch (e) { /* stockage indisponible */ }
 }
@@ -16255,7 +16255,7 @@ function PersonalCodeGate({ employees, onValide }) {
         </div>
         <Card>
           <p className="text-sm text-[var(--ink)] font-medium mb-1">Votre code personnel</p>
-          <p className="text-xs text-[var(--steel)] mb-3">Demandé une fois par jour (jusqu'à 9h demain). Donné par le chef ou le directeur.</p>
+          <p className="text-xs text-[var(--steel)] mb-3">Demandé une fois par jour, renouvelé à partir de 4 h du matin. Donné par le chef ou le directeur.</p>
           <form onSubmit={valider}>
             <input
               className={`${inputCls} w-full text-center text-lg tracking-widest`}
@@ -17392,7 +17392,7 @@ function KitchenApp({ identiteExterne } = {}) {
     if (tab === "controle" && moi && !moi.estChef) setTab("taches");
   }, [tab, moi, currentUserId]);
 
-  // Téléphone personnel : si un code valable a déjà été entré aujourd'hui (avant 9h demain), on
+  // Téléphone personnel : si un code valable a déjà été entré aujourd'hui (avant 4h demain), on
   // reconnecte automatiquement l'employé sans lui redemander ni son code ni son nom. useLayoutEffect
   // (plutôt que useEffect) pour que ça se fasse avant l'affichage, sans montrer l'écran de code
   // une fraction de seconde inutilement à chaque réouverture de l'appli dans la même journée.
