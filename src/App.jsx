@@ -1125,6 +1125,23 @@ function AlerteBloquante({ titre, sousTitre, items, renderItem, zIndex = 9999 })
   );
 }
 
+// En-tête de la nouvelle version : date et heure bien visibles, quel que soit l'écran affiché.
+function HorlogeEnTete() {
+  const [maintenant, setMaintenant] = useState(new Date());
+  useEffect(() => {
+    const id = setInterval(() => setMaintenant(new Date()), 15000);
+    return () => clearInterval(id);
+  }, []);
+  const h = String(maintenant.getHours()).padStart(2, "0");
+  const m = String(maintenant.getMinutes()).padStart(2, "0");
+  return (
+    <div className="flex items-center gap-3 shrink-0">
+      <span className="text-base font-semibold text-[var(--ink)] capitalize">{fmtLong(todayISO())}</span>
+      <span className="text-2xl font-bold tracking-tight text-[var(--accent)] tabular-nums leading-none rounded-lg bg-[var(--accent-soft)] px-3 py-1.5">{h}:{m}</span>
+    </div>
+  );
+}
+
 function HorlogeCompacte() {
   const [maintenant, setMaintenant] = useState(new Date());
   useEffect(() => {
@@ -15363,7 +15380,7 @@ function KitchenApp({ identiteExterne } = {}) {
     .sort((a, b) => a.debutTs - b.debutTs)[0];
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row" style={{
+    <div className={`min-h-screen flex flex-col ${modeExterne ? "" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
       "--gold": "#B98A2E", "--gold-soft": "#F5ECD8",
@@ -15468,7 +15485,34 @@ function KitchenApp({ identiteExterne } = {}) {
       )}
 
       {/* nav desktop */}
-      <aside className="hidden md:flex md:flex-col w-60 shrink-0 border-r border-[var(--line)] bg-white p-5">
+      {modeExterne && (
+        <div className="hidden md:block sticky top-0 z-30 bg-white border-b border-[var(--line)] shadow-sm">
+          <div className="flex items-center justify-between gap-4 px-6 py-2.5">
+            <button onClick={switchAccount} title="Changer de compte" className="flex items-center gap-3 min-w-0 text-left">
+              <Avatar nom={moi?.nom} size={40} />
+              <span className="text-lg font-semibold text-[var(--ink)] truncate">{moi?.nom}</span>
+            </button>
+            <HorlogeEnTete />
+          </div>
+          <nav className="flex flex-wrap gap-1 px-4 pb-2.5">
+            <button onClick={() => setTab("accueil")}
+              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-sm font-medium transition-colors ${tab === "accueil" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--steel)] hover:bg-[var(--bg)]"}`}>
+              <ChefHat size={17} />Accueil
+            </button>
+            {navItems.map((n) => (
+              <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
+                className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-sm font-medium transition-colors ${tab === n.id ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--steel)] hover:bg-[var(--bg)]"}`}>
+                <n.icon size={17} />
+                {n.label}
+                {badges[n.id] > 0 && (
+                  <span className="text-[10px] rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#C1432D", color: "#ffffff" }}>{badges[n.id]}</span>
+                )}
+              </button>
+            ))}
+          </nav>
+        </div>
+      )}
+      <aside className={`${modeExterne ? "hidden" : "hidden md:flex"} md:flex-col w-60 shrink-0 border-r border-[var(--line)] bg-white p-5`}>
         <button onClick={() => setTab("accueil")} className="flex items-center gap-2 mb-6 px-1 text-left">
           <ChefHat size={22} className="text-[var(--accent)]" />
           <span className="font-semibold text-[var(--ink)] tracking-tight">Ma Cuisine</span>
@@ -15525,7 +15569,7 @@ function KitchenApp({ identiteExterne } = {}) {
         </div>
       )}
 
-      <main className="flex-1 p-4 sm:p-6 lg:p-8 pb-8 max-w-6xl">
+      <main className={`flex-1 p-4 sm:p-6 lg:p-8 pb-8 ${modeExterne ? "w-full" : "max-w-6xl"}`}>
         <IndicateurHorsLigne />
         {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin) && (
           <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement}>Un refroidissement ou une surgélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
