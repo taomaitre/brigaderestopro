@@ -5143,6 +5143,13 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   }, [congelPms, celluleDispo]);
 
   const champ = (key, val) => setS((prev) => ({ ...prev, [key]: val }));
+  // Deux colonnes (questionnaire | aperçu) dès que la fenêtre fait au moins 800 px de large.
+  const [deuxColonnes, setDeuxColonnes] = useState(() => (typeof window === "undefined" ? true : window.innerWidth >= 800));
+  useEffect(() => {
+    const maj = () => setDeuxColonnes(window.innerWidth >= 800);
+    window.addEventListener("resize", maj);
+    return () => window.removeEventListener("resize", maj);
+  }, []);
   const majProcede = (key, patch) => setS((prev) => ({ ...prev, procedes: { ...prev.procedes, [key]: { ...prev.procedes[key], ...patch } } }));
   const majConservation = (patch) => setS((prev) => ({ ...prev, conservation: { ...prev.conservation, ...patch } }));
   const majRendement = (patch) => setS((prev) => ({ ...prev, rendement: { ...prev.rendement, ...patch } }));
@@ -5383,7 +5390,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
 
   return (
     <div>
-      <SectionHeader title={modifier ? "Modification de la fiche technique" : ficheInitiale ? "Copie de la fiche technique" : "Création de fiche technique"} subtitle="Questionnaire en 7 étapes — la fiche se construit en direct ci-dessous, puis crée automatiquement ses liens stock, HACCP, étiquette et traçabilité" />
+      <SectionHeader title={modifier ? "Modification de la fiche technique" : ficheInitiale ? "Copie de la fiche technique" : "Création de fiche technique"} subtitle={`Questionnaire en 7 étapes — la fiche se construit en direct ${avecModes ? "à droite" : "ci-dessous"}, puis crée automatiquement ses liens stock, HACCP, étiquette et traçabilité`} />
 
       {confirmation && (
         <Card className="mb-6 bg-[var(--accent-soft)] border-[var(--accent)]/30">
@@ -5418,6 +5425,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         )}
       </Card>
 
+      {/* Nouvelle version : questionnaire à gauche, aperçu de la fiche qui se remplit à droite (deux colonnes dès que l'écran est assez large : ordinateur, tablette, téléphone tourné). */}
+      <div style={avecModes && deuxColonnes ? { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 24, alignItems: "start" } : undefined}>
+      <div className="min-w-0">
       {/* 2. Questionnaire */}
       <Card className="mb-5">
         <div className="flex flex-wrap gap-1.5 mb-4 pb-4 border-b border-[var(--line)]">
@@ -5914,8 +5924,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         )}
       </Card>
 
+      </div>
       {/* Aperçu de la fiche A4 */}
-      <div className="mb-8">
+      <div className="mb-8 min-w-0" style={avecModes && deuxColonnes ? { position: "sticky", top: 128, maxHeight: "calc(100vh - 146px)", overflowY: "auto" } : undefined}>
         <h3 className="font-semibold text-[var(--ink)] text-lg mb-1">Aperçu de la fiche technique</h3>
         <p className="text-xs text-[var(--steel)] mb-3">Se remplit au fur et à mesure du questionnaire.</p>
         <div className="bg-white border border-[var(--line)] rounded-xl p-5 sm:p-6">
@@ -5991,6 +6002,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
           </div>
           <div className="text-center font-bold text-xs mt-4 pt-3 border-t border-[var(--line)] text-[var(--ink)]">HYGIÈNE – PROPRETÉ – TEMPÉRATURES MAÎTRISÉES = QUALITÉ ET SÉCURITÉ ALIMENTAIRE</div>
         </div>
+      </div>
       </div>
     </div>
   );
