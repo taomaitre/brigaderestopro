@@ -15500,7 +15500,7 @@ function KitchenApp({ identiteExterne } = {}) {
       {modeExterne && (
         <div className="hidden md:block sticky top-0 z-30 bg-white border-b border-[var(--line)] shadow-sm">
           <div className="flex items-center justify-between gap-4 px-6 py-2.5">
-            {typeAppareil === "tablette" ? (
+            {typeAppareil !== "telephone" ? (
               <button onClick={switchAccount} className="flex items-center gap-3 min-w-0 text-left group">
                 <Avatar nom={moi?.nom} size={40} />
                 <span className="min-w-0">
