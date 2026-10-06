@@ -17561,18 +17561,18 @@ function KitchenApp({ identiteExterne } = {}) {
             )}
             <HorlogeEnTete />
           </div>
-          <nav className="flex flex-wrap gap-1 px-4 pb-2.5">
-            <button onClick={() => setTab("accueil")}
-              className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-sm font-medium transition-colors ${tab === "accueil" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--steel)] hover:bg-[var(--bg)]"}`}>
-              <ChefHat size={17} />Accueil
+          <nav className="grid gap-2 px-4 pb-3" style={{ gridTemplateColumns: "7.5rem repeat(6, minmax(0, 1fr))", gridTemplateRows: "repeat(2, 4.5rem)" }}>
+            <button onClick={() => setTab("accueil")} style={{ gridRow: "span 2" }}
+              className={`flex flex-col items-center justify-center gap-2 rounded-xl border-2 text-base font-bold transition-colors ${tab === "accueil" ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
+              <ChefHat size={38} />Accueil
             </button>
             {navItems.map((n) => (
               <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
-                className={`flex items-center gap-2 px-3 py-2 min-h-[40px] rounded-lg text-sm font-medium transition-colors ${tab === n.id ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--steel)] hover:bg-[var(--bg)]"}`}>
-                <n.icon size={17} />
-                {n.label}
+                className={`relative flex flex-col items-center justify-center gap-1 px-2 rounded-xl border-2 text-[13px] font-semibold leading-tight text-center transition-colors ${tab === n.id ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
+                <n.icon size={22} />
+                <span className="line-clamp-2">{n.label}</span>
                 {badges[n.id] > 0 && (
-                  <span className="text-[10px] rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#C1432D", color: "#ffffff" }}>{badges[n.id]}</span>
+                  <span className="absolute top-1 right-1 text-[10px] rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#C1432D", color: "#ffffff" }}>{badges[n.id]}</span>
                 )}
               </button>
             ))}
