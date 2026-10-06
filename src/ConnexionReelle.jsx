@@ -254,6 +254,13 @@ export default function ConnexionReelle() {
         donnees: x,
       }),
     },
+    horaires: {
+      table: "horaires_service",
+      aDb: (x) => ({
+        jour: x.jour || null, date: /^\d{4}-\d{2}-\d{2}$/.test(x.date || "") ? x.date : null,
+        service: x.service === "soir" ? "soir" : "midi", debut: x.debut || null, fin: x.fin || null, ferme: !!x.ferme, note: x.note || null,
+      }),
+    },
     fiches: {
       table: "fiches_techniques",
       aDb: (x) => ({
@@ -416,7 +423,7 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm, rex, rca] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm, rex, rca, rhs] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
@@ -432,8 +439,10 @@ export default function ConnexionReelle() {
         supabasePublic.from("pms_taches").select("*").order("created_at", { ascending: true }).limit(500),
         supabasePublic.from("pms_executions").select("*").gte("date", new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)).order("date", { ascending: false }).limit(3000),
         supabasePublic.from("cartes").select("*").order("debut", { ascending: true, nullsFirst: true }).limit(500),
+        supabasePublic.from("horaires_service").select("*").limit(500),
       ]);
       if (rca.error) throw rca.error;
+      if (rhs.error) throw rhs.error;
       if (rex.error) throw rex.error;
       if (rfi.error) throw rfi.error;
       if (rpm.error) throw rpm.error;
@@ -467,6 +476,7 @@ export default function ConnexionReelle() {
         refroidissements: (rrf.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         maintiens: (rmc.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         fiches: (rfi.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
+        horaires: (rhs.data || []).map((r) => ({ id: r.id, jour: r.jour || "", date: r.date || "", service: r.service, debut: r.debut || "", fin: r.fin || "", ferme: !!r.ferme, note: r.note || "" })),
         cartes: (rca.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id, nom: r.nom, typeCarte: r.type_carte, debut: r.debut || "", fin: r.fin || "" })),
         cleaning: (rpm.data || []).map((r) => ({ fait: false, date: null, employeeId: null, ...(r.donnees || {}), id: r.id, tache: r.tache || (r.donnees && r.donnees.tache) || "", poste: r.poste || "Tous", frequence: r.frequence || "Quotidienne", note: r.protocole || "", creeLe: (r.donnees && r.donnees.creeLe) || dateLocale(r.created_at).date })),
         pmsExecutions: (rex.data || []).map((r) => ({
@@ -864,6 +874,7 @@ export default function ConnexionReelle() {
         maintiens: { persister: fabriquerPersisterFroid("maintiens") },
         fiches: { persister: fabriquerPersisterFroid("fiches") },
         cartes: { persister: fabriquerPersisterFroid("cartes") },
+        horaires: { persister: fabriquerPersisterFroid("horaires") },
         cleaning: { persister: fabriquerPersisterFroid("cleaning") },
         pmsExecutions: { persister: fabriquerPersisterFroid("pmsExecutions") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },

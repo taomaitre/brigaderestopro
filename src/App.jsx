@@ -4697,10 +4697,10 @@ const patchQuiNet = (val) => (val === "tous" ? { assigneA: "tous", personnes: un
 const concerneNet = (t, id) => ((t.assigneA || "tous") !== "personnes") || (t.personnes || []).includes(id);
 
 // Champ texte qui n'enregistre qu'en quittant la case (évite une écriture à chaque lettre)
-function ChampTexteDiffere({ value, onCommit, multiline, className, placeholder, inputMode }) {
+function ChampTexteDiffere({ value, onCommit, multiline, className, placeholder, inputMode, type }) {
   const [v, setV] = useState(value || "");
   useEffect(() => { setV(value || ""); }, [value]);
-  const p = { value: v, placeholder, className, inputMode, onChange: (e) => setV(e.target.value), onBlur: () => { if (v !== (value || "")) onCommit(v); } };
+  const p = { value: v, placeholder, className, inputMode, type, onChange: (e) => setV(e.target.value), onBlur: () => { if (v !== (value || "")) onCommit(v); } };
   return multiline ? <textarea rows={3} {...p} /> : <input {...p} />;
 }
 
@@ -15312,10 +15312,11 @@ function ModalNettoyagePeriodique({ frequence, cleaning, setCleaning, moi, onClo
 
 // Bandeau « Réservations aujourd'hui » : un clic déplie le résumé du midi et du soir, les gros groupes, puis la liste rapide à lire.
 const SEUIL_GROUPE_RESA = 8;
-function ResumeReservationsJour({ reservations, today }) {
+function ResumeReservationsJour({ reservations, today, horaires }) {
   const [ouvert, setOuvert] = useState(false);
   const liste = (reservations || []).filter((r) => r.date === today).sort((a, b) => (a.heure || "").localeCompare(b.heure || ""));
-  const midi = liste.filter((r) => (r.heure || "") < "16:00"); const soir = liste.filter((r) => (r.heure || "") >= "16:00");
+  const limite = limiteMidiSoir(horaires, today); const midi = liste.filter((r) => (r.heure || "") < limite); const soir = liste.filter((r) => (r.heure || "") >= limite);
+  const service = resumeServiceDu(horaires, today);
   const pers = (l) => l.reduce((s, r) => s + (Number(r.personnes) || 0), 0);
   const pluriel = (n, m) => `${n} ${m}${n > 1 ? "s" : ""}`;
   const groupes = liste.filter((r) => Number(r.personnes) >= SEUIL_GROUPE_RESA);
@@ -15343,6 +15344,7 @@ function ResumeReservationsJour({ reservations, today }) {
       </button>
       {ouvert && (
         <div className="px-4 pb-3">
+          <p className="text-sm text-[var(--ink)] mb-2"><b>Service du jour :</b> {service.texte}{service.exception ? <span className="text-[var(--warn)] font-semibold"> (horaires exceptionnels{service.notes.length ? ` : ${service.notes.join(", ")}` : ""})</span> : null}</p>
           {liste.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune réservation enregistrée pour aujourd'hui.</p> : (
             <>
               <p className="text-sm text-[var(--ink)] mb-3">Vous avez <b>{pluriel(midi.length, "réservation")} à midi ({pers(midi)} pers.)</b> et <b>{pluriel(soir.length, "réservation")} le soir ({pers(soir)} pers.)</b>.
@@ -15357,7 +15359,7 @@ function ResumeReservationsJour({ reservations, today }) {
   );
 }
 
-function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef }) {
+function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires }) {
   const today = todayISO();
   const ctxFin = React.useContext(NettoyageContext);
   const [form, setForm] = useState({ titre: "", heure: "", categorie: "Préparation", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", jourDuMois: 1, date: today, declencheHuile: false, declencheChangementHuile: false, declencheTracabilite: false, declencheRefroidissement: false });
@@ -15409,7 +15411,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   return (
     <div>
       {currentUserId !== "direction" && <CarteRemarquesChef remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} today={today} />}
-      <ResumeReservationsJour reservations={reservations} today={today} />
+      <ResumeReservationsJour reservations={reservations} today={today} horaires={horaires} />
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -15807,7 +15809,111 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
 
 /* ---------- module Horaires (heures de travail) ---------- */
 
-function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onBack, nouvelleBase }) {
+// Heures de service de l'établissement (midi / soir) : une semaine type + des cas exceptionnels à une date précise.
+// Cette information alimente les réservations (midi/soir), les tâches « après le service » et le planning.
+const SERVICES_DEFAUT = { midi: { debut: "12:00", fin: "14:30" }, soir: { debut: "19:00", fin: "22:30" } };
+function horairesServiceDu(horaires, date) {
+  const jour = JOURS[(dateDepuisIso(date).getDay() + 6) % 7];
+  const res = {};
+  ["midi", "soir"].forEach((sv) => {
+    const ex = (horaires || []).find((h) => h.date === date && h.service === sv);
+    const df = (horaires || []).find((h) => !h.date && h.jour === jour && h.service === sv);
+    const h = ex || df;
+    res[sv] = h
+      ? { debut: h.debut || SERVICES_DEFAUT[sv].debut, fin: h.fin || SERVICES_DEFAUT[sv].fin, ferme: !!h.ferme, exception: !!ex, note: h.note || "", configure: true }
+      : { ...SERVICES_DEFAUT[sv], ferme: false, exception: false, note: "", configure: false };
+  });
+  return res;
+}
+const heureLisible = (h) => String(h || "").replace(":", "h").replace(/^0/, "").replace(/h00$/, "h");
+function resumeServiceDu(horaires, date) {
+  const r = horairesServiceDu(horaires, date);
+  const p = (sv, lib) => (r[sv].ferme ? `${lib} fermé` : `${lib} ${heureLisible(r[sv].debut)}–${heureLisible(r[sv].fin)}`);
+  return { texte: `${p("midi", "Midi")} · ${p("soir", "Soir")}`, exception: r.midi.exception || r.soir.exception, notes: [r.midi.note, r.soir.note].filter(Boolean), r };
+}
+// Heure limite entre les réservations « midi » et « soir » : à mi-chemin entre la fin du service du midi et le début du soir.
+function limiteMidiSoir(horaires, date) {
+  const r = horairesServiceDu(horaires, date); const m = (h) => { const [a, b] = String(h).split(":").map(Number); return a * 60 + (b || 0); };
+  const t = Math.round((m(r.midi.fin) + m(r.soir.debut)) / 2);
+  return `${String(Math.floor(t / 60)).padStart(2, "0")}:${String(t % 60).padStart(2, "0")}`;
+}
+
+function HeuresService({ horaires, setHoraires, logActivity }) {
+  const liste = horaires || [];
+  const [exc, setExc] = useState({ date: todayISO(), service: "les deux", debut: "", fin: "", ferme: false, note: "" });
+  const trouver = (jour, date, service) => liste.find((h) => (date ? h.date === date : !h.date && h.jour === jour) && h.service === service);
+  const ecrire = (modifs) => {
+    let l = [...liste];
+    modifs.forEach(({ jour, date, service, patch }) => {
+      const e = l.find((h) => (date ? h.date === date : !h.date && h.jour === jour) && h.service === service);
+      if (e) l = l.map((h) => (h === e ? { ...h, ...patch } : h));
+      else l.push({ id: uid(), jour: date ? "" : jour, date: date || "", service, debut: SERVICES_DEFAUT[service].debut, fin: SERVICES_DEFAUT[service].fin, ferme: false, note: "", ...patch });
+    });
+    setHoraires(l);
+  };
+  const val = (jour, sv, champ) => { const h = trouver(jour, "", sv); return h ? h[champ] || "" : SERVICES_DEFAUT[sv][champ]; };
+  const copier = (jour) => { ecrire(JOURS.filter((j) => j !== jour).flatMap((j) => ["midi", "soir"].map((sv) => ({ jour: j, service: sv, patch: { debut: val(jour, sv, "debut"), fin: val(jour, sv, "fin"), ferme: !!(trouver(jour, "", sv) || {}).ferme } })))); logActivity && logActivity("Planning", "Heures de service", `Horaires du ${jour.toLowerCase()} copiés sur la semaine`); };
+  const exceptions = liste.filter((h) => h.date && h.date >= todayISO()).sort((a, b) => a.date.localeCompare(b.date) || a.service.localeCompare(b.service));
+  const ajouterExc = () => {
+    if (!exc.date) return;
+    const services = exc.service === "les deux" ? ["midi", "soir"] : [exc.service];
+    ecrire(services.map((sv) => ({ date: exc.date, service: sv, patch: { debut: exc.debut || val(JOURS[(dateDepuisIso(exc.date).getDay() + 6) % 7], sv, "debut"), fin: exc.fin || val(JOURS[(dateDepuisIso(exc.date).getDay() + 6) % 7], sv, "fin"), ferme: exc.ferme, note: exc.note.trim() } })));
+    logActivity && logActivity("Planning", "Service exceptionnel", `${fmtShort(exc.date)} — ${exc.note.trim() || "horaires modifiés"}`);
+    setExc({ ...exc, note: "", debut: "", fin: "", ferme: false });
+  };
+  const cell = `${champNet} !w-full`;
+  return (
+    <Card className="mb-6">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Heures de service</h3>
+      <p className="text-sm text-[var(--steel)] mb-3">Indiquez quand le service commence et se termine, midi et soir. Ces heures servent à répartir les réservations, programmer le nettoyage après le service et organiser le planning de l'équipe. Les horaires affichés sont ceux de la semaine type ; ajoutez ensuite les cas exceptionnels (week-end qui finit plus tard, jour férié, événement).</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm min-w-[40rem]">
+          <thead><tr className="text-left text-xs text-[var(--steel)]"><th className="py-1 pr-2">Jour</th><th className="py-1 pr-2" colSpan={2}>Service du midi (début – fin)</th><th className="py-1 pr-2">Fermé</th><th className="py-1 pr-2" colSpan={2}>Service du soir (début – fin)</th><th className="py-1 pr-2">Fermé</th><th></th></tr></thead>
+          <tbody>
+            {JOURS.map((j) => (
+              <tr key={j} className="border-t border-[var(--line)]">
+                <td className="py-1.5 pr-2 font-medium text-[var(--ink)]">{j}</td>
+                {["midi", "soir"].map((sv) => {
+                  const h = trouver(j, "", sv) || {}; const ferme = !!h.ferme;
+                  return [
+                    <td key={sv + "d"} className="py-1.5 pr-1"><ChampTexteDiffere type="time" value={val(j, sv, "debut")} onCommit={(v) => v && ecrire([{ jour: j, service: sv, patch: { debut: v } }])} className={cell} /></td>,
+                    <td key={sv + "f"} className="py-1.5 pr-2"><ChampTexteDiffere type="time" value={val(j, sv, "fin")} onCommit={(v) => v && ecrire([{ jour: j, service: sv, patch: { fin: v } }])} className={cell} /></td>,
+                    <td key={sv + "x"} className="py-1.5 pr-2"><input type="checkbox" className="w-5 h-5" checked={ferme} onChange={() => ecrire([{ jour: j, service: sv, patch: { ferme: !ferme } }])} /></td>,
+                  ];
+                })}
+                <td className="py-1.5"><button type="button" className="text-xs text-[var(--accent)] underline whitespace-nowrap" onClick={() => copier(j)}>Copier sur tous les jours</button></td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+      <h4 className="font-semibold text-[var(--ink)] mt-5 mb-1">Cas exceptionnel</h4>
+      <p className="text-sm text-[var(--steel)] mb-2">Pour une date précise : le service finit plus tard, commence plus tôt ou n'a pas lieu.</p>
+      <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 items-end">
+        <div className="col-span-2"><label className={libNet}>Date</label><input type="date" className={champNet} value={exc.date} onChange={(e) => setExc({ ...exc, date: e.target.value })} /></div>
+        <div><label className={libNet}>Service</label><select className={champNet} value={exc.service} onChange={(e) => setExc({ ...exc, service: e.target.value })}><option value="les deux">Midi et soir</option><option value="midi">Midi</option><option value="soir">Soir</option></select></div>
+        <div><label className={libNet}>Début</label><input type="time" className={champNet} value={exc.debut} onChange={(e) => setExc({ ...exc, debut: e.target.value })} /></div>
+        <div><label className={libNet}>Fin</label><input type="time" className={champNet} value={exc.fin} onChange={(e) => setExc({ ...exc, fin: e.target.value })} /></div>
+        <label className="flex items-center gap-2 text-sm text-[var(--ink)] h-10"><input type="checkbox" className="w-5 h-5" checked={exc.ferme} onChange={() => setExc({ ...exc, ferme: !exc.ferme })} /> Fermé</label>
+        <div className="col-span-2 sm:col-span-5"><label className={libNet}>Précision (facultatif)</label><input className={champNet} placeholder="Ex. soirée privée, jour férié, fin plus tard" value={exc.note} onChange={(e) => setExc({ ...exc, note: e.target.value })} /></div>
+        <Button onClick={ajouterExc}><Plus size={14} /> Ajouter</Button>
+      </div>
+      <p className="text-xs text-[var(--steel)] mt-1">Si vous laissez début et fin vides, les horaires habituels du jour sont gardés.</p>
+      {exceptions.length > 0 && (
+        <ul className="space-y-1 mt-3">
+          {exceptions.map((h) => (
+            <li key={h.id} className="flex items-center justify-between gap-2 text-sm text-[var(--ink)] border border-[var(--cadre)] rounded-lg px-3 py-2 bg-white">
+              <span><b>{fmtShort(h.date)}</b> · {h.service === "midi" ? "Midi" : "Soir"} : {h.ferme ? "fermé" : `${heureLisible(h.debut)}–${heureLisible(h.fin)}`}{h.note ? <span className="text-[var(--steel)]"> — {h.note}</span> : null}</span>
+              <button type="button" onClick={() => setHoraires(liste.filter((x) => x.id !== h.id))} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Supprimer"><X size={15} /></button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
+function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onBack, nouvelleBase, horaires, setHoraires }) {
   const [name, setName] = useState("");
   const [role, setRole] = useState("");
   const [code, setCode] = useState("");
@@ -15954,6 +16060,8 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
         subtitle={nouvelleBase ? "Semaine type de l'établissement : cliquez sur un créneau pour programmer les horaires de chaque employé" : "Semaine type : 9h30–14h30 et 18h–20h30 en semaine, jusqu'à 23h30 vendredi et samedi, repos le lundi"}
         action={nouvelleBase ? null : <Button variant="ghost" onClick={applyStandardAll}>Appliquer à toute l'équipe</Button>}
       />
+
+      {setHoraires && <HeuresService horaires={horaires} setHoraires={setHoraires} logActivity={logActivity} />}
 
       {!nouvelleBase && <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-4">Ajouter un employé</h3>
@@ -16517,6 +16625,10 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [catalogueExterne]);
   const produits = modeExterne ? produitsCatalogueExterne : produitsMemoire;
   const setProduits = modeExterne ? (() => {}) : setProduitsMemoire;
+  const [horairesStockes, setHorairesStockes] = useStored("horaires-service", []);
+  const [horairesExternes, setHorairesExternes] = useListeExterne(identiteExterne, "horaires");
+  const horaires = modeExterne ? horairesExternes : horairesStockes;
+  const setHoraires = modeExterne ? setHorairesExternes : setHorairesStockes;
   const [cartesStockees, setCartesStockees] = useStored("cartes", []);
   const [cartesExternes, setCartesExternes] = useListeExterne(identiteExterne, "cartes");
   const cartes = modeExterne ? cartesExternes : cartesStockees;
@@ -17636,7 +17748,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <Equipe employees={employees} shifts={shifts} activityLog={activityLog} tasks={tasks} toggleTask={toggleTaskShared} currentUserId={currentUserId} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} />
         )}
         {tab === "horaires" && (
-          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} nouvelleBase={modeExterne} />
+          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} />
         )}
       </main>
       {/* La barre d'onglets mobile du bas a été retirée : la navigation se fait maintenant
