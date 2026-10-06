@@ -4887,6 +4887,8 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   const [photoApercu, setPhotoApercu] = useState(null);
   const [iaEnCours, setIaEnCours] = useState(false);
   const [iaMessage, setIaMessage] = useState(null);
+  // Mode simple (l'essentiel, guidé) ou expert (tous les champs). Même fiche enregistrée dans les deux cas.
+  const [modeFiche, setModeFiche] = useState("simple");
 
   const [etablissementNom] = useStored("tiac-etablissement-nom", "Games Factory Salaise");
   const [congelPms, setCongelPms] = useStored("ft-reglage-congel-pms", false);
@@ -4939,6 +4941,19 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
     "Identité", "Ingrédients & allergènes", "Cuisson & températures", "Matériel & ustensiles",
     "Préparation", "Conservation & rendement", "Coût & dressage",
   ];
+  // En mode simple, « Matériel & ustensiles » (3) et « Coût & dressage » (6) sont masqués : le matériel
+  // se déduit des appareils choisis, le coût se calcule tout seul à partir des ingrédients.
+  const etapesVisibles = STEPS_FICHE.map((_, i) => i).filter((i) => modeFiche === "expert" || ![3, 6].includes(i));
+  useEffect(() => {
+    if (modeFiche === "simple" && [3, 6].includes(step)) setStep(2);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeFiche]);
+  // Mode simple : la T° à cœur visée est préremplie avec le seuil officiel de la famille choisie.
+  useEffect(() => {
+    const c = S.procedes.cuisson;
+    if (modeFiche === "simple" && c.on && !String(c.coeur || "").trim()) majProcede("cuisson", { coeur: `≥ +${cuissonSeuilMin(c.famille)} °C` });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [modeFiche, S.procedes.cuisson.on, S.procedes.cuisson.famille]);
   const etapeComplete = (i) => {
     switch (i) {
       case 0: return !!(S.nom.trim() && S.categorie && S.poste);
@@ -5118,16 +5133,25 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       {/* 2. Questionnaire */}
       <Card className="mb-5">
         <div className="flex flex-wrap gap-1.5 mb-4 pb-4 border-b border-[var(--line)]">
-          {STEPS_FICHE.map((t, i) => (
+          <div className="w-full flex items-center gap-2 mb-1">
+            <div className="inline-flex rounded-lg border border-[var(--line)] overflow-hidden text-xs font-semibold">
+              {[["simple", "Mode simple"], ["expert", "Mode expert"]].map(([v, lbl]) => (
+                <button key={v} type="button" onClick={() => setModeFiche(v)}
+                  className={`px-3 py-1.5 ${modeFiche === v ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--steel)]"}`}>{lbl}</button>
+              ))}
+            </div>
+            <span className="text-xs text-[var(--steel)]">{modeFiche === "simple" ? "L'essentiel, guidé. Le reste se complète tout seul." : "Tous les champs : réglages, durées, matériel, coût, dressage."}</span>
+          </div>
+          {etapesVisibles.map((i, pos) => { const t = STEPS_FICHE[i]; return (
             <button key={t} type="button" onClick={() => setStep(i)}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${i === step ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : etapeComplete(i) ? "border-[var(--line)] text-[var(--ink)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${etapeComplete(i) ? "bg-[var(--accent)] text-white" : "border border-[var(--line)]"}`}>{etapeComplete(i) ? "✓" : i + 1}</span>
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${etapeComplete(i) ? "bg-[var(--accent)] text-white" : "border border-[var(--line)]"}`}>{etapeComplete(i) ? "✓" : pos + 1}</span>
               {t}
             </button>
-          ))}
+          ); })}
         </div>
 
-        <h3 className="font-semibold text-[var(--ink)] text-lg mb-3">{step + 1}. {STEPS_FICHE[step]}</h3>
+        <h3 className="font-semibold text-[var(--ink)] text-lg mb-3">{etapesVisibles.indexOf(step) + 1}. {STEPS_FICHE[step]}</h3>
 
         {step === 0 && (
           <div className="space-y-4">
@@ -5214,9 +5238,25 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
           <div className="space-y-3">
             <p className="text-xs text-[var(--steel)]">Cochez ce que la recette utilise. Chaque choix ajoute ses seuils au tableau HACCP, ses relevés à la traçabilité et ses mentions à l'étiquette. Seuls les procédés conformes sont proposés.</p>
 
-            <ProcedeCard titre="Préparation froide (sans cuisson)" regle="≤ +3 °C, préparée au plus près du service" actif={S.procedes.froid.on} onToggle={() => majProcede("froid", { on: !S.procedes.froid.on })} />
+            {modeFiche === "simple" && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {[["froid", "Préparation froide"], ["cuisson", "Cuisson"], ["refroid", "Refroidissement"], ["maintien", "Maintien au chaud"], ["remise", "Remise en température"], ["congel", "Congélation"], ["decongel", "Décongélation"]].map(([k, lbl]) => {
+                  const verrou = k === "congel" && !congelPms;
+                  const on = !!S.procedes[k].on && !verrou;
+                  return (
+                    <button key={k} type="button" disabled={verrou} onClick={() => majProcede(k, { on: !S.procedes[k].on })}
+                      title={verrou ? "Congélation non décrite dans le PMS de l'établissement (réglages)" : ""}
+                      className={`text-sm font-semibold px-3 py-3 rounded-lg border text-center transition-colors ${on ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : verrou ? "border-[var(--line)] bg-[var(--bg)] text-[var(--steel)] opacity-60" : "border-[var(--line)] bg-white text-[var(--ink)]"}`}>
+                      {on ? "✓ " : ""}{lbl}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
 
-            <ProcedeCard titre="Cuisson" regle="T° à cœur contrôlée à la sonde" actif={S.procedes.cuisson.on} onToggle={() => majProcede("cuisson", { on: !S.procedes.cuisson.on })}>
+            {(modeFiche === "expert" || S.procedes.froid.on) && (<ProcedeCard titre="Préparation froide (sans cuisson)" regle="≤ +3 °C, préparée au plus près du service" actif={S.procedes.froid.on} onToggle={() => majProcede("froid", { on: !S.procedes.froid.on })} /> )}
+
+            {(modeFiche === "expert" || S.procedes.cuisson.on) && (<ProcedeCard titre="Cuisson" regle="T° à cœur contrôlée à la sonde" actif={S.procedes.cuisson.on} onToggle={() => majProcede("cuisson", { on: !S.procedes.cuisson.on })}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Famille (seuil HACCP officiel)">
                   <select className={inputCls} value={S.procedes.cuisson.famille} onChange={(e) => majProcede("cuisson", { famille: e.target.value })}>
@@ -5229,14 +5269,15 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                     {[...BASE_APPAREILS_FICHE, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </Field>
-                <Field label="Réglage / température appareil"><input className={inputCls} value={S.procedes.cuisson.reglage} onChange={(e) => majProcede("cuisson", { reglage: e.target.value })} placeholder="ex. 180 °C chaleur combinée" /></Field>
-                <Field label="Durée (affichée sur la fiche)"><input className={inputCls} value={S.procedes.cuisson.duree} onChange={(e) => majProcede("cuisson", { duree: e.target.value })} placeholder="ex. 12 à 15 min" /></Field>
-                <Field label="Durée en minutes (pour le chrono de cuisson)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value })} placeholder="ex. 14" /></Field>
+                {modeFiche === "simple" && <Field label="Durée de cuisson (minutes)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value, duree: e.target.value ? `${e.target.value} min` : "" })} placeholder="ex. 14" /></Field>}
+                {modeFiche === "expert" && <Field label="Réglage / température appareil"><input className={inputCls} value={S.procedes.cuisson.reglage} onChange={(e) => majProcede("cuisson", { reglage: e.target.value })} placeholder="ex. 180 °C chaleur combinée" /></Field>}
+                {modeFiche === "expert" && <Field label="Durée (affichée sur la fiche)"><input className={inputCls} value={S.procedes.cuisson.duree} onChange={(e) => majProcede("cuisson", { duree: e.target.value })} placeholder="ex. 12 à 15 min" /></Field>}
+                {modeFiche === "expert" && <Field label="Durée en minutes (pour le chrono de cuisson)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value })} placeholder="ex. 14" /></Field>}
                 <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={`ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C`} /></Field>
               </div>
-            </ProcedeCard>
+            </ProcedeCard> )}
 
-            <ProcedeCard titre="Refroidissement rapide" regle="+63 °C → +10 °C à cœur en moins de 2 h" actif={S.procedes.refroid.on} onToggle={() => majProcede("refroid", { on: !S.procedes.refroid.on })}>
+            {(modeFiche === "expert" || S.procedes.refroid.on) && (<ProcedeCard titre="Refroidissement rapide" regle="+63 °C → +10 °C à cœur en moins de 2 h" actif={S.procedes.refroid.on} onToggle={() => majProcede("refroid", { on: !S.procedes.refroid.on })}>
               <div className="space-y-2">
                 <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 ${S.procedes.refroid.mode === "cellule" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"} ${!celluleDispo ? "opacity-50" : "cursor-pointer"}`}>
                   <input type="radio" disabled={!celluleDispo} checked={S.procedes.refroid.mode === "cellule"} onChange={() => majProcede("refroid", { mode: "cellule" })} className="mt-0.5" />
@@ -5249,22 +5290,22 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
                 <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
               </div>
-            </ProcedeCard>
+            </ProcedeCard> )}
 
-            <ProcedeCard titre="Maintien au chaud" regle="≥ +63 °C à cœur pendant le service" actif={S.procedes.maintien.on} onToggle={() => majProcede("maintien", { on: !S.procedes.maintien.on })}>
+            {(modeFiche === "expert" || S.procedes.maintien.on) && (<ProcedeCard titre="Maintien au chaud" regle="≥ +63 °C à cœur pendant le service" actif={S.procedes.maintien.on} onToggle={() => majProcede("maintien", { on: !S.procedes.maintien.on })}>
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Appareil">
                   <select className={inputCls} value={S.procedes.maintien.appareil} onChange={(e) => majProcede("maintien", { appareil: e.target.value })}>
                     {["Bain-marie", "Étuve / armoire chaude", "Vitrine chauffante", "Four mixte (Rational)", "Lampe chauffante", ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </Field>
-                <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>
-                <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>
+                {modeFiche === "expert" && <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>}
+                {modeFiche === "expert" && <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>}
               </div>
               {Number(S.procedes.maintien.temp) < 63 && <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — le maintien au chaud doit être à +63 °C minimum. La fiche ne pourra pas être enregistrée.</p>}
-            </ProcedeCard>
+            </ProcedeCard> )}
 
-            <ProcedeCard titre="Remise en température" regle="+10 °C → ≥ cible à cœur en moins d'1 h" actif={S.procedes.remise.on} onToggle={() => majProcede("remise", { on: !S.procedes.remise.on })}>
+            {(modeFiche === "expert" || S.procedes.remise.on) && (<ProcedeCard titre="Remise en température" regle="+10 °C → ≥ cible à cœur en moins d'1 h" actif={S.procedes.remise.on} onToggle={() => majProcede("remise", { on: !S.procedes.remise.on })}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Appareil">
                   <select className={inputCls} value={S.procedes.remise.appareil} onChange={(e) => majProcede("remise", { appareil: e.target.value })}>
@@ -5280,9 +5321,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 </Field>
               </div>
               <p className="text-xs text-[var(--steel)] mt-2">Un seul réchauffage : le reste est jeté, jamais refroidi une deuxième fois.</p>
-            </ProcedeCard>
+            </ProcedeCard> )}
 
-            <ProcedeCard titre="Congélation" regle="≤ −18 °C, avant la DLC" actif={S.procedes.congel.on}
+            {(modeFiche === "expert" || S.procedes.congel.on) && (<ProcedeCard titre="Congélation" regle="≤ −18 °C, avant la DLC" actif={S.procedes.congel.on}
               locked={!congelPms} lockMsg={`Cochez « La congélation est décrite dans notre PMS » dans les réglages de l'établissement ci-dessous.`}
               onToggle={() => majProcede("congel", { on: !S.procedes.congel.on })}>
               <div className="space-y-2">
@@ -5294,9 +5335,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 ))}
                 <p className="text-xs text-[var(--steel)]">Interdit : produits frais non emballés, légumes crus mangés crus, œufs en coquille, recongélation d'un produit décongelé. Déclenche le même suivi que l'écran Refroidissement rapide, en mode « négatif / surgélation ».</p>
               </div>
-            </ProcedeCard>
+            </ProcedeCard> )}
 
-            <ProcedeCard titre="Décongélation" regle="0 à +4 °C · DLC J+3 après sortie" actif={S.procedes.decongel.on} onToggle={() => majProcede("decongel", { on: !S.procedes.decongel.on })}>
+            {(modeFiche === "expert" || S.procedes.decongel.on) && (<ProcedeCard titre="Décongélation" regle="0 à +4 °C · DLC J+3 après sortie" actif={S.procedes.decongel.on} onToggle={() => majProcede("decongel", { on: !S.procedes.decongel.on })}>
               <div className="space-y-2">
                 <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.decongel.mode === "froid" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                   <input type="radio" checked={S.procedes.decongel.mode === "froid"} onChange={() => majProcede("decongel", { mode: "froid" })} className="mt-0.5" />
@@ -5308,7 +5349,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 </label>
                 <p className="text-xs text-[var(--steel)]">Décongélation à l'ambiante ou sous l'eau non proposée : non conforme. L'étiquette du produit décongelé (créée depuis l'écran Étiquettes DLC pour les articles « Surgelés ») porte « décongelé le … » et une DLC J+3.</p>
               </div>
-            </ProcedeCard>
+            </ProcedeCard> )}
           </div>
         )}
 
@@ -5423,8 +5464,8 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         )}
 
         <div className="flex justify-between gap-2 mt-5 pt-4 border-t border-[var(--line)]">
-          <Button variant="ghost" onClick={() => setStep((s) => Math.max(0, s - 1))} disabled={step === 0}>← Précédent</Button>
-          <Button onClick={() => setStep((s) => Math.min(STEPS_FICHE.length - 1, s + 1))} disabled={step === STEPS_FICHE.length - 1}>Suivant →</Button>
+          <Button variant="ghost" onClick={() => setStep((s) => { const p = etapesVisibles.indexOf(s); return etapesVisibles[Math.max(0, p - 1)]; })} disabled={etapesVisibles.indexOf(step) <= 0}>← Précédent</Button>
+          <Button onClick={() => setStep((s) => { const p = etapesVisibles.indexOf(s); return etapesVisibles[Math.min(etapesVisibles.length - 1, p + 1)]; })} disabled={etapesVisibles.indexOf(step) === etapesVisibles.length - 1}>Suivant →</Button>
         </div>
       </Card>
 
