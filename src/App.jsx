@@ -4727,9 +4727,9 @@ function ficheVideInit() {
     procedes: {
       froid: { on: false },
       cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", coeurAutre: false, coeurPerso: "", coeurJustif: "", famille: "general", parametres: {}, controles: { temp: true, duree: true, visuel: false } },
-      refroid: { on: false, mode: "cellule", controles: { temp: true, temps: true, bac: false } },
-      maintien: { on: false, appareil: "Bain-marie", temp: 63, duree: "", controles: { temp: true } },
-      remise: { on: false, appareil: "", cible: 63 },
+      refroid: { on: false, mode: "cellule", autre: false, cibleTxt: "", justif: "", controles: { temp: true, temps: true, bac: false } },
+      maintien: { on: false, appareil: "Bain-marie", temp: 63, autre: false, justif: "", duree: "", controles: { temp: true } },
+      remise: { on: false, appareil: "", cible: 75, autre: false, justif: "" },
       congel: { on: false, type: "maison" },
       decongel: { on: false, mode: "froid" },
     },
@@ -4785,6 +4785,37 @@ function matchIngredientLien(nom, stock, fiches) {
 }
 function dlcMaxFiche(S) { return S.conservation.etude ? 30 : 3; }
 
+// Bloc « norme officielle / Autre » commun (refroidissement, maintien, remise en température) : on affiche toujours
+// la norme officielle ; l'établissement peut saisir la sienne, sous sa seule responsabilité, avec sa justification.
+function NormeAutreBloc({ titre, norme, note, autre, valeur, justif, unite, texte, onNorme, onAutre, onValeur, onJustif }) {
+  return (
+    <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
+      <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">{titre}</div>
+      <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!autre ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+        <input type="radio" className="mt-0.5" checked={!autre} onChange={onNorme} />
+        <span><strong>Norme officielle : {norme}</strong>{note && <span className="block text-xs text-[var(--steel)]">{note}</span>}</span>
+      </label>
+      <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${autre ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+        <input type="radio" className="mt-0.5" checked={!!autre} onChange={onAutre} />
+        <span className="flex-1">
+          <strong>Autre</strong> (ma propre norme)
+          {autre && (
+            <span className="block mt-1.5">
+              {texte
+                ? <input className={inputCls} value={valeur} onChange={(e) => onValeur(e.target.value)} placeholder="ex. +10 °C à cœur en moins de 3 h" />
+                : <span className="flex items-center gap-2"><span>≥ +</span><input className={`${inputCls} w-24`} type="number" step="1" value={valeur} onChange={(e) => onValeur(e.target.value)} /><span>{unite || "°C"}</span></span>}
+              <input className={`${inputCls} mt-2`} value={justif || ""} onChange={(e) => onJustif(e.target.value)} placeholder="Justification / preuve (ex. analyse de laboratoire du 12/09, étude, avis du consultant HACCP)" />
+              <span className="block text-xs text-[var(--steel)] mt-1">Conseil : note ici la preuve que ta méthode est sûre (résultat d'analyse de laboratoire avec sa date, étude, avis de ton consultant HACCP) et garde le document dans ton plan de maîtrise sanitaire.</span>
+              <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la norme officielle pour cette fiche. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
+            </span>
+          )}
+        </span>
+      </label>
+    </div>
+  );
+}
+const MENTION_NORME_PERSO = " — norme personnalisée sous la responsabilité de l'établissement";
+
 function haccpRowsFiche(S) {
   const p = S.procedes, rows = [];
   const ingOk = ingredientsRenseignes(S);
@@ -4792,12 +4823,12 @@ function haccpRowsFiche(S) {
   if (p.froid.on) rows.push({ etape: "Préparation froide", pointCritique: "Chaîne du froid", aControler: "≤ +3 °C, préparée au plus près du service" });
   if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 à +4 °C · DLC J+3 après sortie" : "Cuisson directe depuis le congelé" });
   if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C${p.cuisson.coeurAutre ? ` — norme personnalisée sous la responsabilité de l'établissement${p.cuisson.coeurJustif ? ` (justification : ${p.cuisson.coeurJustif})` : ""}` : ""}${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
-  if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: "+63 °C → +10 °C à cœur en moins de 2 h" + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
+  if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: (p.refroid.autre ? `${p.refroid.cibleTxt || "norme à préciser"}${MENTION_NORME_PERSO}${p.refroid.justif ? ` (justification : ${p.refroid.justif})` : ""}` : "+63 °C → +10 °C à cœur en moins de 2 h") + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
   if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C en moins de 4 h 30, étiquette « congelé le … »" });
   if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
   rows.push({ etape: "Conservation", pointCritique: S.conservation.type, aControler: `J+${S.conservation.jours || "?"}` });
-  if (p.maintien.on) rows.push({ etape: "Maintien au chaud", pointCritique: "CCP – T°", aControler: `≥ +${Math.max(63, Number(p.maintien.temp) || 63)} °C à cœur${p.maintien.duree ? " · " + p.maintien.duree : ""}` });
-  if (p.remise.on) rows.push({ etape: "Remise en T°", pointCritique: "CCP – T° / temps", aControler: `+10 °C → ≥ +${p.remise.cible} °C en moins d'1 h` });
+  if (p.maintien.on) rows.push({ etape: "Maintien au chaud", pointCritique: "CCP – T°", aControler: `≥ +${p.maintien.autre ? (Number(p.maintien.temp) || "?") : Math.max(63, Number(p.maintien.temp) || 63)} °C à cœur${p.maintien.autre ? MENTION_NORME_PERSO + (p.maintien.justif ? ` (justification : ${p.maintien.justif})` : "") : ""}${p.maintien.duree ? " · " + p.maintien.duree : ""}` });
+  if (p.remise.on) rows.push({ etape: "Remise en T°", pointCritique: "CCP – T° / temps", aControler: `+10 °C → ≥ +${p.remise.cible} °C en moins d'1 h${p.remise.autre ? MENTION_NORME_PERSO + (p.remise.justif ? ` (justification : ${p.remise.justif})` : "") : ""}` });
   return rows;
 }
 function nonConformitesFiche(S) {
@@ -4856,7 +4887,10 @@ function problemesFiche(S) {
     if (Number.isFinite(t) && t > 180) out.push(["o", `Huile de friture à ${t} °C : ne pas dépasser 180 °C (l'huile se dégrade et devient nocive) — étape 3 · Cuisson & températures.`]);
   }
   if (/poisson/i.test(S.categorie || "") && p.froid.on && !p.cuisson.on) out.push(["o", "Poisson cru ou peu cuit (sushi, carpaccio, ceviche) : le poisson doit avoir été congelé à −20 °C à cœur pendant 24 h au moins (Anisakis) — vérifie auprès du fournisseur (étape 3 · Cuisson & températures)."]);
-  if (p.maintien.on && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson & températures)."]);
+  if (p.refroid.on && p.refroid.autre && !String(p.refroid.justif || "").trim()) out.push(["o", "Refroidissement : norme personnalisée sans justification — pense à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est ta responsabilité (étape 3 · Cuisson & températures)."]);
+  if (p.maintien.on && p.maintien.autre && !String(p.maintien.justif || "").trim()) out.push(["o", "Maintien au chaud : norme personnalisée sans justification — pense à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est ta responsabilité (étape 3 · Cuisson & températures)."]);
+  if (p.remise.on && p.remise.autre && !String(p.remise.justif || "").trim()) out.push(["o", "Remise en température : norme personnalisée sans justification — pense à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est ta responsabilité (étape 3 · Cuisson & températures)."]);
+  if (p.maintien.on && !p.maintien.autre && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson & températures)."]);
   if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["r", `DLC J+${S.conservation.jours} supérieure au maximum J+${dlcMaxFiche(S)} sans étude de vieillissement validée (étape 6 · Conservation & rendement).`]);
   if (!S.etapes.some((e) => e.titre.trim() || e.texte.trim())) out.push(["o", "Aucune étape de préparation (étape 5 · Préparation)."]);
   if (p.cuisson.on && !(p.cuisson.controles && p.cuisson.controles.temp === false) && !S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Aucune étape marquée « T° de cuisson à relever » (étape 5 · Préparation)."]);
@@ -5165,6 +5199,14 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
     if (c.coeur !== cible) majProcede("cuisson", { coeur: cible });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [avecModes, S.procedes.cuisson.on, S.procedes.cuisson.famille, S.procedes.cuisson.coeurAutre, S.procedes.cuisson.coeurPerso]);
+  // Tant que « Autre » n'est pas choisi, les valeurs suivent la norme officielle.
+  useEffect(() => {
+    if (!avecModes) return;
+    const m = S.procedes.maintien, r = S.procedes.remise;
+    if (m.on && !m.autre && Number(m.temp) !== 63) majProcede("maintien", { temp: 63 });
+    if (r.on && !r.autre && Number(r.cible) !== 75) majProcede("remise", { cible: 75 });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [avecModes, S.procedes.maintien.on, S.procedes.maintien.autre, S.procedes.maintien.temp, S.procedes.remise.on, S.procedes.remise.autre, S.procedes.remise.cible]);
   const etapeComplete = (i) => {
     switch (i) {
       case 0: return !!(S.nom.trim() && S.categorie && S.poste);
@@ -5618,6 +5660,10 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
                 <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
               </div>
+              {avecModes && <NormeAutreBloc titre="Norme de refroidissement" norme="+63 °C → +10 °C à cœur en moins de 2 h" note="Référence officielle (GBPH Restaurateur) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C."
+                autre={S.procedes.refroid.autre} texte valeur={S.procedes.refroid.cibleTxt || ""} justif={S.procedes.refroid.justif}
+                onNorme={() => majProcede("refroid", { autre: false, cibleTxt: "", justif: "" })} onAutre={() => majProcede("refroid", { autre: true })}
+                onValeur={(v) => majProcede("refroid", { cibleTxt: v })} onJustif={(v) => majProcede("refroid", { justif: v })} />}
                           {modeFiche === "expert" && avecModes && (
                 <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
@@ -5635,10 +5681,14 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                     {[...listeAppareilsMaintien, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </Field>
-                {modeFiche === "expert" && <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>}
+                {modeFiche === "expert" && !avecModes && <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>}
                 {modeFiche === "expert" && <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>}
               </div>
-              {Number(S.procedes.maintien.temp) < 63 && <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — le maintien au chaud doit être à +63 °C minimum. La fiche ne pourra pas être enregistrée.</p>}
+              {avecModes && <NormeAutreBloc titre="Norme de maintien au chaud" norme="≥ +63 °C à cœur" note="Référence officielle (barèmes ANSES, GBPH Restaurateur) : plats préparés maintenus à +63 °C minimum."
+                autre={S.procedes.maintien.autre} valeur={S.procedes.maintien.autre ? S.procedes.maintien.temp : ""} justif={S.procedes.maintien.justif}
+                onNorme={() => majProcede("maintien", { autre: false, temp: 63, justif: "" })} onAutre={() => majProcede("maintien", { autre: true, temp: "" })}
+                onValeur={(v) => majProcede("maintien", { temp: v })} onJustif={(v) => majProcede("maintien", { justif: v })} />}
+              {!avecModes && Number(S.procedes.maintien.temp) < 63 && <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — le maintien au chaud doit être à +63 °C minimum. La fiche ne pourra pas être enregistrée.</p>}
                           {modeFiche === "expert" && avecModes && (
                 <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
@@ -5657,13 +5707,17 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                     {[...listeAppareils, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </Field>
-                <Field label="T° cible à cœur">
+                {!avecModes && (<Field label="T° cible à cœur">
                   <select className={inputCls} value={S.procedes.remise.cible} onChange={(e) => majProcede("remise", { cible: Number(e.target.value) })}>
                     <option value={63}>≥ +63 °C (réglementaire)</option>
                     <option value={75}>≥ +75 °C (objectif renforcé)</option>
                   </select>
-                </Field>
+                </Field>)}
               </div>
+              {avecModes && <NormeAutreBloc titre="Norme de remise en température" norme="+10 °C → ≥ +75 °C à cœur en moins d'1 h" note="Référence officielle (barèmes ANSES) : réchauffage des plats préparés à +75 °C à cœur."
+                autre={S.procedes.remise.autre} valeur={S.procedes.remise.autre ? S.procedes.remise.cible : ""} justif={S.procedes.remise.justif}
+                onNorme={() => majProcede("remise", { autre: false, cible: 75, justif: "" })} onAutre={() => majProcede("remise", { autre: true, cible: "" })}
+                onValeur={(v) => majProcede("remise", { cible: v })} onJustif={(v) => majProcede("remise", { justif: v })} />}
               <p className="text-xs text-[var(--steel)] mt-2">Un seul réchauffage : le reste est jeté, jamais refroidi une deuxième fois.</p>
             </ProcedeCard> )}
 
