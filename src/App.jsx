@@ -4992,6 +4992,17 @@ function allergenesDepuisCatalogue(ingredients, stock, fiches) {
   return { allergenes: [...trouves], sansLien, sansInfo };
 }
 // Pourquoi une ligne n'entre pas dans le coût matière (pour guider la saisie du catalogue).
+// Coût matière : quand le prix est au litre et la quantité en grammes (ou l'inverse), on compte 1 g = 1 ml
+// (vrai pour le lait, la crème, l'eau…) : résultat estimé, signalé comme tel.
+function convertirQuantiteCout(qte, uniteSource, uniteCible) {
+  const direct = convertirQuantiteFiche(qte, uniteSource, uniteCible);
+  if (direct !== null) return { val: direct, approx: false };
+  const g = convertirQuantiteFiche(qte, uniteSource, "g");
+  const ml = convertirQuantiteFiche(qte, uniteSource, "ml");
+  if (g !== null && convertirQuantiteFiche(1, "ml", uniteCible) !== null) return { val: convertirQuantiteFiche(g, "ml", uniteCible), approx: true };
+  if (ml !== null && convertirQuantiteFiche(1, "g", uniteCible) !== null) return { val: convertirQuantiteFiche(ml, "g", uniteCible), approx: true };
+  return null;
+}
 function diagnosticCout(ingredients, stock) {
   const out = [];
   (ingredients || []).filter((i) => (i.nom || "").trim()).forEach((ing) => {
@@ -5001,25 +5012,26 @@ function diagnosticCout(ingredients, stock) {
     if (!art) { out.push([nom, "produit introuvable"]); return; }
     const prix = parserPrixUnitaire(art.prixUnitaire);
     if (!prix) { out.push([nom, "prix d'achat absent du catalogue"]); return; }
-    if (convertirQuantiteFiche(ing.qte ?? ing.quantite, ing.unite, prix.unite) === null) out.push([nom, `quantité à saisir en ${prix.unite} (le prix est en €/${prix.unite})`]);
+    if (convertirQuantiteCout(ing.qte ?? ing.quantite, ing.unite, prix.unite) === null) out.push([nom, `quantité à saisir en ${prix.unite} (le prix est en €/${prix.unite})`]);
   });
   return out;
 }
 
 function calculerCoutRecette(ingredients, stock) {
-  let total = 0, compte = 0, partiel = false;
+  let total = 0, compte = 0, partiel = false, approx = false;
   ingredients.forEach((ing) => {
     if (ing.lienType !== "stock" || !ing.lienId) { partiel = true; return; }
     const art = (stock || []).find((s) => s.id === ing.lienId);
     if (!art) { partiel = true; return; }
     const prix = parserPrixUnitaire(art.prixUnitaire);
     if (!prix) { partiel = true; return; }
-    const qteConvertie = convertirQuantiteFiche(ing.quantite ?? ing.qte, ing.unite, prix.unite);
-    if (qteConvertie === null) { partiel = true; return; }
-    total += qteConvertie * prix.val;
+    const conv = convertirQuantiteCout(ing.quantite ?? ing.qte, ing.unite, prix.unite);
+    if (conv === null) { partiel = true; return; }
+    if (conv.approx) approx = true;
+    total += conv.val * prix.val;
     compte += 1;
   });
-  return { coutRecette: compte > 0 ? total.toFixed(2) : "", partiel: partiel || compte === 0 };
+  return { coutRecette: compte > 0 ? total.toFixed(2) : "", partiel: partiel || compte === 0, approx };
 }
 
 function fileVersDataUrl(file) {
@@ -5548,6 +5560,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                     <div className="text-sm text-[var(--ink)] mt-1">
                       {coutApercu.coutRecette ? <><strong>{coutApercu.coutRecette} €</strong> la recette{coutPortionApercu ? <> · <strong>{coutPortionApercu} €</strong> la portion</> : null}</> : <span className="text-[var(--steel)]">Pas encore calculable.</span>}
                       {coutApercu.coutRecette && coutApercu.partiel ? <span className="text-[var(--warn)]"> (partiel)</span> : null}
+                      {coutApercu.coutRecette && coutApercu.approx ? <span className="block text-xs text-[var(--steel)]">Estimation : pour les liquides vendus au litre et saisis en grammes, 1 g est compté comme 1 ml.</span> : null}
                     </div>
                   </div>
                   <Field label="Nombre de portions"><input className={`${inputCls} w-28`} type="number" min="0" value={S.rendement.portions} onChange={(e) => majRendement({ portions: e.target.value })} placeholder="ex. 10" /></Field>
