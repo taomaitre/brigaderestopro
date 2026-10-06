@@ -7,6 +7,7 @@
 
 export const JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 export const MOMENTS = [["midi", "Fin du service du midi"], ["soir", "Fin du service du soir"]];
+export const MOIS_ANNEE = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
 export const FENETRE_RETARD_JOURS = 14; // au-delà, une tâche jamais faite n'est plus reportée
 
 const NOMS_JOURS_JS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
@@ -65,6 +66,7 @@ export function tacheDueLe(t, iso) {
     if (!joursDeLaTache(t).includes(nomJour(iso))) return false;
     return semainesEntre(t.semaineRef || "2026-01-05", iso) % 2 === 0;
   }
+  if (f === "Annuelle") { const [, mm, dd] = String(iso).split("-").map(Number); return Number(t.moisAnnee) === mm && Number(t.jourAnnee) === dd; }
   if (f === "Mensuelle") return !!t.jourSemaineMois && nieme(iso, t.jourSemaineMois, t.positionMois ?? 1);
   return false; // « À chaque utilisation » et « Périodique » : pas de jour fixe
 }
@@ -139,6 +141,7 @@ export function libelleFrequence(t) {
   if (t.frequence === "Hebdomadaire") return `chaque semaine — ${j.join(", ") || "jour à choisir"}`;
   if (t.frequence === "Toutes les 2 semaines") return `toutes les 2 semaines — ${j.join(", ") || "jour à choisir"}`;
   if (t.frequence === "Mensuelle") return `chaque mois — ${t.positionMois === "dernier" ? "dernier" : `${t.positionMois ?? 1}${(t.positionMois ?? 1) === 1 ? "er" : "e"}`} ${(t.jourSemaineMois || "").toLowerCase()}`;
+  if (t.frequence === "Annuelle") return `chaque année — ${t.jourAnnee || "?"} ${MOIS_ANNEE[(Number(t.moisAnnee) || 1) - 1].toLowerCase()}`;
   if (t.frequence === "Quotidienne") return "tous les jours";
   return (t.frequence || "").toLowerCase();
 }

@@ -2,7 +2,7 @@
 // « Guide de bonnes pratiques d'hygiène et d'application de l'HACCP — Restaurateur » (DILA, 2015), tableau « Fréquences indicatives
 // de nettoyage et désinfection » (p.19-24, « à personnaliser en fonction de l'établissement »). Le « repère officiel » figure dans la note
 // de chaque tâche concernée ; les tâches sans repère sont des recommandations courantes, hors tableau.
-// Le chef les modifie ou les supprime, et ajoute SES appareils avec « Ajouter un appareil ou une surface ».
+// Les appareils (frigos, congélateurs, fours, cellules…) ne sont PAS dans cette liste : le chef les indique avec « Inventaire de ma cuisine ».
 export const PLAN_NETTOYAGE_DEPART = [
  {
   "tache": "Sol de la cuisine — nettoyage et désinfection",
@@ -92,22 +92,6 @@ export const PLAN_NETTOYAGE_DEPART = [
   "note": "Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé."
  },
  {
-  "tache": "Sanitaires et vestiaires du personnel",
-  "poste": "Tous",
-  "frequence": "Quotidienne",
-  "note": "Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé."
- },
- {
-  "tache": "Hotte — grilles aspirantes",
-  "poste": "Tous",
-  "frequence": "Hebdomadaire",
-  "jours": [
-   "Mardi"
-  ],
-  "jour": "Mardi",
-  "note": "Dégraissant adapté aux surfaces de cuisson, temps de contact et température selon la fiche technique du produit, rinçage efficace à l'eau claire.\nRepère officiel (guide GBPH Restaurateur, tableau « Fréquences indicatives », p.23) : nettoyer 1 fois par semaine les grilles des hottes aspirantes."
- },
- {
   "tache": "Murs de la cuisine — parties accessibles",
   "poste": "Tous",
   "frequence": "Hebdomadaire",
@@ -116,16 +100,6 @@ export const PLAN_NETTOYAGE_DEPART = [
   ],
   "jour": "Jeudi",
   "note": "Nettoyant désinfectant alimentaire, eau chaude <60°C, 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.\nRepère officiel (guide GBPH Restaurateur, tableau « Fréquences indicatives », p.20) : à titre indicatif, les parties accessibles des murs sont entretenues 1 fois par semaine (la fréquence dépend du revêtement, de l'emplacement et de l'activité ; ne pas oublier tuyauteries, câbles et canalisations)."
- },
- {
-  "tache": "Réfrigérateurs et chambres froides — nettoyage et désinfection (parois, étagères, joints)",
-  "poste": "Tous",
-  "frequence": "Hebdomadaire",
-  "jours": [
-   "Mardi"
-  ],
-  "jour": "Mardi",
-  "note": "Nettoyant désinfectant alimentaire, eau chaude <60°C, 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.\nRepère officiel (guide GBPH Restaurateur, tableau « Fréquences indicatives », p.22) : chambres froides positives : nettoyer au moins 1 fois par semaine et désinfecter 1 fois par semaine. Les frigos et saladettes suivent la même logique dans cette proposition."
  },
  {
   "tache": "Poubelles de voirie et zone qui leur est dédiée — nettoyage et désinfection",
@@ -176,12 +150,14 @@ export const PLAN_NETTOYAGE_DEPART = [
   "note": "Nettoyant désinfectant alimentaire, eau chaude <60°C, 5 à 10 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.\nRepère officiel (guide GBPH Restaurateur, tableau « Fréquences indicatives », p.19) : les parties difficilement accessibles doivent être nettoyées au minimum une fois par mois et désinfectées au minimum une fois par mois."
  },
  {
-  "tache": "Chambres froides — plafond et évaporateur",
+  "tache": "Hotte — grilles aspirantes",
   "poste": "Tous",
-  "frequence": "Mensuelle",
-  "jourSemaineMois": "Dimanche",
-  "positionMois": 2,
-  "note": "Nettoyant désinfectant alimentaire, eau chaude <60°C, 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.\nRepère officiel (guide GBPH Restaurateur, tableau « Fréquences indicatives », p.22) : nettoyer le plafond et l'évaporateur une fois par mois."
+  "frequence": "Hebdomadaire",
+  "jours": [
+   "Mardi"
+  ],
+  "jour": "Mardi",
+  "note": "Dégraissant adapté aux surfaces de cuisson, temps de contact et température selon la fiche technique du produit, rinçage efficace à l'eau claire.\nRepère officiel (guide GBPH Restaurateur, tableau p.23) : nettoyer 1 fois par semaine les grilles des hottes aspirantes."
  },
  {
   "tache": "Hotte — démonter et nettoyer filtres et bouche aspirante, désinfecter les grilles",
@@ -189,22 +165,14 @@ export const PLAN_NETTOYAGE_DEPART = [
   "frequence": "Mensuelle",
   "jourSemaineMois": "Dimanche",
   "positionMois": 3,
-  "note": "Dégraissant adapté aux surfaces de cuisson, temps de contact et température selon la fiche technique du produit, rinçage efficace à l'eau claire.\nRepère officiel (guide GBPH Restaurateur, tableau « Fréquences indicatives », p.23-24) : démonter et nettoyer les filtres et la bouche aspirante 1 fois par mois ; désinfecter les grilles des hottes aspirantes 1 fois par mois."
+  "note": "Dégraissant adapté aux surfaces de cuisson, temps de contact et température selon la fiche technique du produit, rinçage efficace à l'eau claire.\nRepère officiel (guide GBPH Restaurateur, tableau p.23-24) : démonter et nettoyer filtres et bouche aspirante 1 fois par mois ; désinfecter les grilles des hottes aspirantes 1 fois par mois."
  },
  {
-  "tache": "Congélateurs — dégivrage et nettoyage complet",
+  "tache": "Plafonds — nettoyage et désinfection",
   "poste": "Tous",
-  "frequence": "Mensuelle",
-  "jourSemaineMois": "Dimanche",
-  "positionMois": 1,
-  "note": "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.\nRepère officiel (guide GBPH Restaurateur, tableau « Fréquences indicatives », p.22) : chambres froides négatives, nettoyage et désinfection au moins 1 fois par an. La fréquence mensuelle de cette proposition est plus stricte : à adapter."
- },
- {
-  "tache": "Détartrage des appareils concernés (lave-vaisselle, machine à glaçons, bain-marie…)",
-  "poste": "Tous",
-  "frequence": "Mensuelle",
-  "jourSemaineMois": "Dimanche",
-  "positionMois": 4,
-  "note": "Détartrant adapté, selon la fiche technique du fabricant de l'appareil, rinçage abondant."
+  "frequence": "Annuelle",
+  "moisAnnee": 1,
+  "jourAnnee": 1,
+  "note": "Nettoyant désinfectant alimentaire, eau chaude <60°C, 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.\nRepère officiel (guide GBPH Restaurateur, tableau p.20) : à titre indicatif, les plafonds sont entretenus 1 fois par an."
  }
 ];

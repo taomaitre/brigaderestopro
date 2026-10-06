@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE } from './listesEquipe.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
-import { MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
+import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
 
 /* ======================================================================================
@@ -4070,7 +4070,7 @@ function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId,
   );
 }
 
-const FREQUENCES_NETTOYAGE = ["À chaque utilisation", "Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Périodique (3-6 mois)"];
+const FREQUENCES_NETTOYAGE = ["À chaque utilisation", "Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle", "Périodique (3-6 mois)"];
 
 
 // ---- Plan de nettoyage modifiable par le chef / directeur (nouvelle version) ----
@@ -4081,31 +4081,43 @@ const PROTO_NET = {
   degivrage: "Après chaque dégivrage. Produit désinfectant, parois à l'eau tiède à 30°C, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.",
   simple: "Nettoyant désinfectant alimentaire, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.",
 };
+const REPERE_GBPH = (page, texte) => `\nRepère officiel (guide GBPH Restaurateur, tableau p.${page}) : ${texte}`;
+// Nettoyages proposés par type d'appareil : fréquences du tableau officiel « Fréquences indicatives de nettoyage et désinfection »
+// (guide GBPH Restaurateur, DILA 2015, p.19-24 — « à personnaliser en fonction de l'établissement »). Tout reste modifiable.
 const TYPES_APPAREIL_NETTOYAGE = {
-  frigo: { lignes: [
-    { suffixe: "portes, poignées et intérieur", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.contact },
-    { suffixe: "nettoyage complet (joints compris)", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.complet },
+  froidpos: { lignes: [
+    { suffixe: "nettoyage et désinfection (parois, étagères, joints)", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.complet + REPERE_GBPH(22, "chambres froides positives : nettoyer au moins 1 fois par semaine et désinfecter 1 fois par semaine (même logique proposée pour frigos et saladettes).") },
   ] },
-  congel: { lignes: [
-    { suffixe: "portes, poignées et extérieur", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.contact },
-    { suffixe: "nettoyage complet après dégivrage", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 1, moments: ["soir"], note: PROTO_NET.degivrage },
+  chambrepos: { lignes: [
+    { suffixe: "nettoyage et désinfection (parois, étagères, joints)", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.complet + REPERE_GBPH(22, "chambres froides positives : nettoyer au moins 1 fois par semaine et désinfecter 1 fois par semaine. En cas d'introduction de produits très souillants (légumes terreux…), augmenter la fréquence.") },
+    { suffixe: "plafond et évaporateur", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 2, moments: ["soir"], note: PROTO_NET.complet + REPERE_GBPH(22, "nettoyer le plafond et l'évaporateur une fois par mois.") },
+  ] },
+  froidneg: { lignes: [
+    { suffixe: "nettoyage et désinfection (après dégivrage)", frequence: "Annuelle", moisAnnee: 1, jourAnnee: 1, moments: ["soir"], note: PROTO_NET.degivrage + REPERE_GBPH(22, "chambres froides négatives : nettoyer et désinfecter au moins 1 fois par an. Profiter des périodes de dégivrage ou d'interruption pour vider l'installation.") },
+  ] },
+  vitrine: { lignes: [
+    { suffixe: "nettoyage et désinfection avant réintroduction des produits", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.contact + REPERE_GBPH(23, "vitrines : nettoyer et désinfecter quotidiennement avant la réintroduction des produits en vitrine.") },
+  ] },
+  cellule: { lignes: [
+    { suffixe: "nettoyage et désinfection à chaque utilisation", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.contact + REPERE_GBPH(23, "cellules de refroidissement rapide ou cellules mixtes : nettoyer et désinfecter 1 fois par 24 h d'utilisation (ou plus si nécessaire).") },
+    { suffixe: "compartiment de congélation — nettoyage et désinfection", frequence: "Annuelle", moisAnnee: 1, jourAnnee: 1, moments: ["soir"], note: PROTO_NET.degivrage + REPERE_GBPH(23, "compartiment de congélation attenant à une installation de froid négatif : 1 fois par an au minimum.") },
   ] },
   four: { lignes: [
-    { suffixe: "nettoyage après service", frequence: "Quotidienne", moments: ["midi", "soir"], note: PROTO_NET.degraisseur },
-    { suffixe: "nettoyage complet (intérieur, extérieur, portes)", frequence: "Hebdomadaire", jours: ["Jeudi"], moments: ["soir"], note: PROTO_NET.degraisseur },
+    { suffixe: "nettoyage après utilisation", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.degraisseur + "\nLe guide ne fixe pas de fréquence pour les appareils de cuisson : à définir selon votre analyse des risques et la notice du fabricant." },
   ] },
   petit: { lignes: [
-    { suffixe: "nettoyage et désinfection après utilisation", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
+    { suffixe: "nettoyage et désinfection après utilisation", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple + REPERE_GBPH(21, "machines (hachoir, trancheuse…) : nettoyer et désinfecter après chaque service ; ustensiles : après chaque utilisation. Se référer à la notice du constructeur.") },
   ] },
   sousvide: { lignes: [
-    { suffixe: "nettoyage après chaque série", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
-    { suffixe: "désinfection", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.simple },
+    { suffixe: "nettoyage après chaque série", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple + REPERE_GBPH(23, "machine sous vide : nettoyer après chaque série.") },
+    { suffixe: "désinfection", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.simple + REPERE_GBPH(23, "machine sous vide : désinfecter 1 fois par semaine.") },
   ] },
   hotte: { lignes: [
-    { suffixe: "nettoyage", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.degraisseur },
+    { suffixe: "grilles aspirantes — nettoyage", frequence: "Hebdomadaire", jours: ["Mardi"], moments: ["soir"], note: PROTO_NET.degraisseur + REPERE_GBPH(23, "nettoyer 1 fois par semaine les grilles des hottes aspirantes.") },
+    { suffixe: "démonter et nettoyer filtres et bouche aspirante, désinfecter les grilles", frequence: "Mensuelle", jourSemaineMois: "Dimanche", positionMois: 3, moments: ["soir"], note: PROTO_NET.degraisseur + REPERE_GBPH("23-24", "démonter et nettoyer filtres et bouche aspirante 1 fois par mois ; désinfecter les grilles des hottes aspirantes 1 fois par mois.") },
   ] },
   lavage: { lignes: [
-    { suffixe: "vider et nettoyer", frequence: "Quotidienne", moments: ["midi", "soir"], note: PROTO_NET.simple },
+    { suffixe: "nettoyage après utilisation", frequence: "Quotidienne", moments: ["midi", "soir"], note: PROTO_NET.simple + REPERE_GBPH(24, "vaisselle : après utilisation ; plonge automatique : veiller à l'entretien et à la maintenance de l'appareil.") },
   ] },
   surface: { lignes: [
     { suffixe: "nettoyage et désinfection", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
@@ -4114,18 +4126,18 @@ const TYPES_APPAREIL_NETTOYAGE = {
     { suffixe: "nettoyage", frequence: "Quotidienne", moments: ["soir"], note: PROTO_NET.simple },
   ] },
 };
-// Liste des appareils et surfaces d'une cuisine : le chef coche ce qu'il a réellement (rien n'est obligatoire).
+// Liste des appareils et surfaces d'une cuisine : le chef indique ce qu'il a réellement (rien n'est obligatoire).
 const CATALOGUE_APPAREILS_NETTOYAGE = [
-  { categorie: "Froid et congélation", items: [["Frigo", "frigo"], ["Saladette / table réfrigérée", "frigo"], ["Chambre froide", "frigo"], ["Vitrine réfrigérée", "frigo"], ["Cellule de refroidissement", "frigo"], ["Machine à glaçons", "frigo"], ["Congélateur", "congel"], ["Congélateur à glace", "congel"]] },
+  { categorie: "Froid et congélation", items: [["Frigo", "froidpos"], ["Saladette / table réfrigérée", "froidpos"], ["Chambre froide positive", "chambrepos"], ["Chambre froide négative", "froidneg"], ["Congélateur", "froidneg"], ["Congélateur à glace", "froidneg"], ["Vitrine réfrigérée", "vitrine"], ["Cellule de refroidissement ou de congélation", "cellule"], ["Machine à glaçons", "froidpos"]] },
   { categorie: "Cuisson", items: [["Four", "four"], ["Four mixte", "four"], ["Four à pizza", "four"], ["Plaque à induction", "four"], ["Piano / feux vifs", "four"], ["Plancha", "four"], ["Friteuse", "four"], ["Grill / salamandre", "four"], ["Bain-marie", "four"], ["Cuiseur multifonction / sauteuse", "four"], ["Micro-ondes", "petit"], ["Hotte et filtres", "hotte"]] },
-  { categorie: "Petit matériel", items: [["Robot batteur", "petit"], ["Robot coupe / mixeur", "petit"], ["Coupe-légumes", "petit"], ["Trancheuse", "petit"], ["Hachoir", "petit"], ["Pétrin", "petit"], ["Chauffe-pot", "petit"], ["Machine sous vide", "sousvide"], ["Balance", "petit"], ["Pelle, planches et ustensiles", "petit"]] },
+  { categorie: "Petit matériel", items: [["Robot batteur", "petit"], ["Robot coupe / mixeur", "petit"], ["Hachoir", "petit"], ["Trancheuse", "petit"], ["Coupe-légumes", "petit"], ["Pétrin", "petit"], ["Machine sous vide", "sousvide"], ["Chauffe-pot", "petit"], ["Balance", "petit"]] },
   { categorie: "Plonge et lavage", items: [["Lave-vaisselle", "lavage"], ["Plonge (bacs)", "lavage"], ["Évier de lavage des légumes", "lavage"], ["Lave-mains", "lavage"]] },
-  { categorie: "Surfaces et locaux", items: [["Sol", "surface"], ["Carrelage mural", "surface"], ["Plans de travail", "surface"], ["Étagères et rangements", "surface"], ["Poubelles", "surface"], ["Bouche d'évacuation", "surface"], ["Réserve / stockage sec", "surface"]] },
+  { categorie: "Surfaces et locaux", items: [["Étagères et rangements", "surface"], ["Réserve / stockage sec", "surface"], ["Bouche d'évacuation supplémentaire", "surface"]] },
   { categorie: "Autre", items: [["Autre (je saisis le nom)", "autre"]] },
 ];
 const ITEM_LIBRE_NETTOYAGE = "➕ Autre (je saisis le nom)";
-const PRESET_PAR_CATEGORIE_NETTOYAGE = { "Froid et congélation": "frigo", "Cuisson": "four", "Petit matériel": "petit", "Plonge et lavage": "lavage", "Surfaces et locaux": "surface", "Autre": "autre" };
-const libelleFrequenceSection = (f) => (f === "Quotidienne" ? "chaque jour" : f === "Hebdomadaire" ? "chaque semaine" : f === "Toutes les 2 semaines" ? "toutes les 2 semaines" : f === "Mensuelle" ? "chaque mois" : String(f).toLowerCase());
+const PRESET_PAR_CATEGORIE_NETTOYAGE = { "Froid et congélation": "froidpos", "Cuisson": "four", "Petit matériel": "petit", "Plonge et lavage": "lavage", "Surfaces et locaux": "surface", "Autre": "autre" };
+const libelleFrequenceSection = (f) => (f === "Quotidienne" ? "chaque jour" : f === "Hebdomadaire" ? "chaque semaine" : f === "Toutes les 2 semaines" ? "toutes les 2 semaines" : f === "Mensuelle" ? "chaque mois" : f === "Annuelle" ? "chaque année" : String(f).toLowerCase());
 const libelleZone = (z) => (z === "Tous" || !z ? "Toute la cuisine (commun)" : z);
 const POSITIONS_MOIS = [[1, "1er"], [2, "2e"], [3, "3e"], [4, "4e"], ["dernier", "dernier"]];
 
@@ -4142,7 +4154,7 @@ function ChampsFrequenceNettoyage({ v, maj }) {
     if (suite.length) maj({ moments: MOMENTS_NETTOYAGE.map(([k]) => k).filter((k) => suite.includes(k)) });
   };
   const aDesJours = v.frequence === "Hebdomadaire" || v.frequence === "Toutes les 2 semaines";
-  const aMoments = ["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle"].includes(v.frequence);
+  const aMoments = ["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle"].includes(v.frequence);
   const puce = (actif) => `px-3 py-1.5 rounded-full text-xs font-medium border ${actif ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`;
   return (
     <>
@@ -4173,6 +4185,18 @@ function ChampsFrequenceNettoyage({ v, maj }) {
           </Field>
         </>
       )}
+      {v.frequence === "Annuelle" && (
+        <Field label="Quelle date chaque année ?">
+          <div className="flex gap-2">
+            <select className={inputCls} value={Number(v.jourAnnee) || 1} onChange={(e) => maj({ jourAnnee: Number(e.target.value), moisAnnee: Number(v.moisAnnee) || 1 })}>
+              {Array.from({ length: 31 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>{n}</option>)}
+            </select>
+            <select className={inputCls} value={Number(v.moisAnnee) || 1} onChange={(e) => maj({ moisAnnee: Number(e.target.value), jourAnnee: Number(v.jourAnnee) || 1 })}>
+              {MOIS_ANNEE.map((mo, k) => <option key={mo} value={k + 1}>{mo}</option>)}
+            </select>
+          </div>
+        </Field>
+      )}
       {aMoments && (
         <Field label="À quel moment ? (un ou les deux)">
           <div className="flex flex-wrap gap-1.5">
@@ -4186,7 +4210,7 @@ function ChampsFrequenceNettoyage({ v, maj }) {
 
 // Champs de sortie communs (fréquence, jours, moments) à enregistrer sur une tâche du plan
 function sortieFrequenceNettoyage(v) {
-  const o = { frequence: v.frequence, jour: undefined, jours: undefined, jourSemaineMois: undefined, positionMois: undefined, semaineRef: undefined, moments: undefined };
+  const o = { frequence: v.frequence, jour: undefined, jours: undefined, jourSemaineMois: undefined, positionMois: undefined, semaineRef: undefined, moisAnnee: undefined, jourAnnee: undefined, moments: undefined };
   if (v.frequence === "Hebdomadaire" || v.frequence === "Toutes les 2 semaines") {
     const j = joursDeLaTache(v);
     o.jours = j.length ? j : ["Lundi"];
@@ -4194,7 +4218,8 @@ function sortieFrequenceNettoyage(v) {
     if (v.frequence === "Toutes les 2 semaines") o.semaineRef = v.semaineRef || todayISO();
   }
   if (v.frequence === "Mensuelle") { o.jourSemaineMois = v.jourSemaineMois || "Dimanche"; o.positionMois = v.positionMois ?? 1; }
-  if (["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle"].includes(v.frequence)) o.moments = momentsDeLaTache(v);
+  if (v.frequence === "Annuelle") { o.moisAnnee = Number(v.moisAnnee) || 1; o.jourAnnee = Number(v.jourAnnee) || 1; }
+  if (["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle"].includes(v.frequence)) o.moments = momentsDeLaTache(v);
   return o;
 }
 
@@ -4290,7 +4315,7 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
     const memes = base.filter((l) => l.frequence === frequenceImposee);
     if (memes.length) return memes.map((l) => ({ ...l, on: true }));
     const f = frequenceImposee;
-    return [{ suffixe: "nettoyage", frequence: f, moments: ["soir"], note: base[0].note, ...(f === "Hebdomadaire" || f === "Toutes les 2 semaines" ? { jours: ["Mardi"] } : {}), ...(f === "Mensuelle" ? { jourSemaineMois: "Dimanche", positionMois: 1 } : {}), on: true }];
+    return [{ suffixe: "nettoyage", frequence: f, moments: ["soir"], note: base[0].note, ...(f === "Hebdomadaire" || f === "Toutes les 2 semaines" ? { jours: ["Mardi"] } : {}), ...(f === "Mensuelle" ? { jourSemaineMois: "Dimanche", positionMois: 1 } : {}), ...(f === "Annuelle" ? { moisAnnee: 1, jourAnnee: 1 } : {}), on: true }];
   };
   // Catalogue = liste de base + appareils déjà ajoutés par cet établissement (ils sont aussi signalés à l'éditeur du logiciel).
   const catalogue = CATALOGUE_APPAREILS_NETTOYAGE.map((c) => {
@@ -4397,6 +4422,112 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
   );
 }
 
+// Assistant « inventaire de ma cuisine » : le chef indique ses zones puis combien il a de chaque appareil ; le plan est généré
+// avec les fréquences du guide officiel, que chaque tâche permet ensuite d'adapter (jours, midi/soir, personne…).
+function AssistantInventaireNettoyage({ zones, existantes, onSave, onCancel, demandesAjout, signalerAjout }) {
+  const [zonesLocales, setZonesLocales] = useState([]);
+  const [nouvelleZone, setNouvelleZone] = useState("");
+  const toutesZones = [...new Set([...zones, ...zonesLocales])];
+  const [nombres, setNombres] = useState({});
+  const [zoneDe, setZoneDe] = useState({});
+  const [perso, setPerso] = useState([]); // appareils saisis à la main : { cle, categorie, nom, preset }
+  const [saisie, setSaisie] = useState({});
+  const catalogue = CATALOGUE_APPAREILS_NETTOYAGE.filter((c) => c.categorie !== "Autre").map((c) => {
+    const ajoutesEtab = (demandesAjout || []).filter((d) => d.type === "appareil_nettoyage").map((d) => String(d.valeur).split("::")).filter(([n, pr]) => n && PRESET_PAR_CATEGORIE_NETTOYAGE[c.categorie] === (pr || "autre") && !c.items.some((it) => it[0].toLowerCase() === n.toLowerCase())).map(([n, pr]) => [n, pr || "autre"]);
+    const lesPerso = perso.filter((x) => x.categorie === c.categorie).map((x) => [x.nom, x.preset, true]);
+    return { categorie: c.categorie, items: [...c.items, ...ajoutesEtab, ...lesPerso] };
+  });
+  const cle = (cat, nom) => `${cat}|${nom}`;
+  const nb = (cat, nom) => nombres[cle(cat, nom)] || 0;
+  const changer = (cat, nom, d) => setNombres((x) => ({ ...x, [cle(cat, nom)]: Math.max(0, Math.min(20, (x[cle(cat, nom)] || 0) + d)) }));
+  const ajouterZone = () => { const n = nouvelleZone.trim(); if (!n || toutesZones.some((z) => z.toLowerCase() === n.toLowerCase())) return; setZonesLocales((l) => [...l, n]); setNouvelleZone(""); };
+  const ajouterPerso = (cat) => {
+    const nom = (saisie[cat] || "").trim();
+    if (!nom) return;
+    setPerso((l) => [...l, { cle: cle(cat, nom), categorie: cat, nom, preset: PRESET_PAR_CATEGORIE_NETTOYAGE[cat] }]);
+    setNombres((x) => ({ ...x, [cle(cat, nom)]: 1 }));
+    setSaisie((x) => ({ ...x, [cat]: "" }));
+  };
+  const generer = () => {
+    const sortie = [];
+    catalogue.forEach((c) => c.items.forEach(([nom, preset]) => {
+      const n = nb(c.categorie, nom);
+      if (!n) return;
+      for (let k = 1; k <= n; k++) {
+        const nomUnite = n > 1 ? `${nom} ${k}` : nom;
+        TYPES_APPAREIL_NETTOYAGE[preset].lignes.forEach((l) => {
+          const tache = `${nomUnite} — ${l.suffixe}`;
+          if (existantes.some((t) => t.toLowerCase() === tache.toLowerCase())) return;
+          sortie.push({ tache, poste: zoneDe[cle(c.categorie, nom)] || "Tous", note: l.note || "", assigneA: "tous", ...sortieFrequenceNettoyage(l) });
+        });
+      }
+    }));
+    return sortie;
+  };
+  const apercu = generer();
+  const valider = () => {
+    perso.forEach((x) => { if (nb(x.categorie, x.nom) > 0 && signalerAjout) signalerAjout("appareil_nettoyage", `${x.nom}::${x.preset}`, "plan de nettoyage — inventaire de la cuisine"); });
+    onSave(apercu, zonesLocales);
+  };
+  return (
+    <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
+      <div className="bg-white rounded-2xl p-5 w-full max-w-2xl shadow-xl mt-6 mb-6">
+        <div className="font-semibold text-[var(--ink)] mb-1">Inventaire de ma cuisine</div>
+        <p className="text-xs text-[var(--steel)] mb-4">Indiquez vos zones, puis combien vous avez de chaque appareil (laissez à 0 ce que vous n'avez pas). Le plan de nettoyage est ensuite créé avec les fréquences du guide officiel de bonnes pratiques d'hygiène ; vous pourrez tout adapter tâche par tâche : jours, midi et/ou soir, personne chargée du nettoyage.</p>
+        <div className="mb-5">
+          <p className="text-sm font-semibold text-[var(--ink)] mb-1">1. Vos zones</p>
+          <p className="text-xs text-[var(--steel)] mb-2">Les endroits de votre cuisine, nommés comme vous voulez (ex. Poste chaud, Pâtisserie, Plonge, Réserve…). Facultatif : vous pouvez aussi garder « Toute la cuisine ».</p>
+          <div className="flex flex-wrap gap-2 mb-2">
+            {toutesZones.filter((z) => z !== "Tous").map((z) => <span key={z} className="text-xs font-medium bg-[var(--bg)] border border-[var(--line)] rounded-full px-3 py-1">{z}</span>)}
+          </div>
+          <div className="flex gap-2">
+            <input className={`${inputCls} flex-1`} placeholder="Nom d'une zone" value={nouvelleZone} onChange={(e) => setNouvelleZone(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouterZone(); }} />
+            <Button variant="ghost" onClick={ajouterZone}><Plus size={14} /> Ajouter la zone</Button>
+          </div>
+        </div>
+        <p className="text-sm font-semibold text-[var(--ink)] mb-2">2. Vos appareils et surfaces</p>
+        {catalogue.map((c) => (
+          <div key={c.categorie} className="mb-4">
+            <p className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-1.5">{c.categorie}</p>
+            <ul className="space-y-1">
+              {c.items.map(([nom]) => {
+                const n = nb(c.categorie, nom);
+                return (
+                  <li key={nom} className={`flex flex-wrap items-center gap-2 text-sm rounded-lg px-2 py-1.5 ${n ? "bg-[var(--accent-soft)]" : ""}`}>
+                    <span className="flex-1 min-w-[10rem] text-[var(--ink)]">{nom}</span>
+                    <div className="flex items-center gap-1.5">
+                      <button type="button" onClick={() => changer(c.categorie, nom, -1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none">−</button>
+                      <span className="w-6 text-center font-semibold">{n}</span>
+                      <button type="button" onClick={() => changer(c.categorie, nom, 1)} className="w-8 h-8 rounded-lg border border-[var(--line)] text-lg leading-none">+</button>
+                    </div>
+                    {n > 0 && (
+                      <select className={`${inputCls} text-xs`} value={zoneDe[cle(c.categorie, nom)] || "Tous"} onChange={(e) => setZoneDe((x) => ({ ...x, [cle(c.categorie, nom)]: e.target.value }))}>
+                        {toutesZones.map((z) => <option key={z} value={z}>{libelleZone(z)}</option>)}
+                      </select>
+                    )}
+                  </li>
+                );
+              })}
+            </ul>
+            <div className="flex gap-2 mt-1.5">
+              <input className={`${inputCls} flex-1 text-sm`} placeholder="+ Un appareil qui n'est pas dans la liste (son nom)" value={saisie[c.categorie] || ""} onChange={(e) => setSaisie((x) => ({ ...x, [c.categorie]: e.target.value }))} onKeyDown={(e) => { if (e.key === "Enter") ajouterPerso(c.categorie); }} />
+              <Button variant="ghost" onClick={() => ajouterPerso(c.categorie)}>Ajouter</Button>
+            </div>
+          </div>
+        ))}
+        <p className="text-xs text-[var(--steel)] mb-3">Avec plusieurs exemplaires d'un même appareil, chacun reçoit son numéro (Frigo 1, Frigo 2…) ; vous pourrez ensuite donner à chacun sa propre zone ou sa propre personne avec « Modifier ».</p>
+        <div className="flex items-center justify-between gap-2 border-t border-[var(--line)] pt-3">
+          <span className="text-sm text-[var(--ink)]">{apercu.length} tâche{apercu.length > 1 ? "s" : ""} seront ajoutées à votre plan.</span>
+          <div className="flex gap-2">
+            <Button variant="ghost" onClick={onCancel}>Annuler</Button>
+            <Button onClick={valider} disabled={!apercu.length && !zonesLocales.length}>Ajouter à mon plan</Button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage: zonesStockees, setZonesNettoyage, employees, demandesAjout, signalerAjout }) {
   const zonesNettoyage = [...new Set([...zonesStockees, ...cleaning.map((t) => t.poste || "Tous")])];
   const [infosFicheNettoyage, setInfosFicheNettoyage] = useState(null);
@@ -4456,6 +4587,12 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
     }
     setEditeur(null);
   };
+  const enregistrerInventaire = (taches, zonesNouvelles) => {
+    if (zonesNouvelles.length) setZonesNettoyage([...zonesStockees, ...zonesNouvelles.filter((z) => !zonesStockees.includes(z))]);
+    if (taches.length) setCleaning([...cleaning, ...taches.map((t) => ({ id: uid(), ...t, creeLe: todayISO(), fait: false, date: null, employeeId: null }))]);
+    logActivity("Nettoyage", "Inventaire de la cuisine : plan de nettoyage complété", `${taches.length} tâches`);
+    setEditeur(null);
+  };
   const enregistrerAppareil = (taches) => {
     setCleaning([...cleaning, ...taches.map((t) => ({ id: uid(), ...t, creeLe: todayISO(), fait: false, date: null, employeeId: null }))]);
     logActivity("Nettoyage", "Appareil ajouté au plan de nettoyage", taches.map((t) => t.tache).join(" · "));
@@ -4472,7 +4609,8 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="Bonnes pratiques d'hygiène : boîtes de conserve et planches à découper" />
       {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
       {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage frequenceImposee={editeur.frequence} zones={zonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
-      {editeur && editeur.mode !== "appareil" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} employees={employees} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
+      {editeur && editeur.mode === "inventaire" && <AssistantInventaireNettoyage zones={zonesNettoyage} existantes={cleaning.map((t) => t.tache)} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerInventaire} onCancel={() => setEditeur(null)} />}
+      {editeur && editeur.mode !== "appareil" && editeur.mode !== "inventaire" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} employees={employees} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
       {editable && (
         <Card className="mb-4">
           <p className="text-sm text-[var(--ink)]"><strong>Ce plan est le vôtre.</strong> Rien n'est imposé : vous créez vos zones, vous ajoutez les appareils et surfaces que vous avez vraiment, et pour chacun vous choisissez la fréquence (chaque jour, chaque semaine, 2 semaines, chaque mois), les jours, midi et/ou soir, et qui s'en occupe. Les cuisiniers voient et cochent les tâches ; seuls le responsable et le directeur peuvent modifier le plan.</p>
@@ -4548,16 +4686,19 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
           <p className="text-sm text-[var(--steel)] mb-3">Aucune tâche définie.</p>
           {chargerPlanDepart && (
             <div className="rounded-lg border border-[var(--line)] p-3 bg-[var(--bg)]">
-              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, vous pouvez charger un <strong>plan de départ générique de 23 tâches</strong>, aligné sur le tableau officiel des fréquences du guide de bonnes pratiques d'hygiène du restaurateur (le repère figure dans la note de chaque tâche concernée) : ce qu'on trouve dans toute cuisine, chaque jour, chaque semaine et chaque mois (sol, évacuations, poubelles, plans de travail, plonge, hotte, murs, réserve, chambres froides, congélateurs…), sans appareil précis. <strong>C'est une proposition de départ, pas une liste officielle</strong> : les textes officiels (guide de bonnes pratiques d'hygiène du restaurateur) ne donnent que des fréquences indicatives, et c'est à l'établissement de fixer les siennes selon ses risques. Ensuite, vous ajoutez <strong>vos</strong> appareils (frigos, fours, congélateurs, robots…) avec « Ajouter un appareil », dans vos propres zones, avec la fréquence et la personne de votre choix.</p>
-              <Button onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de nettoyage de départ</Button>
+              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, <strong>faites l'inventaire de votre cuisine</strong> : vous indiquez vos zones, puis combien vous avez de chaque appareil (frigos, congélateurs, cellules, fours…), et le plan est créé avec les fréquences du guide officiel de bonnes pratiques d'hygiène du restaurateur (le repère figure dans la note de chaque tâche). Vous pouvez aussi charger un <strong>plan de départ de 19 tâches communes à toute cuisine</strong> (sols, murs, plans de travail, poubelles, plonge, hotte…). Ce sont des propositions, pas une liste officielle : c'est à l'établissement de fixer ses fréquences selon ses risques.</p>
+              <div className="flex flex-wrap gap-2">
+                <Button onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de nettoyage de départ</Button>
+                <Button variant="ghost" onClick={() => setEditeur({ mode: "inventaire" })}><Plus size={16} /> Faire l'inventaire de ma cuisine</Button>
+              </div>
             </div>
           )}
         </div>
       ) : (
         editable ? (
-          FREQUENCES_NETTOYAGE.filter((f) => ["Quotidienne", "Hebdomadaire", "Mensuelle"].includes(f) || cleaning.some((t) => t.frequence === f)).map((freq) => (
+          FREQUENCES_NETTOYAGE.filter((f) => ["Quotidienne", "Hebdomadaire", "Mensuelle", "Annuelle"].includes(f) || cleaning.some((t) => t.frequence === f)).map((freq) => (
             <div key={freq} className="mb-6 last:mb-0">
-              <h4 className="text-sm font-bold text-[var(--ink)] mb-2">{freq === "Quotidienne" ? "Tâches quotidiennes" : freq === "Hebdomadaire" ? "Tâches hebdomadaires" : freq === "Toutes les 2 semaines" ? "Tâches toutes les 2 semaines" : freq === "Mensuelle" ? "Tâches mensuelles" : freq}</h4>
+              <h4 className="text-sm font-bold text-[var(--ink)] mb-2">{freq === "Quotidienne" ? "Tâches quotidiennes" : freq === "Hebdomadaire" ? "Tâches hebdomadaires" : freq === "Toutes les 2 semaines" ? "Tâches toutes les 2 semaines" : freq === "Mensuelle" ? "Tâches mensuelles" : freq === "Annuelle" ? "Tâches annuelles" : freq}</h4>
               <ul className="space-y-1.5">
                 {cleaning.filter((t) => t.frequence === freq).map((t) => (
                       <li key={t.id}>
@@ -4587,7 +4728,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
                     </li>
                 ))}
               </ul>
-              {["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle"].includes(freq) && (
+              {["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle"].includes(freq) && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   <Button variant="ghost" onClick={() => setEditeur({ id: null, initial: { frequence: freq } })}><Plus size={14} /> Ajouter une tâche ({libelleFrequenceSection(freq)})</Button>
                   <Button variant="ghost" onClick={() => setEditeur({ mode: "appareil", frequence: freq })}><Plus size={14} /> Ajouter un appareil ou une surface ({libelleFrequenceSection(freq)})</Button>
@@ -4644,7 +4785,8 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
 
       {editable && (
         <div className="flex flex-wrap gap-2 pt-3 border-t border-[var(--line)]">
-          <Button onClick={() => setEditeur({ id: null, initial: {} })}><Plus size={16} /> Ajouter une tâche</Button>
+          <Button onClick={() => setEditeur({ mode: "inventaire" })}><Plus size={16} /> Inventaire de ma cuisine (assistant)</Button>
+          <Button variant="ghost" onClick={() => setEditeur({ id: null, initial: {} })}><Plus size={16} /> Ajouter une tâche</Button>
           <Button variant="ghost" onClick={() => setEditeur({ mode: "appareil" })}><Plus size={16} /> Ajouter un appareil ou une surface</Button>
           {cleaning.length > 0 && (confirmerVider
             ? <span className="inline-flex items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Effacer les {cleaning.length} tâches du plan ?</span><Button variant="danger" onClick={() => { setCleaning([]); setConfirmerVider(false); logActivity("Nettoyage", "Plan de nettoyage entièrement effacé", `${cleaning.length} tâches`); }}>Oui, tout effacer</Button><Button variant="ghost" onClick={() => setConfirmerVider(false)}>Non</Button></span>
