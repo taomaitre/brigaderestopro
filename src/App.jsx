@@ -4726,7 +4726,7 @@ function ficheVideInit() {
     allergenes: [], allgConfirm: false,
     procedes: {
       froid: { on: false },
-      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", coeurAutre: false, coeurPerso: "", famille: "general", parametres: {}, controles: { temp: true, duree: true, visuel: false } },
+      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", coeurAutre: false, coeurPerso: "", coeurJustif: "", famille: "general", parametres: {}, controles: { temp: true, duree: true, visuel: false } },
       refroid: { on: false, mode: "cellule", controles: { temp: true, temps: true, bac: false } },
       maintien: { on: false, appareil: "Bain-marie", temp: 63, duree: "", controles: { temp: true } },
       remise: { on: false, appareil: "", cible: 63 },
@@ -4791,7 +4791,7 @@ function haccpRowsFiche(S) {
   if (ingOk.length) rows.push({ etape: "Réception", pointCritique: "Matières premières", aControler: "T° conforme (≤ +4 °C frais, ≤ +2 °C viande hachée), emballage intact, DLC" });
   if (p.froid.on) rows.push({ etape: "Préparation froide", pointCritique: "Chaîne du froid", aControler: "≤ +3 °C, préparée au plus près du service" });
   if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 à +4 °C · DLC J+3 après sortie" : "Cuisson directe depuis le congelé" });
-  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
+  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C${p.cuisson.coeurAutre ? ` — norme personnalisée sous la responsabilité de l'établissement${p.cuisson.coeurJustif ? ` (justification : ${p.cuisson.coeurJustif})` : ""}` : ""}${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
   if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: "+63 °C → +10 °C à cœur en moins de 2 h" + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
   if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C en moins de 4 h 30, étiquette « congelé le … »" });
   if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
@@ -4849,7 +4849,7 @@ function problemesFiche(S) {
   if (p.cuisson.on && p.cuisson.coeurAutre) {
     const v = parseFloat(String(p.cuisson.coeurPerso == null ? "" : p.cuisson.coeurPerso).replace(",", "."));
     if (!Number.isFinite(v)) out.push(["r", "T° à cœur « Autre valeur » non renseignée (étape 3 · Cuisson & températures)."]);
-    else if (v < cuissonSeuilMin(p.cuisson.famille)) out.push(["r", `T° à cœur visée ${v} °C inférieure à la norme officielle +${cuissonSeuilMin(p.cuisson.famille)} °C (étape 3 · Cuisson & températures).`]);
+    else if (!String(p.cuisson.coeurJustif || "").trim()) out.push(["o", "Norme personnalisée : indique comment tu prouves que cette valeur est sûre (étape 3 · Cuisson & températures)."]);
   }
   if (p.cuisson.on && p.cuisson.appareil === "Friteuse") {
     const t = parseFloat(String((p.cuisson.parametres || {}).temperature || "").replace(",", "."));
@@ -5566,30 +5566,30 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   const c = S.procedes.cuisson;
                   const fam = cuissonFamille(c.famille);
                   const perso = !!c.coeurAutre;
-                  const valPerso = parseFloat(String(c.coeurPerso == null ? "" : c.coeurPerso).replace(",", "."));
-                  const sousNorme = perso && Number.isFinite(valPerso) && valPerso < fam.seuil;
                   return (
                     <div className="sm:col-span-2 rounded-lg border border-[var(--line)] p-3">
                       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">T° à cœur visée</div>
-                      <p className="text-xs text-[var(--steel)] mb-2">{fam.note} On peut viser plus haut que la norme, jamais plus bas. Cette valeur sera aussi celle utilisée pour juger la cuisson à l'écran Cuisson.</p>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
-                        <input type="radio" className="mt-0.5" checked={!perso} onChange={() => majProcede("cuisson", { coeurAutre: false, coeurPerso: "" })} />
-                        <span><strong>Norme officielle : ≥ +{fam.seuil} °C à cœur</strong> (automatique, suit la famille choisie)</span>
+                        <input type="radio" className="mt-0.5" checked={!perso} onChange={() => majProcede("cuisson", { coeurAutre: false, coeurPerso: "", coeurJustif: "" })} />
+                        <span><strong>Norme officielle : ≥ +{fam.seuil} °C à cœur</strong><span className="block text-xs text-[var(--steel)]">{fam.note}</span></span>
                       </label>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
-                        <input type="radio" className="mt-0.5" checked={perso} onChange={() => majProcede("cuisson", { coeurAutre: true, coeurPerso: c.coeurPerso || String(fam.seuil) })} />
+                        <input type="radio" className="mt-0.5" checked={perso} onChange={() => majProcede("cuisson", { coeurAutre: true, coeurPerso: c.coeurPerso || "" })} />
                         <span className="flex-1">
-                          <strong>Autre valeur</strong> (plus stricte que la norme)
+                          <strong>Autre</strong> (ma propre norme)
                           {perso && (
-                            <span className="flex items-center gap-2 mt-1.5">
-                              <span>≥ +</span>
-                              <input className={`${inputCls} w-24`} type="number" step="1" min={fam.seuil} value={c.coeurPerso} onChange={(e) => majProcede("cuisson", { coeurPerso: e.target.value })} />
-                              <span>°C</span>
+                            <span className="block mt-1.5">
+                              <span className="flex items-center gap-2">
+                                <span>≥ +</span>
+                                <input className={`${inputCls} w-24`} type="number" step="1" value={c.coeurPerso} onChange={(e) => majProcede("cuisson", { coeurPerso: e.target.value })} />
+                                <span>°C</span>
+                              </span>
+                              <input className={`${inputCls} mt-2`} value={c.coeurJustif || ""} onChange={(e) => majProcede("cuisson", { coeurJustif: e.target.value })} placeholder="Comment prouves-tu que c'est sûr ? (ex. étude de cuisson, couple temps/température, avis du consultant HACCP)" />
+                              <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la norme officielle pour cette fiche et pour l'écran Cuisson. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
                             </span>
                           )}
                         </span>
                       </label>
-                      {sousNorme && <p className="text-xs text-red-600 mt-2">Impossible : {valPerso} °C est en dessous de la norme officielle (+{fam.seuil} °C). Choisis une valeur égale ou plus haute.</p>}
                     </div>
                   );
                 })()}
@@ -6836,22 +6836,21 @@ function EtiquetteCuisson({ c, who }) {
 // officiels, pas une simplification) : la règle générale est 63°C, mais viande hachée et volaille
 // ont des seuils officiels plus élevés. On ne compare donc plus toutes les cuissons au même chiffre.
 const CUISSON_FAMILLES = [
-  { id: "general", label: "Général (légumes, découpes, sauces...)", seuil: 63, note: "Règle générale : +63 °C à cœur (viande en morceau entier, plats, légumes, sauces)." },
-  { id: "viandeHachee", label: "Viande hachée (steak haché, bolognaise, lasagne...)", seuil: 70, note: "Viande hachée : plus élevé car la contamination est répartie dans toute la masse (référence officielle : environ +71 °C à cœur)." },
-  { id: "volaille", label: "Volaille (poulet, dinde...)", seuil: 80, note: "Volaille : choix prudent de la maison (le chiffre officiel n'est précisé que pour la volaille hachée, +74 °C)." },
-  { id: "poisson", label: "Poisson", seuil: 63, note: "Poisson : +63 °C à cœur (la référence officielle accepte aussi des couples temps/température plus bas, la maison garde une valeur simple)." },
-  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Coquillages : +90 °C à cœur pendant au moins 2 minutes (référence officielle)." },
+  { id: "general", label: "Général (viande en morceau entier, légumes, plats, sauces...)", seuil: 63, note: "Norme officielle (barèmes ANSES, GBPH Restaurateur) : +63 °C à cœur." },
+  { id: "viandeHachee", label: "Viande hachée (bœuf, veau, agneau, porc : steak haché, bolognaise, lasagne...)", seuil: 71, note: "Norme officielle (barèmes ANSES) : +71 °C à cœur pendant 15 secondes." },
+  { id: "volaille", label: "Volaille hachée", seuil: 74, note: "Norme officielle (barèmes ANSES) : +74 °C à cœur pendant 15 secondes. Il n'existe pas de valeur officielle chiffrée pour la volaille en morceau entier : utilise « Autre valeur »." },
+  { id: "poisson", label: "Poisson", seuil: 60, note: "Norme officielle (barèmes ANSES) : de 1 minute à +60 °C jusqu'à 15 minutes à +80 °C à cœur (plus la température est basse, plus le temps doit être long)." },
+  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Norme officielle (barèmes ANSES) : +90 °C à cœur pendant 2 minutes." },
 ];
 const cuissonSeuilMin = (familleId) => (CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0]).seuil;
 const cuissonFamille = (familleId) => CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0];
-// Seuil réellement appliqué : la norme de la famille, ou la valeur plus stricte choisie par le chef (« Autre valeur »).
-// Jamais en dessous de la norme.
+// Seuil appliqué : la norme officielle de la famille, ou la valeur choisie par l'établissement (« Autre »),
+// sous sa seule responsabilité (il doit pouvoir prouver que sa méthode est sûre).
 const seuilCuissonPerso = (c) => {
-  const n = cuissonSeuilMin(c && c.famille);
   const p = c && c.coeurAutre ? parseFloat(String(c.coeurPerso == null ? "" : c.coeurPerso).replace(",", ".")) : NaN;
-  return Number.isFinite(p) && p > n ? p : n;
+  return Number.isFinite(p) ? p : cuissonSeuilMin(c && c.famille);
 };
-const seuilCuissonEntree = (c) => Math.max(cuissonSeuilMin(c && c.famille), Number(c && c.seuilPerso) || 0);
+const seuilCuissonEntree = (c) => (c && c.seuilPerso != null && Number.isFinite(Number(c.seuilPerso)) ? Number(c.seuilPerso) : cuissonSeuilMin(c && c.famille));
 const CUISSON_ALERTE_AVANT_MIN = 10;
 
 // Texte de la mesure d'une cuisson terminée : température à cœur, ou « contrôle visuel » quand la fiche
@@ -7034,7 +7033,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
       {enCours.length > 0 && (
         <Card className="mb-6">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Cuissons en cours</h3>
-          <p className="text-xs text-[var(--steel)] mb-3">Le seuil de conformité dépend de la famille du produit (63°C en général, 70°C pour la viande hachée, 80°C pour la volaille — voir la fiche des normes). Entrez la température mesurée pour terminer.</p>
+          <p className="text-xs text-[var(--steel)] mb-3">Le seuil de conformité dépend de la fiche du produit : norme officielle de sa famille (63 °C en général, 71 °C viande hachée, 74 °C volaille hachée…) ou valeur choisie par l'établissement dans la fiche. Entrez la température mesurée pour terminer.</p>
           <div className="space-y-2">
             {enCours.map((c) => {
               const minutes = Math.floor((Date.now() - c.debutTs) / 60000);
