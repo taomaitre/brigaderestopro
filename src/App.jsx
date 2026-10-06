@@ -15500,10 +15500,20 @@ function KitchenApp({ identiteExterne } = {}) {
       {modeExterne && (
         <div className="hidden md:block sticky top-0 z-30 bg-white border-b border-[var(--line)] shadow-sm">
           <div className="flex items-center justify-between gap-4 px-6 py-2.5">
-            <button onClick={switchAccount} title="Changer de compte" className="flex items-center gap-3 min-w-0 text-left">
-              <Avatar nom={moi?.nom} size={40} />
-              <span className="text-lg font-semibold text-[var(--ink)] truncate">{moi?.nom}</span>
-            </button>
+            {typeAppareil === "tablette" ? (
+              <button onClick={switchAccount} className="flex items-center gap-3 min-w-0 text-left group">
+                <Avatar nom={moi?.nom} size={40} />
+                <span className="min-w-0">
+                  <span className="block text-lg font-semibold text-[var(--ink)] truncate leading-tight">{moi?.nom}</span>
+                  <span className="block text-xs text-[var(--steel)] group-hover:text-[var(--accent)]">Changer de compte</span>
+                </span>
+              </button>
+            ) : (
+              <div className="flex items-center gap-3 min-w-0">
+                <Avatar nom={moi?.nom} size={40} />
+                <span className="text-lg font-semibold text-[var(--ink)] truncate">{moi?.nom}</span>
+              </div>
+            )}
             <HorlogeEnTete />
           </div>
           <nav className="flex flex-wrap gap-1 px-4 pb-2.5">
