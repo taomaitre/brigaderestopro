@@ -4121,6 +4121,7 @@ const CATALOGUE_APPAREILS_NETTOYAGE = [
 ];
 const ITEM_LIBRE_NETTOYAGE = "➕ Autre (je saisis le nom)";
 const PRESET_PAR_CATEGORIE_NETTOYAGE = { "Froid et congélation": "frigo", "Cuisson": "four", "Petit matériel": "petit", "Plonge et lavage": "lavage", "Surfaces et locaux": "surface", "Autre": "autre" };
+const libelleFrequenceSection = (f) => (f === "Quotidienne" ? "chaque jour" : f === "Hebdomadaire" ? "chaque semaine" : f === "Toutes les 2 semaines" ? "toutes les 2 semaines" : f === "Mensuelle" ? "chaque mois" : String(f).toLowerCase());
 const libelleZone = (z) => (z === "Tous" || !z ? "Toute la cuisine (commun)" : z);
 const POSITIONS_MOIS = [[1, "1er"], [2, "2e"], [3, "3e"], [4, "4e"], ["dernier", "dernier"]];
 
@@ -4142,7 +4143,7 @@ function ChampsFrequenceNettoyage({ v, maj }) {
   return (
     <>
       <Field label="À quelle fréquence ?">
-        <select className={inputCls} value={v.frequence} onChange={(e) => maj({ frequence: e.target.value, ...(e.target.value === "Toutes les 2 semaines" && !v.semaineRef ? { semaineRef: todayISO() } : {}) })}>
+        <select className={inputCls} value={v.frequence} onChange={(e) => maj({ frequence: e.target.value, ...(e.target.value === "Toutes les 2 semaines" && !v.semaineRef ? { semaineRef: todayISO() } : {}), ...((e.target.value === "Hebdomadaire" || e.target.value === "Toutes les 2 semaines") && !joursDeLaTache(v).length ? { jours: ["Lundi"] } : {}) })}>
           {FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
       </Field>
@@ -4250,7 +4251,7 @@ function ChampsQuiNettoyage({ v, maj, employees }) {
 }
 
 function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCancel }) {
-  const [v, setV] = useState(() => ({ tache: "", poste: "Tous", frequence: "Quotidienne", note: "", ...initial }));
+  const [v, setV] = useState(() => { const x = { tache: "", poste: "Tous", frequence: "Quotidienne", note: "", ...initial }; if ((x.frequence === "Hebdomadaire" || x.frequence === "Toutes les 2 semaines") && !joursDeLaTache(x).length) x.jours = ["Lundi"]; if (x.frequence === "Toutes les 2 semaines" && !x.semaineRef) x.semaineRef = todayISO(); return x; });
   const maj = (p) => setV((x) => ({ ...x, ...p }));
   const enregistrer = () => {
     if (!v.tache.trim()) return;
@@ -4278,7 +4279,15 @@ function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCan
   );
 }
 
-function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandesAjout, signalerAjout }) {
+function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandesAjout, signalerAjout, frequenceImposee }) {
+  const lignesPour = (preset) => {
+    const base = TYPES_APPAREIL_NETTOYAGE[preset].lignes;
+    if (!frequenceImposee) return base.map((l) => ({ ...l, on: true }));
+    const memes = base.filter((l) => l.frequence === frequenceImposee);
+    if (memes.length) return memes.map((l) => ({ ...l, on: true }));
+    const f = frequenceImposee;
+    return [{ suffixe: "nettoyage", frequence: f, moments: ["soir"], note: base[0].note, ...(f === "Hebdomadaire" || f === "Toutes les 2 semaines" ? { jours: ["Mardi"] } : {}), ...(f === "Mensuelle" ? { jourSemaineMois: "Dimanche", positionMois: 1 } : {}), on: true }];
+  };
   // Catalogue = liste de base + appareils déjà ajoutés par cet établissement (ils sont aussi signalés à l'éditeur du logiciel).
   const catalogue = CATALOGUE_APPAREILS_NETTOYAGE.map((c) => {
     const base = c.items.filter((it) => it[0] !== ITEM_LIBRE_NETTOYAGE);
@@ -4298,9 +4307,9 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
   const reglage = (k) => (memes ? unites[0] : unites[k]);
   const modeDe = (r) => r.assigneA || "tous";
   const nomUnite = (k) => (!memes && unites[k].nomPerso.trim() ? unites[k].nomPerso.trim() : nombre > 1 ? `${nom.trim()} ${k + 1}` : nom.trim());
-  const [lignes, setLignes] = useState(() => TYPES_APPAREIL_NETTOYAGE[catalogue[0].items[0][1]].lignes.map((l) => ({ ...l, on: true })));
+  const [lignes, setLignes] = useState(() => lignesPour(catalogue[0].items[0][1]));
   const estLibre = (item) => item[0] === ITEM_LIBRE_NETTOYAGE || item[0].startsWith("Autre (");
-  const choisir = (item) => { setChoix(item); setNom(estLibre(item) ? "" : item[0]); setLignes(TYPES_APPAREIL_NETTOYAGE[item[1]].lignes.map((l) => ({ ...l, on: true }))); };
+  const choisir = (item) => { setChoix(item); setNom(estLibre(item) ? "" : item[0]); setLignes(lignesPour(item[1])); };
   const changerCategorie = (c) => { setCategorie(c); choisir(catalogue.find((x) => x.categorie === c).items[0]); };
   const majLigne = (i, p) => setLignes((arr) => arr.map((l, idx) => (idx === i ? { ...l, ...p } : l)));
   const exemplaires = Array.from({ length: nombre }, (_, k) => k);
@@ -4317,7 +4326,7 @@ function EditeurAppareilNettoyage({ zones, employees, onSave, onCancel, demandes
   return (
     <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
       <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl mt-10">
-        <div className="font-semibold text-[var(--ink)] mb-1">Ajouter un appareil ou une surface à nettoyer</div>
+        <div className="font-semibold text-[var(--ink)] mb-1">Ajouter un appareil ou une surface à nettoyer{frequenceImposee ? ` — ${libelleFrequenceSection(frequenceImposee)}` : ""}</div>
         <p className="text-xs text-[var(--steel)] mb-3">Choisissez ce qui existe dans votre cuisine : nous proposons les nettoyages habituels (ex. un frigo : portes et intérieur chaque jour, nettoyage complet chaque semaine). Tout est modifiable : fréquence, jours, midi et/ou soir, personne chargée du nettoyage.</p>
         <div className="space-y-3">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -4458,7 +4467,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       <BoutonInfosNormes ficheKey="lavageLegumes" onClick={setInfosFicheNettoyage} label="Protocole de lavage des fruits et légumes" />
       <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="Bonnes pratiques d'hygiène : boîtes de conserve et planches à découper" />
       {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
-      {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage zones={zonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
+      {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage frequenceImposee={editeur.frequence} zones={zonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
       {editeur && editeur.mode !== "appareil" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} employees={employees} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
       {editable && (
         <Card className="mb-4">
@@ -4535,15 +4544,15 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
           <p className="text-sm text-[var(--steel)] mb-3">Aucune tâche définie.</p>
           {chargerPlanDepart && (
             <div className="rounded-lg border border-[var(--line)] p-3 bg-[var(--bg)]">
-              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, vous pouvez charger un <strong>plan de départ très court</strong> : seulement ce qu'on trouve dans toute cuisine (sol, évacuations, poubelles, plans de travail, plonge, hotte, murs). Ensuite, vous ajoutez <strong>vos</strong> appareils (frigos, fours, congélateurs, robots…) avec « Ajouter un appareil », dans vos propres zones, avec la fréquence et la personne de votre choix.</p>
+              <p className="text-sm text-[var(--ink)] mb-2">Pour démarrer, vous pouvez charger un <strong>plan de départ générique de 23 tâches</strong> : ce qu'on trouve dans toute cuisine, chaque jour, chaque semaine et chaque mois (sol, évacuations, poubelles, plans de travail, plonge, hotte, murs, réserve, chambres froides, congélateurs…), sans appareil précis. Ensuite, vous ajoutez <strong>vos</strong> appareils (frigos, fours, congélateurs, robots…) avec « Ajouter un appareil », dans vos propres zones, avec la fréquence et la personne de votre choix.</p>
               <Button onClick={chargerPlanDepart}><Plus size={16} /> Charger le plan de nettoyage de départ</Button>
             </div>
           )}
         </div>
       ) : (
         editable ? (
-          FREQUENCES_NETTOYAGE.filter((f) => cleaning.some((t) => t.frequence === f)).map((freq) => (
-            <div key={freq} className="mb-5 last:mb-0">
+          FREQUENCES_NETTOYAGE.filter((f) => ["Quotidienne", "Hebdomadaire", "Mensuelle"].includes(f) || cleaning.some((t) => t.frequence === f)).map((freq) => (
+            <div key={freq} className="mb-6 last:mb-0">
               <h4 className="text-sm font-bold text-[var(--ink)] mb-2">{freq === "Quotidienne" ? "Tâches quotidiennes" : freq === "Hebdomadaire" ? "Tâches hebdomadaires" : freq === "Toutes les 2 semaines" ? "Tâches toutes les 2 semaines" : freq === "Mensuelle" ? "Tâches mensuelles" : freq}</h4>
               <ul className="space-y-1.5">
                 {cleaning.filter((t) => t.frequence === freq).map((t) => (
@@ -4574,6 +4583,12 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
                     </li>
                 ))}
               </ul>
+              {["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle"].includes(freq) && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  <Button variant="ghost" onClick={() => setEditeur({ id: null, initial: { frequence: freq } })}><Plus size={14} /> Ajouter une tâche ({libelleFrequenceSection(freq)})</Button>
+                  <Button variant="ghost" onClick={() => setEditeur({ mode: "appareil", frequence: freq })}><Plus size={14} /> Ajouter un appareil ou une surface ({libelleFrequenceSection(freq)})</Button>
+                </div>
+              )}
             </div>
           ))
         ) : zonesNettoyage.filter((p) => parPoste[p]).map((poste) => {
