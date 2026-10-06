@@ -370,16 +370,21 @@ const NAV = [
   { id: "reception", label: "Réception des marchandises", icon: Truck },
   { id: "etiquettes", label: "Étiquettes (DLC)", icon: Printer },
   { id: "tracabilite", label: "Traçabilité", icon: Camera },
+  { id: "haccp", label: "HACCP", icon: Thermometer },
+  { id: "fiches", label: "Fiches techniques", icon: BookOpen },
+  { id: "controle", label: "Contrôle & Gestion", icon: ClipboardCheck, chefOnly: true },
+];
+
+// Les cinq contrôles HACCP sont regroupés derrière une seule icône « HACCP » (menu de tuiles).
+const NAV_HACCP = [
   { id: "haccpTemp", label: "Températures frigos et congélateurs", icon: Thermometer },
   { id: "haccpRefroid", label: "Refroidissement rapide (cellule)", icon: Snowflake },
   { id: "haccpHuile", label: "Huile de friture", icon: Droplets },
   { id: "haccpChaud", label: "Gestion du maintien au chaud", icon: Soup },
   { id: "haccpCuisson", label: "Cuissons", icon: Flame },
-  { id: "fiches", label: "Fiches techniques", icon: BookOpen },
-  { id: "controle", label: "Contrôle & Gestion", icon: ClipboardCheck, chefOnly: true },
 ];
-
 const TUILE_COULEURS = {
+  haccp: { fond: "linear-gradient(160deg, #2E86D6 0%, #1B5FA8 100%)", ombre: "rgba(27,95,168,0.35)" },
   taches: { fond: "linear-gradient(160deg, #2F6B4F 0%, #1F4D38 100%)", ombre: "rgba(31,77,56,0.35)" },
   stock: { fond: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)", ombre: "rgba(217,105,26,0.35)" },
   reception: { fond: "linear-gradient(160deg, #2E86D6 0%, #1B5FA8 100%)", ombre: "rgba(27,95,168,0.35)" },
@@ -407,7 +412,7 @@ const FICHES_TUILES = [
 // Planning / DLC et étiquettes, Traçabilité / Réception des marchandises,
 // Stock / Température, Refroidissement rapide / Huile de friture,
 // Maintien au chaud / Cuisson, Fiches techniques / Contrôle.
-const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccpTemp", "haccpRefroid", "haccpHuile", "haccpChaud", "haccpCuisson", "fiches", "controle"];
+const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccp", "fiches", "controle"];
 
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 
@@ -17327,7 +17332,7 @@ function KitchenApp({ identiteExterne } = {}) {
       return `Maintien au chaud de « ${fiche.nom} » ouvert — reste à relever la température.`;
     }
 
-    if (action === "naviguer" && NAV.some((n) => n.id === cible)) {
+    if (action === "naviguer" && (NAV.some((n) => n.id === cible) || NAV_HACCP.some((n) => n.id === cible))) {
       setTab(cible);
       return "C'est fait.";
     }
@@ -17557,14 +17562,14 @@ function KitchenApp({ identiteExterne } = {}) {
             )}
             <HorlogeEnTete />
           </div>
-          <nav className="grid gap-1.5 px-4 pb-2" style={{ gridTemplateColumns: "5rem repeat(6, minmax(0, 1fr))", gridTemplateRows: "repeat(2, 2.25rem)" }}>
+          <nav className="grid gap-1.5 px-4 pb-2" style={{ gridTemplateColumns: `5rem repeat(${Math.max(1, Math.ceil(navItems.length / 2))}, minmax(0, 1fr))`, gridTemplateRows: "repeat(2, 2.25rem)" }}>
             <button onClick={() => setTab("accueil")} style={{ gridRow: "span 2" }}
               className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 text-xs font-bold transition-colors ${tab === "accueil" ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
               <ChefHat size={24} />Accueil
             </button>
             {navItems.map((n) => (
               <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
-                className={`relative flex items-center justify-center gap-1.5 px-2 rounded-lg border-2 text-[11px] font-semibold leading-[1.1] text-left transition-colors ${tab === n.id ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
+                className={`relative flex items-center justify-center gap-1.5 px-2 rounded-lg border-2 text-[11px] font-semibold leading-[1.1] text-left transition-colors ${(tab === n.id || (n.id === "haccp" && NAV_HACCP.some((x) => x.id === tab))) ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
                 <n.icon size={15} className="shrink-0" />
                 <span className="line-clamp-2 min-w-0">{n.label}</span>
                 {badges[n.id] > 0 && (
@@ -17686,6 +17691,26 @@ function KitchenApp({ identiteExterne } = {}) {
                 })}
             </div>
           </div>
+        )}
+        {tab === "haccp" && (
+          <div>
+            <SectionHeader title="HACCP" subtitle="Les contrôles de sécurité alimentaire de la cuisine" />
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+              {NAV_HACCP.map((n) => {
+                const couleur = TUILE_COULEURS[n.id] || TUILE_COULEURS.default; const Icon = n.icon;
+                return (
+                  <button key={n.id} onClick={() => setTab(n.id)} style={{ background: couleur.fond, boxShadow: `0 8px 20px ${couleur.ombre}` }}
+                    className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[95px] px-2 text-center active:scale-95 transition-transform">
+                    <Icon size={32} color="#ffffff" strokeWidth={2} />
+                    <span className="text-sm font-bold text-white leading-tight line-clamp-2">{n.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        )}
+        {NAV_HACCP.some((n) => n.id === tab) && (
+          <div className="mb-4"><button onClick={() => setTab("haccp")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white"><ChevronLeft size={14} />Retour HACCP</button></div>
         )}
         {tab === "taches" && (
           <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} />
