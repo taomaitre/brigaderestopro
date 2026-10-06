@@ -5895,7 +5895,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       </Card>
 
       {/* Réglages de l'établissement */}
-      <details className="mb-5 bg-white border border-[var(--line)] rounded-xl">
+      <details open={avecModes ? true : undefined} className="mb-5 bg-white border border-[var(--line)] rounded-xl">
         <summary className="px-5 py-3.5 cursor-pointer font-semibold text-[var(--ink)] text-sm">Réglages de l'établissement <span className="font-normal text-[var(--steel)]">— débloquent le procédé congélation</span></summary>
         <div className="px-5 pb-4 space-y-2.5">
           <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong>{avecModes ? "" : " — modifiable dans Contrôle & Gestion → Déclaration TIAC."}</p>
