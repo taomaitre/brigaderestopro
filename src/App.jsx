@@ -7512,7 +7512,12 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const majCarte = (patch) => setCartes(cartes.map((c) => (c.id === carte.id ? { ...c, ...patch } : c)));
   const quantites = (carte && carte.quantites) || {};
   const majQuantite = (id, jour, v) => majCarte({ quantites: { ...quantites, [id]: { ...(quantites[id] || {}), [jour]: v } } });
-  const basculer = (id) => majCarte({ plats: idsCarte.includes(id) ? idsCarte.filter((x) => x !== id) : [...idsCarte, id] });
+  const datesAjout = (carte && carte.datesAjout) || {};
+  const marquerAjout = (ids) => { const o = { ...datesAjout }; ids.forEach((i) => { if (!idsCarte.includes(i)) o[i] = aujourdhui; }); return o; };
+  const basculer = (id) => majCarte(idsCarte.includes(id) ? { plats: idsCarte.filter((x) => x !== id) } : { plats: [...idsCarte, id], datesAjout: marquerAjout([id]) });
+  // Plat « nouveau » : absent de la carte précédente (cartes périodiques) ou ajouté depuis moins de 7 jours.
+  const precedenteCarte = [...triees].filter((c) => c.id !== (carte && carte.id) && (c.debut || "") < ((carte && carte.debut) || "")).pop() || null;
+  const estNouveau = (id) => { const a = datesAjout[id]; if (a && a >= addDays(aujourdhui, -7)) return true; return !!(periodique && precedenteCarte && !(precedenteCarte.plats || []).includes(id) && !a); };
   const choisirType = (t) => {
     const base = periodeCarte(t, aujourdhui);
     const nouvelle = { id: uid(), typeCarte: t, plats: [], ...base };
@@ -7598,7 +7603,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                   <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
                     <p className="text-sm font-semibold text-[var(--ink)]">{categorieOuverte} — cochez les plats de cette carte</p>
                     <div className="flex gap-3 text-sm">
-                      <button type="button" className="text-[var(--accent)] underline" onClick={() => { const ids = plats.filter((f) => f.categorie === categorieOuverte).map((f) => f.id); majCarte({ plats: [...new Set([...idsCarte, ...ids])] }); }}>Tout cocher</button>
+                      <button type="button" className="text-[var(--accent)] underline" onClick={() => { const ids = plats.filter((f) => f.categorie === categorieOuverte).map((f) => f.id); majCarte({ plats: [...new Set([...idsCarte, ...ids])], datesAjout: marquerAjout(ids) }); }}>Tout cocher</button>
                       <button type="button" className="text-[var(--steel)] underline" onClick={() => { const ids = plats.filter((f) => f.categorie === categorieOuverte).map((f) => f.id); majCarte({ plats: idsCarte.filter((x) => !ids.includes(x)) }); }}>Tout décocher</button>
                     </div>
                   </div>
@@ -7666,8 +7671,10 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
               );
             }
             const idxJ = JOURS.indexOf(jourDetail); const dateJ = addDays(todayISO(), (idxJ - ((new Date().getDay() + 6) % 7) + 7) % 7);
-            const restesJour = (carte.restes || {})[dateJ] || {};
+            const restesSaisis = (carte.restes || {})[dateJ] || {};
             const platsDuJour = idsCarte.filter((id) => nbCarte(quantites[id] && quantites[id][jourDetail]) > 0);
+            const nouveauxJour = platsDuJour.filter(estNouveau);
+            const restesJour = Object.fromEntries(Object.entries(restesSaisis).filter(([id]) => !nouveauxJour.includes(id)));
             const { groupes, sansRendement } = calculerPreparationsCarte(carte, fiches, jourDetail, restesJour);
             const postes = Object.keys(groupes).sort((a, b) => a.localeCompare(b, "fr"));
             return (
@@ -7685,12 +7692,18 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                   const total = l.reduce((t, r) => t + (Number(r.personnes) || 0), 0);
                   return <p className="text-sm text-[var(--ink)] bg-white border border-[var(--cadre)] rounded-lg px-3 py-2 mb-3">Réservations déjà enregistrées {ecart === 0 ? "aujourd'hui" : `le ${fmtShort(d)}`} : <b>{l.length ? `${l.length} réservation${l.length > 1 ? "s" : ""}, ${total} personnes` : "aucune"}</b> — à prendre en compte pour vos quantités (les clients sans réservation ne sont pas comptés).</p>;
                 })()}
-                {platsDuJour.length > 0 && (
+                {nouveauxJour.length > 0 && (
+                  <div className="border-2 border-[var(--accent)] bg-white rounded-lg p-3 mb-3">
+                    <p className="text-sm font-bold text-[var(--accent)] mb-1">Nouveau{nouveauxJour.length > 1 ? "x" : ""} plat{nouveauxJour.length > 1 ? "s" : ""} de la carte</p>
+                    <ul className="text-sm text-[var(--ink)]">{nouveauxJour.map((id) => <li key={id}>• <b>{nomDe(id)}</b> : {quantites[id][jourDetail]} portions à préparer {dateJ === aujourdhui ? "aujourd'hui" : `pour le ${fmtShort(dateJ)}`} (rien en stock, plat jamais produit)</li>)}</ul>
+                  </div>
+                )}
+                {platsDuJour.filter((id) => !estNouveau(id)).length > 0 && (
                   <div className="bg-white border border-[var(--cadre)] rounded-lg p-3 mb-3">
                     <p className="text-sm font-semibold text-[var(--ink)] mb-1">Ce qu'il vous reste en stock (de la veille)</p>
                     <p className="text-xs text-[var(--steel)] mb-2">Indiquez le nombre de portions déjà prêtes : elles sont retirées de ce qu'il faut produire pour le {fmtShort(dateJ)}.</p>
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {platsDuJour.map((id) => (
+                      {platsDuJour.filter((id) => !estNouveau(id)).map((id) => (
                         <div key={id} className="flex items-center justify-between gap-2 text-sm text-[var(--ink)]">
                           <span className="flex-1 min-w-0">{nomDe(id)} <span className="text-[var(--steel)]">(à avoir : {quantites[id][jourDetail]})</span></span>
                           <ChampTexteDiffere value={restesJour[id] || ""} onCommit={(v) => majCarte({ restes: { ...(carte.restes || {}), [dateJ]: { ...restesJour, [id]: v.trim() } } })} className={`${champNet} !w-20`} inputMode="numeric" placeholder="0" />
