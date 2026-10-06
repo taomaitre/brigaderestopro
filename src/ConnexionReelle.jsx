@@ -218,6 +218,9 @@ export default function ConnexionReelle() {
 
   // ---- Températures du froid (appareils, relevés, surveillances) : nouvelle base ----
   const [listesFroid, setListesFroid] = useState(null);
+  // Réglages de l'établissement (nom, cellule de refroidissement, congélation décrite au PMS) et listes « Autre » (demandes d'ajout).
+  const [reglagesEtab, setReglagesEtab] = useState(null);
+  const [demandesAjoutListe, setDemandesAjoutListe] = useState([]);
 
   const EST_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
   const dateLocale = (iso) => {
@@ -487,8 +490,26 @@ export default function ConnexionReelle() {
     };
   }
 
+  async function chargerReglagesEtab() {
+    try {
+      const [re, rd] = await Promise.all([
+        supabasePublic.from("etablissements").select("nom, congelation_decrite_pms, dispose_cellule_refroidissement").eq("id", session.etablissement.id).maybeSingle(),
+        supabasePublic.from("demandes_ajout").select("type, valeur").eq("etablissement_id", session.etablissement.id).order("cree_le", { ascending: true }),
+      ]);
+      if (re.data) setReglagesEtab({ nom: re.data.nom || "", congelPms: !!re.data.congelation_decrite_pms, cellule: !!re.data.dispose_cellule_refroidissement });
+      if (rd.data) setDemandesAjoutListe(rd.data);
+    } catch (e) { console.error("Réglages de l'établissement non chargés :", e); }
+  }
+  async function enregistrerReglageEtab(champ, valeur) {
+    const colonne = champ === "congelPms" ? "congelation_decrite_pms" : "dispose_cellule_refroidissement";
+    setReglagesEtab((r) => (r ? { ...r, [champ]: !!valeur } : r));
+    const { error } = await supabasePublic.from("etablissements").update({ [colonne]: !!valeur }).eq("id", session.etablissement.id);
+    if (error) { console.error("Réglage non enregistré :", error); chargerReglagesEtab(); }
+  }
+
   // Demande d'ajout à la liste de l'éditeur (ex. appareil de cuisson saisi à la main) : enregistrée pour être traitée lors d'une mise à jour.
   async function signalerAjout(type, valeur, contexte) {
+    setDemandesAjoutListe((l) => [...l, { type, valeur }]); // visible tout de suite dans les listes de l'établissement
     try {
       const { error } = await supabasePublic.from("demandes_ajout").insert({
         etablissement_id: session.etablissement.id, type, valeur, contexte: contexte || null,
@@ -753,6 +774,7 @@ export default function ConnexionReelle() {
       chargerEquipe(session.token, estChefOuDirecteur(data.employe.role) ? code : null);
       chargerCatalogue();
       chargerListesFroid();
+      chargerReglagesEtab();
     } catch (e2) {
       setErreur("Code incorrect, ou pas encore attribué.");
       setCode("");
@@ -781,6 +803,8 @@ export default function ConnexionReelle() {
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
       gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
       signalerAjout,
+      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab } : undefined,
+      demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,
       gestionListes: listesFroid ? {

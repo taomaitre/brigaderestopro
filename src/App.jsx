@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE } from './listesEquipe.js';
+import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
 
 /* ======================================================================================
    CONFIGURATION — clé API IA (Anthropic / Claude)
@@ -2284,7 +2285,7 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
   );
 }
 
-function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue }) {
+function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -2957,6 +2958,11 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
             allergenesProduits={allergenesProduits}
             allergenesStandard={allergenesStandard}
             avecModes={!!stockCatalogue}
+            reglagesEtablissement={reglagesEtablissement}
+            demandesAjout={demandesAjout}
+            signalerAjout={signalerAjout}
+            gestionCatalogue={gestionCatalogue}
+            fournisseursCatalogue={fournisseursCatalogue}
             estChef={!!(employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction")}
           />
         </div>
@@ -4150,6 +4156,7 @@ function ProtocolesNettoyage({ protocoles, setProtocoles, logActivity }) {
 const ORDRE_CATEGORIES_FICHES = [
   "Partagé", "Salade", "Plat", "Base", "Sauce",
   "Burger", "Burger du mois", "Pizza", "Pizza du mois", "Dessert",
+  "Entrée", "Potage / Soupe", "Poisson", "Viande", "Légume / Accompagnement", "Fromage", "Boisson",
 ];
 
 function classeGroupeFiche(f) {
@@ -4559,7 +4566,7 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fichesFiltrees]);
 
-  const categoriesPresentes = ORDRE_CATEGORIES_FICHES.filter((c) => groupes[c]?.length);
+  const categoriesPresentes = [...ORDRE_CATEGORIES_FICHES.filter((c) => groupes[c]?.length), ...Object.keys(groupes).filter((c) => !ORDRE_CATEGORIES_FICHES.includes(c) && groupes[c]?.length).sort((a, b) => a.localeCompare(b, "fr"))];
   const categoriesAffichees = categorieFiltre ? [categorieFiltre] : categoriesPresentes;
 
   if (edition && editionProps) {
@@ -4680,14 +4687,15 @@ function ficheVersFormulaire(f, mode) {
   } else {
     n = base;
     n.nom = f.nom || ""; n.sousTitre = f.sousTitre || ""; n.categorie = f.categorie || "";
-    if (n.categorie && !CATEGORIES_FICHE_TECHNIQUE.some((c) => c[0] === n.categorie)) { n.catAutre = n.categorie; n.categorie = "__autre"; }
+    if (n.categorie && !CATEGORIES_FICHE_TECHNIQUE.some((c) => c[0] === n.categorie) && !CATEGORIES_FICHE_GENERALES.some((c) => c[0] === n.categorie)) { n.catAutre = n.categorie; n.categorie = "__autre"; }
     n.poste = f.poste || ""; n.type = f.type || "recette"; n.badge = f.rendementCourt || "";
     if ((f.ingredients || []).length) n.ingredients = f.ingredients.map((i) => ({ nom: i.nom || "", qte: String(i.quantite ?? ""), unite: i.unite || "g", lienType: i.lienType || null, lienId: i.lienId || null }));
     n.allergenes = [...(f.allergenes || [])]; n.allgConfirm = true;
     Object.keys(base.procedes).forEach((k) => { n.procedes[k] = { ...base.procedes[k], ...((f.procedes || {})[k] || {}) }; });
     const mat = f.materiel || [];
-    n.appareils = mat.filter((x) => BASE_APPAREILS_FICHE.includes(x));
-    n.ustensiles = mat.filter((x) => BASE_USTENSILES_FICHE.includes(x) && !BASE_APPAREILS_FICHE.includes(x));
+    const tousAppareils = [...BASE_APPAREILS_FICHE, ...APPAREILS_CUISSON_GENERAUX];
+    n.appareils = mat.filter((x) => tousAppareils.includes(x));
+    n.ustensiles = mat.filter((x) => (BASE_USTENSILES_FICHE.includes(x) || USTENSILES_GENERAUX.includes(x)) && !tousAppareils.includes(x));
     n.materiel = mat.filter((x) => !n.appareils.includes(x) && !n.ustensiles.includes(x));
     if ((f.preparation || []).length) n.etapes = f.preparation.map((e) => ({ titre: e.titre || "", texte: e.description || "", crit: e.pointCritique || "" }));
     n.consignes = (f.consignesImportantes || []).join("\n");
@@ -4718,7 +4726,7 @@ function ficheVideInit() {
     allergenes: [], allgConfirm: false,
     procedes: {
       froid: { on: false },
-      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", famille: "general", controles: { temp: true, duree: true, visuel: false } },
+      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", famille: "general", parametres: {}, controles: { temp: true, duree: true, visuel: false } },
       refroid: { on: false, mode: "cellule", controles: { temp: true, temps: true, bac: false } },
       maintien: { on: false, appareil: "Bain-marie", temp: 63, duree: "", controles: { temp: true } },
       remise: { on: false, appareil: "", cible: 63 },
@@ -4740,7 +4748,7 @@ function normaliserCode(s) {
 }
 function codeCategorieFiche(categorie, catAutre, customCats) {
   if (categorie === "__autre") return normaliserCode(catAutre).slice(0, 8) || "AUTRE";
-  const trouve = CATEGORIES_FICHE_TECHNIQUE.find((c) => c[0] === categorie) || (customCats || []).find((c) => c[0] === categorie);
+  const trouve = CATEGORIES_FICHE_TECHNIQUE.find((c) => c[0] === categorie) || CATEGORIES_FICHE_GENERALES.find((c) => c[0] === categorie) || (customCats || []).find((c) => c[0] === categorie);
   return trouve ? trouve[1] : "";
 }
 // Position alphabétique (française) dans la catégorie — recalculée à chaque rendu, donc toujours
@@ -4783,7 +4791,7 @@ function haccpRowsFiche(S) {
   if (ingOk.length) rows.push({ etape: "Réception", pointCritique: "Matières premières", aControler: "T° conforme (≤ +4 °C frais, ≤ +2 °C viande hachée), emballage intact, DLC" });
   if (p.froid.on) rows.push({ etape: "Préparation froide", pointCritique: "Chaîne du froid", aControler: "≤ +3 °C, préparée au plus près du service" });
   if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 à +4 °C · DLC J+3 après sortie" : "Cuisson directe depuis le congelé" });
-  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${cuissonSeuilMin(p.cuisson.famille)} °C${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}` });
+  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${cuissonSeuilMin(p.cuisson.famille)} °C${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
   if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: "+63 °C → +10 °C à cœur en moins de 2 h" + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
   if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C en moins de 4 h 30, étiquette « congelé le … »" });
   if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
@@ -4973,8 +4981,9 @@ function ChipsCategorie({ options, customOptions, value, onChange, onAjouterAutr
   );
 }
 
-function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selected, onToggle }) {
+function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selected, onToggle, avecRecherche }) {
   const [autre, setAutre] = useState("");
+  const [filtre, setFiltre] = useState("");
   const toutes = [...baseOptions, ...customOptions.filter((o) => !baseOptions.includes(o))];
   selected.forEach((s) => { if (!toutes.includes(s)) toutes.push(s); });
   const ajouterAutre = () => {
@@ -4987,8 +4996,11 @@ function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selec
   return (
     <div>
       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{label}</div>
+      {avecRecherche && toutes.length > 10 && (
+        <input className={`${inputCls} max-w-sm mb-2`} placeholder="Rechercher dans la liste…" value={filtre} onChange={(e) => setFiltre(e.target.value)} />
+      )}
       <div className="flex flex-wrap gap-2 mb-2">
-        {toutes.map((o) => {
+        {toutes.filter((o) => !filtre.trim() || selected.includes(o) || normaliserRechercheFiche(o).includes(normaliserRechercheFiche(filtre))).map((o) => {
           const estCustom = !baseOptions.includes(o);
           const actif = selected.includes(o);
           return (
@@ -5007,7 +5019,7 @@ function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selec
   );
 }
 
-function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard, avecModes, ficheInitiale, modeEdition, onTermine }) {
+function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard, avecModes, ficheInitiale, modeEdition, onTermine, reglagesEtablissement, demandesAjout, signalerAjout, gestionCatalogue, fournisseursCatalogue }) {
   const [S, setS] = useState(() => (ficheInitiale ? ficheVersFormulaire(ficheInitiale, modeEdition) : ficheVideInit()));
   const modifier = !!ficheInitiale && modeEdition === "modifier";
   // Nouvelle version : les postes sont ceux de l'équipe (src/listesEquipe.js), pour que le poste d'une fiche
@@ -5021,13 +5033,41 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   // Mode simple (l'essentiel, guidé) ou expert (tous les champs). Même fiche enregistrée dans les deux cas.
   const [modeFiche, setModeFiche] = useState(avecModes ? "simple" : "expert");
 
-  const [etablissementNom] = useStored("tiac-etablissement-nom", "Games Factory Salaise");
-  const [congelPms, setCongelPms] = useStored("ft-reglage-congel-pms", false);
-  const [celluleDispo, setCelluleDispo] = useStored("ft-reglage-cellule", true);
-  const [customCategories, setCustomCategories] = useStored("ft-categories-perso", []);
-  const [customAppareils, setCustomAppareils] = useStored("ft-appareils-perso", []);
-  const [customMateriel, setCustomMateriel] = useStored("ft-materiel-perso", []);
-  const [customUstensiles, setCustomUstensiles] = useStored("ft-ustensiles-perso", []);
+  // Ancienne version : réglages et listes « Autre » dans l'ancien stockage, comme avant.
+  // Nouvelle version : réglages de l'établissement dans la base, listes « Autre » = demandes d'ajout de l'établissement.
+  const [nomStocke] = useStored("tiac-etablissement-nom", "Games Factory Salaise");
+  const [congelStocke, setCongelStocke] = useStored("ft-reglage-congel-pms", false);
+  const [celluleStocke, setCelluleStocke] = useStored("ft-reglage-cellule", true);
+  const [catStockees, setCatStockees] = useStored("ft-categories-perso", []);
+  const [appStockes, setAppStockes] = useStored("ft-appareils-perso", []);
+  const [matStocke, setMatStocke] = useStored("ft-materiel-perso", []);
+  const [ustStockes, setUstStockes] = useStored("ft-ustensiles-perso", []);
+  const etablissementNom = avecModes ? ((reglagesEtablissement && reglagesEtablissement.nom) || "") : nomStocke;
+  const congelPms = avecModes ? !!(reglagesEtablissement && reglagesEtablissement.congelPms) : congelStocke;
+  const celluleDispo = avecModes ? !!(reglagesEtablissement && reglagesEtablissement.cellule) : celluleStocke;
+  const setCongelPms = (v) => { if (avecModes) { if (reglagesEtablissement) reglagesEtablissement.enregistrer("congelPms", v); } else setCongelStocke(v); };
+  const setCelluleDispo = (v) => { if (avecModes) { if (reglagesEtablissement) reglagesEtablissement.enregistrer("cellule", v); } else setCelluleStocke(v); };
+  const listeCategories = avecModes ? CATEGORIES_FICHE_GENERALES : CATEGORIES_FICHE_TECHNIQUE;
+  const listeAppareils = avecModes ? APPAREILS_CUISSON_GENERAUX : BASE_APPAREILS_FICHE;
+  const listeAppareilsMaintien = avecModes ? APPAREILS_MAINTIEN_GENERAUX : ["Bain-marie", "Étuve / armoire chaude", "Vitrine chauffante", "Four mixte (Rational)", "Lampe chauffante"];
+  const listeMateriel = avecModes ? MATERIEL_GENERAL : BASE_MATERIEL_FICHE;
+  const listeUstensiles = avecModes ? USTENSILES_GENERAUX : BASE_USTENSILES_FICHE;
+  const valeursDemandees = (t) => [...new Set((demandesAjout || []).filter((d) => d.type === t).map((d) => d.valeur))];
+  const customCategories = avecModes ? valeursDemandees("categorie_fiche").filter((v) => !listeCategories.some((c) => c[0] === v)).map((v) => [v, normaliserCode(v).slice(0, 8) || "AUTRE"]) : catStockees;
+  const customAppareils = avecModes ? valeursDemandees("appareil_cuisson").filter((v) => !listeAppareils.includes(v)) : appStockes;
+  const customMateriel = avecModes ? valeursDemandees("materiel").filter((v) => !listeMateriel.includes(v)) : matStocke;
+  const customUstensiles = avecModes ? valeursDemandees("ustensile").filter((v) => !listeUstensiles.includes(v)) : ustStockes;
+  // Un « Autre » saisi : ancienne version = mémorisé dans le navigateur ; nouvelle version = demande d'ajout enregistrée pour l'établissement et signalée à l'éditeur.
+  const ajoutAutre = (type, setStocke) => (nouvelleListe) => {
+    if (!avecModes) { setStocke(nouvelleListe); return; }
+    const dernier = nouvelleListe[nouvelleListe.length - 1];
+    const valeur = Array.isArray(dernier) ? dernier[0] : dernier;
+    if (valeur && signalerAjout) signalerAjout(type, valeur, `fiche technique : ${(S.nom || "").trim() || "nouvelle fiche"}`);
+  };
+  const setCustomCategories = ajoutAutre("categorie_fiche", setCatStockees);
+  const setCustomAppareils = ajoutAutre("appareil_cuisson", setAppStockes);
+  const setCustomMateriel = ajoutAutre("materiel", setMatStocke);
+  const setCustomUstensiles = ajoutAutre("ustensile", setUstStockes);
 
   const toutesLesFiches = fiches || [];
   const nomsStockEtFiches = [...(stock || []).map((s) => s.nom), ...toutesLesFiches.map((f) => f.nom)];
@@ -5035,6 +5075,7 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   // Si la congélation ou la cellule sont désactivées dans les réglages pendant que le procédé est
   // coché, on le décoche automatiquement — jamais de procédé verrouillé qui reste actif.
   useEffect(() => {
+    if (avecModes && !reglagesEtablissement) return; // réglages pas encore chargés : on ne touche à rien
     if (!congelPms && S.procedes.congel.on) majProcede("congel", { on: false });
     if (!celluleDispo && S.procedes.refroid.mode === "cellule") majProcede("refroid", { mode: "sans" });
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -5054,6 +5095,32 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
     majIngredient(i, { nom: val, lienType: lien.lienType, lienId: lien.lienId });
     setS((prev) => ({ ...prev, allgConfirm: false }));
   };
+
+  // Nouvelle version : produit absent du catalogue → on peut le créer sans quitter la fiche ; une fois le catalogue rechargé, les ingrédients du même nom se relient tout seuls.
+  const [produitACreer, setProduitACreer] = useState(null);
+  const [erreurProduit, setErreurProduit] = useState("");
+  const [produitEnCours, setProduitEnCours] = useState(false);
+  const sauverProduit = async (valeurs) => {
+    setProduitEnCours(true); setErreurProduit("");
+    try { await gestionCatalogue.enregistrer("produits", null, valeurs); setProduitACreer(null); }
+    catch (e) { setErreurProduit("Enregistrement impossible : " + (e.message || e)); }
+    finally { setProduitEnCours(false); }
+  };
+  useEffect(() => {
+    if (!avecModes) return;
+    setS((prev) => {
+      let change = false;
+      const ingredients = prev.ingredients.map((ing) => {
+        if (ing.lienType || !ing.nom.trim()) return ing;
+        const lien = matchIngredientLien(ing.nom, stock, toutesLesFiches);
+        if (!lien.lienType) return ing;
+        change = true;
+        return { ...ing, lienType: lien.lienType, lienId: lien.lienId };
+      });
+      return change ? { ...prev, ingredients } : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [stock]);
 
   const toggleAllergene = (a) => setS((prev) => ({ ...prev, allergenes: prev.allergenes.includes(a) ? prev.allergenes.filter((x) => x !== a) : [...prev.allergenes, a], allgConfirm: false }));
 
@@ -5123,13 +5190,13 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
 
   /* ---------- photo IA ---------- */
   const PROMPT_PHOTO_FICHE = `Tu lis la photo d'une recette de cuisine professionnelle (restaurant, France). Extrais-la pour remplir une fiche technique. Réponds UNIQUEMENT avec un objet JSON strict, sans texte autour ni balises markdown, de cette forme exacte :
-{"nom":"string","sous_titre":"string","categorie":"une des valeurs: ${CATEGORIES_FICHE_TECHNIQUE.map((c) => c[0]).join(" | ")}","poste":"une des valeurs: ${postesFiche.join(" | ")}","ingredients":[{"nom":"string","quantite":"string (nombre, vide si illisible)","unite":"une des valeurs: ${UNITES_FICHE.join(" | ")}"}],"etapes":[{"titre":"TITRE COURT EN MAJUSCULES","texte":"description précise","point_critique":"cuisson|refroid|maintien|remise|"}],"cuisson":{"appareil":"string ou vide","reglage":"string","duree":"string","temp_coeur":"string","famille":"general|viandeHachee|volaille|poisson"} ou null,"preparation_froide":false,"refroidissement":false,"maintien_chaud":false,"remise_en_temperature":false,"ustensiles":["string"],"materiel":["string"],"rendement":{"total":"string","unite":"kg|g|L|ml|pièce(s)","portions":"string","grammage":"string"},"allergenes":["parmi: ${ALLERGENES_14.join(", ")}"],"consignes":["string"]}
+{"nom":"string","sous_titre":"string","categorie":"une des valeurs: ${listeCategories.map((c) => c[0]).join(" | ")}","poste":"une des valeurs: ${postesFiche.join(" | ")}","ingredients":[{"nom":"string","quantite":"string (nombre, vide si illisible)","unite":"une des valeurs: ${UNITES_FICHE.join(" | ")}"}],"etapes":[{"titre":"TITRE COURT EN MAJUSCULES","texte":"description précise","point_critique":"cuisson|refroid|maintien|remise|"}],"cuisson":{"appareil":"string ou vide","reglage":"string","duree":"string","temp_coeur":"string","famille":"general|viandeHachee|volaille|poisson"} ou null,"preparation_froide":false,"refroidissement":false,"maintien_chaud":false,"remise_en_temperature":false,"ustensiles":["string"],"materiel":["string"],"rendement":{"total":"string","unite":"kg|g|L|ml|pièce(s)","portions":"string","grammage":"string"},"allergenes":["parmi: ${ALLERGENES_14.join(", ")}"],"consignes":["string"]}
 N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'est pas une recette, réponds {"erreur":"pas une recette"}.`;
 
   const appliquerResultatIA = (d) => {
     const n = ficheVideInit();
     n.nom = d.nom || ""; n.sousTitre = d.sous_titre || "";
-    const cat = CATEGORIES_FICHE_TECHNIQUE.find((c) => c[0] === d.categorie);
+    const cat = listeCategories.find((c) => c[0] === d.categorie);
     n.categorie = cat ? cat[0] : "";
     n.poste = postesFiche.includes(d.poste) ? d.poste : "";
     n.ingredients = (d.ingredients || []).map((i) => {
@@ -5311,7 +5378,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             </div>
             <div>
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Catégorie *</div>
-              <ChipsCategorie options={CATEGORIES_FICHE_TECHNIQUE} customOptions={customCategories} value={S.categorie}
+              <ChipsCategorie options={listeCategories} customOptions={customCategories} value={S.categorie}
                 onChange={(v) => champ("categorie", v)}
                 onAjouterAutre={(v) => { const code = normaliserCode(v).slice(0, 8) || "AUTRE"; setCustomCategories([...customCategories, [v, code]]); champ("categorie", v); }} />
             </div>
@@ -5350,10 +5417,16 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   </select>
                   {ing.lienType && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded bg-[var(--ok-soft,#e7f3e8)] text-[var(--accent)] shrink-0">{ing.lienType === "stock" ? (avecModes ? "Catalogue" : "Stock") : "Fiche"}</span>}
                   {avecModes && !ing.lienType && ing.nom.trim() && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded shrink-0" style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}>Hors catalogue</span>}
+                  {avecModes && !ing.lienType && ing.nom.trim() && gestionCatalogue && <button type="button" onClick={() => setProduitACreer({ table: "produits", id: null, valeurs: { nom: ing.nom.trim() } })} className="text-xs underline font-semibold shrink-0 text-[var(--accent)]">Créer ce produit</button>}
                   <button type="button" onClick={() => retirerIngredient(i)} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0"><X size={16} /></button>
                 </div>
               ))}
             </div>
+            {avecModes && produitACreer && gestionCatalogue && (
+              <FormulaireCatalogue key={produitACreer.valeurs.nom} edition={produitACreer} fournisseurs={fournisseursCatalogue || []}
+                categories={[...new Set((stock || []).map((x) => x.categorie).filter(Boolean))]} enCours={produitEnCours} erreur={erreurProduit}
+                onSauver={sauverProduit} onAnnuler={() => { setProduitACreer(null); setErreurProduit(""); }} />
+            )}
             <Button variant="ghost" onClick={ajouterIngredient}><Plus size={14} /> Ajouter un ingrédient</Button>
 
             {avecModes && ingOk.length > 0 && (
@@ -5440,11 +5513,29 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   </select>
                 </Field>
                 <Field label="Appareil de cuisson">
-                  <select className={inputCls} value={S.procedes.cuisson.appareil} onChange={(e) => { majProcede("cuisson", { appareil: e.target.value }); if (e.target.value && !S.appareils.includes(e.target.value)) setS((prev) => ({ ...prev, appareils: [...prev.appareils, e.target.value] })); }}>
+                  <select className={inputCls} value={S.procedes.cuisson.appareil} onChange={(e) => { majProcede("cuisson", { appareil: e.target.value, ...(avecModes ? { parametres: {} } : {}) }); if (e.target.value && !S.appareils.includes(e.target.value)) setS((prev) => ({ ...prev, appareils: [...prev.appareils, e.target.value] })); }}>
                     <option value="">Choisir…</option>
-                    {[...BASE_APPAREILS_FICHE, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
+                    {[...listeAppareils, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </Field>
+                {modeFiche === "expert" && avecModes && (PARAMETRES_APPAREIL[S.procedes.cuisson.appareil] || []).length > 0 && (
+                  <div className="sm:col-span-2 rounded-lg border border-[var(--line)] p-3">
+                    <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Réglages de l'appareil — {S.procedes.cuisson.appareil}</div>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {PARAMETRES_APPAREIL[S.procedes.cuisson.appareil].map((d) => {
+                        const val = (S.procedes.cuisson.parametres || {})[d.cle] || "";
+                        const maj = (v) => majProcede("cuisson", { parametres: { ...(S.procedes.cuisson.parametres || {}), [d.cle]: v } });
+                        return (
+                          <Field key={d.cle} label={d.label}>
+                            {Array.isArray(d.type)
+                              ? <select className={inputCls} value={val} onChange={(e) => maj(e.target.value)}><option value="">Choisir…</option>{d.type.map((o) => <option key={o} value={o}>{o}</option>)}</select>
+                              : <input className={inputCls} value={val} onChange={(e) => maj(e.target.value)} placeholder={d.placeholder || ""} />}
+                          </Field>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
                 {modeFiche === "simple" && <Field label="Durée de cuisson (minutes)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value, duree: e.target.value ? `${e.target.value} min` : "" })} placeholder="ex. 14" /></Field>}
                 {modeFiche === "simple" && (
                   <label className="flex items-start gap-2 text-sm sm:col-span-2 cursor-pointer">
@@ -5495,7 +5586,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                 <Field label="Appareil">
                   <select className={inputCls} value={S.procedes.maintien.appareil} onChange={(e) => majProcede("maintien", { appareil: e.target.value })}>
-                    {["Bain-marie", "Étuve / armoire chaude", "Vitrine chauffante", "Four mixte (Rational)", "Lampe chauffante", ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
+                    {[...listeAppareilsMaintien, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </Field>
                 {modeFiche === "expert" && <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>}
@@ -5517,7 +5608,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 <Field label="Appareil">
                   <select className={inputCls} value={S.procedes.remise.appareil} onChange={(e) => majProcede("remise", { appareil: e.target.value })}>
                     <option value="">Choisir…</option>
-                    {[...BASE_APPAREILS_FICHE, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
+                    {[...listeAppareils, ...customAppareils].map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </Field>
                 <Field label="T° cible à cœur">
@@ -5563,9 +5654,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         {step === 3 && (
           <div className="space-y-5">
             <p className="text-xs text-[var(--steel)]">Un « Autre » ajouté ici est enregistré dans vos choix et reproposé pour les prochaines fiches de cet établissement.</p>
-            <ChipsMulti label="Appareils de cuisson" baseOptions={BASE_APPAREILS_FICHE} customOptions={customAppareils} setCustomOptions={setCustomAppareils} selected={S.appareils} onToggle={(v) => toggleListe("appareils", v)} />
-            <ChipsMulti label="Matériel" baseOptions={BASE_MATERIEL_FICHE} customOptions={customMateriel} setCustomOptions={setCustomMateriel} selected={S.materiel} onToggle={(v) => toggleListe("materiel", v)} />
-            <ChipsMulti label="Ustensiles" baseOptions={BASE_USTENSILES_FICHE} customOptions={customUstensiles} setCustomOptions={setCustomUstensiles} selected={S.ustensiles} onToggle={(v) => toggleListe("ustensiles", v)} />
+            <ChipsMulti avecRecherche={avecModes} label="Appareils de cuisson" baseOptions={listeAppareils} customOptions={customAppareils} setCustomOptions={setCustomAppareils} selected={S.appareils} onToggle={(v) => toggleListe("appareils", v)} />
+            <ChipsMulti avecRecherche={avecModes} label="Matériel" baseOptions={listeMateriel} customOptions={customMateriel} setCustomOptions={setCustomMateriel} selected={S.materiel} onToggle={(v) => toggleListe("materiel", v)} />
+            <ChipsMulti avecRecherche={avecModes} label="Ustensiles" baseOptions={listeUstensiles} customOptions={customUstensiles} setCustomOptions={setCustomUstensiles} selected={S.ustensiles} onToggle={(v) => toggleListe("ustensiles", v)} />
           </div>
         )}
 
@@ -5680,7 +5771,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       <details className="mb-5 bg-white border border-[var(--line)] rounded-xl">
         <summary className="px-5 py-3.5 cursor-pointer font-semibold text-[var(--ink)] text-sm">Réglages de l'établissement <span className="font-normal text-[var(--steel)]">— débloquent le procédé congélation</span></summary>
         <div className="px-5 pb-4 space-y-2.5">
-          <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong> — modifiable dans Contrôle & Gestion → Déclaration TIAC.</p>
+          <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong>{avecModes ? "" : " — modifiable dans Contrôle & Gestion → Déclaration TIAC."}</p>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={!!congelPms} onChange={(e) => setCongelPms(e.target.checked)} className="mt-0.5" /><span>La congélation est décrite dans notre PMS</span></label>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={!!celluleDispo} onChange={(e) => setCelluleDispo(e.target.checked)} className="mt-0.5" /><span>L'établissement dispose d'une cellule de refroidissement</span></label>
         </div>
@@ -15420,7 +15511,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            fichesProps={{ fiches, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom } : undefined }}
+            fichesProps={{ fiches, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement: identiteExterne.reglagesEtablissement, demandesAjout: identiteExterne.demandesAjout, signalerAjout: identiteExterne.signalerAjout, gestionCatalogue: identiteExterne.gestionCatalogue, fournisseursCatalogue: identiteExterne.fournisseurs } : undefined }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
             ouvrirIdAuto={ficheAutoOuvrirId}
@@ -15428,7 +15519,7 @@ function KitchenApp({ identiteExterne } = {}) {
           />
         )}
         {tab === "controle" && (
-          <Controle employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} />
+          <Controle employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
