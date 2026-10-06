@@ -4691,10 +4691,10 @@ const patchQuiNet = (val) => (val === "tous" ? { assigneA: "tous", personnes: un
 const concerneNet = (t, id) => ((t.assigneA || "tous") !== "personnes") || (t.personnes || []).includes(id);
 
 // Champ texte qui n'enregistre qu'en quittant la case (évite une écriture à chaque lettre)
-function ChampTexteDiffere({ value, onCommit, multiline, className, placeholder }) {
+function ChampTexteDiffere({ value, onCommit, multiline, className, placeholder, inputMode }) {
   const [v, setV] = useState(value || "");
   useEffect(() => { setV(value || ""); }, [value]);
-  const p = { value: v, placeholder, className, onChange: (e) => setV(e.target.value), onBlur: () => { if (v !== (value || "")) onCommit(v); } };
+  const p = { value: v, placeholder, className, inputMode, onChange: (e) => setV(e.target.value), onBlur: () => { if (v !== (value || "")) onCommit(v); } };
   return multiline ? <textarea rows={3} {...p} /> : <input {...p} />;
 }
 
@@ -7453,7 +7453,45 @@ function periodeCarte(type, refIso) {
 }
 const periodeSuivante = (type, finIso) => periodeCarte(type, isoDepuisDate(new Date(dateDepuisIso(finIso).getTime() + 86400000)));
 
-function MaCarte({ cartes, setCartes, fiches, estChef, logActivity }) {
+function formaterQteCarte(v, unite) {
+  const arr = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
+  if (unite === "g" && v >= 1000) return `${arr(v / 1000)} kg`;
+  if (unite === "ml" && v >= 1000) return `${arr(v / 1000)} L`;
+  if (unite === "g" || unite === "ml" || unite === "cl") return `${Math.max(1, Math.round(v))} ${unite}`;
+  return `${arr(v)} ${unite || ""}`.trim();
+}
+const nbCarte = (x) => parseFloat(String(x == null ? "" : x).replace(",", "."));
+
+// Calcul des préparations d'un jour : quantité de plats × recette (ingrédients proportionnels aux portions de la fiche),
+// regroupé par poste. Une préparation (sous-recette) est rangée dans le poste de sa propre fiche.
+function calculerPreparationsCarte(carte, fiches, jour) {
+  const groupes = {}; const sansRendement = [];
+  const g = (poste) => (groupes[poste] = groupes[poste] || { plats: [], lignes: {} });
+  ((carte && carte.plats) || []).forEach((id) => {
+    const f = (fiches || []).find((x) => x.id === id); if (!f) return;
+    const n = nbCarte(((carte.quantites || {})[id] || {})[jour]);
+    if (!(n > 0)) return;
+    const poste = f.poste || "Sans poste";
+    g(poste).plats.push({ nom: f.nom, n });
+    const r = (f.formulaire && f.formulaire.rendement) || {};
+    const bp = nbCarte(r.portions);
+    if (!(bp > 0)) { sansRendement.push(f.nom); return; }
+    const fac = n / bp;
+    (f.ingredients || []).forEach((ing) => {
+      const q = nbCarte(ing.quantite); if (!(q > 0) || !ing.nom) return;
+      const sous = ing.lienId ? (fiches || []).find((x) => x.id === ing.lienId && /sous/i.test(x.type || "")) : null;
+      const gr = g((sous && sous.poste) || poste);
+      const cle = `${ing.nom}|${ing.unite}|${sous ? 1 : 0}`;
+      const l = gr.lignes[cle] = gr.lignes[cle] || { nom: ing.nom, unite: ing.unite, total: 0, prep: !!sous, pour: [] };
+      l.total += q * fac; if (!l.pour.includes(f.nom)) l.pour.push(f.nom);
+    });
+  });
+  return { groupes, sansRendement };
+}
+
+function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees }) {
+  const [quantiteOuverte, setQuantiteOuverte] = useState(null);
+  const [jourDetail, setJourDetail] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
   const aujourdhui = todayISO();
   const triees = [...cartes].sort((a, b) => (a.debut || "").localeCompare(b.debut || ""));
   const type = triees.length ? triees[0].typeCarte : null;
@@ -7469,6 +7507,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity }) {
   const idsCarte = (carte && carte.plats) || [];
   const nomDe = (id) => (plats.find((f) => f.id === id) || {}).nom;
   const majCarte = (patch) => setCartes(cartes.map((c) => (c.id === carte.id ? { ...c, ...patch } : c)));
+  const quantites = (carte && carte.quantites) || {};
+  const majQuantite = (id, jour, v) => majCarte({ quantites: { ...quantites, [id]: { ...(quantites[id] || {}), [jour]: v } } });
   const basculer = (id) => majCarte({ plats: idsCarte.includes(id) ? idsCarte.filter((x) => x !== id) : [...idsCarte, id] });
   const choisirType = (t) => {
     const base = periodeCarte(t, aujourdhui);
@@ -7575,11 +7615,98 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity }) {
               <h4 className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-1">{c}</h4>
               <ul className="space-y-1">
                 {ids.map((id) => (
-                  <li key={id} className="flex items-center justify-between gap-2 text-sm text-[var(--ink)] border border-[var(--cadre)] rounded-lg px-3 py-2 bg-white"><span>{nomDe(id)}</span>{estChef && <button type="button" onClick={() => basculer(id)} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer de la carte"><X size={15} /></button>}</li>
+                  <li key={id} className="text-sm text-[var(--ink)] border border-[var(--cadre)] rounded-lg px-3 py-2 bg-white">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-medium">{nomDe(id)}</span>
+                      {estChef && <button type="button" onClick={() => basculer(id)} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer de la carte"><X size={15} /></button>}
+                    </div>
+                    {(() => {
+                      const q = quantites[id] || {}; const resume = JOURS.filter((j) => nbCarte(q[j]) > 0).map((j) => `${j.slice(0, 3)} ${q[j]}`).join(" · ");
+                      const ouvert = quantiteOuverte === id;
+                      return (
+                        <div className="mt-1.5">
+                          {!ouvert && (
+                            <div className="flex flex-wrap items-center gap-2">
+                              <span className="text-[var(--steel)]">{resume ? `Portions à produire : ${resume}` : "Aucune quantité à produire indiquée."}</span>
+                              {estChef && <button type="button" className="text-[var(--accent)] underline" onClick={() => setQuantiteOuverte(id)}>{resume ? "Modifier" : "Indiquer une quantité à produire"}</button>}
+                            </div>
+                          )}
+                          {ouvert && (
+                            <div className="bg-[var(--bg)] border border-[var(--cadre)] rounded-lg p-2">
+                              <p className="text-[var(--steel)] mb-2">Nombre de portions à produire pour chaque jour (laissez vide si vous ne produisez pas ce jour-là).</p>
+                              <div className="grid grid-cols-4 sm:grid-cols-7 gap-2">
+                                {JOURS.map((j) => (
+                                  <div key={j}><label className={libNet}>{j.slice(0, 3)}</label><ChampTexteDiffere value={q[j] || ""} onCommit={(v) => majQuantite(id, j, v.trim())} className={champNet} inputMode="numeric" /></div>
+                                ))}
+                              </div>
+                              <div className="mt-2"><Button variant="ghost" onClick={() => setQuantiteOuverte(null)}>OK</Button></div>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })()}
+                  </li>
                 ))}
               </ul>
             </div>
           ))}
+          {(() => {
+            const aDesQuantites = idsCarte.some((id) => JOURS.some((j) => nbCarte((quantites[id] || {})[j]) > 0));
+            if (!estChef && !carte.detailPrep) return null;
+            if (!carte.detailPrep) {
+              return (
+                <div className="border-2 border-[var(--cadre)] rounded-xl p-3 mt-3 bg-[var(--bg)]">
+                  <p className="text-sm font-semibold text-[var(--ink)]">Souhaitez-vous détailler les préparations à faire pour chaque plat, par poste et par employé ?</p>
+                  <p className="text-sm text-[var(--steel)] mt-1 mb-2">Si oui, le logiciel calcule les quantités d'ingrédients et de préparations à produire chaque jour, à partir des recettes et des portions que vous avez indiquées.</p>
+                  <Button onClick={() => majCarte({ detailPrep: true })}>Oui, détailler les préparations</Button>
+                </div>
+              );
+            }
+            const { groupes, sansRendement } = calculerPreparationsCarte(carte, fiches, jourDetail);
+            const postes = Object.keys(groupes).sort((a, b) => a.localeCompare(b, "fr"));
+            return (
+              <div className="border-2 border-[var(--cadre)] rounded-xl p-3 mt-3 bg-[var(--bg)]">
+                <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                  <p className="text-sm font-semibold text-[var(--ink)]">Préparations à faire — par poste</p>
+                  {estChef && <button type="button" className="text-sm text-[var(--steel)] underline" onClick={() => majCarte({ detailPrep: false })}>Masquer le détail</button>}
+                </div>
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {JOURS.map((j) => <button key={j} type="button" onClick={() => setJourDetail(j)} className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 ${jourDetail === j ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{j}</button>)}
+                </div>
+                {!aDesQuantites && <p className="text-sm text-[var(--warn)] mb-2">Indiquez d'abord, sous chaque plat ci-dessus, le nombre de portions à produire par jour.</p>}
+                {aDesQuantites && postes.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune production prévue le {jourDetail.toLowerCase()}.</p>}
+                {sansRendement.length > 0 && <p className="text-sm text-[var(--warn)] mb-2">Calcul impossible pour : {sansRendement.join(", ")} — renseignez le nombre de portions dans la fiche technique (rendement).</p>}
+                {postes.map((poste) => {
+                  const gr = groupes[poste]; const lignes = Object.values(gr.lignes).sort((a, b) => Number(b.prep) - Number(a.prep) || a.nom.localeCompare(b.nom, "fr"));
+                  const equipe = (employees || []).filter((e) => (e.poste || "").toLowerCase() === poste.toLowerCase()).map((e) => e.nom);
+                  return (
+                    <div key={poste} className="bg-white border border-[var(--cadre)] rounded-lg p-3 mb-2">
+                      <div className="flex flex-wrap items-baseline justify-between gap-2 mb-1">
+                        <h4 className="font-semibold text-[var(--ink)]">{poste}</h4>
+                        <span className="text-xs text-[var(--steel)]">{equipe.length ? `Employé(s) : ${equipe.join(", ")}` : "Aucun employé rattaché à ce poste"}</span>
+                      </div>
+                      {gr.plats.length > 0 && <ul className="text-sm text-[var(--ink)] mb-2">{gr.plats.map((p, i) => <li key={i}>• <b>{p.n} portions</b> — {p.nom}</li>)}</ul>}
+                      {lignes.length > 0 && (
+                        <table className="w-full text-sm">
+                          <thead><tr className="text-left text-xs text-[var(--steel)]"><th className="py-1 pr-2 font-medium">À préparer</th><th className="py-1 pr-2 font-medium">Quantité</th><th className="py-1 font-medium">Pour</th></tr></thead>
+                          <tbody>
+                            {lignes.map((l, i) => (
+                              <tr key={i} className="border-t border-[var(--line)]">
+                                <td className="py-1 pr-2 text-[var(--ink)]">{l.nom}{l.prep && <span className="ml-1 text-xs text-[var(--accent)] font-semibold">préparation</span>}</td>
+                                <td className="py-1 pr-2 font-medium whitespace-nowrap">{formaterQteCarte(l.total, l.unite)}</td>
+                                <td className="py-1 text-[var(--steel)]">{l.pour.join(", ")}</td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      )}
+                    </div>
+                  );
+                })}
+                <p className="text-xs text-[var(--steel)] mt-2">Les quantités sont proportionnelles aux portions de la fiche technique (estimation). Les étapes écrites en texte libre ne sont pas recalculées.</p>
+              </div>
+            );
+          })()}
           {estChef && (
             <div className="flex flex-wrap gap-3 pt-3 mt-2 border-t border-[var(--line)]">
               {periodique || triees.length > 1 ? (confirmerSuppr
@@ -17268,7 +17395,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            carteProps={{ cartes, setCartes, fiches, estChef: !!moi?.estChef, logActivity: logActivitySafe }}
+            carteProps={{ cartes, setCartes, fiches, employees, estChef: !!moi?.estChef, logActivity: logActivitySafe }}
             fichesProps={{ fiches, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement: identiteExterne.reglagesEtablissement, demandesAjout: identiteExterne.demandesAjout, signalerAjout: identiteExterne.signalerAjout, gestionCatalogue: identiteExterne.gestionCatalogue, fournisseursCatalogue: identiteExterne.fournisseurs } : undefined }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
