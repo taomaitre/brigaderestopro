@@ -19,7 +19,7 @@ export const PLAN_NETTOYAGE_DEPART = [
   "note": "Produit spécifique à définir avec l'établissement (déboucheur / désinfectant adapté)."
  },
  {
-  "tache": "Poubelles — vidées et nettoyées",
+  "tache": "Poubelles de cuisine — vidées, nettoyées et désinfectées",
   "poste": "Tous",
   "frequence": "Quotidienne",
   "note": "Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé.",
@@ -137,7 +137,7 @@ export const PLAN_NETTOYAGE_DEPART = [
   "note": "Nettoyant désinfectant alimentaire, eau chaude <60°C, 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé."
  },
  {
-  "tache": "Poubelles — bacs lavés et désinfectés",
+  "tache": "Poubelles de voirie et zone qui leur est dédiée — nettoyage et désinfection",
   "poste": "Tous",
   "frequence": "Hebdomadaire",
   "jours": [
