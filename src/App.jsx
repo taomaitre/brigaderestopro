@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
+import { POSTES as POSTES_EQUIPE } from './listesEquipe.js';
 
 /* ======================================================================================
    CONFIGURATION — clé API IA (Anthropic / Claude)
@@ -5009,6 +5010,9 @@ function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selec
 function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard, avecModes, ficheInitiale, modeEdition, onTermine }) {
   const [S, setS] = useState(() => (ficheInitiale ? ficheVersFormulaire(ficheInitiale, modeEdition) : ficheVideInit()));
   const modifier = !!ficheInitiale && modeEdition === "modifier";
+  // Nouvelle version : les postes sont ceux de l'équipe (src/listesEquipe.js), pour que le poste d'une fiche
+  // et celui des employés parlent le même langage. Ancienne version : liste d'origine inchangée.
+  const postesFiche = avecModes ? POSTES_EQUIPE : POSTES_FICHE;
   const [step, setStep] = useState(0);
   const [confirmation, setConfirmation] = useState(null);
   const [photoApercu, setPhotoApercu] = useState(null);
@@ -5119,7 +5123,7 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
 
   /* ---------- photo IA ---------- */
   const PROMPT_PHOTO_FICHE = `Tu lis la photo d'une recette de cuisine professionnelle (restaurant, France). Extrais-la pour remplir une fiche technique. Réponds UNIQUEMENT avec un objet JSON strict, sans texte autour ni balises markdown, de cette forme exacte :
-{"nom":"string","sous_titre":"string","categorie":"une des valeurs: ${CATEGORIES_FICHE_TECHNIQUE.map((c) => c[0]).join(" | ")}","poste":"une des valeurs: ${POSTES_FICHE.join(" | ")}","ingredients":[{"nom":"string","quantite":"string (nombre, vide si illisible)","unite":"une des valeurs: ${UNITES_FICHE.join(" | ")}"}],"etapes":[{"titre":"TITRE COURT EN MAJUSCULES","texte":"description précise","point_critique":"cuisson|refroid|maintien|remise|"}],"cuisson":{"appareil":"string ou vide","reglage":"string","duree":"string","temp_coeur":"string","famille":"general|viandeHachee|volaille|poisson"} ou null,"preparation_froide":false,"refroidissement":false,"maintien_chaud":false,"remise_en_temperature":false,"ustensiles":["string"],"materiel":["string"],"rendement":{"total":"string","unite":"kg|g|L|ml|pièce(s)","portions":"string","grammage":"string"},"allergenes":["parmi: ${ALLERGENES_14.join(", ")}"],"consignes":["string"]}
+{"nom":"string","sous_titre":"string","categorie":"une des valeurs: ${CATEGORIES_FICHE_TECHNIQUE.map((c) => c[0]).join(" | ")}","poste":"une des valeurs: ${postesFiche.join(" | ")}","ingredients":[{"nom":"string","quantite":"string (nombre, vide si illisible)","unite":"une des valeurs: ${UNITES_FICHE.join(" | ")}"}],"etapes":[{"titre":"TITRE COURT EN MAJUSCULES","texte":"description précise","point_critique":"cuisson|refroid|maintien|remise|"}],"cuisson":{"appareil":"string ou vide","reglage":"string","duree":"string","temp_coeur":"string","famille":"general|viandeHachee|volaille|poisson"} ou null,"preparation_froide":false,"refroidissement":false,"maintien_chaud":false,"remise_en_temperature":false,"ustensiles":["string"],"materiel":["string"],"rendement":{"total":"string","unite":"kg|g|L|ml|pièce(s)","portions":"string","grammage":"string"},"allergenes":["parmi: ${ALLERGENES_14.join(", ")}"],"consignes":["string"]}
 N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'est pas une recette, réponds {"erreur":"pas une recette"}.`;
 
   const appliquerResultatIA = (d) => {
@@ -5127,7 +5131,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     n.nom = d.nom || ""; n.sousTitre = d.sous_titre || "";
     const cat = CATEGORIES_FICHE_TECHNIQUE.find((c) => c[0] === d.categorie);
     n.categorie = cat ? cat[0] : "";
-    n.poste = POSTES_FICHE.includes(d.poste) ? d.poste : "";
+    n.poste = postesFiche.includes(d.poste) ? d.poste : "";
     n.ingredients = (d.ingredients || []).map((i) => {
       const unite = UNITES_FICHE.includes(i.unite) ? i.unite : "g";
       const lien = matchIngredientLien(i.nom, stock, toutesLesFiches);
@@ -5315,7 +5319,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               <Field label="Poste *">
                 <select className={inputCls} value={S.poste} onChange={(e) => champ("poste", e.target.value)}>
                   <option value="">Choisir…</option>
-                  {POSTES_FICHE.map((p) => <option key={p} value={p}>{p}</option>)}
+                  {[...postesFiche, ...(S.poste && !postesFiche.includes(S.poste) ? [S.poste] : [])].map((p) => <option key={p} value={p}>{p}</option>)}
                 </select>
               </Field>
               <Field label="Type de fiche">
