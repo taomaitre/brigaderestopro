@@ -4160,7 +4160,7 @@ function normaliserRechercheFiche(s) {
 }
 
 /* ---------- Détail d'une fiche technique (lecture seule, fidèle au fichier fourni) ---------- */
-function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes }) {
+function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes, onModifier }) {
   const whoSafe = who || (() => null);
   // Mode classique (simple) ou expert, seulement dans la nouvelle version ; l'ancienne application affiche tout, comme avant.
   const [modeVue, setModeVue] = useState("simple");
@@ -4212,6 +4212,13 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       </div>
 
       {fiche.sousTitre && <p className="text-sm text-[var(--steel)] mb-4">{fiche.sousTitre}</p>}
+
+      {avecModes && estChef && onModifier && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Button variant="ghost" onClick={() => onModifier(fiche, "modifier")}>Modifier cette fiche</Button>
+          <Button variant="ghost" onClick={() => onModifier(fiche, "dupliquer")}>Dupliquer</Button>
+        </div>
+      )}
 
       {avecModes && (
         <div className="flex items-center gap-2 mb-4">
@@ -4518,8 +4525,9 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 }
 
 /* ---------- Liste des fiches techniques, groupée par catégorie, avec recherche ---------- */
-function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes }) {
+function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps }) {
   const [selectedId, setSelectedId] = useState(null);
+  const [edition, setEdition] = useState(null);
   const [recherche, setRecherche] = useState("");
   const [categorieFiltre, setCategorieFiltre] = useState(null);
 
@@ -4553,8 +4561,22 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
   const categoriesPresentes = ORDRE_CATEGORIES_FICHES.filter((c) => groupes[c]?.length);
   const categoriesAffichees = categorieFiltre ? [categorieFiltre] : categoriesPresentes;
 
+  if (edition && editionProps) {
+    return (
+      <div>
+        <div className="flex justify-end mb-3">
+          <button onClick={() => setEdition(null)} className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)] px-3 py-1.5 rounded-lg border border-[var(--line)] bg-white">
+            <ArrowLeft size={15} /> Annuler et revenir à la fiche
+          </button>
+        </div>
+        <CreationFicheTechniqueComplete {...editionProps} fiches={fiches} estChef={estChef} avecModes={avecModes}
+          ficheInitiale={edition.fiche} modeEdition={edition.mode} onTermine={() => { setEdition(null); setSelectedId(null); }} />
+      </div>
+    );
+  }
+
   if (selected) {
-    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} avecModes={avecModes} />;
+    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} avecModes={avecModes} onModifier={editionProps ? (f, mode) => setEdition({ fiche: f, mode }) : undefined} />;
   }
 
   return (
@@ -4644,6 +4666,49 @@ const ALLERGENES_MOTS_CLES = [
   ["Lupin", ["lupin"]],
   ["Mollusques", ["moule", "calamar", "seiche", "poulpe", "huître", "huitre", "saint-jacques", "escargot"]],
 ];
+
+// Recharge une fiche enregistrée dans le questionnaire (modifier / dupliquer). Les fiches créées avec le
+// questionnaire gardent une copie exacte de leurs réponses (`formulaire`) ; pour les autres, on reconstitue
+// au mieux à partir des textes enregistrés.
+function ficheVersFormulaire(f, mode) {
+  const base = ficheVideInit();
+  let n;
+  if (f.formulaire) {
+    n = JSON.parse(JSON.stringify(f.formulaire));
+    n.procedes = { ...base.procedes, ...(n.procedes || {}) };
+  } else {
+    n = base;
+    n.nom = f.nom || ""; n.sousTitre = f.sousTitre || ""; n.categorie = f.categorie || "";
+    if (n.categorie && !CATEGORIES_FICHE_TECHNIQUE.some((c) => c[0] === n.categorie)) { n.catAutre = n.categorie; n.categorie = "__autre"; }
+    n.poste = f.poste || ""; n.type = f.type || "recette"; n.badge = f.rendementCourt || "";
+    if ((f.ingredients || []).length) n.ingredients = f.ingredients.map((i) => ({ nom: i.nom || "", qte: String(i.quantite ?? ""), unite: i.unite || "g", lienType: i.lienType || null, lienId: i.lienId || null }));
+    n.allergenes = [...(f.allergenes || [])]; n.allgConfirm = true;
+    Object.keys(base.procedes).forEach((k) => { n.procedes[k] = { ...base.procedes[k], ...((f.procedes || {})[k] || {}) }; });
+    const mat = f.materiel || [];
+    n.appareils = mat.filter((x) => BASE_APPAREILS_FICHE.includes(x));
+    n.ustensiles = mat.filter((x) => BASE_USTENSILES_FICHE.includes(x) && !BASE_APPAREILS_FICHE.includes(x));
+    n.materiel = mat.filter((x) => !n.appareils.includes(x) && !n.ustensiles.includes(x));
+    if ((f.preparation || []).length) n.etapes = f.preparation.map((e) => ({ titre: e.titre || "", texte: e.description || "", crit: e.pointCritique || "" }));
+    n.consignes = (f.consignesImportantes || []).join("\n");
+    const dc = (f.dureeConservation || []);
+    const mType = /^(DLC|DDM)\s*:\s*J\+(\d+)/.exec(dc[0] || "");
+    n.conservation = { ...base.conservation, type: mType ? mType[1] : "DLC", jours: mType ? Number(mType[2]) : (f.dlcJours ?? 3) };
+    const mTemp = /^Température\s*:\s*([^,]+)(?:,\s*(.*))?$/.exec(dc[1] || "");
+    if (mTemp) { n.conservation.temp = mTemp[1].trim(); n.conservation.contenant = (mTemp[2] || "").trim(); }
+    (f.rendement || []).forEach((l) => {
+      const a = /^Total\s*:\s*([\d.,]+)\s*(.*)$/.exec(l); if (a) { n.rendement.total = a[1]; n.rendement.unite = a[2] || "kg"; }
+      const b = /^(\d+)\s*portions?(?:\s+de\s+(.*))?$/.exec(l); if (b) { n.rendement.portions = b[1]; n.rendement.grammage = b[2] || ""; }
+    });
+    n.prixVente = (f.cout && f.cout.prixVente) || "";
+    (f.dressage || []).forEach((l) => {
+      if (l.startsWith("Contenant : ")) n.dressage.assiette = l.slice(12);
+      else if (l.startsWith("Délai d'envoi : ")) n.dressage.envoi = l.slice(16);
+      else n.dressage.notes = n.dressage.notes ? n.dressage.notes + "\n" + l : l;
+    });
+  }
+  if (mode === "dupliquer") { n.nom = `${n.nom} (copie)`; n.allgConfirm = false; }
+  return n;
+}
 
 function ficheVideInit() {
   return {
@@ -4941,8 +5006,9 @@ function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selec
   );
 }
 
-function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard, avecModes }) {
-  const [S, setS] = useState(ficheVideInit);
+function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard, avecModes, ficheInitiale, modeEdition, onTermine }) {
+  const [S, setS] = useState(() => (ficheInitiale ? ficheVersFormulaire(ficheInitiale, modeEdition) : ficheVideInit()));
+  const modifier = !!ficheInitiale && modeEdition === "modifier";
   const [step, setStep] = useState(0);
   const [confirmation, setConfirmation] = useState(null);
   const [photoApercu, setPhotoApercu] = useState(null);
@@ -5037,8 +5103,11 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   const diagCout = avecModes ? diagnosticCout(ingOk, stock) : [];
   // Les allergènes détectés sont cochés automatiquement (une seule fois : si le chef en décoche un, il reste décoché).
   const dejaSuggeres = useRef([]);
+  const premierPassage = useRef(!!ficheInitiale);
   useEffect(() => {
     if (!avecModes) return;
+    // Fiche existante rechargée : on ne touche pas à ses allergènes déjà confirmés à l'ouverture.
+    if (premierPassage.current) { premierPassage.current = false; dejaSuggeres.current = suggestions; return; }
     const nouveaux = suggestions.filter((a) => !dejaSuggeres.current.includes(a));
     dejaSuggeres.current = suggestions;
     if (nouveaux.length) setS((prev) => ({ ...prev, allergenes: [...new Set([...prev.allergenes, ...nouveaux])], allgConfirm: false }));
@@ -5116,7 +5185,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
   const enregistrer = () => {
     if (bloquant) return;
     const ingFinal = ingOk.map((i) => ({ nom: i.nom.trim(), quantite: i.qte.trim(), unite: i.unite, lienType: i.lienType || null, lienId: i.lienId || null }));
-    const code = codeFTActuel;
+    const code = modifier ? (ficheInitiale.code || codeFTActuel) : codeFTActuel;
     const materiel = [...S.appareils, ...S.materiel, ...S.ustensiles];
     const preparation = S.etapes.filter((e) => e.titre.trim() || e.texte.trim()).map((e, idx) => ({ numero: idx + 1, titre: e.titre.trim(), description: e.texte.trim(), pointCritique: e.crit || "" }));
     const haccp = haccpRowsFiche(S);
@@ -5139,7 +5208,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     const coutPortionFinal = coutFinal.coutRecette && Number(S.rendement.portions) > 0 ? (Number(coutFinal.coutRecette) / Number(S.rendement.portions)).toFixed(2) : "";
 
     const nouvelleFiche = {
-      id: uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(),
+      id: modifier ? ficheInitiale.id : uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(),
       categorie: categorieLabelActuelle, sousCategorie: null,
       rendementCourt: S.badge.trim() || (S.rendement.portions ? `${S.rendement.portions} PORTIONS` : ""),
       rendementAttendu: S.rendement.total ? `RENDEMENT ATTENDU : ${S.rendement.total} ${S.rendement.unite}${S.rendement.portions ? ` – ${S.rendement.portions} portions` : ""}${S.rendement.grammage ? ` de ${S.rendement.grammage}` : ""}` : "",
@@ -5152,13 +5221,16 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       cuissonDureeMin: Number(S.procedes.cuisson.dureeMin) || null,
       poste: S.poste, type: S.type,
       dlcJours: Number(S.conservation.jours) || 0,
-      version: 1, creeLe: todayISO(), creeParId: currentUserId,
+      version: modifier ? (Number(ficheInitiale.version) || 1) + 1 : 1, creeLe: modifier ? (ficheInitiale.creeLe || todayISO()) : todayISO(), creeParId: modifier ? (ficheInitiale.creeParId || currentUserId) : currentUserId,
+      formulaire: JSON.parse(JSON.stringify(S)),
       dressage,
       cout: { coutRecette: coutFinal.coutRecette || "", coutPortion: coutPortionFinal || "", prixVente: S.prixVente || "" },
     };
-    setFichesCustom([...(fichesCustom || []), nouvelleFiche]);
+    if (modifier) setFichesCustom((fichesCustom || []).map((x) => (x.id === ficheInitiale.id ? nouvelleFiche : x)));
+    else setFichesCustom([...(fichesCustom || []), nouvelleFiche]);
     if (congelPms !== undefined) { /* réglage déjà persistant via useStored */ }
-    logActivity("Fiches techniques", "Fiche technique créée", `${nouvelleFiche.nom} — ${code}`);
+    logActivity("Fiches techniques", modifier ? "Fiche technique modifiée" : "Fiche technique créée", `${nouvelleFiche.nom} — ${code}`);
+    if (ficheInitiale && onTermine) { onTermine(); return; }
     setConfirmation({ nom: nouvelleFiche.nom, code });
     setS(ficheVideInit());
     setStep(0);
@@ -5168,7 +5240,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
 
   return (
     <div>
-      <SectionHeader title="Création de fiche technique" subtitle="Questionnaire en 7 étapes — la fiche se construit en direct ci-dessous, puis crée automatiquement ses liens stock, HACCP, étiquette et traçabilité" />
+      <SectionHeader title={modifier ? "Modification de la fiche technique" : ficheInitiale ? "Copie de la fiche technique" : "Création de fiche technique"} subtitle="Questionnaire en 7 étapes — la fiche se construit en direct ci-dessous, puis crée automatiquement ses liens stock, HACCP, étiquette et traçabilité" />
 
       {confirmation && (
         <Card className="mb-6 bg-[var(--accent-soft)] border-[var(--accent)]/30">
@@ -15344,7 +15416,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            fichesProps={{ fiches, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne }}
+            fichesProps={{ fiches, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom } : undefined }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
             ouvrirIdAuto={ficheAutoOuvrirId}
