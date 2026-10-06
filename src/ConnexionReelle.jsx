@@ -302,6 +302,17 @@ export default function ConnexionReelle() {
         frequence: x.frequence || null, poste: x.poste || null, donnees: x,
       }),
     },
+    pmsExecutions: {
+      table: "pms_executions",
+      aDb: (x) => ({
+        pms_tache_id: x.cleaningId, date: x.date, moment: x.moment || null, statut: x.statut === "non_fait" ? "non_fait" : "fait",
+        motif_non_fait: x.motif || null, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null,
+        photo_employe: x.photo || null, valide_chef: x.valideChef === "ok" || x.valideChef === "ko" ? x.valideChef : null,
+        note_chef: x.noteChef || null, photo_chef: x.photoChef || null,
+        valide_par: EST_UUID.test(x.valideParId || "") ? x.valideParId : null, valide_le: x.valideLe || null,
+        donnees: { employeNom: x.employeNom || null, valideParNom: x.valideParNom || null, faitA: x.faitA || null, historique: x.historique || [] },
+      }),
+    },
     shifts: {
       table: "planning_creneaux",
       aDb: (x) => ({
@@ -397,7 +408,7 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm, rex] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
@@ -411,7 +422,9 @@ export default function ConnexionReelle() {
         supabasePublic.from("maintiens_chaud").select("*").order("heure_debut", { ascending: false }).limit(300),
         supabasePublic.from("fiches_techniques").select("*").order("created_at", { ascending: true }).limit(500),
         supabasePublic.from("pms_taches").select("*").order("created_at", { ascending: true }).limit(500),
+        supabasePublic.from("pms_executions").select("*").gte("date", new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)).order("date", { ascending: false }).limit(3000),
       ]);
+      if (rex.error) throw rex.error;
       if (rfi.error) throw rfi.error;
       if (rpm.error) throw rpm.error;
       if (rcu.error) throw rcu.error;
@@ -444,7 +457,12 @@ export default function ConnexionReelle() {
         refroidissements: (rrf.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         maintiens: (rmc.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         fiches: (rfi.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
-        cleaning: (rpm.data || []).map((r) => ({ fait: false, date: null, employeeId: null, ...(r.donnees || {}), id: r.id, tache: r.tache || (r.donnees && r.donnees.tache) || "", poste: r.poste || "Tous", frequence: r.frequence || "Quotidienne", note: r.protocole || "" })),
+        cleaning: (rpm.data || []).map((r) => ({ fait: false, date: null, employeeId: null, ...(r.donnees || {}), id: r.id, tache: r.tache || (r.donnees && r.donnees.tache) || "", poste: r.poste || "Tous", frequence: r.frequence || "Quotidienne", note: r.protocole || "", creeLe: (r.donnees && r.donnees.creeLe) || dateLocale(r.created_at).date })),
+        pmsExecutions: (rex.data || []).map((r) => ({
+          ...(r.donnees || {}), id: r.id, cleaningId: r.pms_tache_id, date: r.date, moment: r.moment || "soir", statut: r.statut, motif: r.motif_non_fait || "",
+          employeeId: r.employe_id, photo: r.photo_employe || null, valideChef: r.valide_chef || null, noteChef: r.note_chef || "", photoChef: r.photo_chef || null,
+          valideParId: r.valide_par || null, valideLe: r.valide_le || null,
+        })),
         huileTests: (rh.data || []).map((r) => ({
           id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
           valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
@@ -835,6 +853,7 @@ export default function ConnexionReelle() {
         maintiens: { persister: fabriquerPersisterFroid("maintiens") },
         fiches: { persister: fabriquerPersisterFroid("fiches") },
         cleaning: { persister: fabriquerPersisterFroid("cleaning") },
+        pmsExecutions: { persister: fabriquerPersisterFroid("pmsExecutions") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.

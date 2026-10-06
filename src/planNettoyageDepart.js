@@ -3,6 +3,7 @@
 export const PLAN_NETTOYAGE_DEPART = [
  {
   "tache": "Sol cuisine",
+  "moments": ["midi", "soir"],
   "poste": "Tous",
   "frequence": "Quotidienne",
   "note": "Nettoyant désinfectant alimentaire, eau chaude <60°C, 5 à 10 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé."
@@ -15,12 +16,14 @@ export const PLAN_NETTOYAGE_DEPART = [
  },
  {
   "tache": "Poubelles",
+  "moments": ["midi", "soir"],
   "poste": "Tous",
   "frequence": "Quotidienne",
   "note": "Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé."
  },
  {
   "tache": "Désinfection plans de travail",
+  "moments": ["midi", "soir"],
   "poste": "Tous",
   "frequence": "Quotidienne",
   "note": "Nettoyant désinfectant alimentaire après chaque utilisation, eau chaude <60°C, 5 min, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé."
@@ -39,6 +42,7 @@ export const PLAN_NETTOYAGE_DEPART = [
  },
  {
   "tache": "Lavettes souillées jetées, lavettes/torchons au bac à linge prévu",
+  "moments": ["midi", "soir"],
   "poste": "Tous",
   "frequence": "Quotidienne",
   "note": "Aucun produit de nettoyage — tâche d'organisation/rangement."
@@ -125,6 +129,7 @@ export const PLAN_NETTOYAGE_DEPART = [
  },
  {
   "tache": "Bain-marie",
+  "moments": ["midi", "soir"],
   "poste": "Poste Chaud",
   "frequence": "Quotidienne",
   "note": "Nettoyant désinfectant alimentaire après chaque service, eau chaude <60°C, rinçage à l'eau claire. Dosage selon fiche technique du produit utilisé."

@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE } from './listesEquipe.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
+import { MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
 
 /* ======================================================================================
@@ -1762,8 +1763,216 @@ function CarteHuileDuJour({ huileTests, who }) {
   );
 }
 
+// ---- Nettoyage de fin de service (nouvelle version) : écrans employé et chef ----
+// Les données (plan, exécutions, horaires) arrivent par ce contexte, fourni par KitchenApp en mode « nouvelle base ».
+const NettoyageContext = React.createContext(null);
+
+const libelleDateCourte = (iso) => { const [y, m, d] = String(iso).split("-"); return `${d}/${m}`; };
+const heureMaintenant = () => new Date().toTimeString().slice(0, 5);
+
+// Qui est concerné par une occurrence ? Une tâche en retard concerne ceux qui travaillent aujourd'hui (midi ou soir).
+function concernesOccurrence(o, today, employees, shifts) {
+  if (!o.enRetard) return personnesConcernees(o.t, o.date, o.moment, employees, shifts);
+  const a = personnesConcernees(o.t, today, "midi", employees, shifts);
+  const b = personnesConcernees(o.t, today, "soir", employees, shifts);
+  const ids = [...new Set([...a.ids, ...b.ids])];
+  const presents = [...new Map([...a.presents, ...b.presents].map((e) => [e.id, e])).values()];
+  const enRepos = a.enRepos.filter((e) => b.enRepos.some((x) => x.id === e.id));
+  return { ids, presents, enRepos, aucunPresent: presents.length === 0 };
+}
+
+function appliquerExecution(ctx, o, patch) {
+  const { setExecutions } = ctx;
+  if (o.exec) {
+    const snap = o.exec.statut && (o.exec.valideChef || o.exec.statut === "non_fait")
+      ? [{ statut: o.exec.statut, motif: o.exec.motif || "", valideChef: o.exec.valideChef || null, noteChef: o.exec.noteChef || "", employeNom: o.exec.employeNom || null, valideParNom: o.exec.valideParNom || null, le: o.exec.valideLe || o.exec.faitA || null }]
+      : [];
+    setExecutions((l) => l.map((x) => (x.id === o.exec.id ? { ...x, ...patch, historique: patch.garderHistorique ? [...(x.historique || []), ...snap] : (x.historique || []) } : x)));
+  } else {
+    setExecutions((l) => [...l, { id: uid(), cleaningId: o.cleaningId, date: o.date, moment: o.moment, statut: "fait", motif: "", employeeId: null, photo: null, valideChef: null, noteChef: "", photoChef: null, valideParId: null, valideLe: null, ...patch }]);
+  }
+}
+
+const PASTILLE_STATUT = {
+  a_faire: null,
+  fait: { txt: "Fait — en attente de la validation du chef", cls: "text-[var(--gold)]" },
+  valide: { txt: "Validé par le chef", cls: "text-[var(--accent)]" },
+  refuse: { txt: "Refusé par le chef", cls: "text-[var(--warn)]" },
+  impossible: { txt: "Déclaré impossible", cls: "text-[var(--warn)]" },
+};
+
+function NettoyageFinServiceEmploye({ ctx, employees, currentUserId, logActivity, today }) {
+  const { cleaning, executions, shifts } = ctx;
+  const [ouvert, setOuvert] = useState(null);
+  const [motif, setMotif] = useState("");
+  const [photo, setPhoto] = useState(null);
+  const moi = employees.find((e) => e.id === currentUserId);
+  const toutes = occurrencesDuJour(cleaning, executions, today);
+  const miennes = toutes.filter((o) => !o.aValiderSeulement && concernesOccurrence(o, today, employees, shifts).ids.includes(currentUserId));
+  const enRetard = miennes.filter((o) => o.enRetard);
+  const duJour = (m) => miennes.filter((o) => !o.enRetard && o.date === today && o.moment === m);
+  if (!miennes.length) return null;
+
+  const base = (extra) => ({ employeeId: currentUserId, employeNom: moi?.nom || null, faitA: `${today} ${heureMaintenant()}`, valideChef: null, noteChef: "", photoChef: null, valideParId: null, valideParNom: null, valideLe: null, garderHistorique: true, ...extra });
+  const marquerFait = (o) => {
+    appliquerExecution(ctx, o, base({ statut: "fait", motif: "", photo: null }));
+    logActivity("Nettoyage", "Tâche de nettoyage faite", `${o.tache} (${o.moment === "midi" ? "midi" : "soir"}, ${libelleDateCourte(o.date)})`);
+  };
+  const declarerImpossible = (o) => {
+    if (!motif.trim()) return;
+    appliquerExecution(ctx, o, base({ statut: "non_fait", motif: motif.trim(), photo }));
+    logActivity("Nettoyage", "Tâche de nettoyage impossible à faire", `${o.tache} — ${motif.trim()}`);
+    setOuvert(null); setMotif(""); setPhoto(null);
+  };
+  const annuler = (o) => { if (o.exec) ctx.setExecutions((l) => l.filter((x) => x.id !== o.exec.id)); };
+
+  const ligne = (o) => {
+    const p = PASTILLE_STATUT[o.statut];
+    const ex = o.exec;
+    return (
+      <li key={o.cle} className={`rounded-lg p-2.5 border ${o.enRetard ? "border-[var(--warn)]/40 bg-[var(--warn-soft)]" : o.statut === "valide" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+        <div className="flex items-start justify-between gap-2">
+          <p className={`text-sm leading-snug ${o.statut === "valide" || o.statut === "fait" ? "text-[var(--steel)]" : "text-[var(--ink)]"} ${o.statut === "valide" ? "line-through" : ""}`}>{o.tache}</p>
+          {o.poste && o.poste !== "Tous" && <span className="text-[10px] uppercase tracking-wide text-[var(--steel)] shrink-0">{o.poste}</span>}
+        </div>
+        {o.enRetard && <p className="text-xs font-semibold text-[var(--warn)] mt-0.5">En retard — prévue le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"})</p>}
+        {o.note && o.statut === "a_faire" && <p className="text-xs text-[var(--steel)] mt-1 leading-snug">{o.note}</p>}
+        {p && <p className={`text-xs font-medium mt-1 ${p.cls}`}>{p.txt}{o.statut === "impossible" && ex?.motif ? ` : ${ex.motif}` : ""}{o.statut === "refuse" && ex?.noteChef ? ` : ${ex.noteChef}` : ""}</p>}
+        {o.statut === "refuse" && ex?.photoChef && <img src={ex.photoChef} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1" />}
+        {(o.statut === "fait" || o.statut === "valide") && ex?.employeNom && <p className="text-xs text-[var(--steel)]">Par {ex.employeNom}{ex.faitA ? ` à ${String(ex.faitA).slice(11, 16)}` : ""}</p>}
+        {ouvert === o.cle ? (
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-[var(--steel)]">Indiquez pourquoi la tâche n'a pas pu être faite (ex. congélateur plein). Elle sera reprogrammée demain et le responsable verra votre explication.</p>
+            <textarea className={`${inputCls} w-full text-sm`} rows={2} value={motif} onChange={(e) => setMotif(e.target.value)} placeholder="Raison…" autoFocus />
+            <PhotoInput value={photo} onChange={setPhoto} label="Ajouter une photo (facultatif)" small />
+            <div className="flex gap-2">
+              <Button onClick={() => declarerImpossible(o)} disabled={!motif.trim()}>Envoyer</Button>
+              <Button variant="ghost" onClick={() => { setOuvert(null); setMotif(""); setPhoto(null); }}>Annuler</Button>
+            </div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {(o.statut === "a_faire" || o.statut === "impossible" || o.statut === "refuse") && (
+              <button onClick={() => marquerFait(o)} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg font-medium active:scale-[0.97] transition-transform" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}><CheckCircle2 size={16} /> {o.statut === "a_faire" ? "Fait" : "C'est fait maintenant"}</button>
+            )}
+            {(o.statut === "a_faire" || o.statut === "refuse") && (
+              <button onClick={() => { setOuvert(o.cle); setMotif(""); setPhoto(null); }} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium"><XCircle size={16} /> Je n'ai pas pu le faire</button>
+            )}
+            {o.statut === "fait" && <button onClick={() => annuler(o)} className="text-xs text-[var(--steel)] underline">Annuler</button>}
+          </div>
+        )}
+      </li>
+    );
+  };
+
+  const bloc = (titre, liste, rouge) => liste.length > 0 && (
+    <div className="mb-3 last:mb-0">
+      <p className={`text-xs font-semibold uppercase tracking-wide mb-1.5 ${rouge ? "text-[var(--warn)]" : "text-[var(--steel)]"}`}>{titre}</p>
+      <ul className="space-y-2">{liste.map(ligne)}</ul>
+    </div>
+  );
+  return (
+    <Card className="mb-6">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Nettoyage de fin de service</h3>
+      <p className="text-xs text-[var(--steel)] mb-3">Les tâches du plan de nettoyage qui vous concernent. Le responsable les valide en fin de service ; une tâche non faite est reprogrammée le lendemain.</p>
+      {bloc("En retard — à faire en priorité", enRetard, true)}
+      {bloc("Fin du service du midi", duJour("midi"))}
+      {bloc("Fin du service du soir", duJour("soir"))}
+    </Card>
+  );
+}
+
+function NettoyageFinServiceChef({ ctx, employees, currentUserId, logActivity, today }) {
+  const { cleaning, executions, shifts } = ctx;
+  const [refus, setRefus] = useState(null); // { cle, note, photo }
+  const toutes = occurrencesDuJour(cleaning, executions, today);
+  const parMoment = (m) => toutes.filter((o) => !o.enRetard && !o.aValiderSeulement && o.date === today && o.moment === m);
+  const enRetard = toutes.filter((o) => o.enRetard);
+  const aValider = toutes.filter((o) => o.aValiderSeulement);
+  const moi = employees.find((e) => e.id === currentUserId);
+  const marque = (o, patch) => appliquerExecution(ctx, o, { valideParId: currentUserId, valideParNom: moi?.nom || null, valideLe: new Date().toISOString(), garderHistorique: true, ...patch });
+  const valider = (o) => {
+    marque(o, { valideChef: "ok", noteChef: "", photoChef: null, ...(o.statut === "impossible" || !o.exec ? { statut: "fait", motif: "" } : {}) });
+    logActivity("Nettoyage", "Nettoyage validé par le responsable", `${o.tache} (${libelleDateCourte(o.date)}, ${o.moment === "midi" ? "midi" : "soir"})`);
+  };
+  const refuser = (o) => {
+    if (!refus) return;
+    marque(o, { valideChef: "ko", noteChef: refus.note.trim(), photoChef: refus.photo, ...(o.exec ? {} : { statut: "non_fait" }) });
+    logActivity("Nettoyage", "Nettoyage non fait / refusé par le responsable", `${o.tache}${refus.note.trim() ? " — " + refus.note.trim() : ""}`);
+    setRefus(null);
+  };
+  const annulerValidation = (o) => appliquerExecution(ctx, o, { valideChef: null, noteChef: "", photoChef: null, valideParId: null, valideParNom: null, valideLe: null, garderHistorique: false });
+
+  const ligne = (o) => {
+    const pc = concernesOccurrence(o, today, employees, shifts);
+    const ex = o.exec;
+    const mode = o.t.assigneA;
+    const alertes = [];
+    if (mode === "personnes" && pc.enRepos.length) alertes.push(`${pc.enRepos.map((e) => e.nom).join(", ")} ${pc.enRepos.length > 1 ? "sont en repos" : "est en repos"} ce jour-là : pensez à confier la tâche à quelqu'un d'autre.`);
+    if (pc.aucunPresent && !(mode === "personnes" && pc.enRepos.length)) alertes.push("Personne concerné ne travaille à ce service : la tâche ne sera vue par personne.");
+    const enRefus = refus && refus.cle === o.cle;
+    const p = PASTILLE_STATUT[o.statut];
+    return (
+      <li key={o.cle} className={`rounded-lg p-2.5 border ${o.enRetard || o.statut === "refuse" || o.statut === "impossible" ? "border-[var(--warn)]/40 bg-[var(--warn-soft)]" : o.statut === "valide" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+        <div className="flex items-start justify-between gap-2">
+          <p className={`text-sm leading-snug ${o.statut === "valide" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{o.tache}</p>
+          {o.poste && o.poste !== "Tous" && <span className="text-[10px] uppercase tracking-wide text-[var(--steel)] shrink-0">{o.poste}</span>}
+        </div>
+        <p className="text-xs text-[var(--steel)] mt-0.5">{libelleAssignationNet(o.t, employees)}{pc.presents.length ? ` — présents : ${pc.presents.map((e) => e.nom).join(", ")}` : ""}</p>
+        {o.enRetard && <p className="text-xs font-semibold text-[var(--warn)] mt-0.5">En retard — prévue le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"})</p>}
+        {o.aValiderSeulement && <p className="text-xs font-medium text-[var(--gold)] mt-0.5">Faite le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"}) — à valider</p>}
+        {alertes.map((a, i) => <p key={i} className="text-xs font-medium text-[var(--warn)] mt-1">⚠ {a}</p>)}
+        {p && <p className={`text-xs font-medium mt-1 ${p.cls}`}>{p.txt}</p>}
+        {(o.statut === "fait" || o.statut === "valide") && ex?.employeNom && <p className="text-xs text-[var(--steel)]">Fait par {ex.employeNom}{ex.faitA ? ` à ${String(ex.faitA).slice(11, 16)}` : ""}</p>}
+        {o.statut === "impossible" && ex && <div className="mt-1"><p className="text-xs text-[var(--ink)]">« {ex.motif} » — {ex.employeNom || "employé"}</p>{ex.photo && <img src={ex.photo} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1" />}</div>}
+        {o.statut === "refuse" && ex && (ex.noteChef || ex.photoChef) && <div className="mt-1">{ex.noteChef && <p className="text-xs text-[var(--ink)]">Votre note : {ex.noteChef}</p>}{ex.photoChef && <img src={ex.photoChef} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--line)] mt-1" />}</div>}
+        {enRefus ? (
+          <div className="mt-2 space-y-2">
+            <p className="text-xs text-[var(--steel)]">La tâche est marquée « pas faite », reste en rouge et revient demain. Vous pouvez ajouter une note et/ou une photo.</p>
+            <textarea className={`${inputCls} w-full text-sm`} rows={2} value={refus.note} onChange={(e) => setRefus({ ...refus, note: e.target.value })} placeholder="Ce qui n'est pas bon ou pas fait…" autoFocus />
+            <PhotoInput value={refus.photo} onChange={(ph) => setRefus({ ...refus, photo: ph })} label="Ajouter une photo (facultatif)" small />
+            <div className="flex gap-2"><Button variant="danger" onClick={() => refuser(o)}>Confirmer « pas fait »</Button><Button variant="ghost" onClick={() => setRefus(null)}>Annuler</Button></div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap gap-2 mt-2">
+            {o.statut !== "valide" && (
+              <button onClick={() => valider(o)} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg font-medium active:scale-[0.97] transition-transform" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}><CheckCircle2 size={16} /> Valider</button>
+            )}
+            {o.statut !== "valide" && o.statut !== "refuse" && (
+              <button onClick={() => setRefus({ cle: o.cle, note: "", photo: null })} className="flex items-center gap-1.5 text-sm px-3.5 py-2.5 min-h-[44px] rounded-lg border border-[var(--warn)] text-[var(--warn)] font-medium"><XCircle size={16} /> Pas fait</button>
+            )}
+            {o.statut === "valide" && <button onClick={() => annulerValidation(o)} className="text-xs text-[var(--steel)] underline">Annuler la validation</button>}
+          </div>
+        )}
+      </li>
+    );
+  };
+  const bloc = (titre, liste, rouge) => liste.length > 0 && (
+    <div className="mb-4 last:mb-0">
+      <p className={`text-xs font-semibold uppercase tracking-wide mb-1.5 ${rouge ? "text-[var(--warn)]" : "text-[var(--steel)]"}`}>{titre} ({liste.length})</p>
+      <ul className="space-y-2">{liste.map(ligne)}</ul>
+    </div>
+  );
+  const rien = !enRetard.length && !aValider.length && !parMoment("midi").length && !parMoment("soir").length;
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Nettoyage de fin de service — contrôle du responsable</h3>
+      <p className="text-xs text-[var(--steel)] mb-3">Tâches de votre plan de nettoyage prévues aujourd'hui. « Valider » pour confirmer qu'elle est faite correctement ; « Pas fait » (avec note et/ou photo) pour la refuser : elle reste en rouge et revient demain.</p>
+      {rien ? <p className="text-sm text-[var(--steel)]">Aucune tâche de nettoyage prévue aujourd'hui.</p> : (
+        <>
+          {bloc("En retard (reportées)", enRetard, true)}
+          {bloc("Faites les jours précédents, à valider", aValider)}
+          {bloc("Fin du service du midi", parMoment("midi"))}
+          {bloc("Fin du service du soir", parMoment("soir"))}
+        </>
+      )}
+    </Card>
+  );
+}
+
 function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, huileTests, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning }) {
   const today = todayISO();
+  const ctxFin = React.useContext(NettoyageContext);
   const [statutsParJour, setStatutsParJour] = useStored("controle-planning-statuts", {});
   const [notesParJour, setNotesParJour] = useStored("controle-planning-notes", {});
   const [noteEnCours, setNoteEnCours] = useState(null); // { key, label, assignedTo, note }
@@ -1804,7 +2013,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
   // protocole par tâche) et la même fonction `tacheDueAujourdhuiOuEnRetard` que le reste de
   // l'appli, plutôt qu'une liste de nettoyage inventée séparément. Logique partagée avec la vue
   // Nettoyage de l'employé — voir construireItemsNettoyageDuJour.
-  const itemsNettoyage = construireItemsNettoyageDuJour(cleaning, today);
+  const itemsNettoyage = ctxFin ? [] : construireItemsNettoyageDuJour(cleaning, today);
 
   // 3. Autres tâches du jour — hors nettoyage (catégorie 2 ci-dessus), service et repas du personnel.
   const TITRES_EXCLUS = /repas du personnel|contr[oô]le/i;
@@ -1829,7 +2038,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
 
   const CATEGORIES = [
     { titre: "DLC à jeter par poste", items: itemsDlc },
-    { titre: "Nettoyage en fin de service — cuisine et plonge", items: itemsNettoyage },
+    ...(ctxFin ? [] : [{ titre: "Nettoyage en fin de service — cuisine et plonge", items: itemsNettoyage }]),
     { titre: "Autres tâches du jour", items: itemsAutres },
     { titre: "Matériel propre et éteint", items: itemsMateriel },
   ];
@@ -1868,6 +2077,8 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
       {relevesFroid && <TableauTemperaturesDuJour equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} who={who} repliable />}
 
       {huileTests && <CarteHuileDuJour huileTests={huileTests} who={who} />}
+
+      {ctxFin && <NettoyageFinServiceChef ctx={ctxFin} employees={employees} currentUserId={currentUserId} logActivity={logActivity} today={today} />}
 
       {CATEGORIES.map((cat) => (
         <Card key={cat.titre}>
@@ -3859,7 +4070,7 @@ function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId,
   );
 }
 
-const FREQUENCES_NETTOYAGE = ["À chaque utilisation", "Quotidienne", "Hebdomadaire", "Mensuelle", "Périodique (3-6 mois)"];
+const FREQUENCES_NETTOYAGE = ["À chaque utilisation", "Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Périodique (3-6 mois)"];
 
 
 // ---- Plan de nettoyage modifiable par le chef / directeur (nouvelle version) ----
@@ -3890,18 +4101,33 @@ const TYPES_APPAREIL_NETTOYAGE = {
 const POSITIONS_MOIS = [[1, "1er"], [2, "2e"], [3, "3e"], [4, "4e"], ["dernier", "dernier"]];
 
 function ChampsFrequenceNettoyage({ v, maj }) {
+  const joursChoisis = joursDeLaTache(v);
+  const basculerJour = (j) => {
+    const base = joursChoisis.length ? joursChoisis : [];
+    const suite = base.includes(j) ? base.filter((x) => x !== j) : [...base, j];
+    maj({ jours: JOURS.filter((x) => suite.includes(x)), jour: undefined });
+  };
+  const moments = momentsDeLaTache(v);
+  const basculerMoment = (m) => {
+    const suite = moments.includes(m) ? moments.filter((x) => x !== m) : [...moments, m];
+    if (suite.length) maj({ moments: MOMENTS_NETTOYAGE.map(([k]) => k).filter((k) => suite.includes(k)) });
+  };
+  const aDesJours = v.frequence === "Hebdomadaire" || v.frequence === "Toutes les 2 semaines";
+  const aMoments = ["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle"].includes(v.frequence);
+  const puce = (actif) => `px-3 py-1.5 rounded-full text-xs font-medium border ${actif ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`;
   return (
     <>
       <Field label="À quelle fréquence ?">
-        <select className={inputCls} value={v.frequence} onChange={(e) => maj({ frequence: e.target.value })}>
+        <select className={inputCls} value={v.frequence} onChange={(e) => maj({ frequence: e.target.value, ...(e.target.value === "Toutes les 2 semaines" && !v.semaineRef ? { semaineRef: todayISO() } : {}) })}>
           {FREQUENCES_NETTOYAGE.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
       </Field>
-      {v.frequence === "Hebdomadaire" && (
-        <Field label="Quel jour de la semaine ?">
-          <select className={inputCls} value={v.jour || "Lundi"} onChange={(e) => maj({ jour: e.target.value })}>
-            {JOURS.map((j) => <option key={j} value={j}>{j}</option>)}
-          </select>
+      {aDesJours && (
+        <Field label={v.frequence === "Hebdomadaire" ? "Quels jours de la semaine ? (un ou plusieurs)" : "Quels jours ? (un ou plusieurs, une semaine sur deux)"}>
+          <div className="flex flex-wrap gap-1.5">
+            {JOURS.map((j) => <button type="button" key={j} onClick={() => basculerJour(j)} className={puce(joursChoisis.includes(j))}>{j}</button>)}
+          </div>
+          {!joursChoisis.length && <p className="text-xs text-[var(--warn)] mt-1">Choisissez au moins un jour.</p>}
         </Field>
       )}
       {v.frequence === "Mensuelle" && (
@@ -3918,18 +4144,48 @@ function ChampsFrequenceNettoyage({ v, maj }) {
           </Field>
         </>
       )}
+      {aMoments && (
+        <Field label="À quel moment ? (un ou les deux)">
+          <div className="flex flex-wrap gap-1.5">
+            {MOMENTS_NETTOYAGE.map(([k, lib]) => <button type="button" key={k} onClick={() => basculerMoment(k)} className={puce(moments.includes(k))}>{lib}</button>)}
+          </div>
+        </Field>
+      )}
     </>
   );
 }
 
-function EditeurTacheNettoyage({ initial, zones, titre, onSave, onCancel }) {
+// Champs de sortie communs (fréquence, jours, moments) à enregistrer sur une tâche du plan
+function sortieFrequenceNettoyage(v) {
+  const o = { frequence: v.frequence, jour: undefined, jours: undefined, jourSemaineMois: undefined, positionMois: undefined, semaineRef: undefined, moments: undefined };
+  if (v.frequence === "Hebdomadaire" || v.frequence === "Toutes les 2 semaines") {
+    const j = joursDeLaTache(v);
+    o.jours = j.length ? j : ["Lundi"];
+    o.jour = o.jours[0];
+    if (v.frequence === "Toutes les 2 semaines") o.semaineRef = v.semaineRef || todayISO();
+  }
+  if (v.frequence === "Mensuelle") { o.jourSemaineMois = v.jourSemaineMois || "Dimanche"; o.positionMois = v.positionMois ?? 1; }
+  if (["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle"].includes(v.frequence)) o.moments = momentsDeLaTache(v);
+  return o;
+}
+
+function libelleAssignationNet(t, employees) {
+  const mode = t.assigneA || (t.poste && t.poste !== "Tous" ? "poste" : "tous");
+  if (mode === "personnes") {
+    const noms = (t.personnes || []).map((id) => (employees || []).find((e) => e.id === id)?.nom).filter(Boolean);
+    return noms.length ? `pour : ${noms.join(", ")}` : "personne choisie";
+  }
+  if (mode === "poste") return `équipe de ${t.poste}`;
+  return "tâche générale (tous)";
+}
+
+function EditeurTacheNettoyage({ initial, zones, titre, employees, onSave, onCancel }) {
   const [v, setV] = useState(() => ({ tache: "", poste: "Tous", frequence: "Quotidienne", note: "", ...initial }));
   const maj = (p) => setV((x) => ({ ...x, ...p }));
   const enregistrer = () => {
     if (!v.tache.trim()) return;
-    const sortie = { tache: v.tache.trim(), poste: v.poste, frequence: v.frequence, note: v.note || "", jour: undefined, jourSemaineMois: undefined, positionMois: undefined };
-    if (v.frequence === "Hebdomadaire") sortie.jour = v.jour || "Lundi";
-    if (v.frequence === "Mensuelle") { sortie.jourSemaineMois = v.jourSemaineMois || "Dimanche"; sortie.positionMois = v.positionMois ?? 1; }
+    const mode = v.assigneA || (v.poste && v.poste !== "Tous" ? "poste" : "tous");
+    const sortie = { tache: v.tache.trim(), poste: v.poste, note: v.note || "", ...sortieFrequenceNettoyage(v), assigneA: mode, personnes: mode === "personnes" ? (v.personnes || []) : undefined };
     onSave(sortie);
   };
   return (
@@ -3944,11 +4200,30 @@ function EditeurTacheNettoyage({ initial, zones, titre, onSave, onCancel }) {
             </select>
           </Field>
           <ChampsFrequenceNettoyage v={v} maj={maj} />
+          <Field label="Qui fait cette tâche ?">
+            <select className={inputCls} value={v.assigneA || (v.poste && v.poste !== "Tous" ? "poste" : "tous")} onChange={(e) => maj({ assigneA: e.target.value })}>
+              <option value="tous">Tâche générale : visible par tous ceux qui travaillent ce jour-là</option>
+              {v.poste && v.poste !== "Tous" && <option value="poste">Les employés de « {v.poste} »</option>}
+              <option value="personnes">Une ou plusieurs personnes précises</option>
+            </select>
+          </Field>
+          {(v.assigneA === "personnes") && (
+            <Field label="Choisissez la ou les personnes">
+              <div className="flex flex-wrap gap-1.5">
+                {(employees || []).filter((e) => e.id !== "direction").map((e) => {
+                  const on = (v.personnes || []).includes(e.id);
+                  return <button type="button" key={e.id} onClick={() => maj({ personnes: on ? (v.personnes || []).filter((x) => x !== e.id) : [...(v.personnes || []), e.id] })} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${on ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--line)]"}`}>{e.nom}</button>;
+                })}
+              </div>
+              {!(v.personnes || []).length && <p className="text-xs text-[var(--warn)] mt-1">Choisissez au moins une personne.</p>}
+            </Field>
+          )}
+          <p className="text-xs text-[var(--steel)]">Un employé en repos ce jour-là ne voit pas la tâche ; si la personne choisie est en repos, le responsable est prévenu.</p>
           <Field label="Produit, dosage et méthode (protocole à respecter)"><textarea className={`${inputCls} w-full`} rows={4} value={v.note} onChange={(e) => maj({ note: e.target.value })} placeholder="ex. Nettoyant désinfectant alimentaire, contact 5 min, rinçage à l'eau claire. Dosage selon la fiche du produit." /></Field>
         </div>
         <div className="flex justify-end gap-2 mt-4">
           <Button variant="ghost" onClick={onCancel}>Annuler</Button>
-          <Button onClick={enregistrer} disabled={!v.tache.trim()}>Enregistrer</Button>
+          <Button onClick={enregistrer} disabled={!v.tache.trim() || (v.assigneA === "personnes" && !(v.personnes || []).length)}>Enregistrer</Button>
         </div>
       </div>
     </div>
@@ -3965,10 +4240,7 @@ function EditeurAppareilNettoyage({ zones, onSave, onCancel }) {
   const enregistrer = () => {
     if (!nom.trim()) return;
     onSave(lignes.filter((l) => l.on).map((l) => ({
-      tache: `${nom.trim()} — ${l.suffixe}`, poste, frequence: l.frequence, note: l.note || "",
-      jour: l.frequence === "Hebdomadaire" ? (l.jour || "Lundi") : undefined,
-      jourSemaineMois: l.frequence === "Mensuelle" ? (l.jourSemaineMois || "Dimanche") : undefined,
-      positionMois: l.frequence === "Mensuelle" ? (l.positionMois ?? 1) : undefined,
+      tache: `${nom.trim()} — ${l.suffixe}`, poste, note: l.note || "", assigneA: poste !== "Tous" ? "poste" : "tous", ...sortieFrequenceNettoyage(l),
     })));
   };
   return (
@@ -4012,7 +4284,7 @@ function EditeurAppareilNettoyage({ zones, onSave, onCancel }) {
   );
 }
 
-function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage, setZonesNettoyage }) {
+function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage, setZonesNettoyage, employees }) {
   const [infosFicheNettoyage, setInfosFicheNettoyage] = useState(null);
   const [nouveau, setNouveau] = useState({ tache: "", frequence: "Quotidienne", poste: "Tous" });
   const [noteOuverte, setNoteOuverte] = useState(null);
@@ -4064,17 +4336,17 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       setCleaning(cleaning.map((t) => (t.id === editeur.id ? { ...t, ...vals } : t)));
       logActivity("Nettoyage", "Tâche du plan de nettoyage modifiée", vals.tache);
     } else {
-      setCleaning([...cleaning, { id: uid(), ...vals, fait: false, date: null, employeeId: null }]);
+      setCleaning([...cleaning, { id: uid(), ...vals, creeLe: todayISO(), fait: false, date: null, employeeId: null }]);
       logActivity("Nettoyage", "Tâche ajoutée au plan de nettoyage", vals.tache);
     }
     setEditeur(null);
   };
   const enregistrerAppareil = (taches) => {
-    setCleaning([...cleaning, ...taches.map((t) => ({ id: uid(), ...t, fait: false, date: null, employeeId: null }))]);
+    setCleaning([...cleaning, ...taches.map((t) => ({ id: uid(), ...t, creeLe: todayISO(), fait: false, date: null, employeeId: null }))]);
     logActivity("Nettoyage", "Appareil ajouté au plan de nettoyage", taches.map((t) => t.tache).join(" · "));
     setEditeur(null);
   };
-  const dupliquerTache = (t) => setEditeur({ id: null, initial: { tache: `${t.tache} (copie)`, poste: t.poste, frequence: t.frequence, jour: t.jour, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, note: t.note } });
+  const dupliquerTache = (t) => setEditeur({ id: null, initial: { tache: `${t.tache} (copie)`, poste: t.poste, frequence: t.frequence, jour: t.jour, jours: t.jours, moments: t.moments, assigneA: t.assigneA, personnes: t.personnes, semaineRef: t.semaineRef, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, note: t.note } });
   const updateNote = (id, note) => setCleaning(cleaning.map((t) => (t.id === id ? { ...t, note } : t)));
 
   const parPoste = cleaning.reduce((acc, t) => { const p = t.poste || "Tous"; (acc[p] = acc[p] || []).push(t); return acc; }, {});
@@ -4085,7 +4357,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
       <BoutonInfosNormes ficheKey="bph" onClick={setInfosFicheNettoyage} label="Bonnes pratiques d'hygiène : boîtes de conserve et planches à découper" />
       {infosFicheNettoyage && <ModalInfosNormes fiche={FICHES_NORMES[infosFicheNettoyage] || infosFicheNettoyage} onClose={() => setInfosFicheNettoyage(null)} />}
       {editeur && editeur.mode === "appareil" && <EditeurAppareilNettoyage zones={zonesNettoyage} onSave={enregistrerAppareil} onCancel={() => setEditeur(null)} />}
-      {editeur && editeur.mode !== "appareil" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
+      {editeur && editeur.mode !== "appareil" && <EditeurTacheNettoyage titre={editeur.id ? "Modifier la tâche" : "Ajouter une tâche"} initial={editeur.initial} zones={zonesNettoyage} employees={employees} onSave={enregistrerTache} onCancel={() => setEditeur(null)} />}
       {editable && (
         <Card className="mb-4">
           <p className="text-sm text-[var(--ink)]"><strong>Ce plan est le vôtre.</strong> Nous vous proposons un point de départ : vous pouvez modifier chaque tâche (fréquence, jour, produit, protocole), en supprimer, en ajouter, ajouter un appareil ou une zone, et l'organiser exactement comme vous nettoyez dans votre cuisine. Les cuisiniers voient et cochent les tâches ; seuls le responsable et le directeur peuvent modifier le plan.</p>
@@ -4183,13 +4455,14 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
                             {t.fait ? <CheckCircle2 size={18} className="text-[var(--accent)]" /> : <Circle size={18} className="text-[var(--steel)]" />}
                           </button>
                           <span className={`flex-1 ${t.fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{t.tache}</span>
-                          {t.jour && <span className="text-xs text-[var(--gold)] font-medium">{t.jour}</span>}
-                          {t.jourSemaineMois && <span className="text-xs text-[var(--gold)] font-medium">{t.positionMois === "dernier" ? "dernier" : `${t.positionMois}${t.positionMois === 1 ? "er" : "e"}`} {t.jourSemaineMois} du mois</span>}
+                          {editable && t.frequence !== "À chaque utilisation" && !String(t.frequence).startsWith("Périodique") && <span className="text-xs text-[var(--gold)] font-medium">{libelleFrequenceNet(t)} · {libelleMomentsNet(t)} · {libelleAssignationNet(t, employees)}</span>}
+                          {!editable && t.jour && <span className="text-xs text-[var(--gold)] font-medium">{t.jour}</span>}
+                          {!editable && t.jourSemaineMois && <span className="text-xs text-[var(--gold)] font-medium">{t.positionMois === "dernier" ? "dernier" : `${t.positionMois}${t.positionMois === 1 ? "er" : "e"}`} {t.jourSemaineMois} du mois</span>}
                           {t.jourDuMois && <span className="text-xs text-[var(--gold)] font-medium">le {t.jourDuMois}</span>}
                           {t.fait && t.date && <span className="text-xs text-[var(--accent)]">fait le {t.date}{who(t.employeeId) ? ` par ${who(t.employeeId)}` : ""}</span>}
                           {editable ? (
                             <>
-                              <button onClick={() => setEditeur({ id: t.id, initial: { tache: t.tache, poste: t.poste || "Tous", frequence: t.frequence, jour: t.jour, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, note: t.note || "" } })} className="text-xs text-[var(--accent)] font-medium underline">Modifier</button>
+                              <button onClick={() => setEditeur({ id: t.id, initial: { tache: t.tache, poste: t.poste || "Tous", frequence: t.frequence, jour: t.jour, jours: t.jours, moments: t.moments, assigneA: t.assigneA, personnes: t.personnes, semaineRef: t.semaineRef, jourSemaineMois: t.jourSemaineMois, positionMois: t.positionMois, note: t.note || "" } })} className="text-xs text-[var(--accent)] font-medium underline">Modifier</button>
                               <button onClick={() => dupliquerTache(t)} className="text-xs text-[var(--steel)] hover:text-[var(--accent)] underline decoration-dotted">Dupliquer</button>
                             </>
                           ) : (
@@ -4248,7 +4521,7 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
           <strong>À finaliser :</strong> détaillez pour chaque matériel les étapes de nettoyage selon le protocole HACCP (comme pour la friteuse), puis indiquez le produit utilisé par votre établissement avec sa quantité / dilution exacte. À compléter dans « Protocoles de nettoyage détaillés » ci-dessous, produit par produit.
         </p>
       </Card>
-      <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} />
+      <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} />
       <div className="mt-6">
         <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
       </div>
@@ -13844,6 +14117,7 @@ function ModalNettoyagePeriodique({ frequence, cleaning, setCleaning, moi, onClo
 
 function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef }) {
   const today = todayISO();
+  const ctxFin = React.useContext(NettoyageContext);
   const [form, setForm] = useState({ titre: "", heure: "", categorie: "Préparation", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", jourDuMois: 1, date: today, declencheHuile: false, declencheChangementHuile: false, declencheTracabilite: false, declencheRefroidissement: false });
   const [expanded, setExpanded] = useState(null);
   const [resolutionEnCours, setResolutionEnCours] = useState(null);
@@ -14106,6 +14380,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         />
       )}
 
+      {ctxFin && currentUserId !== "direction" && <NettoyageFinServiceEmploye ctx={ctxFin} employees={employees} currentUserId={currentUserId} logActivity={logActivity} today={today} />}
+
       {currentUserId !== "direction" && (() => {
         const demain = addDays(today, 1);
         const refroidsEnCours = refroidissements.filter((r) => r.statut === "en-cours");
@@ -14114,8 +14390,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         const stockDlcDemain = stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0);
         const dlcCeSoir = preparations.filter((p) => !p.jete && p.dlcDate <= today);
         const stockDlc = stockDlcAujourdhui;
-        const hebdoDus = cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && c.frequence === "Hebdomadaire" && tacheDueAujourdhuiOuEnRetard(c, today));
-        const mensuelsDus = cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && c.frequence === "Mensuelle" && tacheDueAujourdhuiOuEnRetard(c, today));
+        const hebdoDus = ctxFin ? [] : cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && c.frequence === "Hebdomadaire" && tacheDueAujourdhuiOuEnRetard(c, today));
+        const mensuelsDus = ctxFin ? [] : cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && c.frequence === "Mensuelle" && tacheDueAujourdhuiOuEnRetard(c, today));
         const rien = refroidsEnCours.length === 0 && maintienEnCours.length === 0 && dlcDemain.length === 0 && stockDlcDemain.length === 0 && dlcCeSoir.length === 0 && stockDlc.length === 0 && hebdoDus.length === 0 && mensuelsDus.length === 0;
         if (rien) return null;
 
@@ -14874,7 +15150,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const [cleaningExterne, setCleaningExterne] = useListeExterne(identiteExterne, "cleaning");
   const cleaning = modeExterne ? cleaningExterne : cleaningStocke;
   const setCleaning = modeExterne ? setCleaningExterne : setCleaningStocke;
-  const chargerPlanDepart = modeExterne ? () => setCleaning(PLAN_NETTOYAGE_DEPART.map((t) => ({ id: uid(), ...t, fait: false, date: null, employeeId: null }))) : undefined;
+  const [pmsExecutions, setPmsExecutions] = useListeExterne(identiteExterne, "pmsExecutions");
+  const chargerPlanDepart = modeExterne ? () => setCleaning(PLAN_NETTOYAGE_DEPART.map((t) => ({ id: uid(), ...t, creeLe: todayISO(), fait: false, date: null, employeeId: null }))) : undefined;
   const [protocolesNettoyage, setProtocolesNettoyage] = useStoredOuMemoire("protocoles-nettoyage", [
     { id: "friteuse-complet", nom: "Nettoyage complet friteuse (intérieur, extérieur, ustensiles)", produits: [], etapes: [] },
   ], modeExterne);
@@ -15798,7 +16075,9 @@ function KitchenApp({ identiteExterne } = {}) {
     .filter((c) => c.statut === "en-cours" && !c.preAlarmeAcquittee && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin - CUISSON_ALERTE_AVANT_MIN && (Date.now() - c.debutTs) / 60000 < c.dureeAttendueMin)
     .sort((a, b) => a.debutTs - b.debutTs)[0];
 
+  const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
   return (
+    <NettoyageContext.Provider value={valeurNettoyageFin}>
     <div className={`min-h-screen flex flex-col ${modeExterne ? "" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
@@ -16133,6 +16412,7 @@ function KitchenApp({ identiteExterne } = {}) {
         />
       )}
     </div>
+    </NettoyageContext.Provider>
   );
 }
 
