@@ -2953,6 +2953,8 @@ function Controle({ employees, setEmployees, tasks, activityLog, tempLogs, huile
             employees={employees}
             currentUserId={currentUserId}
             logActivity={logActivity}
+            allergenesProduits={allergenesProduits}
+            allergenesStandard={allergenesStandard}
             estChef={!!(employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction")}
           />
         </div>
@@ -3657,7 +3659,7 @@ function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissemen
                 <tr key={c.id} className="border-t border-[var(--line)]">
                   <td className="py-1.5 text-[var(--ink)]">{c.produit}</td>
                   <td className="py-1.5 text-[var(--steel)]">{c.heure}</td>
-                  <td className="py-1.5 text-[var(--ink)]">{c.temperature}°C</td>
+                  <td className="py-1.5 text-[var(--ink)]">{libTempCuisson(c)}</td>
                   <td className={`py-1.5 ${c.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{c.conforme ? "Conforme" : "Non conforme"}</td>
                 </tr>
               ))}
@@ -4635,9 +4637,9 @@ function ficheVideInit() {
     allergenes: [], allgConfirm: false,
     procedes: {
       froid: { on: false },
-      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", famille: "general" },
-      refroid: { on: false, mode: "cellule" },
-      maintien: { on: false, appareil: "Bain-marie", temp: 63, duree: "" },
+      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", famille: "general", controles: { temp: true, duree: true, visuel: false } },
+      refroid: { on: false, mode: "cellule", controles: { temp: true, temps: true, bac: false } },
+      maintien: { on: false, appareil: "Bain-marie", temp: 63, duree: "", controles: { temp: true } },
       remise: { on: false, appareil: "", cible: 63 },
       congel: { on: false, type: "maison" },
       decongel: { on: false, mode: "froid" },
@@ -4672,8 +4674,12 @@ function calculerCodeFT(categorieLabel, codeCat, nomFiche, toutesFiches) {
   return `FT ${codeCat} ${String(position).padStart(2, "0")}`;
 }
 function ingredientsRenseignes(S) { return S.ingredients.filter((i) => i.nom.trim()); }
-function suggererAllergenes(ingredients) {
-  const texte = " " + ingredients.filter((i) => i.nom.trim()).map((i) => i.nom.toLowerCase()).join(" | ") + " ";
+function suggererAllergenes(ingredients, textesProduits) {
+  // Le nom de l'ingrédient + les allergènes déjà connus du produit (catalogue / réception) alimentent la détection.
+  const texte = " " + ingredients.filter((i) => i.nom.trim()).map((i) => {
+    const connu = textesProduits ? (textesProduits[i.nom.trim()] || "") : "";
+    return (i.nom + " " + connu).toLowerCase();
+  }).join(" | ") + " ";
   return ALLERGENES_MOTS_CLES.filter(([, mots]) => mots.some((m) => texte.includes(m))).map(([a]) => a);
 }
 function lignesDepuisTexte(txt) {
@@ -4750,11 +4756,11 @@ function problemesFiche(S) {
   if (ingOk.some((i) => !i.qte && i.unite !== "QS")) out.push(["o", "Un ingrédient n'a pas de quantité (étape 2 · Ingrédients)."]);
   if (!S.allgConfirm) out.push(["r", "Allergènes non confirmés par le chef (étape 2 · Ingrédients)."]);
   if (!Object.values(p).some((x) => x.on)) out.push(["r", "Aucun procédé choisi : cuisson, préparation froide… (étape 3 · Cuisson & températures)."]);
-  if (p.cuisson.on && !p.cuisson.coeur) out.push(["o", "T° à cœur de cuisson non précisée (étape 3 · Cuisson & températures)."]);
+  if (p.cuisson.on && !p.cuisson.coeur && !(p.cuisson.controles && p.cuisson.controles.temp === false)) out.push(["o", "T° à cœur de cuisson non précisée (étape 3 · Cuisson & températures)."]);
   if (p.maintien.on && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson & températures)."]);
   if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["r", `DLC J+${S.conservation.jours} supérieure au maximum J+${dlcMaxFiche(S)} sans étude de vieillissement validée (étape 6 · Conservation & rendement).`]);
   if (!S.etapes.some((e) => e.titre.trim() || e.texte.trim())) out.push(["o", "Aucune étape de préparation (étape 5 · Préparation)."]);
-  if (p.cuisson.on && !S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Aucune étape marquée « T° de cuisson à relever » (étape 5 · Préparation)."]);
+  if (p.cuisson.on && !(p.cuisson.controles && p.cuisson.controles.temp === false) && !S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Aucune étape marquée « T° de cuisson à relever » (étape 5 · Préparation)."]);
   if (p.refroid.on && !S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Aucune étape marquée « début de refroidissement » (étape 5 · Préparation)."]);
   return out;
 }
@@ -4880,7 +4886,7 @@ function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selec
   );
 }
 
-function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef }) {
+function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard }) {
   const [S, setS] = useState(ficheVideInit);
   const [step, setStep] = useState(0);
   const [confirmation, setConfirmation] = useState(null);
@@ -4970,7 +4976,16 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   const problemes = problemesFiche(S);
   const bloquant = problemes.some((p) => p[0] === "r");
   const ingOk = ingredientsRenseignes(S);
-  const suggestions = suggererAllergenes(S.ingredients);
+  const textesProduits = { ...(allergenesStandard || {}), ...(allergenesProduits || {}) };
+  const suggestions = suggererAllergenes(S.ingredients, textesProduits);
+  // Les allergènes détectés sont cochés automatiquement (une seule fois : si le chef en décoche un, il reste décoché).
+  const dejaSuggeres = useRef([]);
+  useEffect(() => {
+    const nouveaux = suggestions.filter((a) => !dejaSuggeres.current.includes(a));
+    dejaSuggeres.current = suggestions;
+    if (nouveaux.length) setS((prev) => ({ ...prev, allergenes: [...new Set([...prev.allergenes, ...nouveaux])], allgConfirm: false }));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [suggestions.join("|")]);
   const coutApercu = calculerCoutRecette(ingOk.map((i) => ({ ...i, quantite: i.qte })), stock);
   const coutPortionApercu = coutApercu.coutRecette && Number(S.rendement.portions) > 0
     ? (Number(coutApercu.coutRecette) / Number(S.rendement.portions)).toFixed(2) : "";
@@ -5270,11 +5285,26 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   </select>
                 </Field>
                 {modeFiche === "simple" && <Field label="Durée de cuisson (minutes)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value, duree: e.target.value ? `${e.target.value} min` : "" })} placeholder="ex. 14" /></Field>}
+                {modeFiche === "simple" && (
+                  <label className="flex items-start gap-2 text-sm sm:col-span-2 cursor-pointer">
+                    <input type="checkbox" className="mt-0.5" checked={(S.procedes.cuisson.controles || {}).temp === false}
+                      onChange={(e) => majProcede("cuisson", { controles: e.target.checked ? { temp: false, duree: true, visuel: true } : { temp: true, duree: true, visuel: false } })} />
+                    <span>Contrôle visuel seulement, pas de sonde (ex. pizzas, burgers : cuisson courte, lancée en série)</span>
+                  </label>
+                )}
                 {modeFiche === "expert" && <Field label="Réglage / température appareil"><input className={inputCls} value={S.procedes.cuisson.reglage} onChange={(e) => majProcede("cuisson", { reglage: e.target.value })} placeholder="ex. 180 °C chaleur combinée" /></Field>}
                 {modeFiche === "expert" && <Field label="Durée (affichée sur la fiche)"><input className={inputCls} value={S.procedes.cuisson.duree} onChange={(e) => majProcede("cuisson", { duree: e.target.value })} placeholder="ex. 12 à 15 min" /></Field>}
                 {modeFiche === "expert" && <Field label="Durée en minutes (pour le chrono de cuisson)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value })} placeholder="ex. 14" /></Field>}
                 <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={`ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C`} /></Field>
               </div>
+                          {modeFiche === "expert" && (
+                <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
+                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+                    <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.cuisson.controles || {}).temp} onChange={(e) => majProcede("cuisson", { controles: { ...(S.procedes.cuisson.controles || {}), temp: e.target.checked } })} /> Température à cœur</label> <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.cuisson.controles || {}).duree} onChange={(e) => majProcede("cuisson", { controles: { ...(S.procedes.cuisson.controles || {}), duree: e.target.checked } })} /> Durée / chrono</label> <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.cuisson.controles || {}).visuel} onChange={(e) => majProcede("cuisson", { controles: { ...(S.procedes.cuisson.controles || {}), visuel: e.target.checked } })} /> Contrôle visuel</label>
+                  </div>
+                </div>
+              )}
             </ProcedeCard> )}
 
             {(modeFiche === "expert" || S.procedes.refroid.on) && (<ProcedeCard titre="Refroidissement rapide" regle="+63 °C → +10 °C à cœur en moins de 2 h" actif={S.procedes.refroid.on} onToggle={() => majProcede("refroid", { on: !S.procedes.refroid.on })}>
@@ -5290,6 +5320,14 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
                 <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
               </div>
+                          {modeFiche === "expert" && (
+                <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
+                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+                    <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.refroid.controles || {}).temp} onChange={(e) => majProcede("refroid", { controles: { ...(S.procedes.refroid.controles || {}), temp: e.target.checked } })} /> Température à cœur</label> <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.refroid.controles || {}).temps} onChange={(e) => majProcede("refroid", { controles: { ...(S.procedes.refroid.controles || {}), temps: e.target.checked } })} /> Temps (chrono 2 h)</label> <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.refroid.controles || {}).bac} onChange={(e) => majProcede("refroid", { controles: { ...(S.procedes.refroid.controles || {}), bac: e.target.checked } })} /> Épaisseur du bac</label>
+                  </div>
+                </div>
+              )}
             </ProcedeCard> )}
 
             {(modeFiche === "expert" || S.procedes.maintien.on) && (<ProcedeCard titre="Maintien au chaud" regle="≥ +63 °C à cœur pendant le service" actif={S.procedes.maintien.on} onToggle={() => majProcede("maintien", { on: !S.procedes.maintien.on })}>
@@ -5303,6 +5341,14 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>}
               </div>
               {Number(S.procedes.maintien.temp) < 63 && <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — le maintien au chaud doit être à +63 °C minimum. La fiche ne pourra pas être enregistrée.</p>}
+                          {modeFiche === "expert" && (
+                <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
+                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Contrôle demandé à l'employé</div>
+                  <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-sm">
+                    <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={!!(S.procedes.maintien.controles || {}).temp} onChange={(e) => majProcede("maintien", { controles: { ...(S.procedes.maintien.controles || {}), temp: e.target.checked } })} /> Température à cœur</label>
+                  </div>
+                </div>
+              )}
             </ProcedeCard> )}
 
             {(modeFiche === "expert" || S.procedes.remise.on) && (<ProcedeCard titre="Remise en température" regle="+10 °C → ≥ cible à cœur en moins d'1 h" actif={S.procedes.remise.on} onToggle={() => majProcede("remise", { on: !S.procedes.remise.on })}>
@@ -6369,7 +6415,7 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
             <div className="flex flex-wrap gap-2">
               {cuissonsPretes.map((c) => (
                 <button key={c.id} onClick={() => choisirCuisson(c)} className={`text-sm px-3 py-1.5 rounded-lg border ${cuissonChoisieId === c.id ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] bg-white text-[var(--ink)]"}`}>
-                  {c.produit} <span className="text-xs opacity-70">· {c.temperature}°C à {c.heureFin}</span>
+                  {c.produit} <span className="text-xs opacity-70">· {libTempCuisson(c)} à {c.heureFin}</span>
                 </button>
               ))}
             </div>
@@ -6483,7 +6529,7 @@ function EtiquetteCuisson({ c, who }) {
         <div>Réalisé par : <strong>{who(c.employeeId)}</strong></div>
         <div>Date : {c.date}</div>
         <div>Cuisson : {c.heureDebut} → {c.heureFin}</div>
-        <div>Température à cœur : {c.temperature}°C — {c.conforme ? "conforme" : "non conforme"}</div>
+        <div>{c.controleVisuel ? "Contrôle visuel" : `Température à cœur : ${c.temperature}°C`} — {c.conforme ? "conforme" : "non conforme"}</div>
       </div>
     </div>
   );
@@ -6500,6 +6546,10 @@ const CUISSON_FAMILLES = [
 ];
 const cuissonSeuilMin = (familleId) => (CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0]).seuil;
 const CUISSON_ALERTE_AVANT_MIN = 10;
+
+// Texte de la mesure d'une cuisson terminée : température à cœur, ou « contrôle visuel » quand la fiche
+// technique demande un contrôle visuel seul (pizzas, burgers…).
+function libTempCuisson(c) { return c && c.controleVisuel ? "contrôle visuel" : `${c.temperature}°C`; }
 
 function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle }) {
   const [selectionEnCours, setSelectionEnCours] = useState([]);
@@ -6543,6 +6593,13 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
     setSelectionEnCours((s) => s.filter((i) => i !== c.id));
   };
 
+  // Contrôle visuel seul (fiche technique : pas de sonde, ex. pizzas) : l'employé valide ou refuse à vue.
+  const terminerCuissonVisuel = (c, conforme) => {
+    setCuissons((prev) => prev.map((x) => (x.id === c.id ? { ...x, statut: "termine", heureFin: new Date().toTimeString().slice(0, 5), temperature: "", controleVisuel: true, conforme } : x)));
+    logActivity("HACCP", "Cuisson terminée", `${c.produit} — contrôle visuel — ${conforme ? "conforme" : "non conforme"}`);
+    setSelectionEnCours((s) => s.filter((i) => i !== c.id));
+  };
+
   // Cuisson chronométrée démarrée depuis le catalogue (bolognaise, lasagne...) — durée connue
   // par la fiche technique, donc pas de pizza/burger ici (cuisson courte, surveillée en direct).
   const toggleSelection = (nom) => setSelection((s) => (s.includes(nom) ? s.filter((n) => n !== nom) : [...s, nom]));
@@ -6576,7 +6633,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
     if (selection.length === 0) return;
     const nouvelles = selection.map((nom) => {
       const p = catalogue.find((x) => x.nom === nom);
-      return { id: uid(), produit: nom, famille: p?.famille || "general", appareil: p?.appareil || undefined, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutChrono, debutTs: Date.now(), dureeAttendueMin: p?.dureeMin || 20, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
+      return { id: uid(), produit: nom, famille: p?.famille || "general", appareil: p?.appareil || undefined, controleVisuelSeul: !!(p?.controles && p.controles.temp === false && p.controles.visuel), date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutChrono, debutTs: Date.now(), dureeAttendueMin: p?.dureeMin || 20, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
     });
     setCuissons([...nouvelles, ...cuissons]);
     logActivity("HACCP", "Cuisson chronométrée démarrée", `${selection.join(", ")} à ${heureDebutChrono}`);
@@ -6680,11 +6737,19 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
               return (
                 <div key={c.id} className={`border rounded-lg p-3 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
                   <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
-                  <div className="text-xs text-[var(--steel)] mb-2">Depuis {c.heureDebut} · {minutes} min (attendu ~{c.dureeAttendueMin} min){c.appareil ? ` · ${c.appareil}` : ""} · {familleLabel} : conforme si ≥{seuil}°C{depasse ? " — À VÉRIFIER MAINTENANT" : ""}</div>
+                  <div className="text-xs text-[var(--steel)] mb-2">Depuis {c.heureDebut} · {minutes} min (attendu ~{c.dureeAttendueMin} min){c.appareil ? ` · ${c.appareil}` : ""} · {c.controleVisuelSeul ? "contrôle visuel" : `${familleLabel} : conforme si ≥${seuil}°C`}{depasse ? " — À VÉRIFIER MAINTENANT" : ""}</div>
+                  {c.controleVisuelSeul ? (
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="text-xs text-[var(--steel)]">Contrôle visuel (pas de sonde) :</span>
+                      <Button onClick={() => terminerCuissonVisuel(c, true)}>Cuisson conforme</Button>
+                      <Button variant="ghost" onClick={() => terminerCuissonVisuel(c, false)}>Non conforme</Button>
+                    </div>
+                  ) : (
                   <div className="flex items-center gap-2">
                     <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="T° à cœur" value={temperatureSaisie[c.id] ?? ""} onChange={(e) => setTemperatureSaisie({ ...temperatureSaisie, [c.id]: e.target.value })} />
                     <Button onClick={() => terminerCuisson(c)}>Terminer la cuisson</Button>
                   </div>
+                  )}
                 </div>
               );
             })}
@@ -6707,7 +6772,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                 <div key={c.id} className="border border-[var(--line)] rounded-lg p-3 flex items-center justify-between gap-2">
                   <div>
                     <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
-                    <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.temperature}°C à cœur</div>
+                    <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.controleVisuel ? "contrôle visuel" : `${c.temperature}°C à cœur`}</div>
                   </div>
                   {r && r.statut === "en-cours" && <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] shrink-0">Refroidissement en cours depuis {r.heureDebut}</span>}
                   {r && r.statut === "termine" && <span className={`text-xs font-semibold px-2.5 py-1 rounded-full shrink-0 ${r.conforme ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>Refroidissement terminé à {r.heureFin}{r.tempFin !== "" && r.tempFin != null ? ` · ${r.tempFin}°C` : ""}</span>}
@@ -6729,7 +6794,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                 <input type="checkbox" checked={selectionRefroid.includes(c.id)} onChange={() => toggleSelectionRefroid(c.id)} />
                 <div className="flex-1">
                   <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
-                  <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.temperature}°C à cœur</div>
+                  <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.controleVisuel ? "contrôle visuel" : `${c.temperature}°C à cœur`}</div>
                 </div>
                 {selectionRefroid.includes(c.id) && (
                   <div className="flex items-center gap-1.5 text-xs text-[var(--steel)]">
@@ -6762,7 +6827,7 @@ function HistoriqueCuissons({ cuissons, who }) {
                 <div className="text-xs text-[var(--steel)]">{c.heure || c.heureFin} · {c.date}{who(c.employeeId) ? ` · ${who(c.employeeId)}` : ""}</div>
               </div>
               <div className="flex items-center gap-2">
-                <span className="font-semibold text-[var(--ink)]">{c.temperature}°C</span>
+                <span className="font-semibold text-[var(--ink)]">{libTempCuisson(c)}</span>
                 <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${c.conforme ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{c.conforme ? "Conforme" : "Non conforme"}</span>
               </div>
             </div>
@@ -14099,7 +14164,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // Prévisualisation : les cuissons pré-programmées et les produits du maintien au chaud viennent des fiches techniques (nouvelle base).
   const catalogueCuissonFiches = React.useMemo(() => fichesExternes
     .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
-    .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "" })), [fichesExternes]);
+    .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "", controles: f.procedes.cuisson.controles || null })), [fichesExternes]);
   const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
   const catalogueCuisson = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
   const setCatalogueCuisson = modeExterne ? (() => {}) : setCatalogueCuissonBase;
