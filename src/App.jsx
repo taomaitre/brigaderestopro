@@ -2154,7 +2154,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
 // la procédure officielle), pour ne laisser à compléter à la main que ce que le logiciel ne peut pas
 // savoir : la liste des malades et le suivi de l'alerte aux autorités.
 function DeclarationTiac({ employees, activityLog, receptions, preparations, produits, reservations, currentUserId, logActivity, declarationsTiac, setDeclarationsTiac }) {
-  const [etablissementNom, setEtablissementNom] = useStored("tiac-etablissement-nom", "Games Factory Salaise");
+  const [etablissementNom, setEtablissementNom] = useStored("tiac-etablissement-nom", "");
   const [etablissementAdresse, setEtablissementAdresse] = useStored("tiac-etablissement-adresse", "");
   const [dateDebut, setDateDebut] = useState(todayISO());
   const [malades, setMalades] = useState([{ id: uid(), nom: "", age: "", symptomes: "", dateHeure: "" }]);
@@ -2668,11 +2668,11 @@ function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityL
   const surveillancesDuJour = surveillancesFroid.filter((s) => s.date === today);
 
   if (releve) {
-    return <ReleveControle employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} today={today} onBack={() => setReleve(false)} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} />;
+    return <ReleveControle employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} today={today} onBack={() => setReleve(false)} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} />;
   }
 
   if (releveMensuel) {
-    return <ReleveMensuelHACCP employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} mois={moisReleve} setMois={setMoisReleve} onBack={() => setReleveMensuel(false)} />;
+    return <ReleveMensuelHACCP employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} mois={moisReleve} setMois={setMoisReleve} onBack={() => setReleveMensuel(false)} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} />;
   }
 
   if (referentielActif) {
@@ -3594,7 +3594,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   );
 }
 
-function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, mois, setMois, onBack }) {
+function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, mois, setMois, onBack, nomEtablissement }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom || "—";
   const joursduMois = [];
   const debut = new Date(mois + "-01T00:00:00");
@@ -3639,7 +3639,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
         <div className="flex items-center justify-between mb-1">
           <div className="flex items-center gap-2">
             <ChefHat size={22} className="text-[var(--accent)]" />
-            <span className="text-lg font-semibold text-[var(--ink)]">Games Factory — Registre HACCP</span>
+            <span className="text-lg font-semibold text-[var(--ink)]">{nomEtablissement ? `${nomEtablissement} — ` : ""}Registre HACCP</span>
           </div>
           <span className="text-sm text-[var(--steel)]">Groupe Adrena</span>
         </div>
@@ -3789,7 +3789,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
   );
 }
 
-function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, today, onBack, relevesFroid, equipementsFroid }) {
+function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, today, onBack, relevesFroid, equipementsFroid, nomEtablissement }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const tempsDuJour = tempLogs.filter((l) => l.date === today);
   const huileDuJour = huileTests.filter((h) => h.date === today);
@@ -6465,7 +6465,7 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
 
   // Ancienne version : réglages et listes « Autre » dans l'ancien stockage, comme avant.
   // Nouvelle version : réglages de l'établissement dans la base, listes « Autre » = demandes d'ajout de l'établissement.
-  const [nomStocke] = useStored("tiac-etablissement-nom", "Games Factory Salaise");
+  const [nomStocke] = useStored("tiac-etablissement-nom", "");
   const [congelStocke, setCongelStocke] = useStored("ft-reglage-congel-pms", false);
   const [celluleStocke, setCelluleStocke] = useStored("ft-reglage-cellule", true);
   const [catStockees, setCatStockees] = useStored("ft-categories-perso", []);
