@@ -4726,7 +4726,7 @@ function ficheVideInit() {
     allergenes: [], allgConfirm: false,
     procedes: {
       froid: { on: false },
-      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", famille: "general", parametres: {}, controles: { temp: true, duree: true, visuel: false } },
+      cuisson: { on: false, appareil: "", reglage: "", duree: "", dureeMin: "", coeur: "", coeurAutre: false, coeurPerso: "", famille: "general", parametres: {}, controles: { temp: true, duree: true, visuel: false } },
       refroid: { on: false, mode: "cellule", controles: { temp: true, temps: true, bac: false } },
       maintien: { on: false, appareil: "Bain-marie", temp: 63, duree: "", controles: { temp: true } },
       remise: { on: false, appareil: "", cible: 63 },
@@ -4791,7 +4791,7 @@ function haccpRowsFiche(S) {
   if (ingOk.length) rows.push({ etape: "Réception", pointCritique: "Matières premières", aControler: "T° conforme (≤ +4 °C frais, ≤ +2 °C viande hachée), emballage intact, DLC" });
   if (p.froid.on) rows.push({ etape: "Préparation froide", pointCritique: "Chaîne du froid", aControler: "≤ +3 °C, préparée au plus près du service" });
   if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 à +4 °C · DLC J+3 après sortie" : "Cuisson directe depuis le congelé" });
-  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${cuissonSeuilMin(p.cuisson.famille)} °C${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
+  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
   if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: "+63 °C → +10 °C à cœur en moins de 2 h" + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
   if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C en moins de 4 h 30, étiquette « congelé le … »" });
   if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
@@ -4846,6 +4846,16 @@ function problemesFiche(S) {
   if (!S.allgConfirm) out.push(["r", "Allergènes non confirmés par le chef (étape 2 · Ingrédients)."]);
   if (!Object.values(p).some((x) => x.on)) out.push(["r", "Aucun procédé choisi : cuisson, préparation froide… (étape 3 · Cuisson & températures)."]);
   if (p.cuisson.on && !p.cuisson.coeur && !(p.cuisson.controles && p.cuisson.controles.temp === false)) out.push(["o", "T° à cœur de cuisson non précisée (étape 3 · Cuisson & températures)."]);
+  if (p.cuisson.on && p.cuisson.coeurAutre) {
+    const v = parseFloat(String(p.cuisson.coeurPerso == null ? "" : p.cuisson.coeurPerso).replace(",", "."));
+    if (!Number.isFinite(v)) out.push(["r", "T° à cœur « Autre valeur » non renseignée (étape 3 · Cuisson & températures)."]);
+    else if (v < cuissonSeuilMin(p.cuisson.famille)) out.push(["r", `T° à cœur visée ${v} °C inférieure à la norme officielle +${cuissonSeuilMin(p.cuisson.famille)} °C (étape 3 · Cuisson & températures).`]);
+  }
+  if (p.cuisson.on && p.cuisson.appareil === "Friteuse") {
+    const t = parseFloat(String((p.cuisson.parametres || {}).temperature || "").replace(",", "."));
+    if (Number.isFinite(t) && t > 180) out.push(["o", `Huile de friture à ${t} °C : ne pas dépasser 180 °C (l'huile se dégrade et devient nocive) — étape 3 · Cuisson & températures.`]);
+  }
+  if (/poisson/i.test(S.categorie || "") && p.froid.on && !p.cuisson.on) out.push(["o", "Poisson cru ou peu cuit (sushi, carpaccio, ceviche) : le poisson doit avoir été congelé à −20 °C à cœur pendant 24 h au moins (Anisakis) — vérifie auprès du fournisseur (étape 3 · Cuisson & températures)."]);
   if (p.maintien.on && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson & températures)."]);
   if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["r", `DLC J+${S.conservation.jours} supérieure au maximum J+${dlcMaxFiche(S)} sans étude de vieillissement validée (étape 6 · Conservation & rendement).`]);
   if (!S.etapes.some((e) => e.titre.trim() || e.texte.trim())) out.push(["o", "Aucune étape de préparation (étape 5 · Préparation)."]);
@@ -5146,12 +5156,15 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
     if (modeFiche === "simple" && [3, 6].includes(step)) setStep(2);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modeFiche]);
-  // Mode simple : la T° à cœur visée est préremplie avec le seuil officiel de la famille choisie.
+  // Nouvelle version : la T° à cœur visée suit automatiquement la norme de la famille choisie, ou la valeur
+  // plus stricte choisie par le chef (« Autre valeur »). Jamais en dessous de la norme.
   useEffect(() => {
     const c = S.procedes.cuisson;
-    if (modeFiche === "simple" && c.on && !String(c.coeur || "").trim()) majProcede("cuisson", { coeur: `≥ +${cuissonSeuilMin(c.famille)} °C` });
+    if (!avecModes || !c.on) return;
+    const cible = `≥ +${seuilCuissonPerso(c)} °C`;
+    if (c.coeur !== cible) majProcede("cuisson", { coeur: cible });
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [modeFiche, S.procedes.cuisson.on, S.procedes.cuisson.famille]);
+  }, [avecModes, S.procedes.cuisson.on, S.procedes.cuisson.famille, S.procedes.cuisson.coeurAutre, S.procedes.cuisson.coeurPerso]);
   const etapeComplete = (i) => {
     switch (i) {
       case 0: return !!(S.nom.trim() && S.categorie && S.poste);
@@ -5548,7 +5561,38 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && <Field label="Réglage / température appareil"><input className={inputCls} value={S.procedes.cuisson.reglage} onChange={(e) => majProcede("cuisson", { reglage: e.target.value })} placeholder="ex. 180 °C chaleur combinée" /></Field>}
                 {modeFiche === "expert" && <Field label="Durée (affichée sur la fiche)"><input className={inputCls} value={S.procedes.cuisson.duree} onChange={(e) => majProcede("cuisson", { duree: e.target.value })} placeholder="ex. 12 à 15 min" /></Field>}
                 {modeFiche === "expert" && <Field label="Durée en minutes (pour le chrono de cuisson)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value })} placeholder="ex. 14" /></Field>}
-                <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={`ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C`} /></Field>
+                {!avecModes && <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={`ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C`} /></Field>}
+                {avecModes && (() => {
+                  const c = S.procedes.cuisson;
+                  const fam = cuissonFamille(c.famille);
+                  const perso = !!c.coeurAutre;
+                  const valPerso = parseFloat(String(c.coeurPerso == null ? "" : c.coeurPerso).replace(",", "."));
+                  const sousNorme = perso && Number.isFinite(valPerso) && valPerso < fam.seuil;
+                  return (
+                    <div className="sm:col-span-2 rounded-lg border border-[var(--line)] p-3">
+                      <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">T° à cœur visée</div>
+                      <p className="text-xs text-[var(--steel)] mb-2">{fam.note} On peut viser plus haut que la norme, jamais plus bas. Cette valeur sera aussi celle utilisée pour juger la cuisson à l'écran Cuisson.</p>
+                      <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+                        <input type="radio" className="mt-0.5" checked={!perso} onChange={() => majProcede("cuisson", { coeurAutre: false, coeurPerso: "" })} />
+                        <span><strong>Norme officielle : ≥ +{fam.seuil} °C à cœur</strong> (automatique, suit la famille choisie)</span>
+                      </label>
+                      <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
+                        <input type="radio" className="mt-0.5" checked={perso} onChange={() => majProcede("cuisson", { coeurAutre: true, coeurPerso: c.coeurPerso || String(fam.seuil) })} />
+                        <span className="flex-1">
+                          <strong>Autre valeur</strong> (plus stricte que la norme)
+                          {perso && (
+                            <span className="flex items-center gap-2 mt-1.5">
+                              <span>≥ +</span>
+                              <input className={`${inputCls} w-24`} type="number" step="1" min={fam.seuil} value={c.coeurPerso} onChange={(e) => majProcede("cuisson", { coeurPerso: e.target.value })} />
+                              <span>°C</span>
+                            </span>
+                          )}
+                        </span>
+                      </label>
+                      {sousNorme && <p className="text-xs text-red-600 mt-2">Impossible : {valPerso} °C est en dessous de la norme officielle (+{fam.seuil} °C). Choisis une valeur égale ou plus haute.</p>}
+                    </div>
+                  );
+                })()}
               </div>
                           {modeFiche === "expert" && avecModes && (
                 <div className="mt-3 rounded-lg border border-[var(--line)] p-3">
@@ -6792,12 +6836,22 @@ function EtiquetteCuisson({ c, who }) {
 // officiels, pas une simplification) : la règle générale est 63°C, mais viande hachée et volaille
 // ont des seuils officiels plus élevés. On ne compare donc plus toutes les cuissons au même chiffre.
 const CUISSON_FAMILLES = [
-  { id: "general", label: "Général (légumes, découpes, sauces...)", seuil: 63 },
-  { id: "viandeHachee", label: "Viande hachée (steak haché, bolognaise, lasagne...)", seuil: 70 },
-  { id: "volaille", label: "Volaille (poulet, dinde...)", seuil: 80 },
-  { id: "poisson", label: "Poisson", seuil: 63 },
+  { id: "general", label: "Général (légumes, découpes, sauces...)", seuil: 63, note: "Règle générale : +63 °C à cœur (viande en morceau entier, plats, légumes, sauces)." },
+  { id: "viandeHachee", label: "Viande hachée (steak haché, bolognaise, lasagne...)", seuil: 70, note: "Viande hachée : plus élevé car la contamination est répartie dans toute la masse (référence officielle : environ +71 °C à cœur)." },
+  { id: "volaille", label: "Volaille (poulet, dinde...)", seuil: 80, note: "Volaille : choix prudent de la maison (le chiffre officiel n'est précisé que pour la volaille hachée, +74 °C)." },
+  { id: "poisson", label: "Poisson", seuil: 63, note: "Poisson : +63 °C à cœur (la référence officielle accepte aussi des couples temps/température plus bas, la maison garde une valeur simple)." },
+  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Coquillages : +90 °C à cœur pendant au moins 2 minutes (référence officielle)." },
 ];
 const cuissonSeuilMin = (familleId) => (CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0]).seuil;
+const cuissonFamille = (familleId) => CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0];
+// Seuil réellement appliqué : la norme de la famille, ou la valeur plus stricte choisie par le chef (« Autre valeur »).
+// Jamais en dessous de la norme.
+const seuilCuissonPerso = (c) => {
+  const n = cuissonSeuilMin(c && c.famille);
+  const p = c && c.coeurAutre ? parseFloat(String(c.coeurPerso == null ? "" : c.coeurPerso).replace(",", ".")) : NaN;
+  return Number.isFinite(p) && p > n ? p : n;
+};
+const seuilCuissonEntree = (c) => Math.max(cuissonSeuilMin(c && c.famille), Number(c && c.seuilPerso) || 0);
 const CUISSON_ALERTE_AVANT_MIN = 10;
 
 // Texte de la mesure d'une cuisson terminée : température à cœur, ou « contrôle visuel » quand la fiche
@@ -6839,7 +6893,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   const terminerCuisson = (c) => {
     const temp = temperatureSaisie[c.id];
     if (temp === undefined || temp === "") return;
-    const conforme = parseFloat(temp) >= cuissonSeuilMin(c.famille);
+    const conforme = parseFloat(temp) >= seuilCuissonEntree(c);
     setCuissons((prev) => prev.map((x) => (x.id === c.id ? { ...x, statut: "termine", heureFin: new Date().toTimeString().slice(0, 5), temperature: temp, conforme } : x)));
     logActivity("HACCP", "Cuisson terminée", `${c.produit} — ${temp}°C à cœur — ${conforme ? "conforme" : "non conforme"}`);
     setTemperatureSaisie((prev) => { const n = { ...prev }; delete n[c.id]; return n; });
@@ -6886,7 +6940,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
     if (selection.length === 0) return;
     const nouvelles = selection.map((nom) => {
       const p = catalogue.find((x) => x.nom === nom);
-      return { id: uid(), produit: nom, famille: p?.famille || "general", appareil: p?.appareil || undefined, controleVisuelSeul: !!(p?.controles && p.controles.temp === false && p.controles.visuel), date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutChrono, debutTs: Date.now(), dureeAttendueMin: p?.dureeMin || 20, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
+      return { id: uid(), produit: nom, famille: p?.famille || "general", appareil: p?.appareil || undefined, seuilPerso: p?.seuilPerso || undefined, controleVisuelSeul: !!(p?.controles && p.controles.temp === false && p.controles.visuel), date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutChrono, debutTs: Date.now(), dureeAttendueMin: p?.dureeMin || 20, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
     });
     setCuissons([...nouvelles, ...cuissons]);
     logActivity("HACCP", "Cuisson chronométrée démarrée", `${selection.join(", ")} à ${heureDebutChrono}`);
@@ -6935,7 +6989,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
           {catalogue.map((p) => (
             <label key={p.nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(p.nom) ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--ink)]"}`}>
               <input type="checkbox" checked={selection.includes(p.nom)} onChange={() => toggleSelection(p.nom)} />
-              <span>{p.nom} <span className="text-xs opacity-70">({p.dureeMin} min · ≥{cuissonSeuilMin(p.famille)}°C{p.appareil ? ` · ${p.appareil}` : ""})</span></span>
+              <span>{p.nom} <span className="text-xs opacity-70">({p.dureeMin} min · ≥{seuilCuissonEntree(p)}°C{p.appareil ? ` · ${p.appareil}` : ""})</span></span>
             </label>
           ))}
         </div>
@@ -6985,7 +7039,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
             {enCours.map((c) => {
               const minutes = Math.floor((Date.now() - c.debutTs) / 60000);
               const depasse = minutes >= c.dureeAttendueMin;
-              const seuil = cuissonSeuilMin(c.famille);
+              const seuil = seuilCuissonEntree(c);
               const familleLabel = (CUISSON_FAMILLES.find((f) => f.id === c.famille) || CUISSON_FAMILLES[0]).label;
               return (
                 <div key={c.id} className={`border rounded-lg p-3 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
@@ -14417,7 +14471,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // Prévisualisation : les cuissons pré-programmées et les produits du maintien au chaud viennent des fiches techniques (nouvelle base).
   const catalogueCuissonFiches = React.useMemo(() => fichesExternes
     .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
-    .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "", controles: f.procedes.cuisson.controles || null })), [fichesExternes]);
+    .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "", controles: f.procedes.cuisson.controles || null, seuilPerso: f.procedes.cuisson.coeurAutre ? seuilCuissonPerso(f.procedes.cuisson) : undefined })), [fichesExternes]);
   const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
   const catalogueCuisson = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
   const setCatalogueCuisson = modeExterne ? (() => {}) : setCatalogueCuissonBase;
