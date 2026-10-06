@@ -5927,8 +5927,10 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       </div>
       {/* Aperçu de la fiche A4 */}
       <div className="mb-8 min-w-0" style={avecModes && deuxColonnes ? { position: "sticky", top: 128, maxHeight: "calc(100vh - 146px)", overflowY: "auto" } : undefined}>
+        {!avecModes && (<>
         <h3 className="font-semibold text-[var(--ink)] text-lg mb-1">Aperçu de la fiche technique</h3>
         <p className="text-xs text-[var(--steel)] mb-3">Se remplit au fur et à mesure du questionnaire.</p>
+        </>)}
         <div className="bg-white border border-[var(--line)] rounded-xl p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 border-b-2 border-[var(--ink)] pb-3 mb-3 flex-wrap">
             <div className="font-bold uppercase text-lg text-[var(--ink)]" style={{ fontFamily: "inherit" }}>{etablissementNom}</div>
