@@ -246,6 +246,14 @@ export default function ConnexionReelle() {
         jete: !!x.jete, decongele: !!x.decongelationInfo, donnees: x,
       }),
     },
+    cartes: {
+      table: "cartes",
+      aDb: (x) => ({
+        nom: x.nom || "Carte", type_carte: x.typeCarte || "fixe",
+        debut: /^\d{4}-\d{2}-\d{2}$/.test(x.debut || "") ? x.debut : null, fin: /^\d{4}-\d{2}-\d{2}$/.test(x.fin || "") ? x.fin : null,
+        donnees: x,
+      }),
+    },
     fiches: {
       table: "fiches_techniques",
       aDb: (x) => ({
@@ -408,7 +416,7 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm, rex] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm, rex, rca] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
@@ -423,7 +431,9 @@ export default function ConnexionReelle() {
         supabasePublic.from("fiches_techniques").select("*").order("created_at", { ascending: true }).limit(500),
         supabasePublic.from("pms_taches").select("*").order("created_at", { ascending: true }).limit(500),
         supabasePublic.from("pms_executions").select("*").gte("date", new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)).order("date", { ascending: false }).limit(3000),
+        supabasePublic.from("cartes").select("*").order("debut", { ascending: true, nullsFirst: true }).limit(500),
       ]);
+      if (rca.error) throw rca.error;
       if (rex.error) throw rex.error;
       if (rfi.error) throw rfi.error;
       if (rpm.error) throw rpm.error;
@@ -457,6 +467,7 @@ export default function ConnexionReelle() {
         refroidissements: (rrf.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         maintiens: (rmc.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
         fiches: (rfi.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id })),
+        cartes: (rca.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id, nom: r.nom, typeCarte: r.type_carte, debut: r.debut || "", fin: r.fin || "" })),
         cleaning: (rpm.data || []).map((r) => ({ fait: false, date: null, employeeId: null, ...(r.donnees || {}), id: r.id, tache: r.tache || (r.donnees && r.donnees.tache) || "", poste: r.poste || "Tous", frequence: r.frequence || "Quotidienne", note: r.protocole || "", creeLe: (r.donnees && r.donnees.creeLe) || dateLocale(r.created_at).date })),
         pmsExecutions: (rex.data || []).map((r) => ({
           ...(r.donnees || {}), id: r.id, cleaningId: r.pms_tache_id, date: r.date, moment: r.moment || "soir", statut: r.statut, motif: r.motif_non_fait || "",
@@ -852,6 +863,7 @@ export default function ConnexionReelle() {
         refroidissements: { persister: fabriquerPersisterFroid("refroidissements") },
         maintiens: { persister: fabriquerPersisterFroid("maintiens") },
         fiches: { persister: fabriquerPersisterFroid("fiches") },
+        cartes: { persister: fabriquerPersisterFroid("cartes") },
         cleaning: { persister: fabriquerPersisterFroid("cleaning") },
         pmsExecutions: { persister: fabriquerPersisterFroid("pmsExecutions") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },

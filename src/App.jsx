@@ -401,6 +401,7 @@ const TUILE_COULEURS = {
 // Contrôle & Gestion → Gestion, où il est plus à sa place (voir SOUS_TUILES_CONTROLE_TOUTES).
 const FICHES_TUILES = [
   { id: "preparation", label: "Préparation culinaire", icon: BookOpen, couleur: { fond: "linear-gradient(160deg, #C1893C 0%, #8C5E22 100%)", ombre: "rgba(140,94,34,0.35)" } },
+  { id: "carte", label: "Ma carte", icon: ClipboardList, couleur: { fond: "linear-gradient(160deg, #3F7D6B 0%, #285A4B 100%)", ombre: "rgba(40,90,75,0.35)" } },
 ];
 
 // Ordre d'affichage voulu pour la grille de tuiles de la page d'accueil (2 colonnes) :
@@ -7414,7 +7415,188 @@ function ApercuVide({ texte }) {
 }
 
 
-function FichesTechniquesMenu({ fichesProps, creationProps, consentementAccorde, ouvrirIdAuto, onConsommeOuvrirIdAuto }) {
+/* ---------- Ma carte : les plats proposés, par période ---------- */
+const TYPES_CARTE = [
+  ["fixe", "Carte fixe", "Les mêmes plats toute l'année, vous cochez simplement vos plats."],
+  ["jour", "Menu du jour", "Un menu différent chaque jour."],
+  ["semaine", "Carte hebdomadaire", "Une carte différente chaque semaine."],
+  ["mois", "Carte mensuelle", "Une carte différente chaque mois."],
+  ["saison", "Carte de saison", "Une carte par saison (printemps, été, automne, hiver)."],
+  ["annee", "Carte annuelle", "Une carte par année."],
+];
+const CATEGORIES_HORS_CARTE = ["Base", "Sauce"]; // ce sont des préparations, pas des plats
+const dateDepuisIso = (iso) => new Date(`${iso}T12:00:00`);
+const isoDepuisDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+const joliDate = (iso, opt) => dateDepuisIso(iso).toLocaleDateString("fr-FR", opt || { day: "numeric", month: "long" });
+function periodeCarte(type, refIso) {
+  const d = dateDepuisIso(refIso);
+  if (type === "jour") return { debut: refIso, fin: refIso, nom: `Menu du ${joliDate(refIso, { weekday: "long", day: "numeric", month: "long" })}` };
+  if (type === "semaine") {
+    const lundi = new Date(d); lundi.setDate(d.getDate() - ((d.getDay() + 6) % 7));
+    const dimanche = new Date(lundi); dimanche.setDate(lundi.getDate() + 6);
+    return { debut: isoDepuisDate(lundi), fin: isoDepuisDate(dimanche), nom: `Semaine du ${joliDate(isoDepuisDate(lundi))} au ${joliDate(isoDepuisDate(dimanche))}` };
+  }
+  if (type === "mois") {
+    const debut = new Date(d.getFullYear(), d.getMonth(), 1, 12); const fin = new Date(d.getFullYear(), d.getMonth() + 1, 0, 12);
+    return { debut: isoDepuisDate(debut), fin: isoDepuisDate(fin), nom: `${joliDate(isoDepuisDate(debut), { month: "long", year: "numeric" })}`.replace(/^./, (c) => c.toUpperCase()) };
+  }
+  if (type === "saison") {
+    const m = d.getMonth(); // 0 = janvier
+    const saisons = [[2, 4, "Printemps"], [5, 7, "Été"], [8, 10, "Automne"]];
+    const s = saisons.find(([a, b]) => m >= a && m <= b);
+    if (s) return { debut: isoDepuisDate(new Date(d.getFullYear(), s[0], 1, 12)), fin: isoDepuisDate(new Date(d.getFullYear(), s[1] + 1, 0, 12)), nom: `${s[2]} ${d.getFullYear()}` };
+    const anneeDebut = m === 11 ? d.getFullYear() : d.getFullYear() - 1; // hiver : décembre à février
+    return { debut: isoDepuisDate(new Date(anneeDebut, 11, 1, 12)), fin: isoDepuisDate(new Date(anneeDebut + 1, 2, 0, 12)), nom: `Hiver ${anneeDebut}-${anneeDebut + 1}` };
+  }
+  if (type === "annee") return { debut: `${d.getFullYear()}-01-01`, fin: `${d.getFullYear()}-12-31`, nom: `Année ${d.getFullYear()}` };
+  return { debut: "", fin: "", nom: "Ma carte" };
+}
+const periodeSuivante = (type, finIso) => periodeCarte(type, isoDepuisDate(new Date(dateDepuisIso(finIso).getTime() + 86400000)));
+
+function MaCarte({ cartes, setCartes, fiches, estChef, logActivity }) {
+  const aujourdhui = todayISO();
+  const triees = [...cartes].sort((a, b) => (a.debut || "").localeCompare(b.debut || ""));
+  const type = triees.length ? triees[0].typeCarte : null;
+  const periodique = type && type !== "fixe";
+  const enCours = triees.find((c) => !periodique || (c.debut <= aujourdhui && aujourdhui <= c.fin)) || null;
+  const [choisieId, setChoisieId] = useState(null);
+  const [categorieOuverte, setCategorieOuverte] = useState(null);
+  const [confirmerSuppr, setConfirmerSuppr] = useState(false);
+  const [confirmerType, setConfirmerType] = useState(false);
+  const carte = triees.find((c) => c.id === choisieId) || enCours || triees[triees.length - 1] || null;
+  const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
+  const categories = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
+  const idsCarte = (carte && carte.plats) || [];
+  const nomDe = (id) => (plats.find((f) => f.id === id) || {}).nom;
+  const majCarte = (patch) => setCartes(cartes.map((c) => (c.id === carte.id ? { ...c, ...patch } : c)));
+  const basculer = (id) => majCarte({ plats: idsCarte.includes(id) ? idsCarte.filter((x) => x !== id) : [...idsCarte, id] });
+  const choisirType = (t) => {
+    const base = periodeCarte(t, aujourdhui);
+    const nouvelle = { id: uid(), typeCarte: t, plats: [], ...base };
+    setCartes([...cartes.map((c) => ({ ...c, typeCarte: t })), nouvelle]);
+    setChoisieId(nouvelle.id); setConfirmerType(false);
+    logActivity && logActivity("Carte", "Type de carte choisi", (TYPES_CARTE.find((x) => x[0] === t) || [])[1]);
+  };
+  const nouvellePeriode = (copier) => {
+    const derniere = triees[triees.length - 1];
+    const base = periodeSuivante(type, derniere.fin);
+    const nouvelle = { id: uid(), typeCarte: type, plats: copier ? [...(derniere.plats || [])] : [], ...base };
+    setCartes([...cartes, nouvelle]); setChoisieId(nouvelle.id);
+  };
+  const [copier, setCopier] = useState(true);
+
+  // 1) Première fois : quel type de carte ?
+  if (!type) {
+    return (
+      <div>
+        <SectionHeader title="Ma carte" subtitle="Les plats que vous proposez à vos clients" />
+        <Card>
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Quel type de carte avez-vous ?</h3>
+          <p className="text-sm text-[var(--steel)] mb-4">Choisissez ce qui correspond à votre restaurant. Vous pourrez le changer plus tard.</p>
+          {!estChef && <p className="text-sm text-[var(--warn)]">Seul le responsable ou le directeur peut créer la carte.</p>}
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {TYPES_CARTE.map(([k, lib, aide]) => (
+              <button key={k} type="button" disabled={!estChef} onClick={() => choisirType(k)} className="text-left border-2 border-[var(--cadre)] rounded-xl p-4 bg-white hover:border-[var(--accent)] disabled:opacity-50">
+                <div className="font-semibold text-[var(--ink)]">{lib}</div>
+                <div className="text-sm text-[var(--steel)] mt-1">{aide}</div>
+              </button>
+            ))}
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  const libType = (TYPES_CARTE.find((x) => x[0] === type) || [])[1];
+  const parCategorie = categories.map((c) => ({ c, ids: idsCarte.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
+  return (
+    <div>
+      <SectionHeader title="Ma carte" subtitle={`${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`} />
+      {periodique && (
+        <Card className="mb-4">
+          <p className="text-sm font-semibold text-[var(--ink)] mb-2">Mes cartes</p>
+          <div className="flex flex-wrap gap-2">
+            {triees.map((c) => {
+              const active = carte && c.id === carte.id; const courante = c.debut <= aujourdhui && aujourdhui <= c.fin;
+              return <button key={c.id} type="button" onClick={() => { setChoisieId(c.id); setCategorieOuverte(null); setConfirmerSuppr(false); }} className={`px-3 py-2 rounded-lg text-sm font-medium border-2 ${active ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{c.nom}{courante ? " • en cours" : ""}</button>;
+            })}
+          </div>
+          {estChef && (
+            <div className="flex flex-wrap items-center gap-3 mt-3">
+              <Button variant="ghost" onClick={() => nouvellePeriode(copier)}><Plus size={14} /> Créer la période suivante</Button>
+              <label className="flex items-center gap-2 text-sm text-[var(--ink)]"><input type="checkbox" className="w-5 h-5" checked={copier} onChange={() => setCopier(!copier)} /> Partir de la carte précédente</label>
+            </div>
+          )}
+        </Card>
+      )}
+      {carte && (
+        <Card className="mb-4">
+          {estChef ? (
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+              <div className={periodique ? "sm:col-span-1" : "sm:col-span-3"}><label className={libNet}>Nom de la carte</label><ChampTexteDiffere value={carte.nom} onCommit={(v) => v.trim() && majCarte({ nom: v.trim() })} className={`${champNet}`} /></div>
+              {periodique && <div><label className={libNet}>Du</label><input type="date" className={champNet} value={carte.debut || ""} onChange={(e) => e.target.value && majCarte({ debut: e.target.value })} /></div>}
+              {periodique && <div><label className={libNet}>Au</label><input type="date" className={champNet} value={carte.fin || ""} onChange={(e) => e.target.value && majCarte({ fin: e.target.value })} /></div>}
+            </div>
+          ) : <h3 className="font-semibold text-[var(--ink)] mb-3">{carte.nom}</h3>}
+
+          {estChef && (
+            <>
+              <p className="text-sm font-semibold text-[var(--ink)] mb-2">Ajouter des plats : choisissez une catégorie</p>
+              {categories.length === 0 ? <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique de plat pour l'instant : créez d'abord vos plats dans « Créer une fiche technique ».</p> : (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  {categories.map((c) => {
+                    const dispo = plats.filter((f) => f.categorie === c); const prises = dispo.filter((f) => idsCarte.includes(f.id)).length; const ouverte = categorieOuverte === c;
+                    return <button key={c} type="button" onClick={() => setCategorieOuverte(ouverte ? null : c)} className={`px-3 py-2 rounded-lg text-sm font-medium border-2 ${ouverte ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{c} <span className={ouverte ? "text-white/80" : "text-[var(--steel)]"}>({prises}/{dispo.length})</span></button>;
+                  })}
+                </div>
+              )}
+              {categorieOuverte && (
+                <div className="border-2 border-[var(--cadre)] rounded-xl p-3 mb-4 bg-[var(--bg)]">
+                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
+                    <p className="text-sm font-semibold text-[var(--ink)]">{categorieOuverte} — cochez les plats de cette carte</p>
+                    <div className="flex gap-3 text-sm">
+                      <button type="button" className="text-[var(--accent)] underline" onClick={() => { const ids = plats.filter((f) => f.categorie === categorieOuverte).map((f) => f.id); majCarte({ plats: [...new Set([...idsCarte, ...ids])] }); }}>Tout cocher</button>
+                      <button type="button" className="text-[var(--steel)] underline" onClick={() => { const ids = plats.filter((f) => f.categorie === categorieOuverte).map((f) => f.id); majCarte({ plats: idsCarte.filter((x) => !ids.includes(x)) }); }}>Tout décocher</button>
+                    </div>
+                  </div>
+                  <ul className="space-y-1.5">
+                    {plats.filter((f) => f.categorie === categorieOuverte).map((f) => (
+                      <li key={f.id}><label className="flex items-center gap-3 text-sm text-[var(--ink)] bg-white border border-[var(--cadre)] rounded-lg px-3 py-2"><input type="checkbox" className="w-5 h-5" checked={idsCarte.includes(f.id)} onChange={() => basculer(f.id)} /><span className="flex-1">{f.nom}</span></label></li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </>
+          )}
+
+          <p className="text-sm font-semibold text-[var(--ink)] mb-2">Plats de cette carte ({idsCarte.filter((id) => nomDe(id)).length})</p>
+          {parCategorie.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun plat pour l'instant.</p> : parCategorie.map(({ c, ids }) => (
+            <div key={c} className="mb-3">
+              <h4 className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-1">{c}</h4>
+              <ul className="space-y-1">
+                {ids.map((id) => (
+                  <li key={id} className="flex items-center justify-between gap-2 text-sm text-[var(--ink)] border border-[var(--cadre)] rounded-lg px-3 py-2 bg-white"><span>{nomDe(id)}</span>{estChef && <button type="button" onClick={() => basculer(id)} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer de la carte"><X size={15} /></button>}</li>
+                ))}
+              </ul>
+            </div>
+          ))}
+          {estChef && (
+            <div className="flex flex-wrap gap-3 pt-3 mt-2 border-t border-[var(--line)]">
+              {periodique || triees.length > 1 ? (confirmerSuppr
+                ? <span className="inline-flex items-center gap-2 text-sm"><span className="text-[var(--warn)] font-medium">Supprimer « {carte.nom} » ?</span><Button variant="danger" onClick={() => { setCartes(cartes.filter((c) => c.id !== carte.id)); setChoisieId(null); setConfirmerSuppr(false); }}>Oui</Button><Button variant="ghost" onClick={() => setConfirmerSuppr(false)}>Non</Button></span>
+                : <Button variant="ghost" onClick={() => setConfirmerSuppr(true)}>Supprimer cette carte</Button>) : null}
+              {confirmerType
+                ? <span className="inline-flex flex-wrap items-center gap-2 text-sm"><span className="text-[var(--warn)] font-medium">Changer de type de carte ? Vos cartes actuelles sont conservées.</span>{TYPES_CARTE.filter((x) => x[0] !== type).map(([k, lib]) => <Button key={k} variant="ghost" onClick={() => choisirType(k)}>{lib}</Button>)}<Button variant="ghost" onClick={() => setConfirmerType(false)}>Annuler</Button></span>
+                : <Button variant="ghost" onClick={() => setConfirmerType(true)}>Changer le type de carte</Button>}
+            </div>
+          )}
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function FichesTechniquesMenu({ carteProps, fichesProps, creationProps, consentementAccorde, ouvrirIdAuto, onConsommeOuvrirIdAuto }) {
   const [sub, setSub] = useState(null);
 
   // Même logique de déverrouillage automatique que dans FichesTechniques : si on nous demande
@@ -7463,6 +7645,7 @@ function FichesTechniquesMenu({ fichesProps, creationProps, consentementAccorde,
           ? <FichesTechniques {...fichesProps} ouvrirIdAuto={ouvrirIdAuto} onConsommeOuvrirIdAuto={onConsommeOuvrirIdAuto} />
           : <AccesRestreint titre="Fiches techniques et recettes personnalisées" />
       )}
+      {sub === "carte" && <MaCarte {...carteProps} />}
     </div>
   );
 }
@@ -15983,6 +16166,10 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [catalogueExterne]);
   const produits = modeExterne ? produitsCatalogueExterne : produitsMemoire;
   const setProduits = modeExterne ? (() => {}) : setProduitsMemoire;
+  const [cartesStockees, setCartesStockees] = useStored("cartes", []);
+  const [cartesExternes, setCartesExternes] = useListeExterne(identiteExterne, "cartes");
+  const cartes = modeExterne ? cartesExternes : cartesStockees;
+  const setCartes = modeExterne ? setCartesExternes : setCartesStockees;
   const [preparationsStockees, setPreparationsStockees] = useStored("preparations", []);
   const [preparationsExternes, setPreparationsExternes] = useListeExterne(identiteExterne, "preparations");
   const preparations = modeExterne ? preparationsExternes : preparationsStockees;
@@ -17081,6 +17268,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
+            carteProps={{ cartes, setCartes, fiches, estChef: !!moi?.estChef, logActivity: logActivitySafe }}
             fichesProps={{ fiches, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement: identiteExterne.reglagesEtablissement, demandesAjout: identiteExterne.demandesAjout, signalerAjout: identiteExterne.signalerAjout, gestionCatalogue: identiteExterne.gestionCatalogue, fournisseursCatalogue: identiteExterne.fournisseurs } : undefined }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
