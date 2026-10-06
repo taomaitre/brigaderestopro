@@ -7489,7 +7489,7 @@ function calculerPreparationsCarte(carte, fiches, jour) {
   return { groupes, sansRendement };
 }
 
-function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees }) {
+function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, reservations }) {
   const [quantiteOuverte, setQuantiteOuverte] = useState(null);
   const [jourDetail, setJourDetail] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
   const aujourdhui = todayISO();
@@ -7673,6 +7673,12 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees })
                 <div className="flex flex-wrap gap-2 mb-3">
                   {JOURS.map((j) => <button key={j} type="button" onClick={() => setJourDetail(j)} className={`px-3 py-1.5 rounded-lg text-sm font-medium border-2 ${jourDetail === j ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{j}</button>)}
                 </div>
+                {(() => {
+                  const idx = JOURS.indexOf(jourDetail); const auj = new Date(); const ecart = (idx - ((auj.getDay() + 6) % 7) + 7) % 7;
+                  const d = addDays(todayISO(), ecart); const l = (reservations || []).filter((r) => r.date === d);
+                  const total = l.reduce((t, r) => t + (Number(r.personnes) || 0), 0);
+                  return <p className="text-sm text-[var(--ink)] bg-white border border-[var(--cadre)] rounded-lg px-3 py-2 mb-3">Réservations déjà enregistrées {ecart === 0 ? "aujourd'hui" : `le ${fmtShort(d)}`} : <b>{l.length ? `${l.length} réservation${l.length > 1 ? "s" : ""}, ${total} personnes` : "aucune"}</b> — à prendre en compte pour vos quantités (les clients sans réservation ne sont pas comptés).</p>;
+                })()}
                 {!aDesQuantites && <p className="text-sm text-[var(--warn)] mb-2">Indiquez d'abord, sous chaque plat ci-dessus, le nombre de portions à produire par jour.</p>}
                 {aDesQuantites && postes.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune production prévue le {jourDetail.toLowerCase()}.</p>}
                 {sansRendement.length > 0 && <p className="text-sm text-[var(--warn)] mb-2">Calcul impossible pour : {sansRendement.join(", ")} — renseignez le nombre de portions dans la fiche technique (rendement).</p>}
@@ -15134,6 +15140,53 @@ function ModalNettoyagePeriodique({ frequence, cleaning, setCleaning, moi, onClo
   );
 }
 
+// Bandeau « Réservations aujourd'hui » : un clic déplie le résumé du midi et du soir, les gros groupes, puis la liste rapide à lire.
+const SEUIL_GROUPE_RESA = 8;
+function ResumeReservationsJour({ reservations, today }) {
+  const [ouvert, setOuvert] = useState(false);
+  const liste = (reservations || []).filter((r) => r.date === today).sort((a, b) => (a.heure || "").localeCompare(b.heure || ""));
+  const midi = liste.filter((r) => (r.heure || "") < "16:00"); const soir = liste.filter((r) => (r.heure || "") >= "16:00");
+  const pers = (l) => l.reduce((s, r) => s + (Number(r.personnes) || 0), 0);
+  const pluriel = (n, m) => `${n} ${m}${n > 1 ? "s" : ""}`;
+  const groupes = liste.filter((r) => Number(r.personnes) >= SEUIL_GROUPE_RESA);
+  const heureCourte = (h) => String(h || "").replace(":", "h").replace(/h00$/, "h");
+  const bloc = (titre, l) => (
+    <div className="mb-3">
+      <h4 className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-1">{titre} — {l.length ? `${pluriel(l.length, "réservation")} · ${pluriel(pers(l), "personne")}` : "aucune réservation"}</h4>
+      {l.length > 0 && (
+        <ul className="space-y-1">
+          {l.map((r) => (
+            <li key={r.id} className={`flex items-baseline justify-between gap-2 text-sm rounded-lg px-3 py-1.5 border ${Number(r.personnes) >= SEUIL_GROUPE_RESA ? "border-[var(--warn)] bg-amber-50 font-semibold" : "border-[var(--cadre)] bg-white"} text-[var(--ink)]`}>
+              <span>{heureCourte(r.heure)} · {r.nom}</span>
+              <span className="whitespace-nowrap">{r.personnes} pers.</span>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+  return (
+    <div className="mb-4 border-2 border-[var(--cadre)] rounded-xl bg-white">
+      <button type="button" onClick={() => setOuvert(!ouvert)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left">
+        <span className="flex items-center gap-2 font-semibold text-[var(--ink)]"><CalendarDays size={18} /> Réservations aujourd'hui</span>
+        <span className="text-sm text-[var(--steel)]">{liste.length ? `${pluriel(liste.length, "réservation")} · ${pluriel(pers(liste), "couvert")}` : "Aucune"} {ouvert ? "▲" : "▼"}</span>
+      </button>
+      {ouvert && (
+        <div className="px-4 pb-3">
+          {liste.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune réservation enregistrée pour aujourd'hui.</p> : (
+            <>
+              <p className="text-sm text-[var(--ink)] mb-3">Vous avez <b>{pluriel(midi.length, "réservation")} à midi ({pers(midi)} pers.)</b> et <b>{pluriel(soir.length, "réservation")} le soir ({pers(soir)} pers.)</b>.
+                {groupes.length > 0 && <> Groupe{groupes.length > 1 ? "s" : ""} : {groupes.map((g) => `${g.nom} à ${heureCourte(g.heure)} (${g.personnes} pers.)`).join(", ")}.</>}</p>
+              {bloc("Midi", midi)}
+              {bloc("Soir", soir)}
+            </>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
 function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef }) {
   const today = todayISO();
   const ctxFin = React.useContext(NettoyageContext);
@@ -15186,6 +15239,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   return (
     <div>
       {currentUserId !== "direction" && <CarteRemarquesChef remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} today={today} />}
+      <ResumeReservationsJour reservations={reservations} today={today} />
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
@@ -17395,7 +17449,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            carteProps={{ cartes, setCartes, fiches, employees, estChef: !!moi?.estChef, logActivity: logActivitySafe }}
+            carteProps={{ cartes, setCartes, fiches, employees, reservations, estChef: !!moi?.estChef, logActivity: logActivitySafe }}
             fichesProps={{ fiches, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement: identiteExterne.reglagesEtablissement, demandesAjout: identiteExterne.demandesAjout, signalerAjout: identiteExterne.signalerAjout, gestionCatalogue: identiteExterne.gestionCatalogue, fournisseursCatalogue: identiteExterne.fournisseurs } : undefined }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
