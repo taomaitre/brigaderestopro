@@ -10557,7 +10557,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
       <div className="flex items-center gap-3">
         <span className="w-12 h-12 rounded-lg bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={28} /></span>
-        <div className="min-w-0"><div className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-sm truncate" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-xs truncate" style={{ color: couleur }}>{sous}</div>}</div>
+        <div className="min-w-0 flex-1"><div className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
       </div>
     </button>
   );
@@ -14001,11 +14001,11 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
   const carte = (id, titre, grand, unite, sous, Ic, fond, bord, couleur) => (
     <button key={id} type="button" onClick={() => aller(id)} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
       <div className="flex items-center gap-3">
-        <span className="w-12 h-12 rounded-full bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={26} /></span>
-        <div className="min-w-0">
-          <div className="text-sm font-medium truncate" style={{ color: couleur }}>{titre}</div>
+        <span className="w-11 h-11 rounded-full bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={24} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
           <div className="flex items-baseline gap-1.5"><span className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
-          <div className="text-xs truncate" style={{ color: couleur }}>{sous}</div>
+          <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>
         </div>
       </div>
     </button>
@@ -14128,10 +14128,10 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
 
       {viewMode === "jour" && (
         <>
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
-            {carte("toutes", "Total réservations", couvertsDe(duJour), "couverts", `${duJour.length} réservation${duJour.length > 1 ? "s" : ""}`, Users, "#E3EDFB", "#BCD3F2", "#1B4F9C")}
-            {carte("groupes", "Nombre de groupes", groupes.length, "", `(${couvertsDe(groupes)} couverts)`, Users, "#DDF3E6", "#B3E0C5", "#14653A")}
-            {carte("speciales", "Demandes spéciales", speciales.length, "", exemplesSpeciales ? `(${exemplesSpeciales}…)` : "(aucune)", IcEtoile, "#FFF0D2", "#F3D69A", "#8A5300")}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
+            {carte("toutes", "Total de la journée", couvertsDe(duJour), "couverts", `${duJour.length} réservation${duJour.length > 1 ? "s" : ""}`, Users, "#E3EDFB", "#BCD3F2", "#1B4F9C")}
+            {carte("groupes", "Groupes (8 personnes et plus)", groupes.length, "", `(${couvertsDe(groupes)} couverts)`, Users, "#DDF3E6", "#B3E0C5", "#14653A")}
+            {carte("speciales", "Demandes spéciales", speciales.length, "", exemplesSpeciales ? `(${exemplesSpeciales})` : "(allergie, anniversaire, buffet…)", IcEtoile, "#FFF0D2", "#F3D69A", "#8A5300")}
             {carte("midi", "Service midi", couvertsDe(midi), "couverts", `(${midi.length} réservation${midi.length > 1 ? "s" : ""})`, IcCloche, "#EBE2FA", "#D2C2F2", "#5B34A8")}
             {carte("soir", "Service soir", couvertsDe(soir), "couverts", `(${soir.length} réservation${soir.length > 1 ? "s" : ""})`, IcCloche, "#DDEBFB", "#B5D0F0", "#1B4F9C")}
           </div>
