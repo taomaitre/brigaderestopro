@@ -414,6 +414,18 @@ const FICHES_TUILES = [
 // Planning / DLC et étiquettes, Traçabilité / Réception des marchandises,
 // Stock / Température, Refroidissement rapide / Huile de friture,
 // Maintien au chaud / Cuisson, Fiches techniques / Contrôle.
+// Tuiles de l'écran d'accueil : chacune a sa propre couleur (jamais deux identiques) et un court texte d'aide.
+const ACCUEIL_TUILES = [
+  { id: "taches", label: "Tâches du jour", desc: "Consultez et gérez les tâches de la journée", icon: ListChecks, fond: "linear-gradient(120deg, #1F8F5F 0%, #146B45 100%)", ombre: "rgba(20,107,69,0.35)" },
+  { id: "etiquettes", label: "Étiquettes (DLC)", desc: "Créez et imprimez vos étiquettes de traçabilité", icon: Printer, fond: "linear-gradient(120deg, #8B5CF6 0%, #6027C9 100%)", ombre: "rgba(96,39,201,0.35)" },
+  { id: "stock", label: "Stock", desc: "Gérez vos produits, vos quantités et vos inventaires", icon: Package, fond: "linear-gradient(120deg, #F59E0B 0%, #C26A00 100%)", ombre: "rgba(194,106,0,0.35)" },
+  { id: "reception", label: "Réception des marchandises", desc: "Enregistrez vos livraisons et vos fournisseurs", icon: Truck, fond: "linear-gradient(120deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" },
+  { id: "tracabilite", label: "Traçabilité", desc: "Photographiez les étiquettes, suivez les lots", icon: Camera, fond: "linear-gradient(120deg, #14A5B8 0%, #0B7285 100%)", ombre: "rgba(11,114,133,0.35)" },
+  { id: "haccp", label: "HACCP", desc: "Températures, refroidissement, huile, cuissons", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
+  { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
+  { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
+  { id: "planningResa", cible: "reservations", label: "Planning & Réservations", desc: "Consultez les réservations et organisez la production", icon: CalendarDays, fond: "linear-gradient(120deg, #B8683A 0%, #7A3E1D 100%)", ombre: "rgba(122,62,29,0.35)", chefOnly: true, large: true },
+];
 const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccp", "fiches", "controle"];
 
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -17719,32 +17731,35 @@ function KitchenApp({ identiteExterne } = {}) {
             manipuler l'écran avec les mains prises. Sur l'Accueil, la carte complète ci-dessous
             (avec saisie texte) reste affichée en plus — ce bouton flottant est donc masqué là-bas
             pour ne pas doubler l'affichage. */}
-        {tab !== "accueil" && consentementAccorde() && <CommandeVocaleFlottante onCommande={executerCommande} />}
+        {consentementAccorde() && <CommandeVocaleFlottante onCommande={executerCommande} />}
 
         {tab === "accueil" && (
           <div>
-            {consentementAccorde()
-              ? <CommandeBar onCommande={executerCommande} />
-              : <AccesRestreint titre="Commande vocale" />}
-            <div className="grid grid-cols-2 gap-3 mb-6">
-              {ORDRE_TUILES_ACCUEIL
-                .map((id) => NAV.find((n) => n.id === id))
-                .filter((n) => n && (!n.chefOnly || moi?.estChef))
-                .map((n) => {
-                  const couleur = TUILE_COULEURS[n.id] || TUILE_COULEURS.default;
-                  const Icon = n.icon;
-                  return (
-                    <button
-                      key={n.id}
-                      onClick={() => { setTab(n.id); setSelectedEmployeeId(null); }}
-                      style={{ background: couleur.fond, boxShadow: `0 8px 20px ${couleur.ombre}` }}
-                      className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform"
-                    >
-                      <Icon size={34} color="#ffffff" strokeWidth={2} />
-                      <span className="text-sm font-bold text-white leading-tight line-clamp-2">{n.label}</span>
-                    </button>
-                  );
-                })}
+            <div className="rounded-2xl px-6 py-5 mb-4 text-white" style={{ background: "linear-gradient(120deg, #121821 0%, #1D2733 60%, #25324A 100%)" }}>
+              <div className="text-3xl font-bold leading-tight">Bonjour <span style={{ color: "#6EE7A8" }}>{(moi?.nom || "").split(" ")[0]}</span></div>
+              <div className="text-lg text-white/80 mt-1">Que souhaitez-vous faire aujourd'hui ?</div>
+            </div>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
+              {[
+                ...ACCUEIL_TUILES.filter((t) => !t.chefOnly || moi?.estChef),
+              ].map((t) => {
+                const Icon = t.icon;
+                return (
+                  <button
+                    key={t.id}
+                    onClick={() => { setTab(t.cible || t.id); setSelectedEmployeeId(null); }}
+                    style={{ background: t.fond, boxShadow: `0 8px 20px ${t.ombre}` }}
+                    className={`rounded-2xl flex items-center gap-4 min-h-[112px] px-5 py-4 text-left active:scale-[0.98] transition-transform ${t.large ? "lg:col-span-2" : ""}`}
+                  >
+                    <span className="shrink-0 w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center"><Icon size={36} color="#ffffff" strokeWidth={2} /></span>
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-xl font-bold text-white leading-tight">{t.label}</span>
+                      <span className="block text-sm text-white/90 mt-1 leading-snug">{t.desc}</span>
+                    </span>
+                    {badges[t.id] > 0 && <span className="shrink-0 text-xs font-bold rounded-full px-2 py-1" style={{ backgroundColor: "#ffffff", color: "#1D2321" }}>{badges[t.id]}</span>}
+                  </button>
+                );
+              })}
             </div>
           </div>
         )}
