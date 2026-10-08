@@ -17830,10 +17830,6 @@ function KitchenApp({ identiteExterne } = {}) {
               <span className="block text-[0.6rem] tracking-[0.18em] text-white/70 mt-1">GESTION DE CUISINE ET HACCP</span>
             </span>
           </button>
-          <div className="flex items-center gap-2 ml-3 px-3 py-2 rounded-lg text-sm min-w-0" style={{ backgroundColor: "#1D2733", border: "1px solid #2E3A4B" }}>
-            <Building2 size={18} className="shrink-0" />
-            <span className="truncate">{moi?.nom}{reglagesEtablissementApp && reglagesEtablissementApp.nom ? ` (${reglagesEtablissementApp.nom})` : ""}</span>
-          </div>
           <div className="flex-1" />
           <div className="flex items-center gap-3 shrink-0">
             <div className="text-right leading-tight">
