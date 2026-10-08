@@ -109,14 +109,18 @@ function EcranConnexion({ children }) {
   return (
     <div className="mc-login min-h-screen relative overflow-hidden" style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif" }}>
       <style>{`
-        .mc-login { --theme: #C81E1E; --ink: #1D2321; --steel: #657069; --line: #DEE2DE; --warn: #C1432D; background:
-          radial-gradient(circle at 18% 12%, rgba(255,196,120,0.55) 0, rgba(255,196,120,0) 22%),
-          radial-gradient(circle at 78% 8%, rgba(255,170,90,0.45) 0, rgba(255,170,90,0) 20%),
-          radial-gradient(circle at 60% 55%, rgba(255,255,255,0.10) 0, rgba(255,255,255,0) 35%),
-          linear-gradient(180deg, #2B2420 0%, #17191D 55%, #0F1217 100%); }
-        @media (min-width: 768px) { .mc-login { --theme: #1F5FBF; } }
+        .mc-login { --theme: #C81E1E; --ink: #1D2321; --steel: #657069; --line: #DEE2DE; --warn: #C1432D; background-color: #120F0E; }
+        .mc-login-photo { position: absolute; inset: 0 0 auto 0; height: 62vh; background: url(/fond-connexion.jpg) center 30% / cover no-repeat;
+          -webkit-mask-image: linear-gradient(180deg, #000 55%, transparent 100%); mask-image: linear-gradient(180deg, #000 55%, transparent 100%); }
+        .mc-login-voile { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(10,8,8,0.35) 0%, rgba(10,8,8,0.55) 60%, rgba(10,8,8,0.9) 100%); }
+        @media (min-width: 768px) {
+          .mc-login-photo { inset: 0; height: 100%; -webkit-mask-image: none; mask-image: none; background-position: center; }
+          .mc-login-voile { background: linear-gradient(90deg, rgba(10,8,8,0.62) 0%, rgba(10,8,8,0.30) 55%, rgba(10,8,8,0.15) 100%), linear-gradient(180deg, rgba(10,8,8,0) 60%, rgba(10,8,8,0.7) 100%); }
+        }
       `}</style>
-      <div className="relative z-10 min-h-screen w-full max-w-[1400px] mx-auto px-5 py-8 flex flex-col gap-6 md:grid md:grid-cols-[1.1fr_0.9fr] md:grid-rows-[1fr_auto] md:gap-x-10 md:px-10">
+      <div className="mc-login-photo" aria-hidden="true" />
+      <div className="mc-login-voile" aria-hidden="true" />
+      <div className="relative z-10 min-h-screen w-full max-w-[1400px] mx-auto px-5 py-8 flex flex-col gap-6 md:grid md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] md:grid-rows-[1fr_auto] md:gap-x-10 md:px-10">
         {children}
       </div>
     </div>
@@ -135,7 +139,7 @@ function MarqueConnexion() {
 }
 function CarteConnexion({ titre, sousTitre, children }) {
   return (
-    <div className="md:self-start md:mt-4 w-full max-w-md mx-auto md:max-w-none md:ml-auto md:w-full md:max-w-[26rem]">
+    <div className="md:self-center w-full max-w-md mx-auto md:justify-self-center md:max-w-[26rem] min-w-0">
       <div className="rounded-3xl p-6 sm:p-7 shadow-2xl" style={{ backgroundColor: "rgba(255,255,255,0.95)" }}>
         <h1 className="text-center text-3xl font-bold text-[var(--ink)]">{titre}</h1>
         <p className="text-center text-sm text-[var(--steel)] mt-2 mb-5 leading-snug">{sousTitre}</p>
@@ -146,7 +150,7 @@ function CarteConnexion({ titre, sousTitre, children }) {
 }
 function BandeauFonctions() {
   return (
-    <div className="md:self-end">
+    <div className="md:self-end w-full">
       <div className="rounded-2xl grid grid-cols-5 divide-x divide-black/10 py-3" style={{ backgroundColor: "rgba(255,255,255,0.88)" }}>
         {FONCTIONS_CONNEXION.map(([ic, l1, l2]) => (
           <div key={ic} className="flex flex-col items-center text-center px-1 gap-1.5" style={{ color: "var(--theme)" }}>
