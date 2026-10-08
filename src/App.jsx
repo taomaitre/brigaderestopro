@@ -10576,7 +10576,6 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
           </div>
           <button type="button" onClick={() => setFiltresOuverts(!filtresOuverts)} className="h-11 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-semibold text-[var(--ink)] flex items-center gap-2"><ListChecks size={18} /> Filtres</button>
-          {estResponsable && <button type="button" onClick={() => { setModeCatalogue("ajouter"); setTimeout(() => { const el = document.getElementById("stock-catalogue"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50); }} className="h-11 px-4 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: "#1E7B4B" }}><Plus size={18} /> Ajouter un produit</button>}
         </div>
       </div>
 
@@ -10627,7 +10626,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span>Unité / pas</span><span className="text-center">Panier</span>
           </div>
           {liste.length === 0 ? (
-            <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.{estResponsable ? " Utilisez « Ajouter un produit » pour en créer un." : ""}</p>
+            <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>
           ) : liste.map((s) => {
             const bas = enAlerte(s); const pas = pasDe(s); const pasConnu = !!quantiteParConditionnement(s); const dp = dansPanier(s);
             return (
@@ -10651,7 +10650,8 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </div>
       </div>
 
-      {(employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction") && (
+      {/* Catalogue retiré de l'écran Stock : l'ajout/suppression de produits se fait dans Contrôle & Gestion */}
+      {false && (
         <Card className="mb-6" id="stock-catalogue">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer le catalogue produits</h3>
           <p className="text-xs text-[var(--steel)] mb-4">Réservé au chef — ajouter un nouveau produit au stock, ou en supprimer un qui n'est plus utilisé.</p>
