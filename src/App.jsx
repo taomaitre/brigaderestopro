@@ -14136,6 +14136,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
         );
       })()}
 
+      {!integre && (
       <ImportPhotoIA
         titre="Importer des réservations par photo"
         description="Prends en photo un cahier de réservations papier, ou dépose une capture d'écran d'un agenda tenu ailleurs — en attendant une éventuelle connexion directe avec cet outil, ça évite de tout ressaisir à la main."
@@ -14171,7 +14172,7 @@ Une entrée par réservation visible. Si une information est illisible ou absent
           return `${nouvelles.length} réservation(s) importée(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s)` : ""}.`;
         }}
       />
-
+      )}
 
       {formOuvert && (
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-start justify-center overflow-y-auto p-3 sm:p-6" onClick={fermerForm}>
