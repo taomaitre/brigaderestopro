@@ -424,7 +424,6 @@ const ACCUEIL_TUILES = [
   { id: "haccp", label: "HACCP", desc: "Températures, refroidissement, huile, cuissons", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
   { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
-  { id: "planningResa", cible: "reservations", label: "Planning & Réservations", desc: "Consultez les réservations et organisez la production", icon: CalendarDays, fond: "linear-gradient(120deg, #B8683A 0%, #7A3E1D 100%)", ombre: "rgba(122,62,29,0.35)", chefOnly: true, large: true },
 ];
 const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccp", "fiches", "controle"];
 
