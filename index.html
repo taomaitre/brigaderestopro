@@ -167,76 +167,7 @@
 </head>
 <body>
 
-<!-- Écran d'ouverture : placé tout en premier, avant les scripts CDN, pour
-     s'afficher immédiatement pendant que la page charge. -->
-<div id="mc-splash">
-  <div class="mc-splash-bg"></div>
-  <div class="mc-splash-overlay"></div>
-  <div class="mc-splash-content">
-    <div class="mc-splash-title"><span id="mc-splash-text"></span><span class="mc-splash-cursor">|</span></div>
-    <div class="mc-splash-restaurant" id="mc-splash-restaurant">Gestion de cuisine et HACCP</div>
-    <div class="mc-splash-spinner" id="mc-splash-spinner"></div>
-  </div>
-</div>
-<script>
-(function () {
-  var texte = "BrigadeRestoPro";
-  var el = document.getElementById("mc-splash-text");
-  var restaurantEl = document.getElementById("mc-splash-restaurant");
-  var spinnerEl = document.getElementById("mc-splash-spinner");
-  var splash = document.getElementById("mc-splash");
-  var i = 1;
 
-  el.textContent = texte[0]; // le "B" s'affiche tout de suite
-
-  // L'écran d'ouverture ne se ferme plus après un délai fixe : il reste affiché (avec un
-  // petit indicateur de chargement) tant que l'application n'a pas vraiment fini de démarrer
-  // (React monté + toutes les données de démarrage arrivées), pour ne jamais laisser voir un
-  // écran vide qui donnerait l'impression que l'appli est cassée. Un plafond de sécurité évite
-  // de rester bloqué indéfiniment en cas de souci réseau.
-  function appPrete() {
-    try {
-      var root = document.getElementById("root");
-      var reactMonte = !!(root && root.children && root.children.length > 0);
-      var donneesPretes = !(window.macuisineChargement && window.macuisineChargement.compterEnCours() > 0);
-      return reactMonte && donneesPretes;
-    } catch (e) { return true; } // en cas de doute, on ne bloque pas l'accès à l'appli
-  }
-
-  function fermerSplash() {
-    splash.classList.add("mc-splash-hide");
-    setTimeout(function () { splash.style.display = "none"; }, 650);
-  }
-
-  function attendreEtFermer() {
-    var debut = Date.now();
-    var PLAFOND_MS = 8000; // sécurité : on ouvre l'appli même si le chargement traîne
-    (function verifier() {
-      if (appPrete() || Date.now() - debut > PLAFOND_MS) {
-        fermerSplash();
-        return;
-      }
-      setTimeout(verifier, 150);
-    })();
-  }
-
-  function ecrireSuite() {
-    if (i >= texte.length) {
-      setTimeout(function () { restaurantEl.classList.add("mc-show"); }, 200);
-      setTimeout(function () {
-        spinnerEl.classList.add("mc-show");
-        attendreEtFermer();
-      }, 900);
-      return;
-    }
-    el.textContent += texte[i];
-    i++;
-    setTimeout(ecrireSuite, 145); // rythme "machine à écrire" : on laisse le temps de lire chaque lettre
-  }
-
-  setTimeout(ecrireSuite, 1150); // le "B" de Brigade reste affiché un peu plus longtemps avant que le reste s'écrive
-})();
-</script>
 
 
 <div id="mc-consent">

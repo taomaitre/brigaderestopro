@@ -80,6 +80,97 @@ const styleFond = {
   backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
 };
 
+
+
+/* ---------- Écran de connexion (visuel) : même écran au démarrage, adapté au téléphone et à la tablette / l'ordinateur ---------- */
+const Ico = ({ d, size = 22, couleur = "currentColor" }) => (
+  <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke={couleur} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {d.map((x, i) => <path key={i} d={x} />)}
+  </svg>
+);
+const ICO = {
+  user: ["M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2", "M12 11a4 4 0 1 0 0-8 4 4 0 0 0 0 8z"],
+  lock: ["M7 11V7a5 5 0 0 1 10 0v4", "M5 11h14a2 2 0 0 1 2 2v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-7a2 2 0 0 1 2-2z"],
+  eye: ["M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z", "M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6z"],
+  eyeOff: ["M17.94 17.94A10.07 10.07 0 0 1 12 19c-6.5 0-10-7-10-7a18.5 18.5 0 0 1 5.06-5.94", "M9.9 4.24A9.12 9.12 0 0 1 12 4c6.5 0 10 8 10 8a18.5 18.5 0 0 1-2.16 3.19", "M1 1l22 22"],
+  login: ["M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4", "M10 17l5-5-5-5", "M15 12H3"],
+  box: ["M21 8l-9-5-9 5v8l9 5 9-5z", "M3.3 7.5L12 12l8.7-4.5", "M12 22V12"],
+  chef: ["M6 13.9V20h12v-6.1", "M6 14a4 4 0 0 1-1-7.9 5 5 0 0 1 9.6-1.4A4 4 0 0 1 18 14", "M6 17h12"],
+  thermo: ["M14 14.8V4a2 2 0 0 0-4 0v10.8a4 4 0 1 0 4 0z"],
+  doc: ["M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z", "M14 2v6h6", "M8 13h8", "M8 17h6"],
+  chart: ["M3 20V10", "M9 20V4", "M15 20v-8", "M21 20V7"],
+};
+const FONCTIONS_CONNEXION = [
+  ["box", "Stocks", "et achats"], ["chef", "Recettes", "et fiches techniques"], ["thermo", "HACCP", "et températures"],
+  ["doc", "Production", "et traçabilité"], ["chart", "Analyses", "et rapports"],
+];
+
+function EcranConnexion({ children }) {
+  return (
+    <div className="mc-login min-h-screen relative overflow-hidden" style={{ fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif" }}>
+      <style>{`
+        .mc-login { --theme: #C81E1E; --ink: #1D2321; --steel: #657069; --line: #DEE2DE; --warn: #C1432D; background:
+          radial-gradient(circle at 18% 12%, rgba(255,196,120,0.55) 0, rgba(255,196,120,0) 22%),
+          radial-gradient(circle at 78% 8%, rgba(255,170,90,0.45) 0, rgba(255,170,90,0) 20%),
+          radial-gradient(circle at 60% 55%, rgba(255,255,255,0.10) 0, rgba(255,255,255,0) 35%),
+          linear-gradient(180deg, #2B2420 0%, #17191D 55%, #0F1217 100%); }
+        @media (min-width: 768px) { .mc-login { --theme: #1F5FBF; } }
+      `}</style>
+      <div className="relative z-10 min-h-screen w-full max-w-[1400px] mx-auto px-5 py-8 flex flex-col gap-6 md:grid md:grid-cols-[1.1fr_0.9fr] md:grid-rows-[1fr_auto] md:gap-x-10 md:px-10">
+        {children}
+      </div>
+    </div>
+  );
+}
+function MarqueConnexion() {
+  return (
+    <div className="flex flex-col items-center md:items-start md:justify-center text-center md:text-left pt-10 md:pt-0">
+      <div className="text-[2.6rem] sm:text-6xl md:text-6xl font-bold text-white leading-none" style={{ fontFamily: "Georgia, 'Times New Roman', serif", textShadow: "0 2px 12px rgba(0,0,0,0.6)" }}>
+        Brigade<span style={{ color: "var(--theme)", filter: "brightness(1.35)" }}>Resto</span>Pro
+      </div>
+      <div className="mt-2 h-[3px] w-full max-w-[28rem]" style={{ backgroundColor: "var(--theme)" }} />
+      <div className="mt-3 text-xs sm:text-sm tracking-[0.3em] text-white/90 font-medium">GESTION DE CUISINE ET HACCP</div>
+    </div>
+  );
+}
+function CarteConnexion({ titre, sousTitre, children }) {
+  return (
+    <div className="md:self-start md:mt-4 w-full max-w-md mx-auto md:max-w-none md:ml-auto md:w-full md:max-w-[26rem]">
+      <div className="rounded-3xl p-6 sm:p-7 shadow-2xl" style={{ backgroundColor: "rgba(255,255,255,0.95)" }}>
+        <h1 className="text-center text-3xl font-bold text-[var(--ink)]">{titre}</h1>
+        <p className="text-center text-sm text-[var(--steel)] mt-2 mb-5 leading-snug">{sousTitre}</p>
+        {children}
+      </div>
+    </div>
+  );
+}
+function BandeauFonctions() {
+  return (
+    <div className="md:self-end">
+      <div className="rounded-2xl grid grid-cols-5 divide-x divide-black/10 py-3" style={{ backgroundColor: "rgba(255,255,255,0.88)" }}>
+        {FONCTIONS_CONNEXION.map(([ic, l1, l2]) => (
+          <div key={ic} className="flex flex-col items-center text-center px-1 gap-1.5" style={{ color: "var(--theme)" }}>
+            <Ico d={ICO[ic]} size={26} />
+            <span className="text-[11px] sm:text-xs leading-tight text-[var(--ink)]"><span className="block">{l1}</span><span className="block">{l2}</span></span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+function ChampConnexion({ icone, children, droite }) {
+  return (
+    <div className="relative mb-3">
+      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--ink)]"><Ico d={ICO[icone]} size={20} /></span>
+      {children}
+      {droite}
+    </div>
+  );
+}
+const champConnexion = "w-full h-12 rounded-xl border-2 border-[#BDB7B0] bg-white pl-11 pr-3 text-base text-[var(--ink)] placeholder:text-[#8A8A8A] focus:outline-none focus:border-[var(--theme)]";
+const boutonConnexion = "w-full h-12 rounded-xl text-base font-semibold text-white flex items-center justify-center gap-2";
+const VersionConnexion = () => <div className="text-center md:text-right md:self-end text-sm text-white/80">v1.0.0</div>;
+
 const inputCls = "w-full border border-[var(--line)] rounded-md px-3 py-2 text-sm";
 
 function Carte({ children }) {
@@ -108,6 +199,7 @@ export default function ConnexionReelle() {
   const [motDePasse, setMotDePasse] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState("");
+  const [voirMdp, setVoirMdp] = useState(false);
 
   const [session, setSession] = useState(null); // { token, etablissement: { id, nom } }
   const [code, setCode] = useState("");
@@ -1053,70 +1145,57 @@ export default function ConnexionReelle() {
 
   if (etape === "code") {
     return (
-      <div className="min-h-screen flex items-center justify-center p-6" style={styleFond}>
-        <div className="w-full max-w-sm">
-          <EnTete sousTitre={`Établissement : ${session.etablissement.nom}`} />
-          <Carte>
-            <p className="text-sm text-[var(--ink)] font-medium mb-1">Votre code personnel</p>
-            <p className="text-xs text-[var(--steel)] mb-3">Code à 4 chiffres donné par le chef ou le directeur.</p>
-            <form onSubmit={validerCode}>
+      <EcranConnexion>
+        <MarqueConnexion />
+        <CarteConnexion titre="Votre code" sousTitre={`Établissement : ${session.etablissement.nom} — code personnel à 4 chiffres, donné par le chef ou le directeur.`}>
+          <form onSubmit={validerCode}>
+            <ChampConnexion icone="lock">
               <input
-                className={`${inputCls} text-center text-lg tracking-widest mb-3`}
+                className={`${champConnexion} text-center text-2xl tracking-[0.5em] pl-4`}
                 value={code}
                 onChange={(e) => { setCode(e.target.value.replace(/\D/g, "").slice(0, 4)); setErreur(""); }}
                 inputMode="numeric"
                 maxLength={4}
+                placeholder="••••"
                 autoFocus
               />
-              {erreur && <p className="text-xs mb-3" style={{ color: "var(--warn)" }}>{erreur}</p>}
-              <button
-                type="submit"
-                disabled={enCours || code.length !== 4}
-                className="w-full rounded-md px-3 py-2 text-sm font-semibold text-white"
-                style={{ backgroundColor: "var(--accent)", opacity: enCours || code.length !== 4 ? 0.6 : 1 }}
-              >
-                Valider le code
-              </button>
-            </form>
-            <button onClick={seDeconnecter} className="text-xs text-[var(--steel)] mt-4">
-              ← Changer d'établissement
+            </ChampConnexion>
+            {erreur && <p className="text-sm mb-3" style={{ color: "var(--warn)" }}>{erreur}</p>}
+            <button type="submit" disabled={enCours || code.length !== 4} className={boutonConnexion} style={{ backgroundColor: "var(--theme)", opacity: enCours || code.length !== 4 ? 0.6 : 1 }}>
+              <Ico d={ICO.login} size={20} /> Valider le code
             </button>
-          </Carte>
-        </div>
-      </div>
+          </form>
+          <button onClick={seDeconnecter} className="block mx-auto text-sm text-[var(--steel)] mt-4 underline">← Changer d'établissement</button>
+        </CarteConnexion>
+        <BandeauFonctions />
+        <VersionConnexion />
+      </EcranConnexion>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center p-6" style={styleFond}>
-      <div className="w-full max-w-sm">
-        <EnTete sousTitre="Connexion de l'établissement" />
-        <Carte>
-          {arriveeParLien && enCours && <p className="text-sm text-[var(--steel)] mb-3">Ouverture de votre invitation…</p>}
-          <form onSubmit={seConnecterEtablissement}>
-            <label className="block mb-3">
-              <span className="block mb-1 text-sm font-medium text-[var(--ink)]">Email de l'établissement</span>
-              <input className={inputCls} type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
-            </label>
-            <label className="block mb-3">
-              <span className="block mb-1 text-sm font-medium text-[var(--ink)]">Mot de passe</span>
-              <input className={inputCls} type="password" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} required />
-            </label>
-            {erreur && <p className="text-xs mb-3" style={{ color: "var(--warn)" }}>{erreur}</p>}
-            <button
-              type="submit"
-              disabled={enCours}
-              className="w-full rounded-md px-3 py-2 text-sm font-semibold text-white"
-              style={{ backgroundColor: "var(--accent)", opacity: enCours ? 0.6 : 1 }}
-            >
-              Se connecter
-            </button>
-          </form>
-        </Carte>
-        <p className="text-center text-xs text-[var(--steel)] mt-4">
-          Prévisualisation technique — pas encore l'application normale.
-        </p>
-      </div>
-    </div>
+    <EcranConnexion>
+      <MarqueConnexion />
+      <CarteConnexion titre="Bienvenue" sousTitre="Connectez-vous à BrigadeRestoPro, votre solution de gestion de cuisine et HACCP">
+        {arriveeParLien && enCours && <p className="text-sm text-[var(--steel)] mb-3 text-center">Ouverture de votre invitation…</p>}
+        <form onSubmit={seConnecterEtablissement}>
+          <ChampConnexion icone="user">
+            <input className={champConnexion} type="email" placeholder="E-mail de l'établissement" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+          </ChampConnexion>
+          <ChampConnexion icone="lock" droite={
+            <button type="button" onClick={() => setVoirMdp(!voirMdp)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" title={voirMdp ? "Masquer" : "Afficher"}>
+              <Ico d={voirMdp ? ICO.eye : ICO.eyeOff} size={20} />
+            </button>}>
+            <input className={`${champConnexion} pr-12`} type={voirMdp ? "text" : "password"} placeholder="Votre mot de passe" autoComplete="current-password" value={motDePasse} onChange={(e) => setMotDePasse(e.target.value)} required />
+          </ChampConnexion>
+          {erreur && <p className="text-sm mb-3" style={{ color: "var(--warn)" }}>{erreur}</p>}
+          <button type="submit" disabled={enCours} className={`${boutonConnexion} mt-2`} style={{ backgroundColor: "var(--theme)", opacity: enCours ? 0.6 : 1 }}>
+            <Ico d={ICO.login} size={20} /> Se connecter
+          </button>
+        </form>
+      </CarteConnexion>
+      <BandeauFonctions />
+      <VersionConnexion />
+    </EcranConnexion>
   );
 }
