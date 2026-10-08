@@ -1033,7 +1033,7 @@ function Card({ children, className = "", id }) {
   );
 }
 
-function AlerteBanniere({ label, children, warn = true, onClick, onArreterAlarme, escaladeDebutTs }) {
+function AlerteBanniere({ label, children, warn = true, onClick, onArreterAlarme, escaladeDebutTs, continu = false }) {
   // Une non-conformité doit se remarquer même quand on n'a pas les yeux rivés sur l'écran
   // (mains occupées, service en cours, bruit en cuisine) : un bip sonore fort + une vibration
   // à l'apparition, répétés régulièrement tant que l'alerte reste affichée (donc non traitée),
@@ -1048,9 +1048,10 @@ function AlerteBanniere({ label, children, warn = true, onClick, onArreterAlarme
       }
     };
     alerter();
-    const id = setInterval(alerter, 45000); // rappel toutes les 45s tant que l'alerte est là
+    // continu : bip sans interruption (une seconde environ entre deux bips) jusqu'à ce que la personne arrête l'alarme.
+    const id = setInterval(alerter, continu ? 1200 : 45000); // sinon rappel toutes les 45s tant que l'alerte est là
     return () => clearInterval(id);
-  }, [warn, escaladeDebutTs]);
+  }, [warn, escaladeDebutTs, continu]);
   // Alerte "10 minutes avant l'échéance" (fin de refroidissement / maintien au chaud / cuisson) :
   // pour laisser le temps de finir ce qu'on a commencé, ça monte en intensité au fil du temps
   // plutôt que de sonner à fond tout de suite — 5 bips toutes les 2 min, puis toutes les minutes
@@ -4041,7 +4042,7 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   );
 }
 
-function HaccpRefroidPage({ onMaintienRefroidi, cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidPage({ onCuissonRefroidie, onMaintienRefroidi, cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -4050,7 +4051,7 @@ function HaccpRefroidPage({ onMaintienRefroidi, cuissons, setCuissons, refroidis
       <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire les règles officielles : de +63 °C à +10 °C en moins de 2 h." />
       <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire les règles officielles : passer sous −18 °C en moins de 4 h 30." />
       <SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" />
-      <HaccpRefroidissement onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+      <HaccpRefroidissement onCuissonRefroidie={onCuissonRefroidie} onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -4191,15 +4192,15 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
   );
 }
 
-function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle }) {
+function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
-      <SectionHeader title="Cuissons" subtitle="Suivi des cuissons et températures à cœur" />
-      <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" />
-      <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
+      <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" texte="Cliquez pour lire les règles officielles : température à cœur à atteindre selon le produit (63 °C en général, 71 °C viande hachée, 74 °C volaille hachée…)." />
+      <SectionHeader title="Cuisson" subtitle="Lancer une cuisson selon les fiches techniques ou créer une cuisson personnalisée" />
+      <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={onLancerRefroidissement} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -8713,12 +8714,12 @@ function HistoriqueMaintienChaud({ entries, who }) {
   );
 }
 
-const REFROIDISSEMENT_NORME = { debutMin: 63, finMax: 10, dureeMaxMin: 120, alerteAvantMin: 10 };
+const REFROIDISSEMENT_NORME = { debutMin: 63, finMax: 10, dureeMaxMin: 120, alerteAvantMin: 1 };
 // Surgélation (froid négatif) : normes différentes du refroidissement rapide positif — température
 // cible < -18°C, durée maximale 4h30 (270 min) au lieu de 2h. Même fiche HACCP officielle
 // ("Surgélation avec cellule de refroidissement"), jusque-là affichée mais jamais reliée à un
 // vrai suivi chronométré dans l'écran — corrigé ici avec un deuxième parcours dédié.
-const SURGELATION_NORME = { finMax: -18, dureeMaxMin: 270, alerteAvantMin: 10 };
+const SURGELATION_NORME = { finMax: -18, dureeMaxMin: 270, alerteAvantMin: 1 };
 // Entrée sans `type` enregistré (créées avant cette version) = toujours refroidissement positif,
 // pour ne jamais rétroactivement changer la norme appliquée à un refroidissement déjà en cours.
 function normeRefroidissement(type) { return type === "negatif" ? SURGELATION_NORME : REFROIDISSEMENT_NORME; }
@@ -8741,7 +8742,7 @@ function EtiquetteRefroidissement({ r, who }) {
 
 const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme", "Autre motif"];
 
-function HaccpRefroidissement({ onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
   const [produit, setProduit] = useState("");
   const [tempDebut, setTempDebut] = useState("");
@@ -8753,6 +8754,7 @@ function HaccpRefroidissement({ onMaintienRefroidi, cuissons = [], setCuissons, 
   const [unite, setUnite] = useState("kg");
   const [notes, setNotes] = useState("");
   const [suppId, setSuppId] = useState(null);
+  const [cuissonRetourId, setCuissonRetourId] = useState(null); // cuisson d'où vient ce refroidissement
   const [maintienId, setMaintienId] = useState(null); // maintien au chaud d'où vient ce refroidissement
   const [verdict, setVerdict] = useState(null); // résultat affiché après validation : { produit, conforme, detail }
   const today = todayISO();
@@ -8764,6 +8766,7 @@ function HaccpRefroidissement({ onMaintienRefroidi, cuissons = [], setCuissons, 
         if (produitSuggere.tempDebut != null) setTempDebut(String(produitSuggere.tempDebut));
         if (produitSuggere.quantite != null && produitSuggere.quantite !== "") { setQuantite(String(produitSuggere.quantite)); if (produitSuggere.unite) setUnite(produitSuggere.unite); }
         if (produitSuggere.maintienId) setMaintienId(produitSuggere.maintienId);
+        if (produitSuggere.cuissonId) setCuissonRetourId(produitSuggere.cuissonId);
       }
       else { setProduit(produitSuggere); setModeDemarrage("positif"); }
       setProduitSuggere(null);
@@ -8787,10 +8790,10 @@ function HaccpRefroidissement({ onMaintienRefroidi, cuissons = [], setCuissons, 
     // Un produit venant d'une cuisson (choisi dans la liste, ou saisi avec le même nom) ne doit être refroidi qu'une fois :
     // on le relie à sa cuisson, qui disparaît alors de « à mettre en refroidissement ».
     const cuissonLiee = cuissonsPretes.find((c) => c.id === cuissonChoisieId) || cuissonsPretes.find((c) => (c.produit || "").trim().toLowerCase() === produit.trim().toLowerCase());
-    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
+    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : (cuissonRetourId || undefined), origineRetourCuisson: cuissonRetourId || undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
     setRefroidissements([entry, ...refroidissements]);
     if (cuissonLiee && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === cuissonLiee.id ? { ...c, refroidissementLance: true } : c)));
-    setCuissonChoisieId(null); setMaintienId(null);
+    setCuissonChoisieId(null); setMaintienId(null); setCuissonRetourId(null);
     logActivity("HACCP", modeDemarrage === "negatif" ? "Congélation / surgélation démarrée" : "Refroidissement démarré", `${produit} — ${tempDebut}°C à ${heureDepart}`);
     setProduit(""); setTempDebut(""); setQuantite(""); setNotes(""); setHeureDepart(new Date().toTimeString().slice(0, 5));
   };
@@ -8801,6 +8804,7 @@ function HaccpRefroidissement({ onMaintienRefroidi, cuissons = [], setCuissons, 
     setRefroidissements(refroidissements.filter((x) => x.id !== id));
     if (r.origineCuissonId && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === r.origineCuissonId ? { ...c, refroidissementLance: false } : c)));
     if (r.origineMaintienId && onMaintienRefroidi) onMaintienRefroidi(r.origineMaintienId, null);
+    if (r.origineRetourCuisson && onCuissonRefroidie) onCuissonRefroidie(r.origineRetourCuisson, null);
     logActivity("HACCP", r.type === "negatif" ? "Congélation supprimée" : "Refroidissement supprimé", r.produit);
     setSuppId(null);
   };
@@ -8832,6 +8836,7 @@ function HaccpRefroidissement({ onMaintienRefroidi, cuissons = [], setCuissons, 
     const verdictObj = { produit: r.produit, conforme, depasse, detail: depasse ? (maintienAccepte ? "Délai dépassé, mais le produit a été maintenu à bonne température : aucun souci, il reste utilisable." : `Délai dépassé (${saisie.motif}). Le produit est NON CONFORME : il doit être détruit (jeté). Cette non-conformité est enregistrée dans les alertes.`) : (conforme ? "Température de fin atteinte dans le délai : produit conforme." : "La température de fin n'est pas atteinte : produit NON CONFORME, à détruire. Cette non-conformité est enregistrée.") };
     setVerdict(verdictObj);
     if (r.origineMaintienId && onMaintienRefroidi) onMaintienRefroidi(r.origineMaintienId, { conforme, detail: verdictObj.detail });
+    if (r.origineRetourCuisson && onCuissonRefroidie) onCuissonRefroidie(r.origineRetourCuisson, { conforme, detail: verdictObj.detail });
     logActivity("HACCP", depasse ? `${r.type === "negatif" ? "Congélation" : "Refroidissement"} terminé(e) avec anomalie` : `${r.type === "negatif" ? "Congélation" : "Refroidissement"} terminé(e)`, `${r.produit} — ${saisie.tempFin}°C${depasse ? ` — ${saisie.motif}` : ""}`);
 
     if (depasse || !conforme) {
@@ -9066,99 +9071,106 @@ const seuilCuissonPerso = (c) => {
   return Number.isFinite(p) ? p : cuissonSeuilMin(c && c.famille);
 };
 const seuilCuissonEntree = (c) => (c && c.seuilPerso != null && Number.isFinite(Number(c.seuilPerso)) ? Number(c.seuilPerso) : cuissonSeuilMin(c && c.famille));
-const CUISSON_ALERTE_AVANT_MIN = 10;
+const CUISSON_ALERTE_AVANT_MIN = 1; // bip continu pendant la dernière minute de cuisson, jusqu'à l'arrêt de l'alarme
 
 // Texte de la mesure d'une cuisson terminée : température à cœur, ou « contrôle visuel » quand la fiche
 // technique demande un contrôle visuel seul (pizzas, burgers…).
 function libTempCuisson(c) { return c && c.controleVisuel ? "contrôle visuel" : `${c.temperature}°C`; }
 
-function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle }) {
-  const [selectionEnCours, setSelectionEnCours] = useState([]);
-  const [temperatureSaisie, setTemperatureSaisie] = useState({});
+const MODES_CUISSON = ["Four", "Plaque / casserole", "Plancha", "Friteuse", "Vapeur", "Grill", "Autre"];
+function modeCuissonDepuisAppareil(app) {
+  const n = (app || "").toLowerCase();
+  if (/friteuse/.test(n)) return "Friteuse";
+  if (/plancha/.test(n)) return "Plancha";
+  if (/vapeur/.test(n)) return "Vapeur";
+  if (/grill|barbecue/.test(n)) return "Grill";
+  if (/four|salamandre/.test(n)) return "Four";
+  if (/plaque|feu|induction|gaz|marmite|sauteuse|casserole|bain/.test(n)) return "Plaque / casserole";
+  return "";
+}
+const APPAREILS_CUISSON = ["Four à pizza", "Four Rational", "Four Atoll Speed / Mery Chef", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
+
+function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement }) {
   const [selection, setSelection] = useState([]);
-  const [heureDebutChrono, setHeureDebutChrono] = useState(new Date().toTimeString().slice(0, 5));
-  const [nouveauPlat, setNouveauPlat] = useState("");
-  const [nouvelleDuree, setNouvelleDuree] = useState("");
+  const [recherche, setRecherche] = useState("");
+  const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
+  const [notes, setNotes] = useState("");
+  const [temperatureSaisie, setTemperatureSaisie] = useState({});
   const [selectionRefroid, setSelectionRefroid] = useState([]);
   const [tempDebutRefroid, setTempDebutRefroid] = useState({});
-  const [appareilProgramme, setAppareilProgramme] = useState("Four à pizza");
-  const [appareilAutre, setAppareilAutre] = useState("");
-  const [produitProgramme, setProduitProgramme] = useState("");
-  const [dureeProgrammee, setDureeProgrammee] = useState("");
-  const [heureDebutProgramme, setHeureDebutProgramme] = useState(new Date().toTimeString().slice(0, 5));
-  const [familleProgramme, setFamilleProgramme] = useState("general");
-  const [nouvelleFamillePlat, setNouvelleFamillePlat] = useState("general");
+  // saisie manuelle
+  const [mNom, setMNom] = useState("");
+  const [mAppareil, setMAppareil] = useState("Four à pizza");
+  const [mAppareilAutre, setMAppareilAutre] = useState("");
+  const [mMode, setMMode] = useState("Four");
+  const [mReglage, setMReglage] = useState("");
+  const [mDuree, setMDuree] = useState("");
+  const [mFamille, setMFamille] = useState("general");
   const today = todayISO();
 
   useEffect(() => {
     if (produitSuggere) {
       const dureeMin = produitSuggere.dureeMin || 20;
       const famille = produitSuggere.famille || "general";
-      const entry = { id: uid(), produit: produitSuggere.nom, famille, date: todayISO(), employeeId: currentUserId, statut: "en-cours", heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), dureeAttendueMin: dureeMin, heureFin: null, temperature: null, conforme: null };
+      const entry = { id: uid(), produit: produitSuggere.nom, famille, date: todayISO(), employeeId: currentUserId, statut: "en-cours", heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), dureeAttendueMin: dureeMin, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
       setCuissons((prev) => [entry, ...prev]);
       logActivity("HACCP", "Cuisson démarrée", `${produitSuggere.nom} — durée attendue ~${dureeMin} min`);
       setProduitSuggere(null);
     }
   }, [produitSuggere, setProduitSuggere, currentUserId, setCuissons, logActivity]);
 
+  const maj = (id, champs) => setCuissons((prev) => prev.map((x) => (x.id === id ? { ...x, ...champs } : x)));
+  const toggleSelection = (nom) => setSelection((sel) => (sel.includes(nom) ? sel.filter((n) => n !== nom) : [...sel, nom]));
+  const produitsFiltres = catalogue.filter((p) => !recherche.trim() || p.nom.toLowerCase().includes(recherche.trim().toLowerCase()));
+  const selectionnes = selection.map((nom) => catalogue.find((p) => p.nom === nom)).filter(Boolean);
 
-  const toggleSelectionEnCours = (id) => setSelectionEnCours((s) => (s.includes(id) ? s.filter((i) => i !== id) : [...s, id]));
-
-  const terminerCuisson = (c) => {
-    const temp = temperatureSaisie[c.id];
-    if (temp === undefined || temp === "") return;
-    const conforme = parseFloat(temp) >= seuilCuissonEntree(c);
-    setCuissons((prev) => prev.map((x) => (x.id === c.id ? { ...x, statut: "termine", heureFin: new Date().toTimeString().slice(0, 5), temperature: temp, conforme } : x)));
-    logActivity("HACCP", "Cuisson terminée", `${c.produit} — ${temp}°C à cœur — ${conforme ? "conforme" : "non conforme"}`);
-    setTemperatureSaisie((prev) => { const n = { ...prev }; delete n[c.id]; return n; });
-    setSelectionEnCours((s) => s.filter((i) => i !== c.id));
-  };
-
-  // Contrôle visuel seul (fiche technique : pas de sonde, ex. pizzas) : l'employé valide ou refuse à vue.
-  const terminerCuissonVisuel = (c, conforme) => {
-    setCuissons((prev) => prev.map((x) => (x.id === c.id ? { ...x, statut: "termine", heureFin: new Date().toTimeString().slice(0, 5), temperature: "", controleVisuel: true, conforme } : x)));
-    logActivity("HACCP", "Cuisson terminée", `${c.produit} — contrôle visuel — ${conforme ? "conforme" : "non conforme"}`);
-    setSelectionEnCours((s) => s.filter((i) => i !== c.id));
-  };
-
-  // Cuisson chronométrée démarrée depuis le catalogue (bolognaise, lasagne...) — durée connue
-  // par la fiche technique, donc pas de pizza/burger ici (cuisson courte, surveillée en direct).
-  const toggleSelection = (nom) => setSelection((s) => (s.includes(nom) ? s.filter((n) => n !== nom) : [...s, nom]));
-  const ajouterPlat = () => {
-    if (!nouveauPlat || Number(nouvelleDuree) <= 0 || catalogue.some((p) => p.nom === nouveauPlat)) return;
-    setCatalogue([...catalogue, { nom: nouveauPlat, dureeMin: Number(nouvelleDuree), famille: nouvelleFamillePlat }]);
-    setNouveauPlat(""); setNouvelleDuree(""); setNouvelleFamillePlat("general");
-  };
-  const retirerPlat = (nom) => setCatalogue(catalogue.filter((p) => p.nom !== nom));
-
-  // Cuisson programmée à la main (four à pizza, four Rational...) : pas de fiche technique
-  // chronométrée ici, l'employé choisit l'appareil, note ce qu'il cuit (plat/programme) et règle
-  // la durée lui-même. Une fois validée, ça crée une entrée "en-cours" en tout point identique à
-  // une cuisson chronométrée — elle rejoint donc automatiquement "Cuissons en cours" et profite
-  // de la même alarme (pré-alerte 10 min avant, puis bannière + bip/vibration à l'échéance).
-  const demarrerCuissonProgrammee = () => {
-    if (!produitProgramme || !(Number(dureeProgrammee) > 0)) return;
-    const appareilFinal = appareilProgramme === "Autre appareil" ? appareilAutre.trim() : appareilProgramme;
-    if (!appareilFinal) return;
-    // Appareil saisi à la main : on prévient l'éditeur pour qu'il l'ajoute à la liste lors d'une prochaine mise à jour.
-    if (appareilProgramme === "Autre appareil" && signalerAjout) signalerAjout("appareil_cuisson", appareilFinal, produitProgramme);
-    const entry = { id: uid(), produit: produitProgramme, famille: familleProgramme, appareil: appareilFinal, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutProgramme, debutTs: Date.now(), dureeAttendueMin: Number(dureeProgrammee), heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
-    setCuissons([entry, ...cuissons]);
-    logActivity("HACCP", "Cuisson programmée démarrée", `${produitProgramme} — ${appareilFinal}, ${dureeProgrammee} min, à ${heureDebutProgramme}`);
-    setProduitProgramme("");
-    setAppareilAutre("");
-    setDureeProgrammee("");
-  };
-
-  const demarrerCuissonsChronometrees = () => {
-    if (selection.length === 0) return;
-    const nouvelles = selection.map((nom) => {
-      const p = catalogue.find((x) => x.nom === nom);
-      return { id: uid(), produit: nom, famille: p?.famille || "general", appareil: p?.appareil || undefined, seuilPerso: p?.seuilPerso || undefined, controleVisuelSeul: !!(p?.controles && p.controles.temp === false && p.controles.visuel), date: today, employeeId: currentUserId, statut: "en-cours", heureDebut: heureDebutChrono, debutTs: Date.now(), dureeAttendueMin: p?.dureeMin || 20, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
-    });
+  const demarrerSelection = () => {
+    if (selectionnes.length === 0) return;
+    const nouvelles = selectionnes.map((p) => ({
+      id: uid(), produit: p.nom, famille: p.famille || "general", appareil: p.appareil || undefined, mode: modeCuissonDepuisAppareil(p.appareil) || undefined, reglage: p.reglage || undefined,
+      seuilPerso: p.seuilPerso || undefined, controleVisuelSeul: !!(p.controles && p.controles.temp === false && p.controles.visuel),
+      date: today, employeeId: currentUserId, statut: "en-cours", heureDebut, debutTs: Date.now(), dureeAttendueMin: p.dureeMin || 20,
+      notes: notes.trim() || undefined, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false,
+    }));
     setCuissons([...nouvelles, ...cuissons]);
-    logActivity("HACCP", "Cuisson chronométrée démarrée", `${selection.join(", ")} à ${heureDebutChrono}`);
-    setSelection([]);
+    logActivity("HACCP", "Cuisson démarrée (fiche technique)", `${selection.join(", ")} à ${heureDebut}`);
+    setSelection([]); setNotes(""); setHeureDebut(new Date().toTimeString().slice(0, 5));
+  };
+
+  // Cuisson saisie à la main (produit absent des fiches techniques) : tout est à renseigner.
+  const demarrerManuelle = () => {
+    const appareilFinal = mAppareil === "Autre appareil" ? mAppareilAutre.trim() : mAppareil;
+    if (!mNom.trim() || !(Number(mDuree) > 0) || !appareilFinal) return;
+    if (mAppareil === "Autre appareil" && signalerAjout) signalerAjout("appareil_cuisson", appareilFinal, mNom.trim());
+    const entry = { id: uid(), produit: mNom.trim(), famille: mFamille, appareil: appareilFinal, mode: mMode, reglage: mReglage !== "" ? `${mReglage} °C` : undefined, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut, debutTs: Date.now(), dureeAttendueMin: Number(mDuree), notes: notes.trim() || undefined, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
+    setCuissons([entry, ...cuissons]);
+    logActivity("HACCP", "Cuisson manuelle démarrée", `${entry.produit} — ${appareilFinal}, ${mDuree} min, à ${heureDebut}`);
+    setMNom(""); setMAppareilAutre(""); setMReglage(""); setMDuree(""); setNotes(""); setHeureDebut(new Date().toTimeString().slice(0, 5));
+  };
+
+  // Fin de cuisson : température à cœur (ou contrôle visuel) → conforme / non conforme. Les alarmes de durée s'arrêtent.
+  const finir = (c, visuel) => {
+    const temp = temperatureSaisie[c.id];
+    let conforme;
+    if (visuel !== undefined) conforme = visuel;
+    else { if (temp === undefined || temp === "") return; conforme = parseFloat(temp) >= seuilCuissonEntree(c); }
+    maj(c.id, { finie: true, heureFin: new Date().toTimeString().slice(0, 5), temperature: visuel !== undefined ? "" : temp, controleVisuel: visuel !== undefined ? true : undefined, conforme, alarmeAcquittee: true, preAlarmeAcquittee: true });
+    logActivity("HACCP", "Fin de cuisson", `${c.produit} — ${visuel !== undefined ? "contrôle visuel" : `${temp}°C à cœur`} — ${conforme ? "conforme" : "non conforme"}`);
+    if (!conforme && ajouterAlerteControle) {
+      ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Cuisson", employeeId: currentUserId, titre: `${c.produit} — cuisson non conforme`, detail: visuel !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${temp} °C, inférieure au seuil de ${seuilCuissonEntree(c)} °C.`, conforme: false });
+    }
+  };
+  const versRefroidissement = (c) => {
+    if (!c.finie) finir(c);
+    const temp = c.finie ? c.temperature : temperatureSaisie[c.id];
+    if (!c.finie && (temp === undefined || temp === "") && !c.controleVisuelSeul) return;
+    if (!onLancerRefroidissement) return;
+    maj(c.id, { refroidissementLance: true, refroidissementFait: false });
+    onLancerRefroidissement({ nom: c.produit, tempDebut: temp, cuissonId: c.id });
+  };
+  const valider = (c) => {
+    maj(c.id, { statut: "termine", heureFin: c.heureFin || new Date().toTimeString().slice(0, 5), ...(c.refroidissementLance ? { pretPourRefroidissement: false } : {}) });
+    logActivity("HACCP", "Cuisson terminée", `${c.produit}${c.refroidissementLance ? " — refroidie ensuite" : ""}`);
   };
 
   // Une fois la cuisson terminée (temp à cœur enregistrée) pour un plat venant du catalogue
@@ -9191,92 +9203,176 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   };
 
   const enCours = cuissons.filter((c) => c.statut === "en-cours");
-  const terminees = cuissons.filter((c) => c.statut !== "en-cours");
 
   return (
     <div>
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Cuissons des fiches techniques</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Les plats dont la fiche technique donne une durée de cuisson (et l'appareil) : tout est déjà connu, il suffit de cocher, de régler l'heure et de démarrer le chrono. Pas pour les pizzas et burgers, cuits sous surveillance directe.</p>
-        {catalogue.length === 0 && <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique avec une cuisson pour l'instant : elles apparaîtront ici automatiquement dès que vos fiches techniques seront enregistrées. En attendant, utilisez la cuisson manuelle ci-dessous.</p>}
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
-          {catalogue.map((p) => (
-            <label key={p.nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(p.nom) ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--ink)]"}`}>
-              <input type="checkbox" checked={selection.includes(p.nom)} onChange={() => toggleSelection(p.nom)} />
-              <span>{p.nom} <span className="text-xs opacity-70">({p.dureeMin} min · ≥{seuilCuissonEntree(p)}°C{p.appareil ? ` · ${p.appareil}` : ""})</span></span>
-            </label>
-          ))}
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Flame size={18} /></span> Démarrer une cuisson</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont une cuisson : cochez-en un ou plusieurs, les indications de la fiche sont remplies toutes seules. Sans produit coché, remplissez la cuisson à la main à droite.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <div className="lg:col-span-2 rounded-xl border border-[var(--line)] p-3">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-bold text-[var(--ink)]">Fiches techniques ({catalogue.length})</span>
+            </div>
+            <input className={`${inputCls} mb-2`} value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Rechercher un produit…" />
+            {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune fiche technique avec une cuisson pour l'instant : elles apparaîtront ici dès que vos fiches seront enregistrées. En attendant, utilisez la cuisson manuelle.</p>}
+            <div className="space-y-1.5 max-h-[26rem] overflow-y-auto pr-1">
+              {produitsFiltres.map((p) => {
+                const coche = selection.includes(p.nom);
+                const mode = modeCuissonDepuisAppareil(p.appareil);
+                return (
+                  <label key={p.nom} className={`flex items-start gap-2 rounded-lg border px-3 py-2 cursor-pointer ${coche ? "border-[#1E7B4B] bg-[#EAF6EF]" : "border-[var(--line)] bg-white"}`}>
+                    <input type="checkbox" className="mt-1" checked={coche} onChange={() => toggleSelection(p.nom)} />
+                    <span className="min-w-0 text-sm">
+                      <span className="block font-semibold text-[var(--ink)]">{p.nom}</span>
+                      <span className="block text-xs text-[var(--steel)]">{[mode, p.reglage, `${p.dureeMin} min`, p.appareil].filter(Boolean).join(" · ")}</span>
+                      <span className="block text-xs text-[var(--steel)]">{p.controles && p.controles.temp === false ? "Contrôle visuel" : `À cœur : ≥ ${seuilCuissonEntree(p)} °C`}</span>
+                    </span>
+                  </label>
+                );
+              })}
+              {catalogue.length > 0 && produitsFiltres.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun produit trouvé.</p>}
+            </div>
+          </div>
+
+          <div className="lg:col-span-3 rounded-xl border border-[var(--line)] p-3">
+            {selectionnes.length > 0 ? (
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm font-bold text-[var(--ink)]">Produits sélectionnés ({selectionnes.length})</span>
+                  <button onClick={() => setSelection([])} className="text-sm text-[var(--steel)] underline">Tout effacer</button>
+                </div>
+                <div className="space-y-2 mb-3">
+                  {selectionnes.map((p) => (
+                    <div key={p.nom} className="rounded-lg border border-[var(--line)] px-3 py-2 flex items-start justify-between gap-2">
+                      <div className="text-sm min-w-0">
+                        <div className="font-semibold text-[var(--ink)]">{p.nom}</div>
+                        <div className="text-xs text-[var(--steel)]">Mode : {modeCuissonDepuisAppareil(p.appareil) || "non précisé"} · Appareil : {p.appareil || "non précisé"}</div>
+                        <div className="text-xs text-[var(--steel)]">Température : {p.reglage || "non précisée"} · Durée : {p.dureeMin} min</div>
+                      </div>
+                      <button onClick={() => toggleSelection(p.nom)} className="text-[var(--steel)] hover:text-[var(--warn)] p-1" title="Retirer"><X size={16} /></button>
+                    </div>
+                  ))}
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <Field label="Heure de départ *"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
+                  <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : quantité, préparation, observations…" /></Field>
+                </div>
+                <button onClick={demarrerSelection} className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-bold text-white" style={{ backgroundColor: "#1E7B4B" }}>
+                  <Play size={16} /> Démarrer la cuisson ({selectionnes.length})
+                </button>
+              </div>
+            ) : (
+              <div>
+                <p className="text-sm font-bold text-[var(--ink)] mb-0.5">Cuisson manuelle</p>
+                <p className="text-xs text-[var(--steel)] mb-3">Pour un produit qui n'est pas dans les fiches techniques : renseignez les paramètres vous-même.</p>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                  <Field label="Nom du produit *"><input className={inputCls} value={mNom} onChange={(e) => setMNom(e.target.value)} placeholder="Ex. : Pizza margherita" /></Field>
+                  <Field label="Appareil *">
+                    <select className={inputCls} value={mAppareil} onChange={(e) => { setMAppareil(e.target.value); const m = modeCuissonDepuisAppareil(e.target.value); if (m) setMMode(m); }}>
+                      {APPAREILS_CUISSON.map((a) => <option key={a} value={a}>{a}</option>)}
+                    </select>
+                  </Field>
+                  {mAppareil === "Autre appareil" && <Field label="Nom de l'appareil *"><input className={inputCls} value={mAppareilAutre} onChange={(e) => setMAppareilAutre(e.target.value)} placeholder="Ex. : Sauteuse basculante" /></Field>}
+                  <Field label="Mode de cuisson *">
+                    <select className={inputCls} value={mMode} onChange={(e) => setMMode(e.target.value)}>
+                      {MODES_CUISSON.map((m) => <option key={m} value={m}>{m}</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Température du réglage (°C)"><input className={inputCls} type="number" inputMode="decimal" value={mReglage} onChange={(e) => setMReglage(e.target.value)} placeholder="Ex. : 180" /></Field>
+                  <Field label="Durée (min) *"><input className={inputCls} type="number" inputMode="numeric" value={mDuree} onChange={(e) => setMDuree(e.target.value)} placeholder="Ex. : 30" /></Field>
+                  <Field label="Type de produit (température à cœur) *">
+                    <select className={inputCls} value={mFamille} onChange={(e) => setMFamille(e.target.value)}>
+                      {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+                    </select>
+                  </Field>
+                  <Field label="Heure de départ *"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
+                </div>
+                <div className="mb-3"><Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : quantité, préparation, observations…" /></Field></div>
+                <button onClick={demarrerManuelle} disabled={!mNom.trim() || !(Number(mDuree) > 0) || (mAppareil === "Autre appareil" && !mAppareilAutre.trim())}
+                  className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
+                  <Play size={16} /> Démarrer la cuisson
+                </button>
+              </div>
+            )}
+          </div>
         </div>
-        <Field label="Heure de départ"><input className={`${inputCls} w-32 mb-4`} type="time" value={heureDebutChrono} onChange={(e) => setHeureDebutChrono(e.target.value)} /></Field>
-        <Button onClick={demarrerCuissonsChronometrees} disabled={selection.length === 0 || catalogue.length === 0}>Démarrer la cuisson ({selection.length})</Button>
       </Card>
 
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Nouvelle cuisson (à remplir à la main)</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Pour un plat qui n'est pas dans les fiches techniques : rien n'est connu, remplissez tous les champs (appareil, plat, famille, durée, heure), puis validez. Le chrono démarre tout de suite, avec la même alerte sonore qu'en fin de refroidissement.</p>
-        <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-          <Field label="Appareil">
-            <select className={inputCls} value={appareilProgramme} onChange={(e) => setAppareilProgramme(e.target.value)}>
-              <option value="Four à pizza">Four à pizza</option>
-              <option value="Four Rational">Four Rational</option>
-              <option value="Four Atoll Speed / Mery Chef">Four Atoll Speed / Mery Chef</option>
-              <option value="Plaque de cuisson (induction / gaz)">Plaque de cuisson (induction / gaz)</option>
-              <option value="Marmite / sauteuse">Marmite / sauteuse</option>
-              <option value="Four traditionnel">Four traditionnel</option>
-              <option value="Plancha">Plancha</option>
-              <option value="Grill / barbecue">Grill / barbecue</option>
-              <option value="Friteuse">Friteuse</option>
-              <option value="Salamandre">Salamandre</option>
-              <option value="Autre appareil">Autre appareil</option>
-            </select>
-          </Field>
-          {appareilProgramme === "Autre appareil" && (
-            <Field label="Nom de l'appareil"><input className={inputCls} value={appareilAutre} onChange={(e) => setAppareilAutre(e.target.value)} placeholder="Ex. Sauteuse basculante" /></Field>
-          )}
-          <Field label="Plat / programme"><input className={inputCls} value={produitProgramme} onChange={(e) => setProduitProgramme(e.target.value)} placeholder="Ex. Pizza margherita, prog. 3" /></Field>
-          <Field label="Type de produit (température à atteindre à cœur)">
-            <select className={inputCls} value={familleProgramme} onChange={(e) => setFamilleProgramme(e.target.value)}>
-              {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
-            </select>
-          </Field>
-          <Field label="Durée (min)"><input className={inputCls} type="number" value={dureeProgrammee} onChange={(e) => setDureeProgrammee(e.target.value)} /></Field>
-          <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDebutProgramme} onChange={(e) => setHeureDebutProgramme(e.target.value)} /></Field>
-        </div>
-        <Button onClick={demarrerCuissonProgrammee} disabled={!produitProgramme || !(Number(dureeProgrammee) > 0) || (appareilProgramme === "Autre appareil" && !appareilAutre.trim())}>Démarrer la cuisson</Button>
-      </Card>
-
-      {enCours.length > 0 && (
-        <Card className="mb-6">
-          <h3 className="font-semibold text-[var(--ink)] mb-1">Cuissons en cours</h3>
-          <p className="text-xs text-[var(--steel)] mb-3">Le seuil de conformité dépend de la fiche du produit : norme officielle de sa famille (63 °C en général, 71 °C viande hachée, 74 °C volaille hachée…) ou valeur choisie par l'établissement dans la fiche. Entrez la température mesurée pour terminer.</p>
-          <div className="space-y-2">
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Cuissons en cours ({enCours.length})</h3>
+        {enCours.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune cuisson en cours.</p> : (
+          <div className="space-y-3">
             {enCours.map((c) => {
               const minutes = Math.floor((Date.now() - c.debutTs) / 60000);
-              const depasse = minutes >= c.dureeAttendueMin;
+              const depasse = !c.finie && minutes >= c.dureeAttendueMin;
               const seuil = seuilCuissonEntree(c);
               const familleLabel = (CUISSON_FAMILLES.find((f) => f.id === c.famille) || CUISSON_FAMILLES[0]).label;
+              const pct = Math.min(100, Math.round((minutes / Math.max(1, c.dureeAttendueMin)) * 100));
+              const attenteRefroid = c.refroidissementLance && !c.refroidissementFait;
+              const temp = temperatureSaisie[c.id];
               return (
-                <div key={c.id} className={`border rounded-lg p-3 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
-                  <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
-                  <div className="text-xs text-[var(--steel)] mb-2">Depuis {c.heureDebut} · {minutes} min (attendu ~{c.dureeAttendueMin} min){c.appareil ? ` · ${c.appareil}` : ""} · {c.controleVisuelSeul ? "contrôle visuel" : `${familleLabel} : conforme si ≥${seuil}°C`}{depasse ? " — À VÉRIFIER MAINTENANT" : ""}</div>
-                  {c.controleVisuelSeul ? (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="text-xs text-[var(--steel)]">Sans thermomètre — cuisson vérifiée à l'œil :</span>
-                      <Button onClick={() => terminerCuissonVisuel(c, true)}>Cuisson conforme</Button>
-                      <Button variant="ghost" onClick={() => terminerCuissonVisuel(c, false)}>Non conforme</Button>
-                    </div>
-                  ) : (
-                  <div className="flex items-center gap-2">
-                    <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="Température à cœur, au centre du produit (°C)" value={temperatureSaisie[c.id] ?? ""} onChange={(e) => setTemperatureSaisie({ ...temperatureSaisie, [c.id]: e.target.value })} />
-                    <Button onClick={() => terminerCuisson(c)}>Terminer la cuisson</Button>
+                <div key={c.id} className="border rounded-xl p-3.5" style={depasse ? { borderColor: "var(--warn)", backgroundColor: "var(--warn-soft)" } : { borderColor: "var(--line)", backgroundColor: "#FFFBF2" }}>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-base font-semibold text-[var(--ink)]">{c.produit}</span>
+                    {(c.mode || modeCuissonDepuisAppareil(c.appareil)) && <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: "#FDEBD3", color: "#8A4B0F" }}>{c.mode || modeCuissonDepuisAppareil(c.appareil)}</span>}
+                    {c.appareil && <span className="text-xs text-[var(--steel)]">{c.appareil}{c.reglage ? ` · ${c.reglage}` : ""}</span>}
                   </div>
+                  <MentionNormePersoFiche nom={c.produit} etape="cuisson" />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2 text-sm text-[var(--ink)]">
+                    <div><span className="text-xs text-[var(--steel)] block">Départ</span>{c.heureDebut} · {who(c.employeeId) || "—"}</div>
+                    <div><span className="text-xs text-[var(--steel)] block">Durée prévue</span>{c.dureeAttendueMin} min</div>
+                    <div><span className="text-xs text-[var(--steel)] block">À cœur</span>{c.controleVisuelSeul ? "Contrôle visuel" : `${familleLabel.split(" (")[0]} : ≥ ${seuil} °C`}</div>
+                  </div>
+                  {c.notes && <p className="text-xs text-[var(--steel)] mb-2">Notes : {c.notes}</p>}
+                  {!c.finie && (
+                    <div className="mb-3">
+                      <div className={`text-xs mb-1 ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? " — À VÉRIFIER MAINTENANT" : ` sur ${c.dureeAttendueMin} min prévues`}</div>
+                      <div className="h-2 rounded-full bg-[var(--line)] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: depasse ? "#E5243B" : "#1E7B4B" }} /></div>
+                    </div>
                   )}
+                  {c.finie && (
+                    <div className="mb-2 rounded-lg px-3 py-2 text-sm font-medium" style={c.conforme ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }}>
+                      Cuisson terminée à {c.heureFin} · {c.controleVisuel ? "contrôle visuel" : `${c.temperature} °C à cœur`} : {c.conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}
+                    </div>
+                  )}
+                  {attenteRefroid && <div className="mb-2 rounded-lg px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#EAF1FB", color: "#1B4F9C" }}>Refroidissement en cours dans « Refroidissement rapide » : validez-le là-bas, vous reviendrez ici pour terminer.</div>}
+                  {c.refroidissementFait && c.refroidissementVerdict && (
+                    <div className="mb-2 rounded-lg px-3 py-2 text-sm" style={c.refroidissementVerdict.conforme ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }}>
+                      <strong>{c.refroidissementVerdict.conforme ? "Refroidissement conforme." : "Refroidissement NON CONFORME : produit à détruire."}</strong> {c.refroidissementVerdict.detail}
+                    </div>
+                  )}
+
+                  <div className="flex flex-wrap items-end gap-2">
+                    {!c.finie && !c.controleVisuelSeul && (
+                      <label className="flex flex-col gap-1 text-sm">
+                        <span className="text-xs text-[var(--steel)]">Température à cœur (°C) *</span>
+                        <input className={`${inputCls} w-40`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. : 75" value={temp ?? ""} onChange={(e) => setTemperatureSaisie({ ...temperatureSaisie, [c.id]: e.target.value })} />
+                      </label>
+                    )}
+                    {!c.finie && c.controleVisuelSeul && (
+                      <>
+                        <button onClick={() => finir(c, true)} className="rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: "#1E7B4B" }}>Cuisson conforme (à vue)</button>
+                        <button onClick={() => finir(c, false)} className="rounded-lg px-4 py-2 text-sm font-semibold text-white" style={{ backgroundColor: "#E5243B" }}>Non conforme</button>
+                      </>
+                    )}
+                    {!c.controleVisuelSeul && <Button variant="ghost" onClick={() => finir(c)} disabled={c.finie || temp === undefined || temp === ""}><Square size={14} /> Fin de cuisson</Button>}
+                    <button onClick={() => versRefroidissement(c)} disabled={c.refroidissementLance || (!c.finie && (c.controleVisuelSeul || temp === undefined || temp === ""))}
+                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" style={{ backgroundColor: "#1B4F9C" }}>
+                      <Snowflake size={15} /> Mettre en refroidissement
+                    </button>
+                    <button onClick={() => valider(c)} disabled={!c.finie || attenteRefroid}
+                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
+                      <CheckCircle2 size={15} /> Valider
+                    </button>
+                  </div>
+                  {!c.finie && !c.controleVisuelSeul && (temp === undefined || temp === "") && <p className="text-xs text-[var(--steel)] mt-2">Saisissez la température à cœur pour terminer la cuisson.</p>}
                 </div>
               );
             })}
           </div>
-        </Card>
-      )}
+        )}
+      </Card>
 
       {(() => {
         const suivis = cuissons
@@ -17466,7 +17562,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // Prévisualisation : les cuissons pré-programmées et les produits du maintien au chaud viennent des fiches techniques (nouvelle base).
   const catalogueCuissonFiches = React.useMemo(() => fichesExternes
     .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
-    .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "", controles: f.procedes.cuisson.controles || null, seuilPerso: f.procedes.cuisson.coeurAutre ? seuilCuissonPerso(f.procedes.cuisson) : undefined })), [fichesExternes]);
+    .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "", reglage: f.procedes.cuisson.reglage || "", controles: f.procedes.cuisson.controles || null, seuilPerso: f.procedes.cuisson.coeurAutre ? seuilCuissonPerso(f.procedes.cuisson) : undefined })), [fichesExternes]);
   NORMES_PERSO_FICHES = React.useMemo(() => (modeExterne ? construireNormesPersoFiches(fichesExternes) : {}), [modeExterne, fichesExternes]);
   const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
   const catalogueCuisson = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
@@ -17604,6 +17700,10 @@ function KitchenApp({ identiteExterne } = {}) {
   const [dlcJoursStandard, setDlcJoursStandard] = useStoredOuMemoire("dlcjours-standard", {}, modeExterne);
   const [produitsLotException, setProduitsLotException] = useStoredOuMemoire("produits-lot-exception", {}, modeExterne);
   const [declarationsTiac, setDeclarationsTiac] = useStored("declarations-tiac", []);
+
+  // Rafraîchit l'écran toutes les 10 s pour que les alarmes de dernière minute se déclenchent à temps.
+  const [, setTickAlarmes] = useState(0);
+  useEffect(() => { const i = setInterval(() => setTickAlarmes((n) => n + 1), 10000); return () => clearInterval(i); }, []);
 
   useEffect(() => {
     const verifier = () => {
@@ -17942,6 +18042,16 @@ function KitchenApp({ identiteExterne } = {}) {
     setEntriesMaintienChaud((prev) => prev.map((e) => (e.id === maintienId ? (verdict ? { ...e, refroidissementFait: true, refroidissementVerdict: verdict } : { ...e, refroidissementLance: false, refroidissementFait: false }) : e)));
     if (verdict) setTab("haccpChaud");
   }, [setEntriesMaintienChaud, setTab]);
+
+  const lancerRefroidissementDepuisCuissonEnCours = useCallback((infos) => {
+    setRefroidissementSuggere({ nom: infos.nom, mode: "positif", tempDebut: infos.tempDebut, cuissonId: infos.cuissonId });
+    setTab("haccpRefroid");
+  }, [setTab]);
+
+  const cuissonRefroidie = useCallback((cuissonId, verdict) => {
+    setCuissons((prev) => prev.map((c) => (c.id === cuissonId ? (verdict ? { ...c, refroidissementFait: true, refroidissementVerdict: verdict } : { ...c, refroidissementLance: false, refroidissementFait: false }) : c)));
+    if (verdict) setTab("haccpCuisson");
+  }, [setCuissons, setTab]);
 
   const demarrerMaintienChaudDepuisFiche = useCallback((nom) => {
     setMaintienChaudSuggere(nom);
@@ -18566,22 +18676,22 @@ function KitchenApp({ identiteExterne } = {}) {
       <main className={`flex-1 p-4 sm:p-6 lg:p-8 pb-8 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
         <IndicateurHorsLigne />
         {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin) && (
-          <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement}>Un refroidissement ou une surgélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
+          <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement} continu>Un refroidissement ou une congélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
         )}
         {plusUrgentRefroidissementPreAlarme && (
-          <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterPreAlarmeRefroidissement} escaladeDebutTs={plusUrgentRefroidissementPreAlarme.debutTs + (normeRefroidissement(plusUrgentRefroidissementPreAlarme.type).dureeMaxMin - normeRefroidissement(plusUrgentRefroidissementPreAlarme.type).alerteAvantMin) * 60000}>
-            {plusUrgentRefroidissementPreAlarme.type === "negatif" ? "Une surgélation approche de sa durée max" : "Un refroidissement approche des 2h"} ({plusUrgentRefroidissementPreAlarme.produit}) — sortez-le et terminez-le dans Refroidissement rapide.
+          <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterPreAlarmeRefroidissement} continu>
+            {plusUrgentRefroidissementPreAlarme.type === "negatif" ? "Dernière minute avant la fin de la congélation" : "Dernière minute avant la fin des 2 h de refroidissement"} ({plusUrgentRefroidissementPreAlarme.produit}) — sortez-le et terminez-le dans Refroidissement rapide.
           </AlerteBanniere>
         )}
         {surveillancesFroid.some((s) => s.statut === "attente" && Date.now() >= s.rappelTs && !s.alarmeAcquittee) && (
           <AlerteBanniere label="Frigo / congélateur" onClick={() => setTab("haccpTemp")} onArreterAlarme={arreterAlarmeTemp}>Un frigo/congélateur est à recontrôler — Températures frigos et congélateurs.</AlerteBanniere>
         )}
         {cuissons.some((c) => c.statut === "en-cours" && !c.alarmeAcquittee && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin) && (
-          <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterAlarmeCuisson}>Une cuisson a atteint sa durée attendue — vérifiez la température à cœur maintenant (écran Cuissons).</AlerteBanniere>
+          <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterAlarmeCuisson} continu>Une cuisson a atteint sa durée attendue — vérifiez la température à cœur maintenant (écran Cuissons).</AlerteBanniere>
         )}
         {plusUrgentCuissonPreAlarme && (
-          <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterPreAlarmeCuisson} escaladeDebutTs={plusUrgentCuissonPreAlarme.debutTs + (plusUrgentCuissonPreAlarme.dureeAttendueMin - CUISSON_ALERTE_AVANT_MIN) * 60000}>
-            Une cuisson approche de sa durée attendue ({plusUrgentCuissonPreAlarme.produit}) — préparez-vous à vérifier la température à cœur (écran Cuissons).
+          <AlerteBanniere label="Cuisson" onClick={() => setTab("haccpCuisson")} onArreterAlarme={arreterPreAlarmeCuisson} continu>
+            Dernière minute de cuisson ({plusUrgentCuissonPreAlarme.produit}) — préparez-vous à relever la température à cœur (écran Cuisson).
           </AlerteBanniere>
         )}
         {/* Commande vocale accessible depuis n'importe quel écran (pas seulement l'Accueil) :
@@ -18676,7 +18786,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpTempPage tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} />
         )}
         {tab === "haccpRefroid" && (
-          <HaccpRefroidPage onMaintienRefroidi={maintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+          <HaccpRefroidPage onCuissonRefroidie={cuissonRefroidie} onMaintienRefroidi={maintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpHuile" && (
           <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onEnregistrerTest={modeExterne ? confirmerTestHuile : undefined} />
@@ -18685,7 +18795,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} onLancerRefroidissement={lancerRefroidissementDepuisMaintien} />
         )}
         {tab === "haccpCuisson" && (
-          <HaccpCuissonPage signalerAjout={identiteExterne && identiteExterne.signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
+          <HaccpCuissonPage signalerAjout={identiteExterne && identiteExterne.signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={lancerRefroidissementDepuisCuissonEnCours} />
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
