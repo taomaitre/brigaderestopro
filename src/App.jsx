@@ -15675,13 +15675,18 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         const fait = (t) => !!t.completions?.[today]?.[currentUserId];
         const nettoyages = mesT.filter((t) => /^Nettoyage/i.test(t.titre));
         const preparations_ = mesProduits.map((p) => ({ cle: "p" + p.id, nom: p.nom })).concat(mesProduits.length === 0 ? mesT.filter((t) => /^Préparation/i.test(t.titre)).map((t) => ({ cle: "t" + t.id, nom: t.titre })) : []);
+        const refroids = refroidissements.filter((r) => r.statut === "en-cours");
+        const maintien = entriesMaintienChaud.filter((e) => e.statut === "en-cours");
+        const nettoyagesPeriodiques = ctxFin ? 0 : cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && (c.frequence === "Hebdomadaire" || c.frequence === "Mensuelle") && tacheDueAujourdhuiOuEnRetard(c, today) && !c.fait).length;
         const infos = [
+          ...refroids.map((r) => { const restant = normeRefroidissement(r.type).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
+          ...maintien.map((e) => ({ cle: "m" + e.id, nom: `${e.nom} (maintien au chaud)`, tag: `depuis ${Math.floor((Date.now() - e.debutTs) / 60000)} min`, ton: "bleu" })),
           ...preparations.filter((p) => !p.jete && p.dlcDate === demain).map((p) => ({ cle: "a" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "À utiliser ce soir", ton: "or" })),
-          ...preparations.filter((p) => !p.jete && p.dlcDate <= today).map((p) => ({ cle: "b" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "DLC atteinte", ton: "rouge" })),
           ...stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0).map((s) => ({ cle: "c" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "DLC demain", ton: "or" })),
-          ...stock.filter((s) => s.dlc && s.dlc <= today && Number(s.quantite) > 0).map((s) => ({ cle: "d" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "Stock à DLC", ton: "bleu" })),
+          ...preparations.filter((p) => !p.jete && p.dlcDate <= today).map((p) => ({ cle: "b" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "DLC atteinte", ton: "rouge", action: "prepa", pid: p.id, quantite: p.quantite })),
+          ...stock.filter((s) => s.dlc && s.dlc <= today && Number(s.quantite) > 0).map((s) => ({ cle: "d" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "À jeter (DLC)", ton: "rouge", action: "stock", sid: s.id })),
         ];
-        const total = preparations_.length + nettoyages.length + infos.length;
+        const total = preparations_.length + nettoyages.length + (nettoyagesPeriodiques > 0 ? 1 : 0) + infos.length;
         const LIM = toutesTaches ? 99 : 5;
         const tons = { or: ["#FFE8C2", "#9A5B00"], rouge: ["#FDE2E2", "#B42318"], bleu: ["#DCE9FB", "#1B4F9C"] };
         const colonneBas = (titre, nb, Ic, fond, entete, couleur, children) => (
@@ -15717,10 +15722,31 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {colonneBas("Préparations culinaires", preparations_.length, ChefHat, "#FDE4E8", "#F6B8C2", "#B4233A",
                   preparations_.length === 0 ? vide("Rien à préparer.") : preparations_.slice(0, LIM).map((x) => ligne(x.cle, x.nom, true, () => setModalOuvert("preparation"), false)))}
-                {colonneBas("Nettoyage", nettoyages.length, SprayCan, "#DCE9FB", "#B5CDF0", "#1B4F9C",
-                  nettoyages.length === 0 ? vide("Aucun nettoyage prévu.") : nettoyages.slice(0, LIM).map((t) => ligne(t.id, t.titre, true, () => clic(t), fait(t))))}
-                {colonneBas("Infos particulières", infos.length, IcInfo, "#FFEFD0", "#F3D69A", "#9A5B00",
-                  infos.length === 0 ? vide("Rien de particulier.") : infos.slice(0, LIM).map((x) => ligne(x.cle, x.nom, true, () => setModalOuvert("verification"), false, { texte: x.tag, ton: x.ton })))}
+                {colonneBas("Nettoyage", nettoyages.length + (nettoyagesPeriodiques > 0 ? 1 : 0), SprayCan, "#DCE9FB", "#B5CDF0", "#1B4F9C",
+                  nettoyages.length === 0 && nettoyagesPeriodiques === 0 ? vide("Aucun nettoyage prévu.") : [...nettoyages.slice(0, LIM).map((t) => ligne(t.id, t.titre, true, () => clic(t), fait(t))), ...(nettoyagesPeriodiques > 0 ? [ligne("periodiques", `Nettoyages hebdo / mensuels (${nettoyagesPeriodiques} à faire)`, false, () => setModalOuvert(new Date().getHours() < 16 ? "nettoyage-midi" : "nettoyage-soir"), false)] : [])])}
+                {colonneBas("À surveiller", infos.length, IcInfo, "#FFEFD0", "#F3D69A", "#9A5B00",
+                  infos.length === 0 ? vide("Rien à surveiller.") : infos.slice(0, LIM).map((x) => (
+                    <div key={x.cle} className="px-3 py-2.5">
+                      <div className="flex items-center gap-2">
+                        <span className="flex-1 min-w-0 text-sm text-[var(--ink)] break-words">{x.nom}</span>
+                        <span className="text-[11px] font-medium px-2 py-0.5 rounded shrink-0" style={{ backgroundColor: tons[x.ton][0], color: tons[x.ton][1] }}>{x.tag}</span>
+                      </div>
+                      {x.action === "prepa" && resolutionEnCours !== x.pid && (
+                        <div className="flex gap-1.5 mt-1.5">
+                          <Button variant="danger" onClick={() => { setResolutionEnCours(x.pid); setQuantiteJeteeSaisie(x.quantite); }}>Jeter</Button>
+                          <Button variant="ghost" onClick={() => jeterPreparation(x.pid, { fini: true })}>Fini</Button>
+                        </div>
+                      )}
+                      {x.action === "prepa" && resolutionEnCours === x.pid && (
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <input className={`${inputCls} w-24`} value={quantiteJeteeSaisie} onChange={(e) => setQuantiteJeteeSaisie(e.target.value)} autoFocus />
+                          <Button variant="danger" onClick={() => { jeterPreparation(x.pid, { quantiteJetee: quantiteJeteeSaisie }); setResolutionEnCours(null); }}>OK</Button>
+                          <Button variant="ghost" onClick={() => setResolutionEnCours(null)}>Annuler</Button>
+                        </div>
+                      )}
+                      {x.action === "stock" && <div className="mt-1.5"><Button variant="danger" onClick={() => jeterStock(x.sid)}>Jeter</Button></div>}
+                    </div>
+                  )))}
               </div>
             </Card>
             <Card>
@@ -15820,133 +15846,6 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       )}
 
       {ctxFin && currentUserId !== "direction" && <NettoyageFinServiceEmploye ctx={ctxFin} employees={employees} currentUserId={currentUserId} logActivity={logActivity} today={today} />}
-
-      {currentUserId !== "direction" && (() => {
-        const demain = addDays(today, 1);
-        const refroidsEnCours = refroidissements.filter((r) => r.statut === "en-cours");
-        const maintienEnCours = entriesMaintienChaud.filter((e) => e.statut === "en-cours");
-        const dlcDemain = preparations.filter((p) => !p.jete && p.dlcDate === demain);
-        const stockDlcDemain = stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0);
-        const dlcCeSoir = preparations.filter((p) => !p.jete && p.dlcDate <= today);
-        const stockDlc = stockDlcAujourdhui;
-        const hebdoDus = ctxFin ? [] : cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && c.frequence === "Hebdomadaire" && tacheDueAujourdhuiOuEnRetard(c, today));
-        const mensuelsDus = ctxFin ? [] : cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && c.frequence === "Mensuelle" && tacheDueAujourdhuiOuEnRetard(c, today));
-        const rien = refroidsEnCours.length === 0 && maintienEnCours.length === 0 && dlcDemain.length === 0 && stockDlcDemain.length === 0 && dlcCeSoir.length === 0 && stockDlc.length === 0 && hebdoDus.length === 0 && mensuelsDus.length === 0;
-        if (rien) return null;
-
-        return (
-          <Card className="mb-6">
-            <h3 className="font-semibold text-[var(--ink)] mb-3">Infos du jour</h3>
-
-            {(dlcDemain.length > 0 || stockDlcDemain.length > 0) && (
-              <div className="mb-3 -mx-1 px-3 py-2.5 rounded-lg" style={{ backgroundColor: "#fff5f5", border: "2px solid #c0392b" }}>
-                <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: "#c0392b" }}>⚠ DLC demain — à utiliser en priorité ou à jeter ce soir</p>
-                {dlcDemain.map((p) => {
-                  const produit = produits.find((pr) => pr.id === p.produitId);
-                  return (
-                    <div key={p.id} className="flex items-center justify-between text-sm py-1">
-                      <span className="font-semibold" style={{ color: "#c0392b" }}>{produit?.nom || p.nomLibre} — {p.quantite}</span>
-                      <span className="text-xs font-medium" style={{ color: "#c0392b" }}>DLC {demain}</span>
-                    </div>
-                  );
-                })}
-                {stockDlcDemain.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between text-sm py-1">
-                    <span className="font-semibold" style={{ color: "#c0392b" }}>{s.nom} — {s.quantite} {s.unite}</span>
-                    <span className="text-xs font-medium" style={{ color: "#c0392b" }}>DLC {demain}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {refroidsEnCours.length > 0 && (
-              <div className="mb-3">
-                <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Refroidissement en cours</p>
-                {refroidsEnCours.map((r) => {
-                  const dureeMin = Math.floor((Date.now() - r.debutTs) / 60000);
-                  const restant = normeRefroidissement(r.type).dureeMaxMin - dureeMin;
-                  return (
-                    <div key={r.id} className={`flex items-center justify-between text-sm py-1 ${restant <= 0 ? "text-[var(--warn)]" : restant <= 15 ? "text-[var(--gold)]" : "text-[var(--ink)]"}`}>
-                      <span>{r.type === "negatif" ? "❄ " : ""}{r.produit}</span>
-                      <span className="text-xs font-medium">{restant <= 0 ? "⚠ Dépassé" : `${restant} min restantes`}</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {maintienEnCours.length > 0 && (
-              <div className="mb-3">
-                <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Maintien au chaud en cours</p>
-                {maintienEnCours.map((e) => {
-                  const dureeMin = Math.floor((Date.now() - e.debutTs) / 60000);
-                  return (
-                    <div key={e.id} className="flex items-center justify-between text-sm py-1 text-[var(--ink)]">
-                      <span>{e.nom}</span>
-                      <span className="text-xs font-medium text-[var(--steel)]">en cours depuis {dureeMin} min</span>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {dlcCeSoir.length > 0 && (
-              <div className="mb-3">
-                <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">DLC atteinte — à retirer en fin de service</p>
-                {dlcCeSoir.map((p) => {
-                  const produit = produits.find((pr) => pr.id === p.produitId);
-                  const enResolution = resolutionEnCours === p.id;
-                  return (
-                    <div key={p.id} className="py-1.5">
-                      <div className="flex items-center justify-between text-sm">
-                        <span className="text-[var(--warn)]">{produit?.nom || p.nomLibre} — {p.quantite}</span>
-                        {!enResolution && (
-                          <div className="flex gap-1.5">
-                            <Button variant="danger" onClick={() => { setResolutionEnCours(p.id); setQuantiteJeteeSaisie(p.quantite); }}>Jeter</Button>
-                            <Button variant="ghost" onClick={() => jeterPreparation(p.id, { fini: true })}>Fini</Button>
-                          </div>
-                        )}
-                      </div>
-                      {enResolution && (
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <input className={`${inputCls} w-24`} value={quantiteJeteeSaisie} onChange={(e) => setQuantiteJeteeSaisie(e.target.value)} autoFocus />
-                          <Button variant="danger" onClick={() => { jeterPreparation(p.id, { quantiteJetee: quantiteJeteeSaisie }); setResolutionEnCours(null); }}>OK</Button>
-                          <Button variant="ghost" onClick={() => setResolutionEnCours(null)}>Annuler</Button>
-                        </div>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-
-            {stockDlc.length > 0 && (
-              <div className="mb-3">
-                <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">Stock à DLC aujourd'hui</p>
-                {stockDlc.map((s) => (
-                  <div key={s.id} className="flex items-center justify-between py-1 text-sm">
-                    <span className="text-[var(--warn)]">{s.nom} — {s.quantite} {s.unite}</span>
-                    <Button variant="danger" onClick={() => jeterStock(s.id)}>Jeter</Button>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {(hebdoDus.length > 0 || mensuelsDus.length > 0) && (
-              <div>
-                <button onClick={() => setModalOuvert(new Date().getHours() < 16 ? "nettoyage-midi" : "nettoyage-soir")} className="w-full flex items-center justify-between text-sm py-2 rounded-lg hover:bg-[var(--bg)] px-2">
-                  <div className="flex items-center gap-2">
-                    <Sparkles size={15} className="text-[var(--gold)]" />
-                    <span className="font-medium text-[var(--ink)]">Nettoyage</span>
-                    <span className="text-xs text-[var(--steel)]">{hebdoDus.filter((c) => !c.fait).length + mensuelsDus.filter((c) => !c.fait).length} à faire</span>
-                  </div>
-                  <ChevronRight size={15} className="text-[var(--steel)]" />
-                </button>
-              </div>
-            )}
-          </Card>
-        );
-      })()}
 
       {currentUserId !== "direction" && expanded && (() => {
         const emp = employees.find((e) => e.id === expanded);
