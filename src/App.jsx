@@ -75,6 +75,8 @@ const CheckCircle2 = makeIcon([C(12, 12, 10), P("m9 12 2 2 4-4")]);
 const Circle = makeIcon([C(12, 12, 10)]);
 const X = makeIcon([L(18, 6, 6, 18), L(6, 6, 18, 18)]);
 const Snowflake = makeIcon([L(12, 2, 12, 22), L(2, 12, 22, 12), L(4.9, 4.9, 19.1, 19.1), L(4.9, 19.1, 19.1, 4.9)]);
+const Play = makeIcon([P("M6 3l14 9-14 9V3z")]);
+const Square = makeIcon([P("M4 4h16v16H4z")]);
 const Flame = makeIcon([P("M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z")]);
 const TrendingDown = makeIcon([P("m22 17-8.5-8.5-5 5L2 7"), P("M16 17h6v-6")]);
 const PhoneCall = makeIcon([P("M13 2a9 9 0 0 1 9 9"), P("M13 6a5 5 0 0 1 5 5"), P("M21.6 16.5c.3.9-.1 1.9-.9 2.3l-1.1.6a2 2 0 0 1-2.1-.2c-1.6-1.2-3-2.6-4.2-4.2a2 2 0 0 1-.2-2.1l.6-1.1c.4-.8 1.4-1.2 2.3-.9")]);
@@ -4039,7 +4041,7 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   );
 }
 
-function HaccpRefroidPage({ cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidPage({ onMaintienRefroidi, cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -4048,7 +4050,7 @@ function HaccpRefroidPage({ cuissons, setCuissons, refroidissements, setRefroidi
       <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire les règles officielles : de +63 °C à +10 °C en moins de 2 h." />
       <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire les règles officielles : passer sous −18 °C en moins de 4 h 30." />
       <SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" />
-      <HaccpRefroidissement cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+      <HaccpRefroidissement onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -4175,15 +4177,15 @@ function HuileSaisie({ onEnregistrerTest }) {
   );
 }
 
-function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMaintienChaud, setCatalogueMaintienChaud, entriesMaintienChaud, setEntriesMaintienChaud, refroidissements, setRefroidissements, ajouterAlerteControle, maintienChaudSuggere, setMaintienChaudSuggere }) {
+function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMaintienChaud, setCatalogueMaintienChaud, entriesMaintienChaud, setEntriesMaintienChaud, refroidissements, setRefroidissements, ajouterAlerteControle, maintienChaudSuggere, setMaintienChaudSuggere, onLancerRefroidissement }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
-      <SectionHeader title="Gestion du maintien au chaud" subtitle="Suivi des produits en maintien au chaud" />
-      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" />
-      <MaintienChaud currentUserId={currentUserId} logActivity={logActivity} who={who} catalogue={catalogueMaintienChaud} setCatalogue={setCatalogueMaintienChaud} entries={entriesMaintienChaud} setEntries={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} produitSuggere={maintienChaudSuggere} setProduitSuggere={setMaintienChaudSuggere} />
+      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire les règles officielles : 63 °C minimum en permanence, une seule régénération à 65 °C ou plus." />
+      <SectionHeader title="Maintien au chaud" subtitle="Suivi des produits maintenus au chaud" />
+      <MaintienChaud currentUserId={currentUserId} logActivity={logActivity} who={who} catalogue={catalogueMaintienChaud} setCatalogue={setCatalogueMaintienChaud} entries={entriesMaintienChaud} setEntries={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} produitSuggere={maintienChaudSuggere} setProduitSuggere={setMaintienChaudSuggere} onLancerRefroidissement={onLancerRefroidissement} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -8510,18 +8512,19 @@ const DEFAULT_PRODUITS_MAINTIEN_CHAUD = ["Sauce champignons & parmesan", "Sauce 
 // Le maintien se termine par un geste volontaire (fin de service) qui bascule directement en
 // refroidissement rapide, où l'alarme de durée s'applique (normes propres à ce module).
 
-function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, refroidissements, setRefroidissements, ajouterAlerteControle, ouvrirNormes, produitSuggere, setProduitSuggere }) {
+function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, ajouterAlerteControle, produitSuggere, setProduitSuggere, onLancerRefroidissement }) {
   const [selection, setSelection] = useState([]);
   const [appareil, setAppareil] = useState("Bain-marie");
   const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
+  const [quantite, setQuantite] = useState("");
+  const [unite, setUnite] = useState("kg");
+  const [notes, setNotes] = useState("");
   const [nouveauProduit, setNouveauProduit] = useState("");
-  const [selectionEnCours, setSelectionEnCours] = useState([]);
-  const [tempSortie, setTempSortie] = useState({});
+  const [tempFin, setTempFin] = useState({});
   const today = todayISO();
 
   // Arrivée depuis le bouton "Démarrer un maintien au chaud" d'une fiche technique : on démarre
-  // directement le chrono pour ce produit (ajouté au catalogue si besoin), sans repasser par la
-  // sélection manuelle — même logique que le refroidissement/cuisson suggérés.
+  // directement le maintien pour ce produit (ajouté au catalogue si besoin).
   useEffect(() => {
     if (!produitSuggere) return;
     if (!catalogue.includes(produitSuggere)) setCatalogue((c) => [...c, produitSuggere]);
@@ -8534,104 +8537,155 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
 
   const toggleSelection = (nom) => setSelection((s) => (s.includes(nom) ? s.filter((n) => n !== nom) : [...s, nom]));
   const ajouterProduit = () => {
-    if (!nouveauProduit || catalogue.includes(nouveauProduit)) return;
-    setCatalogue([...catalogue, nouveauProduit]);
+    const nom = nouveauProduit.trim();
+    if (!nom || catalogue.includes(nom)) return;
+    setCatalogue([...catalogue, nom]);
+    setSelection((s) => [...s, nom]);
     setNouveauProduit("");
   };
-  const retirerProduit = (nom) => setCatalogue(catalogue.filter((n) => n !== nom));
+  const retirerProduit = (nom) => { setCatalogue(catalogue.filter((n) => n !== nom)); setSelection((s) => s.filter((n) => n !== nom)); };
 
   const demarrerMaintien = () => {
     if (selection.length === 0) return;
     const nouvelles = selection.map((nom) => ({
       id: uid(), nom, appareil, date: today, heureDebut, debutTs: Date.now(), employeeId: currentUserId, statut: "en-cours",
+      quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null,
     }));
     setEntries([...nouvelles, ...entries]);
     logActivity("HACCP", "Maintien au chaud démarré", `${selection.join(", ")} — ${appareil} à ${heureDebut}`);
-    setSelection([]);
+    setSelection([]); setQuantite(""); setNotes(""); setHeureDebut(new Date().toTimeString().slice(0, 5));
   };
 
   const enCours = entries.filter((e) => e.statut === "en-cours");
+  const tf = (e) => (tempFin[e.id] !== undefined ? tempFin[e.id] : (e.tempFin ?? ""));
+  const maj = (id, champs) => setEntries((prev) => prev.map((x) => (x.id === id ? { ...x, ...champs } : x)));
 
-  const toggleSelectionEnCours = (id) => setSelectionEnCours((s) => (s.includes(id) ? s.filter((i) => i !== id) : [...s, id]));
-
-  const lancerRefroidissementSelection = () => {
-    const aTraiter = enCours.filter((e) => selectionEnCours.includes(e.id) && tempSortie[e.id]);
-    if (aTraiter.length === 0) return;
-    const nouveauxRefroidissements = aTraiter.map((e) => ({
-      id: uid(), date: today, employeeId: currentUserId, produit: e.nom,
-      heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), tempDebut: tempSortie[e.id],
-      heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null, cellNettoyee: false,
-    }));
-    setRefroidissements([...nouveauxRefroidissements, ...refroidissements]);
-    const heureFinMaintien = new Date().toTimeString().slice(0, 5);
-    setEntries(entries.map((e) => (aTraiter.some((a) => a.id === e.id) ? { ...e, statut: "termine", heureFin: heureFinMaintien } : e)));
-    logActivity("HACCP", "Passage en refroidissement rapide depuis le maintien au chaud", aTraiter.map((a) => a.nom).join(", "));
-    setSelectionEnCours([]);
-    setTempSortie({});
+  // Température de fin de maintien : sous 63 °C, le produit est sorti de la zone de maintien → alerte.
+  const verifierTemp = (e, t) => {
+    if (parseFloat(t) < 63 && ajouterAlerteControle) {
+      ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Maintien au chaud", employeeId: currentUserId, titre: `${e.nom} — maintien sous 63 °C`, detail: `Température de fin de maintien : ${t} °C (minimum 63 °C). Une seule régénération à 65 °C ou plus est autorisée ; une deuxième descente impose la destruction du produit.`, conforme: false });
+    }
+  };
+  const arreter = (e) => {
+    const t = tf(e);
+    if (t === "") return;
+    maj(e.id, { arrete: true, heureArret: new Date().toTimeString().slice(0, 5), tempFin: t });
+    verifierTemp(e, t);
+    logActivity("HACCP", "Maintien au chaud arrêté", `${e.nom} — ${t}°C`);
+  };
+  const versRefroidissement = (e) => {
+    const t = tf(e);
+    if (t === "" || !onLancerRefroidissement) return;
+    if (!e.arrete) { verifierTemp(e, t); }
+    maj(e.id, { arrete: true, heureArret: e.heureArret || new Date().toTimeString().slice(0, 5), tempFin: t, refroidissementLance: true, refroidissementFait: false });
+    onLancerRefroidissement({ nom: e.nom, tempDebut: t, quantite: e.quantite, unite: e.unite, maintienId: e.id });
+  };
+  const valider = (e) => {
+    const t = tf(e);
+    if (t === "") return;
+    if (!e.arrete) verifierTemp(e, t);
+    maj(e.id, { statut: "termine", heureFin: new Date().toTimeString().slice(0, 5), tempFin: t });
+    logActivity("HACCP", "Maintien au chaud terminé", `${e.nom} — ${t}°C${e.refroidissementFait ? " — refroidi ensuite" : ""}`);
   };
 
   return (
     <div>
-      <Card className="mb-6 bg-[var(--warn-soft)] border-[var(--warn)]/30">
-        <h3 className="font-semibold text-[var(--ink)] mb-2">Obligation HACCP — maintien au chaud</h3>
-        <p className="text-sm text-[var(--ink)] mb-1.5">Tout plat maintenu au chaud (bain-marie ou four Rational) doit rester à <strong>63°C minimum, en permanence</strong>, aussi longtemps qu'il reste en service — la norme officielle ne fixe aucune durée maximale tant que cette température est tenue.</p>
-        <p className="text-sm text-[var(--ink)]">Si la température descend accidentellement sous 63°C en cours de service : régénérer une seule fois à ≥65°C. Une deuxième descente = destruction obligatoire du produit.</p>
-      </Card>
-
-      <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer un maintien au chaud</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Cochez tous les produits concernés, réglez l'heure une seule fois, et démarrez le chrono pour tout le lot.</p>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-4">
+      <Card className="mb-6" >
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Play size={16} /></span> Démarrer un maintien au chaud</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Cochez le ou les produits, renseignez l'appareil et l'heure de début.</p>
+        {catalogue.length === 0 && <p className="text-sm text-[var(--steel)] mb-3">Aucun produit dans la liste pour le moment : ajoutez-en un ci-dessous.</p>}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
           {catalogue.map((nom) => (
-            <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--ink)]"}`}>
+            <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[#1E7B4B] bg-[#EAF6EF] text-[#14653A] font-medium" : "border-[var(--line)] text-[var(--ink)]"}`}>
               <input type="checkbox" checked={selection.includes(nom)} onChange={() => toggleSelection(nom)} />
-              {nom}
-              <button onClick={(e) => { e.preventDefault(); retirerProduit(nom); }} className="ml-auto text-[var(--steel)] hover:text-[var(--warn)]"><X size={13} /></button>
+              <span className="min-w-0">{nom}</span>
+              <button onClick={(ev) => { ev.preventDefault(); retirerProduit(nom); }} className="ml-auto text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title="Retirer de la liste"><X size={13} /></button>
             </label>
           ))}
         </div>
         <div className="flex flex-wrap items-end gap-2 mb-4">
-          <Field label="Ajouter un produit à la liste"><input className={inputCls} value={nouveauProduit} onChange={(e) => setNouveauProduit(e.target.value)} /></Field>
+          <Field label="Ajouter un produit à la liste"><input className={inputCls} value={nouveauProduit} onChange={(ev) => setNouveauProduit(ev.target.value)} /></Field>
           <Button variant="ghost" onClick={ajouterProduit}><Plus size={14} /> Ajouter</Button>
         </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-4">
-          <Field label="Appareil">
-            <select className={inputCls} value={appareil} onChange={(e) => setAppareil(e.target.value)}>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <Field label="Appareil *">
+            <select className={inputCls} value={appareil} onChange={(ev) => setAppareil(ev.target.value)}>
               <option value="Bain-marie">Bain-marie</option>
               <option value="Four Rational">Four Rational</option>
             </select>
           </Field>
-          <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
+          <Field label="Heure de début *"><input className={inputCls} type="time" value={heureDebut} onChange={(ev) => setHeureDebut(ev.target.value)} /></Field>
+          <Field label="Quantité (optionnel)">
+            <div className="flex gap-2">
+              <input className={inputCls} type="number" inputMode="decimal" value={quantite} onChange={(ev) => setQuantite(ev.target.value)} />
+              <select className={`${inputCls} w-28`} value={unite} onChange={(ev) => setUnite(ev.target.value)}>
+                <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="portions">portions</option><option value="bacs">bacs</option>
+              </select>
+            </div>
+          </Field>
+          <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(ev) => setNotes(ev.target.value)} placeholder="Ex. : plat, bac, observations…" /></Field>
         </div>
-        <Button onClick={demarrerMaintien} disabled={selection.length === 0}>Démarrer le maintien ({selection.length})</Button>
+        <button onClick={demarrerMaintien} disabled={selection.length === 0}
+          className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
+          <Play size={16} /> Démarrer le maintien au chaud{selection.length > 0 ? ` (${selection.length})` : ""}
+        </button>
       </Card>
 
       <Card>
-        <h3 className="font-semibold text-[var(--ink)] mb-1">En maintien au chaud</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Pas de durée à surveiller ici — tant que le produit reste à 63°C ou plus, il n'y a pas d'urgence. Une fois le service terminé (ou le produit non utilisé), cochez-le, indiquez sa température de sortie, puis "Terminer le maintien" : il passe directement dans le module Refroidissement rapide, avec son suivi et son alarme propres.</p>
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Maintiens au chaud en cours ({enCours.length})</h3>
         {enCours.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien en maintien au chaud actuellement.</p> : (
-          <div className="space-y-2 mb-4">
+          <div className="space-y-3">
             {enCours.map((e) => {
               const minutes = Math.floor((Date.now() - e.debutTs) / 60000);
+              const t = tf(e);
+              const sous63 = t !== "" && parseFloat(t) < 63;
+              const attenteRefroid = e.refroidissementLance && !e.refroidissementFait;
               return (
-                <div key={e.id} className="border rounded-lg p-3 border-[var(--line)]">
-                  <div className="flex items-center gap-2">
-                    <input type="checkbox" checked={selectionEnCours.includes(e.id)} onChange={() => toggleSelectionEnCours(e.id)} />
-                    <div className="flex-1">
-                      <div className="text-sm text-[var(--ink)] font-medium">{e.nom} <span className="text-xs text-[var(--steel)] font-normal">— {e.appareil}</span></div>
-                      <div className="text-xs text-[var(--steel)]">Depuis {e.heureDebut} · {minutes} min</div>
-                      <MentionNormePersoFiche nom={e.nom} etape="maintien" />
-                    </div>
-                    {selectionEnCours.includes(e.id) && (
-                      <input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="Température de sortie (°C)" value={tempSortie[e.id] ?? ""} onChange={(ev) => setTempSortie({ ...tempSortie, [e.id]: ev.target.value })} />
-                    )}
+                <div key={e.id} className="border rounded-xl p-3.5 border-[var(--line)]" style={{ backgroundColor: "#FFFBF2" }}>
+                  <div className="flex flex-wrap items-center gap-2 mb-1">
+                    <span className="text-base font-semibold text-[var(--ink)]">{e.nom}</span>
+                    <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: "#FDEBD3", color: "#8A4B0F" }}>{e.appareil}</span>
+                    {e.arrete && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--line)] text-[var(--ink)]">Maintien arrêté à {e.heureArret}</span>}
                   </div>
+                  <MentionNormePersoFiche nom={e.nom} etape="maintien" />
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2 text-sm text-[var(--ink)]">
+                    <div><span className="text-xs text-[var(--steel)] block">Quantité</span>{e.quantite != null && e.quantite !== "" ? `${e.quantite} ${e.unite || ""}` : "Non précisée"}</div>
+                    <div><span className="text-xs text-[var(--steel)] block">Départ</span>{e.heureDebut} · {minutes} min</div>
+                    <div><span className="text-xs text-[var(--steel)] block">Réalisé par</span>{who(e.employeeId) || "—"}</div>
+                  </div>
+                  {e.notes && <p className="text-xs text-[var(--steel)] mb-2">Notes : {e.notes}</p>}
+
+                  {attenteRefroid && (
+                    <div className="mb-2 rounded-lg px-3 py-2 text-sm font-medium" style={{ backgroundColor: "#EAF1FB", color: "#1B4F9C" }}>Refroidissement en cours dans « Refroidissement rapide » : validez-le là-bas, vous reviendrez ici pour terminer.</div>
+                  )}
+                  {e.refroidissementFait && e.refroidissementVerdict && (
+                    <div className="mb-2 rounded-lg px-3 py-2 text-sm" style={e.refroidissementVerdict.conforme ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }}>
+                      <strong>{e.refroidissementVerdict.conforme ? "Refroidissement conforme." : "Refroidissement NON CONFORME : produit à détruire."}</strong> {e.refroidissementVerdict.detail}
+                    </div>
+                  )}
+                  {sous63 && <p className="text-sm font-semibold rounded-lg p-2 mb-2" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>Température inférieure à 63 °C : une seule régénération à 65 °C ou plus est autorisée, une deuxième descente impose la destruction du produit.</p>}
+
+                  <div className="flex flex-wrap items-end gap-2">
+                    <label className="flex flex-col gap-1 text-sm">
+                      <span className="text-xs text-[var(--steel)]">Température de fin de maintien (°C) *</span>
+                      <input className={`${inputCls} w-44`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. : 65" value={t} onChange={(ev) => setTempFin({ ...tempFin, [e.id]: ev.target.value })} />
+                    </label>
+                    <Button variant="ghost" onClick={() => arreter(e)} disabled={t === "" || e.arrete}><Square size={14} /> Arrêter le maintien</Button>
+                    <button onClick={() => versRefroidissement(e)} disabled={t === "" || e.refroidissementLance}
+                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" style={{ backgroundColor: "#1B4F9C" }}>
+                      <Snowflake size={15} /> Mettre en refroidissement
+                    </button>
+                    <button onClick={() => valider(e)} disabled={t === "" || attenteRefroid}
+                      className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
+                      <CheckCircle2 size={15} /> Valider
+                    </button>
+                  </div>
+                  {t === "" && <p className="text-xs text-[var(--steel)] mt-2">Saisissez la température de fin de maintien pour activer les boutons.</p>}
                 </div>
               );
             })}
           </div>
         )}
-        <Button onClick={lancerRefroidissementSelection} disabled={selectionEnCours.length === 0}>Terminer le maintien et lancer le refroidissement</Button>
       </Card>
     </div>
   );
@@ -8687,7 +8741,7 @@ function EtiquetteRefroidissement({ r, who }) {
 
 const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme", "Autre motif"];
 
-function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidissement({ onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
   const [produit, setProduit] = useState("");
   const [tempDebut, setTempDebut] = useState("");
@@ -8699,12 +8753,18 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
   const [unite, setUnite] = useState("kg");
   const [notes, setNotes] = useState("");
   const [suppId, setSuppId] = useState(null);
+  const [maintienId, setMaintienId] = useState(null); // maintien au chaud d'où vient ce refroidissement
   const [verdict, setVerdict] = useState(null); // résultat affiché après validation : { produit, conforme, detail }
   const today = todayISO();
 
   useEffect(() => {
     if (produitSuggere) {
-      if (typeof produitSuggere === "object") { setProduit(produitSuggere.nom); setModeDemarrage(produitSuggere.mode || "positif"); }
+      if (typeof produitSuggere === "object") {
+        setProduit(produitSuggere.nom); setModeDemarrage(produitSuggere.mode || "positif");
+        if (produitSuggere.tempDebut != null) setTempDebut(String(produitSuggere.tempDebut));
+        if (produitSuggere.quantite != null && produitSuggere.quantite !== "") { setQuantite(String(produitSuggere.quantite)); if (produitSuggere.unite) setUnite(produitSuggere.unite); }
+        if (produitSuggere.maintienId) setMaintienId(produitSuggere.maintienId);
+      }
       else { setProduit(produitSuggere); setModeDemarrage("positif"); }
       setProduitSuggere(null);
     }
@@ -8727,10 +8787,10 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
     // Un produit venant d'une cuisson (choisi dans la liste, ou saisi avec le même nom) ne doit être refroidi qu'une fois :
     // on le relie à sa cuisson, qui disparaît alors de « à mettre en refroidissement ».
     const cuissonLiee = cuissonsPretes.find((c) => c.id === cuissonChoisieId) || cuissonsPretes.find((c) => (c.produit || "").trim().toLowerCase() === produit.trim().toLowerCase());
-    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
+    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
     setRefroidissements([entry, ...refroidissements]);
     if (cuissonLiee && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === cuissonLiee.id ? { ...c, refroidissementLance: true } : c)));
-    setCuissonChoisieId(null);
+    setCuissonChoisieId(null); setMaintienId(null);
     logActivity("HACCP", modeDemarrage === "negatif" ? "Congélation / surgélation démarrée" : "Refroidissement démarré", `${produit} — ${tempDebut}°C à ${heureDepart}`);
     setProduit(""); setTempDebut(""); setQuantite(""); setNotes(""); setHeureDepart(new Date().toTimeString().slice(0, 5));
   };
@@ -8740,6 +8800,7 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
     if (!r) return;
     setRefroidissements(refroidissements.filter((x) => x.id !== id));
     if (r.origineCuissonId && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === r.origineCuissonId ? { ...c, refroidissementLance: false } : c)));
+    if (r.origineMaintienId && onMaintienRefroidi) onMaintienRefroidi(r.origineMaintienId, null);
     logActivity("HACCP", r.type === "negatif" ? "Congélation supprimée" : "Refroidissement supprimé", r.produit);
     setSuppId(null);
   };
@@ -8768,7 +8829,9 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
     // avoir à s'en souvenir plus tard une fois passé à autre chose.
     if (proposerEtiquetteRapide) proposerEtiquetteRapide(r.produit);
 
-    setVerdict({ produit: r.produit, conforme, depasse, detail: depasse ? (maintienAccepte ? "Délai dépassé, mais le produit a été maintenu à bonne température : aucun souci, il reste utilisable." : `Délai dépassé (${saisie.motif}). Le produit est NON CONFORME : il doit être détruit (jeté). Cette non-conformité est enregistrée dans les alertes.`) : (conforme ? "Température de fin atteinte dans le délai : produit conforme." : "La température de fin n'est pas atteinte : produit NON CONFORME, à détruire. Cette non-conformité est enregistrée.") });
+    const verdictObj = { produit: r.produit, conforme, depasse, detail: depasse ? (maintienAccepte ? "Délai dépassé, mais le produit a été maintenu à bonne température : aucun souci, il reste utilisable." : `Délai dépassé (${saisie.motif}). Le produit est NON CONFORME : il doit être détruit (jeté). Cette non-conformité est enregistrée dans les alertes.`) : (conforme ? "Température de fin atteinte dans le délai : produit conforme." : "La température de fin n'est pas atteinte : produit NON CONFORME, à détruire. Cette non-conformité est enregistrée.") };
+    setVerdict(verdictObj);
+    if (r.origineMaintienId && onMaintienRefroidi) onMaintienRefroidi(r.origineMaintienId, { conforme, detail: verdictObj.detail });
     logActivity("HACCP", depasse ? `${r.type === "negatif" ? "Congélation" : "Refroidissement"} terminé(e) avec anomalie` : `${r.type === "negatif" ? "Congélation" : "Refroidissement"} terminé(e)`, `${r.produit} — ${saisie.tempFin}°C${depasse ? ` — ${saisie.motif}` : ""}`);
 
     if (depasse || !conforme) {
@@ -17868,6 +17931,18 @@ function KitchenApp({ identiteExterne } = {}) {
     setTab("haccpCuisson");
   }, [setTab]);
 
+  // Maintien au chaud → refroidissement : on envoie sur l'écran de refroidissement (produit, température de départ
+  // et quantité déjà remplis) ; une fois le refroidissement validé, on revient sur le maintien pour le terminer.
+  const lancerRefroidissementDepuisMaintien = useCallback((infos) => {
+    setRefroidissementSuggere({ nom: infos.nom, mode: "positif", tempDebut: infos.tempDebut, quantite: infos.quantite, unite: infos.unite, maintienId: infos.maintienId });
+    setTab("haccpRefroid");
+  }, [setTab]);
+
+  const maintienRefroidi = useCallback((maintienId, verdict) => {
+    setEntriesMaintienChaud((prev) => prev.map((e) => (e.id === maintienId ? (verdict ? { ...e, refroidissementFait: true, refroidissementVerdict: verdict } : { ...e, refroidissementLance: false, refroidissementFait: false }) : e)));
+    if (verdict) setTab("haccpChaud");
+  }, [setEntriesMaintienChaud, setTab]);
+
   const demarrerMaintienChaudDepuisFiche = useCallback((nom) => {
     setMaintienChaudSuggere(nom);
     setTab("haccpChaud");
@@ -18601,13 +18676,13 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpTempPage tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} />
         )}
         {tab === "haccpRefroid" && (
-          <HaccpRefroidPage cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+          <HaccpRefroidPage onMaintienRefroidi={maintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpHuile" && (
           <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onEnregistrerTest={modeExterne ? confirmerTestHuile : undefined} />
         )}
         {tab === "haccpChaud" && (
-          <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} />
+          <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} onLancerRefroidissement={lancerRefroidissementDepuisMaintien} />
         )}
         {tab === "haccpCuisson" && (
           <HaccpCuissonPage signalerAjout={identiteExterne && identiteExterne.signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} />
