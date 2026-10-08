@@ -13928,10 +13928,52 @@ const couvertsDe = (list) => list.reduce((n, r) => n + (Number(r.personnes) || 0
 
 const RESA_VIDE = { date: "", heure: "", nom: "", contact: "", personnes: "", telephone: "", email: "", type: "", demandes: "", notesCuisine: "", table: "", statut: "à confirmer", duree: "90" };
 
-function Reservations({ reservations, setReservations, currentUserId, employees, logActivity, onBack, integre, horaires, formOuvert: formOuvertExt, setFormOuvert: setFormOuvertExt }) {
+// Carte d'information cliquable (même style partout : titre complet, chiffre, précision)
+function CarteInfo({ titre, grand, unite, sous, Ic, fond, bord, couleur, onClick }) {
+  return (
+    <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
+      <div className="flex items-center gap-3">
+        <span className="w-11 h-11 rounded-full bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={24} /></span>
+        <div className="min-w-0 flex-1">
+          <div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
+          <div className="flex items-baseline gap-1.5"><span className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
+          <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>
+        </div>
+      </div>
+    </button>
+  );
+}
+
+// Les 5 cartes de la journée sur l'écran Réservations
+function CartesReservations({ reservations, date, horaires, onChoisir }) {
+  const duJour = reservations.filter((r) => r.date === date);
+  const limite = limiteMidiSoir(horaires, date);
+  const midi = duJour.filter((r) => r.heure < limite);
+  const soir = duJour.filter((r) => r.heure >= limite);
+  const groupes = duJour.filter(estGroupeResa);
+  const speciales = duJour.filter(aDemandeSpeciale);
+  const exemples = Array.from(new Set(speciales.map((r) => (typeResa(r) === "Buffet" ? "buffet" : typeResa(r) === "Événement" ? (/anniv/i.test(r.nom) ? "anniversaire" : "événement") : "demande")))).slice(0, 2).join(", ");
+  const nb = (l) => `${l.length} réservation${l.length > 1 ? "s" : ""}`;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
+      <CarteInfo onClick={() => onChoisir("toutes")} titre="Total de la journée" grand={couvertsDe(duJour)} unite="couverts" sous={nb(duJour)} Ic={Users} fond="#E3EDFB" bord="#BCD3F2" couleur="#1B4F9C" />
+      <CarteInfo onClick={() => onChoisir("groupes")} titre="Groupes (8 personnes et plus)" grand={groupes.length} sous={`${couvertsDe(groupes)} couverts`} Ic={Users} fond="#DDF3E6" bord="#B3E0C5" couleur="#14653A" />
+      <CarteInfo onClick={() => onChoisir("speciales")} titre="Demandes spéciales" grand={speciales.length} sous={exemples || "allergie, anniversaire, buffet…"} Ic={IcEtoile} fond="#FFF0D2" bord="#F3D69A" couleur="#8A5300" />
+      <CarteInfo onClick={() => onChoisir("midi")} titre="Service du midi" grand={couvertsDe(midi)} unite="couverts" sous={nb(midi)} Ic={IcCloche} fond="#EBE2FA" bord="#D2C2F2" couleur="#5B34A8" />
+      <CarteInfo onClick={() => onChoisir("soir")} titre="Service du soir" grand={couvertsDe(soir)} unite="couverts" sous={nb(soir)} Ic={IcCloche} fond="#DDEBFB" bord="#B5D0F0" couleur="#1B4F9C" />
+    </div>
+  );
+}
+
+function Reservations({ reservations, setReservations, currentUserId, employees, logActivity, onBack, integre, horaires, formOuvert: formOuvertExt, setFormOuvert: setFormOuvertExt, dateExt, setDateExt, filtreExt, setFiltreExt }) {
   const [viewMode, setViewMode] = useState("jour");
-  const [selectedDate, setSelectedDate] = useState(todayISO());
-  const [filtre, setFiltre] = useState("toutes");
+  const [dateLocal, setDateLocal] = useState(todayISO());
+  const [filtreLocal, setFiltreLocal] = useState("toutes");
+  const selectedDate = dateExt !== undefined ? dateExt : dateLocal;
+  const setSelectedDate = setDateExt || setDateLocal;
+  const filtre = filtreExt !== undefined ? filtreExt : filtreLocal;
+  const setFiltre = setFiltreExt || setFiltreLocal;
+  useEffect(() => { if (filtreExt !== undefined) setViewMode("jour"); }, [filtreExt]); // un clic sur une carte du haut ramène à la vue « jour »
   const [recherche, setRecherche] = useState("");
   const [selId, setSelId] = useState(null);
   const [detailMobile, setDetailMobile] = useState(false);
@@ -13996,20 +14038,6 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
   });
   const selectionnee = listeFiltree.find((r) => r.id === selId) || listeFiltree[0] || null;
   const aller = (f) => { setFiltre(f); setViewMode("jour"); setTimeout(() => refListe.current && refListe.current.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
-
-  const exemplesSpeciales = Array.from(new Set(speciales.map((r) => (typeResa(r) === "Buffet" ? "buffet" : typeResa(r) === "Événement" ? (/anniv/i.test(r.nom) ? "anniversaire" : "événement") : "demande")))).slice(0, 2).join(", ");
-  const carte = (id, titre, grand, unite, sous, Ic, fond, bord, couleur) => (
-    <button key={id} type="button" onClick={() => aller(id)} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
-      <div className="flex items-center gap-3">
-        <span className="w-11 h-11 rounded-full bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={24} /></span>
-        <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
-          <div className="flex items-baseline gap-1.5"><span className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
-          <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>
-        </div>
-      </div>
-    </button>
-  );
 
   const ligneListe = (r) => {
     const t = typeResa(r); const st = TYPE_RESA_STYLE[t]; const ss = STATUT_RESA_STYLE[r.statut] || STATUT_RESA_STYLE["à confirmer"];
@@ -14128,15 +14156,9 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
 
       {viewMode === "jour" && (
         <>
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
-            {carte("toutes", "Total de la journée", couvertsDe(duJour), "couverts", `${duJour.length} réservation${duJour.length > 1 ? "s" : ""}`, Users, "#E3EDFB", "#BCD3F2", "#1B4F9C")}
-            {carte("groupes", "Groupes (8 personnes et plus)", groupes.length, "", `(${couvertsDe(groupes)} couverts)`, Users, "#DDF3E6", "#B3E0C5", "#14653A")}
-            {carte("speciales", "Demandes spéciales", speciales.length, "", exemplesSpeciales ? `(${exemplesSpeciales})` : "(allergie, anniversaire, buffet…)", IcEtoile, "#FFF0D2", "#F3D69A", "#8A5300")}
-            {carte("midi", "Service midi", couvertsDe(midi), "couverts", `(${midi.length} réservation${midi.length > 1 ? "s" : ""})`, IcCloche, "#EBE2FA", "#D2C2F2", "#5B34A8")}
-            {carte("soir", "Service soir", couvertsDe(soir), "couverts", `(${soir.length} réservation${soir.length > 1 ? "s" : ""})`, IcCloche, "#DDEBFB", "#B5D0F0", "#1B4F9C")}
-          </div>
+          {!integre && <CartesReservations reservations={reservations} date={selectedDate} horaires={horaires} onChoisir={aller} />}
 
-          <div ref={refListe} className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-4 mb-6 scroll-mt-4">
+          <div ref={refListe} id="reservations-liste" className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-4 mb-6 scroll-mt-4">
             <Card>
               <div className="flex items-center gap-3 flex-wrap mb-3">
                 <div className="flex items-center gap-2.5"><Users size={24} className="text-[var(--ink)]" /><h3 className="text-lg font-semibold text-[var(--ink)]">Liste des réservations ({duJour.length})</h3></div>
@@ -15640,62 +15662,6 @@ function ModalNettoyagePeriodique({ frequence, cleaning, setCleaning, moi, onClo
 
 // Bandeau « Réservations aujourd'hui » : un clic déplie le résumé du midi et du soir, les gros groupes, puis la liste rapide à lire.
 const SEUIL_GROUPE_RESA = 8;
-function ResumeReservationsJour({ reservations, today, horaires }) {
-  const [ouvert, setOuvert] = useState(false);
-  const liste = (reservations || []).filter((r) => r.date === today).sort((a, b) => (a.heure || "").localeCompare(b.heure || ""));
-  const limite = limiteMidiSoir(horaires, today); const midi = liste.filter((r) => (r.heure || "") < limite); const soir = liste.filter((r) => (r.heure || "") >= limite);
-  const service = resumeServiceDu(horaires, today);
-  const pers = (l) => l.reduce((s, r) => s + (Number(r.personnes) || 0), 0);
-  const pluriel = (n, m) => `${n} ${m}${n > 1 ? "s" : ""}`;
-  const groupes = liste.filter((r) => Number(r.personnes) >= SEUIL_GROUPE_RESA);
-  const heureCourte = (h) => String(h || "").replace(":", "h").replace(/h00$/, "h");
-  const bloc = (titre, l) => (
-    <div className="mb-3">
-      <h4 className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-1">{titre} — {l.length ? `${pluriel(l.length, "réservation")} · ${pluriel(pers(l), "personne")}` : "aucune réservation"}</h4>
-      {l.length > 0 && (
-        <ul className="space-y-1">
-          {l.map((r) => (
-            <li key={r.id} className={`flex items-baseline justify-between gap-2 text-sm rounded-lg px-3 py-1.5 border ${Number(r.personnes) >= SEUIL_GROUPE_RESA ? "border-[var(--warn)] bg-amber-50 font-semibold" : "border-[var(--cadre)] bg-white"} text-[var(--ink)]`}>
-              <span>{heureCourte(r.heure)} · {r.nom}</span>
-              <span className="whitespace-nowrap">{r.personnes} pers.</span>
-            </li>
-          ))}
-        </ul>
-      )}
-    </div>
-  );
-  return (
-    <div className="mb-4 border border-[var(--cadre)] rounded-xl bg-white overflow-hidden">
-      <button type="button" onClick={() => setOuvert(!ouvert)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left flex-wrap">
-        <span className="flex items-center gap-2.5 font-semibold text-[var(--ink)]"><CalendarDays size={22} className="text-[#1B4F9C]" /> Réservations aujourd'hui</span>
-        <span className="flex items-center gap-2 flex-wrap text-xs font-semibold">
-          {liste.length === 0 ? <span className="text-[var(--steel)] text-sm font-medium">Aucune</span> : (
-            <>
-              <span className="px-2.5 py-1 rounded-md" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{pluriel(pers(liste), "couvert")}</span>
-              <span className="px-2.5 py-1 rounded-md" style={{ backgroundColor: "#EBE2FA", color: "#5B34A8" }}>Midi : {pers(midi)}</span>
-              <span className="px-2.5 py-1 rounded-md" style={{ backgroundColor: "#DDEBFB", color: "#1B4F9C" }}>Soir : {pers(soir)}</span>
-              {groupes.length > 0 && <span className="px-2.5 py-1 rounded-md" style={{ backgroundColor: "#FFE6B8", color: "#8A5300" }}>{pluriel(groupes.length, "groupe")}</span>}
-            </>
-          )}
-          <span className="text-[var(--steel)] text-sm">{ouvert ? "▲" : "▼"}</span>
-        </span>
-      </button>
-      {ouvert && (
-        <div className="px-4 pb-3">
-          <p className="text-sm text-[var(--ink)] mb-2"><b>Service du jour :</b> {service.texte}{service.exception ? <span className="text-[var(--warn)] font-semibold"> (horaires exceptionnels{service.notes.length ? ` : ${service.notes.join(", ")}` : ""})</span> : null}</p>
-          {liste.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune réservation enregistrée pour aujourd'hui.</p> : (
-            <>
-              <p className="text-sm text-[var(--ink)] mb-3">Vous avez <b>{pluriel(midi.length, "réservation")} à midi ({pers(midi)} pers.)</b> et <b>{pluriel(soir.length, "réservation")} le soir ({pers(soir)} pers.)</b>.
-                {groupes.length > 0 && <> Groupe{groupes.length > 1 ? "s" : ""} : {groupes.map((g) => `${g.nom} à ${heureCourte(g.heure)} (${g.personnes} pers.)`).join(", ")}.</>}</p>
-              {bloc("Midi", midi)}
-              {bloc("Soir", soir)}
-            </>
-          )}
-        </div>
-      )}
-    </div>
-  );
-}
 
 /* ---------- Tâches du jour : nouveau visuel (grille Matin / Soir, bandeau du bas) ---------- */
 const IcSoleil = makeIcon([C(12, 12, 4), L(12, 2, 12, 4), L(12, 20, 12, 22), L(4.9, 4.9, 6.3, 6.3), L(17.7, 17.7, 19.1, 19.1), L(2, 12, 4, 12), L(20, 12, 22, 12), L(4.9, 19.1, 6.3, 17.7), L(17.7, 6.3, 19.1, 4.9)]);
@@ -15873,6 +15839,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   const [jourDetailOuvert, setJourDetailOuvert] = useState(null);
   const [toutesTaches, setToutesTaches] = useState(false);
   const [formResa, setFormResa] = useState(false);
+  const [dateResa, setDateResa] = useState(todayISO());
+  const [filtreResa, setFiltreResa] = useState("toutes");
   const [prepsFaites, setPrepsFaites] = useStored("preparations-faites", {});
   const [modalOuvert, setModalOuvert] = useState(null);
   const [modalCollegue, setModalCollegue] = useState(null);
@@ -15921,10 +15889,82 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   const aucunHoraireCeJour = !shifts.some((s) => s.jour === JOURS[jourIdx]);
   const stockDlcAujourdhui = stock.filter((s) => s.dlc && s.dlc <= today && Number(s.quantite) > 0);
 
+  // Données « du jour » partagées par les cartes du haut et les colonnes du bas
+  const donneesDuJour = () => {
+      const demain = addDays(today, 1);
+      const nomProduit = (p) => produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || "Préparation";
+      const mesT = tasksFor(currentUserId);
+      const clic = (t) => { const special = TACHES_OUVRE_FENETRE.some((ts) => t.titre.startsWith(ts)); if (special) ouvrirFenetreMoi(t); else toggleTask(t, today, currentUserId, currentUserId); };
+      const fait = (t) => !!t.completions?.[today]?.[currentUserId];
+      const nettoyages = mesT.filter((t) => /^Nettoyage/i.test(t.titre));
+      const carteJ = (() => { const tr = [...(cartes || [])].sort((x, y) => (x.debut || "").localeCompare(y.debut || "")); const per = tr.length && tr[0].typeCarte !== "fixe"; return tr.find((c) => !per || (c.debut <= today && today <= c.fin)) || null; })();
+      const preparations_ = (() => {
+        if (!carteJ) return [];
+        const tr = [...(cartes || [])].sort((x, y) => (x.debut || "").localeCompare(y.debut || ""));
+        const per = tr.length && tr[0].typeCarte !== "fixe";
+        const prec = tr.filter((c) => c.id !== carteJ.id && (c.debut || "") < (carteJ.debut || "")).pop() || null;
+        const datesAjout = carteJ.datesAjout || {};
+        const estNouveauJ = (id) => { const a = datesAjout[id]; if (a && a >= addDays(today, -7)) return true; return !!(per && prec && !(prec.plats || []).includes(id) && !a); };
+        const platsJ = platsAuCarte(carteJ, today);
+        const nouveaux = platsJ.filter(estNouveauJ);
+        const restes = Object.fromEntries(Object.entries((carteJ.restes || {})[today] || {}).filter(([id]) => !nouveaux.includes(id)));
+        const jourNom = JOURS[(new Date().getDay() + 6) % 7];
+        const { groupes } = calculerPreparationsCarte({ ...carteJ, plats: platsJ }, fiches, jourNom, restes);
+        const monPoste = String(moi?.poste || "").toLowerCase().replace(/^poste\s*/, "").trim();
+        const voirTout = !!moi?.estChef || !monPoste;
+        const res = [];
+        Object.keys(groupes).sort((x, y) => x.localeCompare(y, "fr")).forEach((poste) => {
+          const pn = poste.toLowerCase().replace(/^poste\s*/, "").trim();
+          if (!(voirTout || poste === "Sans poste" || (pn && (monPoste.includes(pn) || pn.includes(monPoste))))) return;
+          groupes[poste].plats.filter((x) => x.n > 0).forEach((x) => res.push({ cle: `${poste}|plat|${x.nom}`, nom: `${x.nom} — ${x.n} portion${x.n > 1 ? "s" : ""}` }));
+          Object.values(groupes[poste].lignes).filter((l) => l.prep).forEach((l) => res.push({ cle: `${poste}|prep|${l.nom}`, nom: `${l.nom} — ${Math.round(l.total * 10) / 10} ${l.unite || ""}`.trim() }));
+        });
+        return res;
+      })();
+      const cleFaite = (x) => `${today}|${x.cle}`;
+      const basculerPrep = (x) => { const k = cleFaite(x); const nv = { ...(prepsFaites || {}) }; if (nv[k]) delete nv[k]; else { nv[k] = true; logActivity && logActivity("Production", "Préparation faite", x.nom); } setPrepsFaites(nv); };
+      const miennesNet = ctxFin ? occurrencesDuJour(ctxFin.cleaning, ctxFin.executions, today).filter((o) => !o.aValiderSeulement && concernesOccurrence(o, today, employees, ctxFin.shifts).ids.includes(currentUserId)) : [];
+      const refroids = refroidissements.filter((r) => r.statut === "en-cours");
+      const maintien = entriesMaintienChaud.filter((e) => e.statut === "en-cours");
+      const nettoyagesPeriodiques = ctxFin ? 0 : cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && (c.frequence === "Hebdomadaire" || c.frequence === "Mensuelle") && tacheDueAujourdhuiOuEnRetard(c, today) && !c.fait).length;
+      const infos = [
+        ...refroids.map((r) => { const restant = normeRefroidissement(r.type).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
+        ...maintien.map((e) => ({ cle: "m" + e.id, nom: `${e.nom} (maintien au chaud)`, tag: `depuis ${Math.floor((Date.now() - e.debutTs) / 60000)} min`, ton: "bleu" })),
+        ...preparations.filter((p) => !p.jete && p.dlcDate === demain).map((p) => ({ cle: "a" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "À utiliser ce soir", ton: "or" })),
+        ...stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0).map((s) => ({ cle: "c" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "DLC demain", ton: "or" })),
+        ...preparations.filter((p) => !p.jete && p.dlcDate <= today).map((p) => ({ cle: "b" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "DLC atteinte", ton: "rouge", action: "prepa", pid: p.id, quantite: p.quantite })),
+        ...stock.filter((s) => s.dlc && s.dlc <= today && Number(s.quantite) > 0).map((s) => ({ cle: "d" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "À jeter (DLC)", ton: "rouge", action: "stock", sid: s.id })),
+      ];
+      const total = preparations_.length + nettoyages.length + miennesNet.length + (nettoyagesPeriodiques > 0 ? 1 : 0) + infos.length;
+    return { demain, nomProduit, mesT, clic, fait, nettoyages, carteJ, preparations_, cleFaite, basculerPrep, miennesNet, refroids, maintien, nettoyagesPeriodiques, infos, total };
+  };
+
+  const allerResa = (f) => { setFiltreResa(f); setTimeout(() => { const el = document.getElementById("reservations-liste"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80); };
+  const allerBloc = (id) => { setToutesTaches(false); setTimeout(() => { const el = document.getElementById(id); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50); };
+  const dj = currentUserId !== "direction" && vueAccueil === "planning" ? donneesDuJour() : null;
+
   return (
     <div>
       {currentUserId !== "direction" && <CarteRemarquesChef remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} today={today} />}
-      <ResumeReservationsJour reservations={reservations} today={today} horaires={horaires} />
+      {vueAccueil === "reservations" && <CartesReservations reservations={reservations} date={dateResa} horaires={horaires} onChoisir={allerResa} />}
+      {dj && (() => {
+        const prepsRestantes = dj.preparations_.filter((x) => !(prepsFaites || {})[dj.cleFaite(x)]).length;
+        const netTotal = dj.miennesNet.length + dj.nettoyages.length;
+        const netRestants = dj.miennesNet.filter((o) => o.statut !== "fait" && o.statut !== "valide").length + dj.nettoyages.filter((t) => !dj.fait(t)).length + dj.nettoyagesPeriodiques;
+        const dlc = dj.infos.filter((x) => /DLC|utiliser/i.test(x.tag));
+        const enCours = dj.refroids.length + dj.maintien.length;
+        const nbResa = resasAujourdhui.length;
+        const couverts = resasAujourdhui.reduce((t, r) => t + (Number(r.personnes) || 0), 0);
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
+            <CarteInfo onClick={() => allerBloc("colonne-preparations")} titre="Préparations culinaires à faire" grand={prepsRestantes} sous={`sur ${dj.preparations_.length} aujourd'hui`} Ic={ChefHat} fond="#FDE4E8" bord="#F6B8C2" couleur="#B4233A" />
+            <CarteInfo onClick={() => allerBloc("colonne-nettoyage")} titre="Tâches de nettoyage à faire" grand={netRestants} sous={`sur ${netTotal + dj.nettoyagesPeriodiques} aujourd'hui`} Ic={SprayCan} fond="#DCE9FB" bord="#B5CDF0" couleur="#1B4F9C" />
+            <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="DLC à traiter avant la fin de la journée" grand={dlc.length} sous="produits à utiliser ou à jeter" Ic={Clock} fond="#FFEFD0" bord="#F3D69A" couleur="#8A5300" />
+            <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="Refroidissements et maintiens au chaud en cours" grand={enCours} sous={enCours ? "à surveiller" : "rien en cours"} Ic={IcInfo} fond="#DDF3E6" bord="#B3E0C5" couleur="#14653A" />
+            <CarteInfo onClick={() => setVueAccueil("reservations")} titre="Réservations aujourd'hui" grand={couverts} unite="couverts" sous={`${nbResa} réservation${nbResa > 1 ? "s" : ""}`} Ic={Users} fond="#EBE2FA" bord="#D2C2F2" couleur="#5B34A8" />
+          </div>
+        );
+      })()}
 
       <Card className="mb-6">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
@@ -15983,7 +16023,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
         )}
         {vueAccueil === "reservations" && (
-          <Reservations integre reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivity} horaires={horaires} formOuvert={formResa} setFormOuvert={setFormResa} />
+          <Reservations integre reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivity} horaires={horaires} formOuvert={formResa} setFormOuvert={setFormResa} dateExt={dateResa} setDateExt={setDateResa} filtreExt={filtreResa} setFiltreExt={setFiltreResa} />
         )}
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId === "direction" && (
           <CarteGestionHorairesDirection employees={employees} shifts={shifts} setShifts={setShifts} logActivity={logActivity} setTab={setTab} />
@@ -16051,55 +16091,11 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       </Card>
 
       {currentUserId !== "direction" && vueAccueil === "planning" && (() => {
-        const demain = addDays(today, 1);
-        const nomProduit = (p) => produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || "Préparation";
-        const mesT = tasksFor(currentUserId);
-        const clic = (t) => { const special = TACHES_OUVRE_FENETRE.some((ts) => t.titre.startsWith(ts)); if (special) ouvrirFenetreMoi(t); else toggleTask(t, today, currentUserId, currentUserId); };
-        const fait = (t) => !!t.completions?.[today]?.[currentUserId];
-        const nettoyages = mesT.filter((t) => /^Nettoyage/i.test(t.titre));
-        const carteJ = (() => { const tr = [...(cartes || [])].sort((x, y) => (x.debut || "").localeCompare(y.debut || "")); const per = tr.length && tr[0].typeCarte !== "fixe"; return tr.find((c) => !per || (c.debut <= today && today <= c.fin)) || null; })();
-        const preparations_ = (() => {
-          if (!carteJ) return [];
-          const tr = [...(cartes || [])].sort((x, y) => (x.debut || "").localeCompare(y.debut || ""));
-          const per = tr.length && tr[0].typeCarte !== "fixe";
-          const prec = tr.filter((c) => c.id !== carteJ.id && (c.debut || "") < (carteJ.debut || "")).pop() || null;
-          const datesAjout = carteJ.datesAjout || {};
-          const estNouveauJ = (id) => { const a = datesAjout[id]; if (a && a >= addDays(today, -7)) return true; return !!(per && prec && !(prec.plats || []).includes(id) && !a); };
-          const platsJ = platsAuCarte(carteJ, today);
-          const nouveaux = platsJ.filter(estNouveauJ);
-          const restes = Object.fromEntries(Object.entries((carteJ.restes || {})[today] || {}).filter(([id]) => !nouveaux.includes(id)));
-          const jourNom = JOURS[(new Date().getDay() + 6) % 7];
-          const { groupes } = calculerPreparationsCarte({ ...carteJ, plats: platsJ }, fiches, jourNom, restes);
-          const monPoste = String(moi?.poste || "").toLowerCase().replace(/^poste\s*/, "").trim();
-          const voirTout = !!moi?.estChef || !monPoste;
-          const res = [];
-          Object.keys(groupes).sort((x, y) => x.localeCompare(y, "fr")).forEach((poste) => {
-            const pn = poste.toLowerCase().replace(/^poste\s*/, "").trim();
-            if (!(voirTout || poste === "Sans poste" || (pn && (monPoste.includes(pn) || pn.includes(monPoste))))) return;
-            groupes[poste].plats.filter((x) => x.n > 0).forEach((x) => res.push({ cle: `${poste}|plat|${x.nom}`, nom: `${x.nom} — ${x.n} portion${x.n > 1 ? "s" : ""}` }));
-            Object.values(groupes[poste].lignes).filter((l) => l.prep).forEach((l) => res.push({ cle: `${poste}|prep|${l.nom}`, nom: `${l.nom} — ${Math.round(l.total * 10) / 10} ${l.unite || ""}`.trim() }));
-          });
-          return res;
-        })();
-        const cleFaite = (x) => `${today}|${x.cle}`;
-        const basculerPrep = (x) => { const k = cleFaite(x); const nv = { ...(prepsFaites || {}) }; if (nv[k]) delete nv[k]; else { nv[k] = true; logActivity && logActivity("Production", "Préparation faite", x.nom); } setPrepsFaites(nv); };
-        const miennesNet = ctxFin ? occurrencesDuJour(ctxFin.cleaning, ctxFin.executions, today).filter((o) => !o.aValiderSeulement && concernesOccurrence(o, today, employees, ctxFin.shifts).ids.includes(currentUserId)) : [];
-        const refroids = refroidissements.filter((r) => r.statut === "en-cours");
-        const maintien = entriesMaintienChaud.filter((e) => e.statut === "en-cours");
-        const nettoyagesPeriodiques = ctxFin ? 0 : cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && (c.frequence === "Hebdomadaire" || c.frequence === "Mensuelle") && tacheDueAujourdhuiOuEnRetard(c, today) && !c.fait).length;
-        const infos = [
-          ...refroids.map((r) => { const restant = normeRefroidissement(r.type).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
-          ...maintien.map((e) => ({ cle: "m" + e.id, nom: `${e.nom} (maintien au chaud)`, tag: `depuis ${Math.floor((Date.now() - e.debutTs) / 60000)} min`, ton: "bleu" })),
-          ...preparations.filter((p) => !p.jete && p.dlcDate === demain).map((p) => ({ cle: "a" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "À utiliser ce soir", ton: "or" })),
-          ...stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0).map((s) => ({ cle: "c" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "DLC demain", ton: "or" })),
-          ...preparations.filter((p) => !p.jete && p.dlcDate <= today).map((p) => ({ cle: "b" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "DLC atteinte", ton: "rouge", action: "prepa", pid: p.id, quantite: p.quantite })),
-          ...stock.filter((s) => s.dlc && s.dlc <= today && Number(s.quantite) > 0).map((s) => ({ cle: "d" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "À jeter (DLC)", ton: "rouge", action: "stock", sid: s.id })),
-        ];
-        const total = preparations_.length + nettoyages.length + miennesNet.length + (nettoyagesPeriodiques > 0 ? 1 : 0) + infos.length;
+        const { demain, nomProduit, mesT, clic, fait, nettoyages, carteJ, preparations_, cleFaite, basculerPrep, miennesNet, refroids, maintien, nettoyagesPeriodiques, infos, total } = donneesDuJour();
         const LIM = toutesTaches ? 99 : 5;
         const tons = { or: ["#FFE8C2", "#9A5B00"], rouge: ["#FDE2E2", "#B42318"], bleu: ["#DCE9FB", "#1B4F9C"] };
         const colonneBas = (titre, nb, Ic, fond, entete, couleur, children) => (
-          <div id={titre === "Nettoyage" ? "colonne-nettoyage" : undefined} className="rounded-lg border overflow-hidden min-w-0" style={{ borderColor: entete, backgroundColor: "#fff" }}>
+          <div id={{ "Préparations culinaires": "colonne-preparations", "Nettoyage": "colonne-nettoyage", "À surveiller": "colonne-surveiller" }[titre]} className="rounded-lg border overflow-hidden min-w-0" style={{ borderColor: entete, backgroundColor: "#fff" }}>
             <div className="h-11 px-3 flex items-center gap-2 font-semibold text-sm" style={{ backgroundColor: fond, color: couleur }}><Ic size={20} /> {titre} ({nb})</div>
             <div className="divide-y divide-[var(--line)]">{children}</div>
           </div>
