@@ -15402,6 +15402,85 @@ function ResumeReservationsJour({ reservations, today, horaires }) {
   );
 }
 
+/* ---------- Tâches du jour : nouveau visuel (grille Matin / Soir, bandeau du bas) ---------- */
+const IcSoleil = makeIcon([C(12, 12, 4), L(12, 2, 12, 4), L(12, 20, 12, 22), L(4.9, 4.9, 6.3, 6.3), L(17.7, 17.7, 19.1, 19.1), L(2, 12, 4, 12), L(20, 12, 22, 12), L(4.9, 19.1, 6.3, 17.7), L(17.7, 6.3, 19.1, 4.9)]);
+const IcLune = makeIcon([P("M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z")]);
+const IcInfo = makeIcon([C(12, 12, 10), L(12, 16, 12, 12), L(12, 8, 12, 8)]);
+const ROUGE_PLANNING = "#E5243B";
+const AXE_DEBUT = 9;   // heure de début de l'axe (9h)
+const AXE_FIN = 24;    // heure de fin de l'axe (minuit)
+const PX_HEURE = 48;
+
+function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOuvrirFenetre }) {
+  const refDefil = useRef(null);
+  const estAujourdhui = date === todayISO();
+  useEffect(() => {
+    if (!refDefil.current) return;
+    const n = new Date();
+    const h = estAujourdhui ? n.getHours() + n.getMinutes() / 60 : PLAGE_MATIN.debut;
+    refDefil.current.scrollTop = Math.max(0, (h - AXE_DEBUT - 1.5) * PX_HEURE);
+  }, [date, estAujourdhui]);
+  const [now, setNow] = useState(new Date());
+  useEffect(() => { const i = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(i); }, []);
+  const hauteur = (AXE_FIN - AXE_DEBUT) * PX_HEURE;
+  const valeur = (heure) => { const [h, m] = String(heure).split(":").map(Number); return h + (m || 0) / 60; };
+  const avecHeure = tasks.filter((t) => t.heure && valeur(t.heure) >= AXE_DEBUT);
+  const sansHeure = tasks.filter((t) => !t.heure || valeur(t.heure) < AXE_DEBUT);
+  const nowH = now.getHours() + now.getMinutes() / 60;
+  const nowTop = (nowH - AXE_DEBUT) * PX_HEURE;
+  const heures = Array.from({ length: AXE_FIN - AXE_DEBUT }, (_, i) => AXE_DEBUT + i);
+  const colonne = (id, titre, Icone, fond, entete, couleur, filtre) => (
+    <div className="relative flex-1 min-w-0" style={{ backgroundColor: fond }}>
+      <div className="sticky top-0 z-20 h-11 flex items-center justify-center gap-2 text-sm font-semibold" style={{ backgroundColor: entete, color: couleur }}>
+        <Icone size={20} /> {titre}
+      </div>
+      <div className="relative" style={{ height: hauteur }}>
+        {heures.map((h, i) => <div key={h} className="absolute left-0 right-0 border-t border-black/5" style={{ top: i * PX_HEURE }} />)}
+        {avecHeure.filter(filtre).map((t) => {
+          const top = (valeur(t.heure) - AXE_DEBUT) * PX_HEURE;
+          const hh = Math.max(((t.duree || 15) / 60) * PX_HEURE, 36);
+          const done = !!t.completions?.[date]?.[employeeId];
+          const special = TACHES_OUVRE_FENETRE.some((ts) => t.titre.startsWith(ts));
+          return (
+            <button key={t.id} type="button" onClick={() => (special && onOuvrirFenetre ? onOuvrirFenetre(t) : onToggle(t, date, employeeId, actorId))}
+              className="absolute left-2 right-2 text-left rounded-md px-2.5 py-1 z-10 flex items-center gap-2 shadow-sm"
+              style={{ top, height: hh, backgroundColor: done ? "#EEF0EE" : "#FFF1CC", borderLeft: `4px solid ${done ? "#8A938D" : "#E8A317"}`, color: done ? "#6B746E" : "#7A4B00" }}>
+              <span className={`text-sm font-semibold truncate ${done ? "line-through" : ""}`}>{t.heure} - {t.titre}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
+  return (
+    <div>
+      <div className="rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
+        <div ref={refDefil} className="flex overflow-y-auto" style={{ maxHeight: "26rem" }}>
+          <div className="w-16 shrink-0 bg-white border-r border-[var(--cadre)]">
+            <div className="sticky top-0 z-20 h-11 flex items-center justify-center text-sm font-semibold text-[var(--ink)] bg-white">Horaires</div>
+            <div className="relative" style={{ height: hauteur }}>
+              {heures.map((h, i) => <div key={h} className="absolute left-0 right-0 text-center text-[13px] text-[var(--ink)]" style={{ top: i * PX_HEURE - 8 }}>{i === 0 ? "" : String(h).padStart(2, "0") + ":00"}</div>)}
+              {estAujourdhui && nowTop > 0 && nowTop < hauteur && (
+                <div className="absolute left-1 right-0 z-30 text-center text-xs font-bold text-white rounded py-0.5" style={{ top: nowTop - 10, backgroundColor: ROUGE_PLANNING }}>{String(now.getHours()).padStart(2, "0")}:{String(now.getMinutes()).padStart(2, "0")}</div>
+              )}
+            </div>
+          </div>
+          {colonne("matin", PLAGE_MATIN.label.replace("h00", "h00").replace("-", " - "), IcSoleil, "#EAF7EF", "#CDEED9", "#14653A", (t) => valeur(t.heure) < 16)}
+          {colonne("soir", PLAGE_SOIR.label.replace("-", " - "), IcLune, "#E9F0FB", "#CFDFF6", "#1B4F9C", (t) => valeur(t.heure) >= 16)}
+          {estAujourdhui && nowTop > 0 && nowTop < hauteur && (
+            <div className="absolute pointer-events-none" />
+          )}
+        </div>
+      </div>
+      {sansHeure.length > 0 && (
+        <p className="text-xs text-[var(--steel)] mt-2">Sans horaire précis : {sansHeure.map((t) => t.titre).join(" · ")}</p>
+      )}
+    </div>
+  );
+}
+
+const ONGLETS_PLANNING = [["planning", "Mon planning", ClipboardList], ["reservations", "Réservations", Users]];
+
 function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires }) {
   const today = todayISO();
   const ctxFin = React.useContext(NettoyageContext);
@@ -15417,6 +15496,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   const [dateSelectionnee, setDateSelectionnee] = useState(todayISO());
   const decalerDateMois = (dateStr, delta) => { const d = new Date(dateStr + "T00:00:00"); d.setMonth(d.getMonth() + delta); return toISO(d); };
   const [jourDetailOuvert, setJourDetailOuvert] = useState(null);
+  const [toutesTaches, setToutesTaches] = useState(false);
   const [modalOuvert, setModalOuvert] = useState(null);
   const [modalCollegue, setModalCollegue] = useState(null);
   const moi = employees.find((e) => e.id === currentUserId);
@@ -15444,6 +15524,14 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   const resasAujourdhui = reservations.filter((r) => r.date === today).sort((a, b) => a.heure.localeCompare(b.heure));
   const whoTaches = (id) => employees.find((e) => e.id === id)?.nom;
   const mesProduits = produits.filter((p) => new RegExp(p.poste.replace(/^Poste\s*/i, "").trim(), "i").test(moi?.poste || ""));
+  const ouvrirFenetreMoi = (t) => {
+    if (t.titre === "Contrôle") { setModalOuvert("controle-chef"); return; }
+    if (t.titre === "Contrôle obligatoire") { setModalOuvert(`controle-obligatoire-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
+    if (t.titre === "Contrôle et vérification") { setModalOuvert(`controle-poste-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
+    if (t.titre === "Nettoyage friteuse") { onOuvrirHuileMatin(t); return; }
+    if (t.titre === "Nettoyage") { setModalOuvert(`nettoyage-${t.heure === "13:30" ? "midi" : "soir"}`); return; }
+    setModalOuvert(t.titre === "Préparation culinaire" ? "preparation" : "verification");
+  };
   const aJeterCeSoir = preparations.filter((p) => p.employeeId === currentUserId && !p.jete && p.dlcDate <= today);
 
   const jourIdx = (new Date().getDay() + 6) % 7;
@@ -15457,69 +15545,55 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       <ResumeReservationsJour reservations={reservations} today={today} horaires={horaires} />
 
       <Card className="mb-6">
-        <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
-          <div className="flex gap-1.5">
-            <button onClick={() => setVueAccueil("planning")}
-              style={vueAccueil === "planning" ? { backgroundColor: "#2F6B4F", color: "#ffffff" } : undefined}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${vueAccueil === "planning" ? "border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
-              Mon planning
-            </button>
-            <button onClick={() => setVueAccueil("reservations")}
-              style={vueAccueil === "reservations" ? { backgroundColor: "#2F6B4F", color: "#ffffff" } : undefined}
-              className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${vueAccueil === "reservations" ? "border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
-              Réservations
-            </button>
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex">
+            {ONGLETS_PLANNING.map(([id, lib, Ic]) => {
+              const actif = vueAccueil === id;
+              return (
+                <button key={id} type="button" onClick={() => setVueAccueil(id)}
+                  style={actif ? { backgroundColor: ROUGE_PLANNING, color: "#ffffff", borderColor: ROUGE_PLANNING } : undefined}
+                  className={`h-14 sm:min-w-[17rem] px-5 rounded-lg border-2 flex items-center justify-center gap-3 text-base font-semibold ${actif ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>
+                  <Ic size={24} /> {lib}
+                </button>
+              );
+            })}
           </div>
           {vueAccueil === "reservations" ? (
-            <button onClick={() => setTab("reservations")} className="text-xs text-[var(--accent)] font-medium">Voir tout l'agenda →</button>
+            <button onClick={() => setTab("reservations")} className="text-sm text-[var(--accent)] font-medium">Voir tout l'agenda →</button>
           ) : currentUserId === "direction" ? (
-            <button onClick={() => setTab("horaires")} className="text-xs text-[var(--accent)] font-medium">Modifier les horaires de la semaine →</button>
+            <button onClick={() => setTab("horaires")} className="text-sm text-[var(--accent)] font-medium">Modifier les horaires de la semaine →</button>
           ) : null}
         </div>
 
         {currentUserId !== "direction" && (
-          <div className="mb-3">
-            <div className="flex gap-2 bg-[var(--bg)] p-1 rounded-lg mb-2 w-fit">
-              {["jour", "semaine", "mois"].map((v) => (
-                <button key={v} onClick={() => setVueTemps(v)}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize ${vueTemps === v ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--steel)]"}`}>
-                  {v}
-                </button>
-              ))}
-            </div>
-            {vueTemps === "jour" && (
-              <div>
-                <CalendarNav
-                  label={fmtLong(dateSelectionnee)}
-                  onPrev={() => setDateSelectionnee((d) => addDays(d, -1))}
-                  onNext={() => setDateSelectionnee((d) => addDays(d, 1))}
-                  avecHeure={true}
-                />
-                {dateSelectionnee !== todayISO() && (
-                  <p className="text-xs text-[var(--accent)] font-medium mt-1">
-                    {dateSelectionnee === addDays(todayISO(), 1) ? "→ Demain" : dateSelectionnee === addDays(todayISO(), -1) ? "→ Hier" : `→ ${dateSelectionnee > todayISO() ? "Dans le futur" : "Dans le passé"}`}
-                  </p>
-                )}
-              </div>
-            )}
-            {vueTemps === "semaine" && (
-              <CalendarNav
-                label={`Semaine du ${fmtShort(startOfWeek(dateSelectionnee))}`}
-                onPrev={() => setDateSelectionnee((d) => addDays(d, -7))}
-                onNext={() => setDateSelectionnee((d) => addDays(d, 7))}
-              />
-            )}
-            {vueTemps === "mois" && (
-              <CalendarNav
-                label={fmtMonthYear(dateSelectionnee)}
-                onPrev={() => setDateSelectionnee((d) => decalerDateMois(d, -1))}
-                onNext={() => setDateSelectionnee((d) => decalerDateMois(d, 1))}
-              />
-            )}
+          <div className="mb-4">
+            {(() => {
+              const label = vueTemps === "jour" ? fmtLong(dateSelectionnee) : vueTemps === "semaine" ? `Semaine du ${fmtShort(startOfWeek(dateSelectionnee))}` : fmtMonthYear(dateSelectionnee);
+              const pas = (sens) => setDateSelectionnee((d) => vueTemps === "jour" ? addDays(d, sens) : vueTemps === "semaine" ? addDays(d, 7 * sens) : decalerDateMois(d, sens));
+              const bt = "w-12 h-12 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]";
+              return (
+                <div className="flex items-center gap-3 flex-wrap justify-between">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <button type="button" onClick={() => pas(-1)} className={bt} aria-label="Précédent"><ChevronRight size={22} style={{ transform: "rotate(180deg)" }} /></button>
+                    <div className="h-12 px-5 min-w-[14rem] rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center gap-3 text-base font-semibold text-[var(--ink)] capitalize">
+                      <CalendarDays size={22} className="text-[#1B4F9C]" /> {label}
+                    </div>
+                    <button type="button" onClick={() => pas(1)} className={bt} aria-label="Suivant"><ChevronRight size={22} /></button>
+                  </div>
+                  <div className="flex rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
+                    {["jour", "semaine"].map((v) => (
+                      <button key={v} type="button" onClick={() => setVueTemps(v)}
+                        style={vueTemps === v ? { backgroundColor: ROUGE_PLANNING, color: "#ffffff" } : undefined}
+                        className={`h-12 px-5 text-sm font-semibold capitalize ${vueTemps === v ? "" : "text-[var(--ink)]"}`}>
+                        {v}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
           </div>
         )}
-
-        {vueTemps === "jour" && vueAccueil === "planning" && !(vueAccueil === "planning" && currentUserId === "direction") && <PlageToggle plage={plage} setPlage={setPlage} />}
 
         {vueTemps === "jour" && vueAccueil === "reservations" && currentUserId === "direction" && (
           <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
@@ -15534,18 +15608,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId !== "direction" && (
           <div>
             <HorairesDuJour employeeId={currentUserId} shifts={shifts} />
-            <PlanningGrille tasks={tasksForDate(currentUserId, dateSelectionnee)} employeeId={currentUserId} date={dateSelectionnee} actorId={currentUserId} onToggle={toggleTask} protocolesNettoyage={protocolesNettoyage} plage={plage}
-              onOuvrirFenetre={(t) => {
-                if (t.titre === "Contrôle") { setModalOuvert("controle-chef"); return; }
-                if (t.titre === "Contrôle obligatoire") { setModalOuvert(`controle-obligatoire-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
-                if (t.titre === "Contrôle et vérification") { setModalOuvert(`controle-poste-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
-                if (t.titre === "Nettoyage friteuse") { onOuvrirHuileMatin(t); return; }
-                if (t.titre === "Nettoyage") { setModalOuvert(`nettoyage-${t.heure === "13:30" ? "midi" : "soir"}`); return; }
-                setModalOuvert(
-                  t.titre === "Préparation culinaire" ? "preparation"
-                  : "verification"
-                );
-              }} />
+            <PlanningDeuxColonnes tasks={tasksForDate(currentUserId, dateSelectionnee)} employeeId={currentUserId} date={dateSelectionnee} actorId={currentUserId} onToggle={toggleTask}
+              onOuvrirFenetre={ouvrirFenetreMoi} />
           </div>
         )}
 
@@ -15602,6 +15666,93 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           );
         })()}
       </Card>
+
+      {currentUserId !== "direction" && vueAccueil === "planning" && (() => {
+        const demain = addDays(today, 1);
+        const nomProduit = (p) => produits.find((pr) => pr.id === p.produitId)?.nom || p.nomLibre || "Préparation";
+        const mesT = tasksFor(currentUserId);
+        const clic = (t) => { const special = TACHES_OUVRE_FENETRE.some((ts) => t.titre.startsWith(ts)); if (special) ouvrirFenetreMoi(t); else toggleTask(t, today, currentUserId, currentUserId); };
+        const fait = (t) => !!t.completions?.[today]?.[currentUserId];
+        const nettoyages = mesT.filter((t) => /^Nettoyage/i.test(t.titre));
+        const preparations_ = mesProduits.map((p) => ({ cle: "p" + p.id, nom: p.nom })).concat(mesProduits.length === 0 ? mesT.filter((t) => /^Préparation/i.test(t.titre)).map((t) => ({ cle: "t" + t.id, nom: t.titre })) : []);
+        const infos = [
+          ...preparations.filter((p) => !p.jete && p.dlcDate === demain).map((p) => ({ cle: "a" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "À utiliser ce soir", ton: "or" })),
+          ...preparations.filter((p) => !p.jete && p.dlcDate <= today).map((p) => ({ cle: "b" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "DLC atteinte", ton: "rouge" })),
+          ...stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0).map((s) => ({ cle: "c" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "DLC demain", ton: "or" })),
+          ...stock.filter((s) => s.dlc && s.dlc <= today && Number(s.quantite) > 0).map((s) => ({ cle: "d" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "Stock à DLC", ton: "bleu" })),
+        ];
+        const total = preparations_.length + nettoyages.length + infos.length;
+        const LIM = toutesTaches ? 99 : 5;
+        const tons = { or: ["#FFE8C2", "#9A5B00"], rouge: ["#FDE2E2", "#B42318"], bleu: ["#DCE9FB", "#1B4F9C"] };
+        const colonneBas = (titre, nb, Ic, fond, entete, couleur, children) => (
+          <div className="rounded-lg border overflow-hidden min-w-0" style={{ borderColor: entete, backgroundColor: "#fff" }}>
+            <div className="h-11 px-3 flex items-center gap-2 font-semibold text-sm" style={{ backgroundColor: fond, color: couleur }}><Ic size={20} /> {titre} ({nb})</div>
+            <div className="divide-y divide-[var(--line)]">{children}</div>
+          </div>
+        );
+        const ligne = (cle, nom, coche, onClick, fait_, tag) => (
+          <button key={cle} type="button" onClick={onClick} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-[var(--bg)]">
+            {coche && <span className="w-5 h-5 shrink-0 rounded border-2 border-[#5B6BA8] flex items-center justify-center bg-white">{fait_ && <span className="text-[#2F6B4F] text-xs leading-none">✓</span>}</span>}
+            <span className={`flex-1 min-w-0 text-sm truncate ${fait_ ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{nom}</span>
+            {tag && <span className="text-[11px] font-medium px-2 py-0.5 rounded shrink-0" style={{ backgroundColor: tons[tag.ton][0], color: tons[tag.ton][1] }}>{tag.texte}</span>}
+            <ChevronRight size={16} className="text-[#1B4F9C] shrink-0" />
+          </button>
+        );
+        const vide = (txt) => <p className="px-3 py-3 text-sm text-[var(--steel)]">{txt}</p>;
+        return (
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-4 mb-6">
+            <Card>
+              <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
+                <div className="flex items-center gap-3">
+                  <ClipboardList size={30} className="text-[#1B4F9C]" />
+                  <div>
+                    <h3 className="text-lg font-semibold text-[#1B4F9C] leading-tight">Tâches du jour</h3>
+                    <p className="text-xs text-[var(--steel)]">Liste des tâches à réaliser aujourd'hui</p>
+                  </div>
+                </div>
+                <button type="button" onClick={() => setToutesTaches((v) => !v)} className="h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[#1B4F9C] flex items-center gap-2">
+                  <ListChecks size={18} /> {toutesTaches ? "Réduire les listes" : `Voir toutes les tâches (${total})`}
+                </button>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {colonneBas("Préparations culinaires", preparations_.length, ChefHat, "#FDE4E8", "#F6B8C2", "#B4233A",
+                  preparations_.length === 0 ? vide("Rien à préparer.") : preparations_.slice(0, LIM).map((x) => ligne(x.cle, x.nom, true, () => setModalOuvert("preparation"), false)))}
+                {colonneBas("Nettoyage", nettoyages.length, SprayCan, "#DCE9FB", "#B5CDF0", "#1B4F9C",
+                  nettoyages.length === 0 ? vide("Aucun nettoyage prévu.") : nettoyages.slice(0, LIM).map((t) => ligne(t.id, t.titre, true, () => clic(t), fait(t))))}
+                {colonneBas("Infos particulières", infos.length, IcInfo, "#FFEFD0", "#F3D69A", "#9A5B00",
+                  infos.length === 0 ? vide("Rien de particulier.") : infos.slice(0, LIM).map((x) => ligne(x.cle, x.nom, true, () => setModalOuvert("verification"), false, { texte: x.tag, ton: x.ton })))}
+              </div>
+            </Card>
+            <Card>
+              <div className="flex items-center gap-3 mb-3">
+                <Users size={30} className="text-[var(--ink)]" />
+                <div>
+                  <h3 className="text-lg font-semibold text-[var(--ink)] leading-tight">Autres employés</h3>
+                  <p className="text-xs text-[var(--steel)]">Cliquez pour voir leur planning</p>
+                </div>
+              </div>
+              {autres.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun autre employé.</p> : (
+                <div className="space-y-2.5">
+                  {autres.map((emp, i) => {
+                    const teintes = [["#FFF1D6", "#B7791F"], ["#DCE9FB", "#1B4F9C"], ["#E3F4D8", "#3E7A22"], ["#F6E0F0", "#9A2F86"]][i % 4];
+                    return (
+                      <button key={emp.id} type="button" onClick={() => setExpanded(expanded === emp.id ? null : emp.id)}
+                        className="w-full flex items-center gap-3 rounded-lg px-3 py-2.5 text-left" style={{ backgroundColor: teintes[0], outline: expanded === emp.id ? "2px solid " + teintes[1] : "none" }}>
+                        <span className="w-10 h-10 rounded-full flex items-center justify-center font-bold shrink-0 bg-white/60" style={{ color: teintes[1] }}>{initials(emp.nom)}</span>
+                        <span className="flex-1 min-w-0">
+                          <span className="block font-semibold text-[var(--ink)] text-sm truncate">{emp.nom}</span>
+                          <span className="block text-xs text-[var(--steel)] truncate">{emp.poste || (emp.estChef ? "Chef de cuisine" : "")}</span>
+                        </span>
+                        <ChevronRight size={18} className="text-[var(--ink)] shrink-0" />
+                      </button>
+                    );
+                  })}
+                </div>
+              )}
+            </Card>
+          </div>
+        );
+      })()}
 
       {jourDetailOuvert && (
         <ModalJourDetail
@@ -15797,54 +15948,40 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         );
       })()}
 
-      {currentUserId !== "direction" && autres.length > 0 && (
-        <div className="mb-6">
-          <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">Planning des autres employés</h3>
-          <p className="text-xs text-[var(--steel)] mb-3 -mt-2">Cliquez sur une tâche d'un collègue pour la gérer à sa place.</p>
-          <div className="space-y-3">
-            {autres.map((emp) => {
-              const empTasks = tasksFor(emp.id);
-              const empMoi = employees.find((e) => e.id === emp.id);
-              const isOpen = expanded === emp.id;
-              return (
-                <Card key={emp.id}>
-                  <button onClick={() => setExpanded(isOpen ? null : emp.id)} className="w-full flex items-center justify-between">
-                    <div className="flex items-center gap-3">
-                      <Avatar nom={emp.nom} size={32} tone="gold" />
-                      <div className="text-left">
-                        <div className="font-medium text-[var(--ink)] text-sm">{emp.nom}</div>
-                        <div className="text-xs text-[var(--steel)]">{empTasks.length} tâche{empTasks.length !== 1 ? "s" : ""} aujourd'hui</div>
-                      </div>
-                    </div>
-                    {isOpen ? <ChevronUp size={16} className="text-[var(--steel)]" /> : <ChevronDown size={16} className="text-[var(--steel)]" />}
-                  </button>
-                  {isOpen && (
-                    <div className="mt-4 pt-4 border-t border-[var(--line)]">
-                      <HorairesDuJour employeeId={emp.id} shifts={shifts} />
-                      {empTasks.length === 0 ? (
-                        <p className="text-sm text-[var(--steel)]">Aucune tâche pour {emp.nom} aujourd'hui.</p>
-                      ) : (
-                        <PlanningGrille
-                          tasks={empTasks} employeeId={emp.id} date={today} actorId={currentUserId}
-                          onToggle={toggleTask} protocolesNettoyage={protocolesNettoyage} plage={plage}
-                          onOuvrirFenetre={(t) => {
-                            setModalCollegue(empMoi);
-                            if (t.titre === "Contrôle") { setModalOuvert("controle-chef"); return; }
-                            if (t.titre === "Contrôle et vérification") { setModalOuvert(`controle-poste-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
-                            if (t.titre === "Nettoyage friteuse") { onOuvrirHuileMatin(t); return; }
-                            if (t.titre === "Nettoyage") { setModalOuvert(`nettoyage-${t.heure === "13:30" ? "midi" : "soir"}`); return; }
-                            setModalOuvert(t.titre === "Préparation culinaire" ? "preparation" : "verification");
-                          }}
-                        />
-                      )}
-                    </div>
-                  )}
-                </Card>
-              );
-            })}
-          </div>
-        </div>
-      )}
+      {currentUserId !== "direction" && expanded && (() => {
+        const emp = employees.find((e) => e.id === expanded);
+        if (!emp) return null;
+        const empTasks = tasksFor(emp.id);
+        return (
+          <Card className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-3">
+                <Avatar nom={emp.nom} size={32} tone="gold" />
+                <div className="font-semibold text-[var(--ink)]">Planning de {emp.nom}</div>
+              </div>
+              <button type="button" onClick={() => setExpanded(null)} className="text-sm text-[var(--accent)] font-medium">Fermer</button>
+            </div>
+            <p className="text-xs text-[var(--steel)] mb-3">Cliquez sur une tâche de votre collègue pour la gérer à sa place.</p>
+            <HorairesDuJour employeeId={emp.id} shifts={shifts} />
+            {empTasks.length === 0 ? (
+              <p className="text-sm text-[var(--steel)]">Aucune tâche pour {emp.nom} aujourd'hui.</p>
+            ) : (
+              <PlanningGrille
+                tasks={empTasks} employeeId={emp.id} date={today} actorId={currentUserId}
+                onToggle={toggleTask} protocolesNettoyage={protocolesNettoyage} plage={plage}
+                onOuvrirFenetre={(t) => {
+                  setModalCollegue(emp);
+                  if (t.titre === "Contrôle") { setModalOuvert("controle-chef"); return; }
+                  if (t.titre === "Contrôle et vérification") { setModalOuvert(`controle-poste-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
+                  if (t.titre === "Nettoyage friteuse") { onOuvrirHuileMatin(t); return; }
+                  if (t.titre === "Nettoyage") { setModalOuvert(`nettoyage-${t.heure === "13:30" ? "midi" : "soir"}`); return; }
+                  setModalOuvert(t.titre === "Préparation culinaire" ? "preparation" : "verification");
+                }}
+              />
+            )}
+          </Card>
+        );
+      })()}
 
     </div>
   );
