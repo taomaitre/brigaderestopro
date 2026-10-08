@@ -13092,7 +13092,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? etatTemperatureReception(f.typeRef, t.valeur) : null;
               const nc = etat === "hors" || etat === "gele";
               return (
-                <div key={f.id} className="rounded-xl border-2 p-4 flex flex-col" style={{ borderColor: nc ? "#C1432D" : f.bord, backgroundColor: "#fff" }}>
+                <div key={f.id} className="rounded-xl border-2 p-4 flex flex-col" style={{ borderColor: nc ? "#C1432D" : (etat ? "#2F6B4F" : f.bord), backgroundColor: nc ? "#FFF5F6" : (etat ? "#F3FAF6" : "#fff") }}>
                   <div className="flex items-center gap-3 mb-2">
                     <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: f.fond, color: f.couleur }}><f.Ic size={26} /></span>
                     <div className="min-w-0"><div className="text-base font-bold" style={{ color: f.couleur }}>{f.titre}</div><div className="text-xs text-[var(--steel)]">{f.sous}</div></div>
@@ -13207,8 +13207,8 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
 
           {/* Verdict automatique selon la température relevée à l'étape 2 */}
           {fam && (
-            <div className="mt-4 rounded-xl border px-4 py-3 flex items-center gap-3 flex-wrap" style={{ borderColor: ev.tempNC ? "#F6B8C2" : fam.bord, backgroundColor: ev.tempNC ? "#FDE4E8" : fam.fond }}>
-              <fam.Ic size={22} style={{ color: ev.tempNC ? "#B4233A" : fam.couleur }} />
+            <div className="mt-4 rounded-xl border px-4 py-3 flex items-center gap-3 flex-wrap" style={ev.temperature === "" ? { borderColor: "#D5DAE0", backgroundColor: "#F4F6F8" } : ev.tempNC ? { borderColor: "#F6B8C2", backgroundColor: "#FDE4E8" } : { borderColor: "#B3E0C5", backgroundColor: "#EAF6EF" }}>
+              <fam.Ic size={22} style={{ color: ev.temperature === "" ? "#5B6670" : ev.tempNC ? "#B4233A" : "#14653A" }} />
               <div className="flex-1 min-w-0 text-sm text-[var(--ink)]">
                 {temps[fam.id].aucun || ev.temperature === ""
                   ? <>Aucune température relevée pour « {fam.titre} ». <button type="button" className="underline font-semibold" onClick={() => setEtape(2)}>Retourner aux températures</button></>
@@ -13331,9 +13331,9 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
           {FAMILLES_TEMP.map((f) => {
             const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? etatTemperatureReception(f.typeRef, t.valeur) : null; const nc = etat === "hors" || etat === "gele";
             return (
-              <div key={f.id} className="rounded-xl border p-3 flex items-center gap-3" style={{ borderColor: nc ? "#F6B8C2" : f.bord, backgroundColor: nc ? "#FDE4E8" : f.fond }}>
-                <f.Ic size={24} style={{ color: nc ? "#B4233A" : f.couleur }} />
-                <div className="min-w-0 flex-1"><div className="text-xs font-semibold" style={{ color: nc ? "#B4233A" : f.couleur }}>{f.titre}</div><div className="text-lg font-bold text-[var(--ink)]">{t.aucun ? "Pas de produit" : `${t.valeur} °C`}</div></div>
+              <div key={f.id} className="rounded-xl border p-3 flex items-center gap-3" style={t.aucun ? { borderColor: "#D5DAE0", backgroundColor: "#F4F6F8" } : nc ? { borderColor: "#F6B8C2", backgroundColor: "#FDE4E8" } : { borderColor: "#B3E0C5", backgroundColor: "#EAF6EF" }}>
+                <f.Ic size={24} style={{ color: t.aucun ? "#5B6670" : nc ? "#B4233A" : "#14653A" }} />
+                <div className="min-w-0 flex-1"><div className="text-xs font-semibold" style={{ color: t.aucun ? "#5B6670" : nc ? "#B4233A" : "#14653A" }}>{f.titre}</div><div className="text-lg font-bold text-[var(--ink)]">{t.aucun ? "Pas de produit" : `${t.valeur} °C`}</div></div>
                 {!t.aucun && badge(!nc, nc ? "Hors norme" : "Conforme")}
               </div>
             );
