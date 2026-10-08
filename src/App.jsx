@@ -4054,26 +4054,136 @@ function HaccpRefroidPage({ cuissons, setCuissons, refroidissements, setRefroidi
   );
 }
 
-function HaccpHuilePage({ huileTests, employees, onFaireTest, onDecisionMatin }) {
+function HaccpHuilePage({ huileTests, employees, onEnregistrerTest, onDecisionMatinDirecte }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
+      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Normes HACCP" texte="Cliquez pour lire les règles officielles : test de l'huile après chaque utilisation, voyant vert = huile bonne, voyant jaune = à changer." />
       <SectionHeader title="Huile de friture" subtitle="Tests et suivi des bains d'huile" />
-      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} />
-      {(onFaireTest || onDecisionMatin) && (
-        <Card className="mb-4">
-          <h3 className="font-semibold text-[var(--ink)] mb-1">Faire un contrôle maintenant</h3>
-          <p className="text-xs text-[var(--steel)] mb-3">Matin : on filtre ou on change l'huile. Soir : test avec la bandelette (photo obligatoire).</p>
-          <div className="flex flex-wrap gap-2">
-            {onDecisionMatin && <Button variant="ghost" onClick={onDecisionMatin}><Droplets size={16} /> Huile du matin : filtrer ou changer</Button>}
-            {onFaireTest && <Button onClick={onFaireTest}><Camera size={16} /> Test de l'huile (bandelette)</Button>}
-          </div>
-        </Card>
-      )}
-      <HaccpHuile huileTests={huileTests} who={who} manuelPossible={!!(onFaireTest || onDecisionMatin)} />
+      {onEnregistrerTest && <HuileSaisie onEnregistrerTest={onEnregistrerTest} onDecisionMatinDirecte={onDecisionMatinDirecte} />}
+      <HaccpHuile huileTests={huileTests} who={who} manuelPossible={!!onEnregistrerTest} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
+    </div>
+  );
+}
+
+// Saisie manuelle d'un test d'huile (bain, photo de la bandelette, résultat, commentaire) et décision du matin.
+function HuileSaisie({ onEnregistrerTest, onDecisionMatinDirecte }) {
+  const [bain, setBain] = useState("Friteuse 1");
+  const [photo, setPhoto] = useState(null);
+  const [decision, setDecision] = useState(null); // "Bonne" | "Pas bonne"
+  const [commentaire, setCommentaire] = useState("");
+  const [fait, setFait] = useState(null); // décision enregistrée, pour afficher le rappel
+  const [matinFait, setMatinFait] = useState(null);
+  const maintenant = new Date();
+  const dateHeure = `${maintenant.toLocaleDateString("fr-FR")} ${maintenant.toTimeString().slice(0, 5)}`;
+  const mauvaise = decision === "Pas bonne";
+
+  const enregistrer = () => {
+    if (!photo || !decision) return;
+    onEnregistrerTest(photo, decision, { bain, commentaire: commentaire.trim() });
+    setFait(decision);
+    setPhoto(null); setDecision(null); setCommentaire("");
+  };
+  const matin = (choix) => {
+    onDecisionMatinDirecte(choix);
+    setMatinFait(choix);
+  };
+
+  return (
+    <div>
+      {fait && (
+        <div className="mb-4 rounded-xl border-2 p-4" style={fait === "Bonne" ? { backgroundColor: "#EAF6EF", borderColor: "#B3E0C5", color: "#14653A" } : { backgroundColor: "#FDE4E8", borderColor: "#F6B8C2", color: "#B4233A" }}>
+          <p className="text-base font-bold mb-1">{fait === "Bonne" ? "Test enregistré : huile bonne" : "Test enregistré : huile à changer"}</p>
+          <p className="text-sm" style={{ color: "var(--ink)" }}>L'huile est vidée et filtrée maintenant, dans tous les cas, que le test soit bon ou non conforme. {fait === "Bonne"
+            ? "Demain matin, vous serez rappelé de nettoyer la friteuse puis de remettre cette huile filtrée."
+            : "Demain matin, vous serez rappelé de changer cette huile et de faire un nettoyage complet de la friteuse (intérieur, extérieur, tous les ustensiles, sans exception)."}</p>
+          <button onClick={() => setFait(null)} className="mt-2 text-sm font-semibold underline">J'ai compris</button>
+        </div>
+      )}
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
+        <Card>
+          <h3 className="text-lg font-bold text-[var(--ink)] mb-3 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Camera size={18} /></span> Faire un test de l'huile</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <Field label="Bain d'huile *">
+              <select className={inputCls} value={bain} onChange={(e) => setBain(e.target.value)}>
+                <option>Friteuse 1</option><option>Friteuse 2</option><option>Friteuse 3</option><option>Friteuse 4</option>
+              </select>
+            </Field>
+            <Field label="Date et heure"><input className={inputCls} value={dateHeure} readOnly /></Field>
+          </div>
+          <p className="text-sm text-[var(--ink)] mb-2">Prenez une photo de la bandelette ou du test (obligatoire)</p>
+          {photo ? (
+            <div>
+              <img src={photo} alt="Bandelette" className="w-full max-h-64 object-cover rounded-xl border border-[var(--cadre)] mb-2" />
+              <PhotoInput value={null} onChange={setPhoto} label="Changer la photo" />
+            </div>
+          ) : (
+            <div className="rounded-xl border-2 border-dashed border-[var(--cadre)] py-6 flex flex-col items-center gap-3">
+              <PhotoInput value={null} onChange={setPhoto} rond geant label="Prendre la photo de la bandelette" />
+              <span className="text-sm text-[var(--steel)]">Prendre la photo de la bandelette</span>
+            </div>
+          )}
+        </Card>
+
+        <Card>
+          <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Résultat du test</h3>
+          <p className="text-sm text-[var(--ink)] mb-2">Quel est le résultat de la bandelette ?</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
+            <button onClick={() => setDecision("Bonne")} className="text-left rounded-xl border-2 px-4 py-3"
+              style={decision === "Bonne" ? { backgroundColor: "#EAF6EF", borderColor: "#14653A", color: "#14653A" } : { backgroundColor: "#fff", borderColor: "var(--line)", color: "var(--ink)" }}>
+              <span className="flex items-center gap-2 text-base font-bold"><CheckCircle2 size={20} /> Test conforme</span>
+              <span className="block text-xs mt-0.5">Voyant vert : l'huile peut être utilisée</span>
+            </button>
+            <button onClick={() => setDecision("Pas bonne")} className="text-left rounded-xl border-2 px-4 py-3"
+              style={mauvaise ? { backgroundColor: "#FDE4E8", borderColor: "#B4233A", color: "#B4233A" } : { backgroundColor: "#fff", borderColor: "var(--line)", color: "var(--ink)" }}>
+              <span className="flex items-center gap-2 text-base font-bold"><XCircle size={20} /> Test non conforme</span>
+              <span className="block text-xs mt-0.5">Voyant jaune : l'huile est à changer</span>
+            </button>
+          </div>
+          <Field label="Commentaire (optionnel)">
+            <textarea className={inputCls} rows={3} value={commentaire} onChange={(e) => setCommentaire(e.target.value)} placeholder="Ex. : couleur correcte, pas d'odeur anormale…" />
+          </Field>
+          {mauvaise && (
+            <div className="mt-3 rounded-xl border-2 p-3" style={{ backgroundColor: "#FDE4E8", borderColor: "#F6B8C2" }}>
+              <p className="text-sm font-bold" style={{ color: "#B4233A" }}>Test non conforme</p>
+              <p className="text-xs text-[var(--ink)]">Validez la vidange et le remplacement de l'huile : une alerte est enregistrée et le nettoyage complet de la friteuse est programmé demain matin.</p>
+            </div>
+          )}
+          <button onClick={enregistrer} disabled={!photo || !decision}
+            className="mt-4 w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-bold text-white disabled:opacity-40"
+            style={{ backgroundColor: mauvaise ? "#E5243B" : "#1E7B4B" }}>
+            {mauvaise ? <Trash2 size={18} /> : <Camera size={18} />} {mauvaise ? "Valider la vidange et le remplacement" : "Enregistrer le test"}
+          </button>
+          {(!photo || !decision) && <p className="text-xs text-[var(--steel)] mt-2 text-center">{!photo ? "Prenez d'abord la photo de la bandelette." : "Choisissez le résultat du test."}</p>}
+        </Card>
+      </div>
+
+      <Card className="mb-4">
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1">Huile du matin : filtrer ou changer</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">À faire avant le service. Si vous remplacez l'huile le matin, il n'y a pas de test bandelette à refaire le soir même.</p>
+        {onDecisionMatinDirecte && (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <button onClick={() => matin("filtration")} className="text-left rounded-xl border-2 border-[var(--line)] bg-white px-4 py-3">
+              <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Droplets size={20} /> Filtration de l'huile</span>
+              <span className="block text-xs text-[var(--steel)] mt-0.5">L'huile est filtrée et remise en place</span>
+            </button>
+            <button onClick={() => matin("remplacement")} className="text-left rounded-xl border-2 border-[var(--line)] bg-white px-4 py-3">
+              <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Droplets size={20} /> Remplacement de l'huile</span>
+              <span className="block text-xs text-[var(--steel)] mt-0.5">Nettoyage complet de la friteuse à faire maintenant</span>
+            </button>
+          </div>
+        )}
+        {matinFait && (
+          <div className="mt-3 rounded-xl p-3" style={{ backgroundColor: "#EAF6EF", color: "#14653A" }}>
+            <p className="text-sm font-bold">{matinFait === "filtration" ? "Filtration enregistrée" : "Remplacement enregistré"}</p>
+            <p className="text-xs text-[var(--ink)]">{matinFait === "filtration" ? "Huile filtrée et remise en place. Le test bandelette du soir aura lieu normalement." : "Pensez au nettoyage complet : intérieur, extérieur et tous les ustensiles de la friteuse. Pas de test bandelette ce soir, il reprend demain soir."}</p>
+          </div>
+        )}
+      </Card>
     </div>
   );
 }
@@ -9190,25 +9300,36 @@ function HistoriqueCuissons({ cuissons, who }) {
 }
 
 function HaccpHuile({ huileTests, who, manuelPossible }) {
+  const [photoVue, setPhotoVue] = useState(null);
+  const bon = (r) => ["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(r);
   return (
     <div>
       <Card>
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Historique</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">{manuelPossible ? "Le test (photo de la bandelette + \"Huile bonne\" / \"Huile à changer\") se fait ici ou à la validation des tâches de nettoyage liées." : "Le test (photo de la bandelette + \"Huile bonne\" / \"Huile à changer\") se fait uniquement à la validation des tâches de nettoyage liées — aucune saisie manuelle ici."}</p>
-        {huileTests.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun test enregistré.</p> : (
-          <div className="divide-y divide-[var(--line)]">
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1">Historique des tests</h3>
+        {!manuelPossible && <p className="text-xs text-[var(--steel)] mb-4">Le test (photo de la bandelette + "Huile bonne" / "Huile à changer") se fait uniquement à la validation des tâches de nettoyage liées — aucune saisie manuelle ici.</p>}
+        {huileTests.length === 0 ? <p className="text-sm text-[var(--steel)] mt-2">Aucun test enregistré.</p> : (
+          <div className="divide-y divide-[var(--line)] mt-2">
             {huileTests.map((h) => (
-              <div key={h.id} className="flex items-center justify-between py-2.5 text-sm">
-                <div className="flex items-center gap-3">
-                  {h.photo && <img src={h.photo} alt="Bandelette" className="w-12 h-12 object-cover rounded-lg border border-[var(--cadre)]" />}
-                  <div className="text-xs text-[var(--steel)]">{h.date} à {h.heure}{who(h.employeeId) ? ` · ${who(h.employeeId)}` : ""}</div>
+              <div key={h.id} className="flex items-center justify-between gap-3 py-3 text-sm">
+                <div className="flex items-center gap-3 min-w-0">
+                  {h.photo && <button onClick={() => setPhotoVue(h.photo)}><img src={h.photo} alt="Bandelette" className="w-14 h-14 object-cover rounded-lg border border-[var(--cadre)]" /></button>}
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium text-[var(--ink)]">{h.bain ? `${h.bain} · ` : ""}{h.date} à {h.heure}</div>
+                    <div className="text-xs text-[var(--steel)]">{who(h.employeeId) || ""}</div>
+                    {h.commentaire && <div className="text-xs text-[var(--ink)] mt-0.5">{h.commentaire}</div>}
+                  </div>
                 </div>
-                <span className={`text-sm font-semibold px-2.5 py-1 rounded-full ${["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(h.resultat) ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "bg-[var(--warn-soft)] text-[var(--warn)]"}`}>{h.resultat}</span>
+                <span className="text-sm font-semibold px-2.5 py-1 rounded-full shrink-0" style={bon(h.resultat) ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }}>{h.resultat === "Pas bonne" ? "À changer" : h.resultat}</span>
               </div>
             ))}
           </div>
         )}
       </Card>
+      {photoVue && (
+        <div className="fixed inset-0 bg-black/70 flex items-center justify-center p-4 z-50" onClick={() => setPhotoVue(null)}>
+          <img src={photoVue} alt="Bandelette" className="max-w-full max-h-full rounded-xl" />
+        </div>
+      )}
     </div>
   );
 }
@@ -17935,9 +18056,9 @@ function KitchenApp({ identiteExterne } = {}) {
     setAlertesControle((prev) => [{ vue: false, ...entry }, ...prev]);
   }, [setAlertesControle]);
 
-  const confirmerTestHuile = useCallback((photo, decision) => {
+  const confirmerTestHuile = useCallback((photo, decision, extra) => {
     const now = new Date();
-    const entry = { id: uid(), employeeId: currentUserId, date: todayISO(), heure: now.toTimeString().slice(0, 5), valeur: "Test bandelette", resultat: decision, photo };
+    const entry = { id: uid(), employeeId: currentUserId, date: todayISO(), heure: now.toTimeString().slice(0, 5), valeur: "Test bandelette", resultat: decision, photo, ...(extra?.bain ? { bain: extra.bain } : {}), ...(extra?.commentaire ? { commentaire: extra.commentaire } : {}) };
     setHuileTests((prev) => [entry, ...prev]);
     logActivitySafe("HACCP", "Test huile de friture", decision);
     const demain = addDays(todayISO(), 1);
@@ -18500,7 +18621,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpRefroidPage cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpHuile" && (
-          <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onFaireTest={modeExterne ? () => setHuileTestActif({ titre: "Test d'huile de friture", manuel: true }) : undefined} onDecisionMatin={modeExterne ? () => setHuileMatinActif({ titre: "Huile de friture" }) : undefined} />
+          <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onEnregistrerTest={modeExterne ? confirmerTestHuile : undefined} onDecisionMatinDirecte={modeExterne ? confirmerHuileMatin : undefined} />
         )}
         {tab === "haccpChaud" && (
           <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} />
