@@ -5410,6 +5410,41 @@ function normaliserRechercheFiche(s) {
 }
 
 /* ---------- Détail d'une fiche technique (lecture seule, fidèle au fichier fourni) ---------- */
+// Zone réservée au chef / directeur : même connecté sur le compte du chef, on redemande son code à 4 chiffres
+// (la tablette commune permet de changer de compte sans code : sans ça, n'importe qui pourrait se mettre sur le compte du chef).
+function GardeCodeChef({ verifierCodeChef, onAutorise, onRetour }) {
+  const [code, setCode] = useState("");
+  const [erreur, setErreur] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const valider = async (e) => {
+    e.preventDefault();
+    if (code.length !== 4) return;
+    setEnCours(true); setErreur("");
+    try {
+      const r = await verifierCodeChef(code);
+      if (r && r.ok) { onAutorise(); return; }
+      setErreur("Ce code n'appartient pas à un responsable cuisine ou à un directeur.");
+    } catch (err) { setErreur("Code incorrect."); }
+    setCode(""); setEnCours(false);
+  };
+  return (
+    <div className="max-w-md mx-auto mt-10">
+      <form onSubmit={valider} className="bg-white border border-[var(--cadre)] rounded-2xl p-6 shadow-sm text-center">
+        <div className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl" style={{ backgroundColor: "#FDE4E8" }}>🔒</div>
+        <h2 className="text-lg font-bold text-[var(--ink)] mb-1">Contrôle & Gestion</h2>
+        <p className="text-sm text-[var(--steel)] mb-4">Zone réservée au responsable cuisine et au directeur. Saisissez votre code à 4 chiffres pour continuer.</p>
+        <input autoFocus type="password" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Code (4 chiffres)"
+          className="w-full h-12 text-center text-xl tracking-[0.4em] border-2 border-[var(--cadre)] rounded-lg bg-white" />
+        {erreur && <p className="text-xs text-[var(--warn)] mt-2">{erreur}</p>}
+        <div className="flex gap-2 mt-4 justify-center">
+          <Button variant="ghost" type="button" onClick={onRetour}>Retour</Button>
+          <button type="submit" disabled={code.length !== 4 || enCours} className="px-5 h-11 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ backgroundColor: "#E5243B" }}>{enCours ? "Vérification…" : "Débloquer"}</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function DemandeCodeChef({ action, onAutorise, onAnnuler, verifierCodeChef }) {
   const [code, setCode] = useState("");
   const [erreur, setErreur] = useState("");
@@ -17765,6 +17800,14 @@ function KitchenApp({ identiteExterne } = {}) {
     if (tab === "controle" && moi && !moi.estChef) setTab("taches");
   }, [tab, moi, currentUserId]);
 
+  // Contrôle & Gestion (et ses écrans de gestion) : code du chef / directeur redemandé à chaque entrée.
+  const ONGLETS_CHEF = ["controle", "reservations", "horaires"];
+  const [controleDebloque, setControleDebloque] = useState(false);
+  useEffect(() => { if (!ONGLETS_CHEF.includes(tab)) setControleDebloque(false); }, [tab]);
+  useEffect(() => { if (verrouille) setControleDebloque(false); }, [verrouille]);
+  useEffect(() => { setControleDebloque(false); }, [currentUserId]);
+  const bloqueChef = modeExterne && !!(identiteExterne && identiteExterne.verifierCodeChef) && ONGLETS_CHEF.includes(tab) && !controleDebloque;
+
   // Téléphone personnel : si un code valable a déjà été entré aujourd'hui (avant 4h demain), on
   // reconnecte automatiquement l'employé sans lui redemander ni son code ni son nom. useLayoutEffect
   // (plutôt que useEffect) pour que ça se fasse avant l'affichage, sans montrer l'écran de code
@@ -18152,16 +18195,17 @@ function KitchenApp({ identiteExterne } = {}) {
             onConsommeOuvrirIdAuto={() => setFicheAutoOuvrirId(null)}
           />
         )}
-        {tab === "controle" && (
+        {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
+        {tab === "controle" && !bloqueChef && (
           <Controle chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
-        {tab === "reservations" && (
+        {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
         )}
         {tab === "equipe" && (
           <Equipe employees={employees} shifts={shifts} activityLog={activityLog} tasks={tasks} toggleTask={toggleTaskShared} currentUserId={currentUserId} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} />
         )}
-        {tab === "horaires" && (
+        {tab === "horaires" && !bloqueChef && (
           <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} />
         )}
       </main>
