@@ -4070,12 +4070,10 @@ function HaccpHuilePage({ huileTests, employees, onEnregistrerTest }) {
 }
 
 // Saisie manuelle d'un test d'huile (bain, photo facultative, résultat, commentaire).
-// TPM : seuils de la fiche (au-delà de 24 % l'huile est à changer) ; 20 à 24 % = huile limite, à confirmer.
 function HuileSaisie({ onEnregistrerTest }) {
   const [bain, setBain] = useState("Friteuse 1");
   const [photo, setPhoto] = useState(null);
   const [decision, setDecision] = useState(null); // "Bonne" | "Limite" | "Pas bonne"
-  const [tpm, setTpm] = useState("");
   const [commentaire, setCommentaire] = useState("");
   const [fait, setFait] = useState(false);
   const maintenant = new Date();
@@ -4083,16 +4081,9 @@ function HuileSaisie({ onEnregistrerTest }) {
   const mauvaise = decision === "Pas bonne";
   const limite = decision === "Limite";
 
-  const changerTpm = (v) => {
-    setTpm(v);
-    const n = parseFloat(String(v).replace(",", "."));
-    if (!Number.isNaN(n) && v !== "") setDecision(n > 24 ? "Pas bonne" : n >= 20 ? "Limite" : "Bonne");
-  };
-  const reset = () => { setPhoto(null); setDecision(null); setCommentaire(""); setTpm(""); };
+  const reset = () => { setPhoto(null); setDecision(null); setCommentaire(""); };
   const enregistrer = (d) => {
-    const tpmTxt = tpm !== "" ? `TPM ${tpm} %` : "";
-    const comm = [tpmTxt, commentaire.trim()].filter(Boolean).join(" — ");
-    onEnregistrerTest(photo, d, { bain, commentaire: comm });
+    onEnregistrerTest(photo, d, { bain, commentaire: commentaire.trim() });
     setFait(true);
     reset();
   };
@@ -4142,10 +4133,6 @@ function HuileSaisie({ onEnregistrerTest }) {
 
         <Card>
           <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Résultat du test</h3>
-          <Field label="Valeur TPM en % (si votre testeur l'affiche)">
-            <input className={inputCls} type="number" inputMode="decimal" value={tpm} onChange={(e) => changerTpm(e.target.value)} placeholder="Ex. : 18" />
-          </Field>
-          <p className="text-xs text-[var(--steel)] mt-1 mb-3">Moins de 20 % : conforme · 20 à 24 % : limite · plus de 24 % : à changer.</p>
           <p className="text-sm text-[var(--ink)] mb-2">Résultat de la bandelette ou du testeur :</p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 mb-4">
             <button onClick={() => setDecision("Bonne")} className="text-left rounded-xl border-2 px-3 py-2.5" style={decision === "Bonne" ? vert : neutre}>
