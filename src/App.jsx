@@ -11506,7 +11506,7 @@ function BoutonInfosNormes({ ficheKey, onClick, label }) {
   );
 }
 
-function PhotoInput({ value, onChange, label = "Prendre la photo", small = false, grand = false }) {
+function PhotoInput({ value, onChange, label = "Prendre la photo", small = false, grand = false, rond = false }) {
   const inputId = "photo-" + Math.random().toString(36).slice(2, 9);
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -11520,6 +11520,10 @@ function PhotoInput({ value, onChange, label = "Prendre la photo", small = false
           <img src={value} alt="" className={`${small ? "w-12 h-12" : "w-16 h-16"} object-cover rounded-lg border border-[var(--cadre)]`} />
           <label htmlFor={inputId} className="text-xs text-[var(--accent)] font-medium cursor-pointer">Reprendre</label>
         </div>
+      ) : rond ? (
+        <label htmlFor={inputId} aria-label={label} title={label} className="w-16 h-16 rounded-full flex items-center justify-center text-white cursor-pointer shadow-md hover:opacity-90" style={{ backgroundColor: "#1B4F9C" }}>
+          <Camera size={30} />
+        </label>
       ) : (
         <label htmlFor={inputId} style={grand ? { backgroundColor: "#C1432D", color: "#ffffff", borderColor: "#C1432D" } : undefined} className={`inline-flex items-center gap-1.5 ${grand ? "px-5 py-3.5 text-base font-semibold border-solid" : "px-3 py-1.5 text-xs font-medium border-dashed"} rounded-lg border border-[var(--cadre)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]`}>
           <Camera size={14} /> {label}
@@ -12975,10 +12979,12 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               <span className="text-xs text-[var(--steel)] block mt-1">Il sera ajouté à la liste des fournisseurs « en attente des coordonnées » : le chef les complétera plus tard.</span>
             </div>
           )}
-          <div className="mb-4">
-            <p className="text-sm font-medium text-[var(--ink)] mb-1.5">Photo du bon de livraison (facultative, conseillée)</p>
+          <Button onClick={() => { setEtape(2); if (produits.length === 0) commencer(); }} disabled={!fournisseur.trim()}>Suivant : les produits</Button>
+          {!fournisseur.trim() && <p className="text-sm text-[var(--warn)] mt-2">Choisissez le fournisseur pour continuer.</p>}
+          <div className="mt-6 flex flex-col items-center text-center">
+            <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo du bon <span className="font-normal text-[var(--steel)]">(facultative, conseillée)</span></p>
             {photosBon.length > 0 && (
-              <div className="flex flex-wrap gap-2 mb-2">
+              <div className="flex flex-wrap justify-center gap-2 mb-3">
                 {photosBon.map((p, i) => (
                   <div key={i} className="relative">
                     <img src={p} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)]" />
@@ -12987,10 +12993,8 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                 ))}
               </div>
             )}
-            <PhotoInput value={null} onChange={(v) => setPhotosBon([...photosBon, v])} label={photosBon.length > 0 ? "Ajouter une autre page" : "Photographier le bon"} />
+            <PhotoInput rond value={null} onChange={(v) => setPhotosBon([...photosBon, v])} label={photosBon.length > 0 ? "Ajouter une autre page du bon" : "Photographier le bon de livraison"} />
           </div>
-          <Button onClick={() => { setEtape(2); if (produits.length === 0) commencer(); }} disabled={!fournisseur.trim()}>Suivant : les produits</Button>
-          {!fournisseur.trim() && <p className="text-sm text-[var(--warn)] mt-2">Choisissez le fournisseur pour continuer.</p>}
         </Card>
       </div>
     );
