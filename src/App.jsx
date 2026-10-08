@@ -10594,8 +10594,14 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         {carteKpi("Commande", lignesPanier.length, ClipboardList, "#E3EDFB", "#BCD3F2", "#1B4F9C", () => setVueListeCommande(true), lignesPanier.length ? "produit(s) au panier — voir" : "panier vide")}
       </div>
 
-      <button onClick={() => setInfosStockage(FICHES_NORMES.stock)} className="mb-4 w-full sm:w-auto flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-left font-semibold border border-[var(--cadre)] bg-white text-sm text-[var(--ink)]">
-        <BookOpen size={18} className="shrink-0 text-[#1B4F9C]" /> Gestion du stock — normes HACCP
+      <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
+        className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left border-2 shadow-sm"
+        style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
+        <BookOpen size={22} className="shrink-0" style={{ color: "#c0392b" }} />
+        <span className="min-w-0">
+          <span className="block text-sm font-bold uppercase tracking-wide">⚠ Gestion du stock — Normes HACCP</span>
+          <span className="block text-xs font-normal mt-0.5">Cliquez pour lire les règles officielles : stockage, températures, DLC/DDM, rotation des produits (FIFO).</span>
+        </span>
       </button>
       {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
 
