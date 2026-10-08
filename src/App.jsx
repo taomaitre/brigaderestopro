@@ -10131,16 +10131,16 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   const boutonPm = "w-9 h-9 rounded-lg border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
   const lignesDepuisSelection = () => produitsSel.map((p) => ({
     produitId: p.id, nom: p.nom,
-    lot: genererLot(p.nom), dlcDate: dlcCalculeeProduit(p), quantiteUtilisee: "", nbEtiquettes: nbDe(p.id),
+    reference: p.reference || "", lot: estDdm(p) && p.ddmLotActuel ? p.ddmLotActuel : genererLot(p.nom), dlcDate: dlcCalculeeProduit(p), quantiteUtilisee: "", nbEtiquettes: nbDe(p.id),
     estSurgele: categorieDeProduitDlc(p) === "Surgelés", decongele: false,
     decongelDate: todayISO(), decongelHeure: new Date().toTimeString().slice(0, 5),
   }));
-  // « Valider » : impression directe. Seuls les cas qui demandent une précision (produit surgelé, DDM manquante) passent par l'assistant.
+  // « Valider » : ouvre l'édition des étiquettes (lot, DLC/DDM calculés, quantité utilisée, nombre, décongélation) avant impression.
   const validerSelection = () => {
     const lignes = lignesDepuisSelection();
     if (lignes.length === 0) return;
-    if (lignes.some((l) => l.estSurgele || !l.dlcDate)) { setAssistantLignes(lignes); setTimeout(() => { const el = document.getElementById("assistant-etiquettes"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80); return; }
-    confirmerAssistant(lignes);
+    setAssistantLignes(lignes);
+    setTimeout(() => { const el = document.getElementById("assistant-etiquettes"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80);
   };
 
   return (
@@ -10155,7 +10155,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-[15rem_minmax(0,1fr)_19rem] gap-4 mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-[14rem_minmax(0,1fr)_18rem] gap-4 mb-6">
         {/* Catégories */}
         <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 self-start">
           <h3 className="text-lg font-bold text-[var(--ink)] mb-2 px-1">Catégories</h3>
@@ -10184,18 +10184,26 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             </div>
             <span className="text-sm font-semibold text-[var(--ink)]">{catChoisie === "__tous__" ? "Tous les produits" : catChoisie} ({visibles.length})</span>
           </div>
-          <div className="hidden sm:grid grid-cols-[2.5rem_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.3fr)] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
-            <span /><span>Produit</span><span>Catégorie</span><span>DLC / DDM</span>
+          <div className="hidden md:grid md:grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,1fr)_3.5rem] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
+            <span /><span>Produit</span><span>Référence</span><span>N° de lot actuel</span><span>DLC / DDM</span><span className="text-center">Jours</span>
           </div>
           {visibles.length === 0 && <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>}
           {visibles.map((p) => {
             const sel = selection.includes(p.id); const cat = categorieDeProduitDlc(p); const [fond, texte] = infoCat(cat);
+            const ddm = estDdm(p); const dateLim = dlcCalculeeProduit(p);
+            const lotActuel = ddm ? (p.ddmLotActuel || "") : genererLot(p.nom);
+            const jours = ddm ? (dateLim ? Math.max(0, Math.round((new Date(dateLim + "T00:00:00") - new Date(todayISO() + "T00:00:00")) / 86400000)) : null) : (p.dlcJours ?? 0);
             return (
-              <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2.5rem_minmax(0,1fr)] sm:grid-cols-[2.5rem_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.3fr)] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
+              <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,1fr)_3.5rem] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
                 <span className="w-6 h-6 rounded border-2 flex items-center justify-center" style={sel ? { backgroundColor: "#E5243B", borderColor: "#E5243B", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{sel && <span className="text-xs leading-none">✓</span>}</span>
-                <span className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</span>
-                <span className="col-start-2 sm:col-start-auto"><span className="inline-block text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: fond, color: texte }}>{cat}</span></span>
-                <span className="col-start-2 sm:col-start-auto text-sm text-[var(--ink)]">{libelleDelaiDlc(p)}</span>
+                <span className="min-w-0">
+                  <span className="block text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</span>
+                  <span className="inline-block text-[11px] font-medium px-1.5 py-0.5 rounded mt-0.5" style={{ backgroundColor: fond, color: texte }}>{cat}</span>
+                </span>
+                <span className="col-start-2 md:col-start-auto text-sm text-[var(--ink)]"><span className="md:hidden text-xs text-[var(--steel)]">Réf. : </span>{p.reference || "—"}</span>
+                <span className="col-start-2 md:col-start-auto text-sm text-[var(--ink)] break-all"><span className="md:hidden text-xs text-[var(--steel)]">Lot actuel : </span>{lotActuel || "—"}</span>
+                <span className="col-start-2 md:col-start-auto text-sm text-[var(--ink)]"><span className="md:hidden text-xs text-[var(--steel)]">{ddm ? "DDM" : "DLC"} : </span>{dateLim ? `${ddm ? "DDM" : "DLC"} ${dateLim.split("-").reverse().join("/")}` : (ddm ? "DDM à réception" : "—")}</span>
+                <span className="col-start-2 md:col-start-auto text-sm font-semibold text-[var(--ink)] md:text-center"><span className="md:hidden text-xs font-normal text-[var(--steel)]">Durée : </span>{jours == null ? "—" : `${jours} j`}</span>
               </button>
             );
           })}
@@ -10236,7 +10244,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
           <div className="space-y-4">
             {assistantLignes.map((l) => (
               <div key={l.produitId} className="border border-[var(--cadre)] rounded-lg p-3">
-                <div className="font-medium text-[var(--ink)] mb-2">{l.nom}</div>
+                <div className="font-medium text-[var(--ink)] mb-2">{l.nom}{l.reference ? <span className="text-xs font-normal text-[var(--steel)]"> · réf. {l.reference}</span> : null}</div>
                 <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   <div>
                     <div className="text-xs text-[var(--steel)] mb-1">Numéro de lot (calculé, non modifiable)</div>
@@ -17250,7 +17258,7 @@ function KitchenApp({ identiteExterne } = {}) {
     return cat.filter((c) => !["entretien", "emballage", "autre"].includes(c.conservation)).map((c) => {
       const jours = c.dlcJours == null ? null : Number(c.dlcJours);
       return {
-        id: c.id, nom: c.nom, poste: "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
+        id: c.id, nom: c.nom, poste: "", reference: c.reference || "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
         typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), dlcJours: jours,
         ddmLotActuel: c.lot || null, ddmDateActuelle: c.dlc || null,
       };
