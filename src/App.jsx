@@ -1020,9 +1020,9 @@ function useStored(key, initial) {
 
 /* ---------- éléments d'UI partagés ---------- */
 
-function Card({ children, className = "" }) {
+function Card({ children, className = "", id }) {
   return (
-    <div className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
+    <div id={id} className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
       {children}
     </div>
   );
@@ -10330,21 +10330,90 @@ function QuantiteEditable({ valeur, unite, onCommit }) {
   );
 }
 
+// Catégories d'un stock de cuisine (toujours affichées à gauche), avec les mots qui permettent de ranger un produit.
+const CATEGORIES_STOCK = [
+  { nom: "Fruits et légumes", fond: "#1E7B4B", texte: "#fff", re: /fruit|l[ée]gume|herbe|salade|champignon/i },
+  { nom: "Viandes et volailles", fond: "#E5483A", texte: "#fff", re: /viande|volaille|boeuf|bœuf|porc|poulet|agneau|veau|canard|dinde|haché/i },
+  { nom: "Poissons et fruits de mer", fond: "#1769D6", texte: "#fff", re: /poisson|fruits? de mer|crustac|coquillage|saumon/i },
+  { nom: "Charcuterie", fond: "#C2477A", texte: "#fff", re: /charcut|jambon|lardon|saucisse/i },
+  { nom: "Produits laitiers et œufs", fond: "#F2B01E", texte: "#3B2A00", re: /laitier|lait|cr[eè]me|beurre|fromage|yaourt|oeuf|œuf|frais/i },
+  { nom: "Épicerie sèche", fond: "#F28C28", texte: "#fff", re: /[ée]picerie|sec|farine|p[aâ]te|riz|huile|condiment|sauce|conserve|sucre|sel|[ée]pice|vinaigre/i },
+  { nom: "Boulangerie et pâtisserie", fond: "#8A5A3C", texte: "#fff", re: /boulang|p[aâ]tiss|pain|viennoiserie|dessert/i },
+  { nom: "Surgelés", fond: "#7A4DE0", texte: "#fff", re: /surgel|congel/i },
+  { nom: "Boissons", fond: "#E0709A", texte: "#fff", re: /boisson|eau|vin|bi[eè]re|alcool|soda|jus|spiritueux/i },
+  { nom: "Entretien et hygiène", fond: "#0E8A8A", texte: "#fff", re: /entretien|hygi[eè]ne|nettoy|d[ée]sinfect/i },
+  { nom: "Emballages et jetables", fond: "#4B5D78", texte: "#fff", re: /emballage|jetable|film|barquette|sac/i },
+  { nom: "Autres", fond: "#7C8794", texte: "#fff", re: /^$/ },
+];
+function categorieStock(s) {
+  if (s.conservation === "surgele") return "Surgelés";
+  if (s.conservation === "entretien") return "Entretien et hygiène";
+  if (s.conservation === "emballage") return "Emballages et jetables";
+  const txt = `${s.categorie || ""}`;
+  const ordre = ["Surgelés", "Entretien et hygiène", "Emballages et jetables", "Charcuterie", "Boulangerie et pâtisserie", "Boissons", "Fruits et légumes", "Poissons et fruits de mer", "Viandes et volailles", "Produits laitiers et œufs", "Épicerie sèche"];
+  for (const nom of ordre) { const c = CATEGORIES_STOCK.find((x) => x.nom === nom); if (c.re.test(txt)) return nom; }
+  return "Autres";
+}
+// Quantité (dans l'unité du produit) qu'ajoute « +1 conditionnement » : « Carton 6 x 1 L » → 6 L, « 1 x 6 litres » → 6 L, « Sac 25 kg » → 25 kg.
+function quantiteParConditionnement(s) {
+  const txt = String(s.conditionnement || "").toLowerCase().replace(",", ".");
+  const unite = String(s.unite || "").toLowerCase();
+  const nb = (x) => parseFloat(x);
+  const conv = (val, u) => {
+    const du = { kg: "kg", g: "kg", l: "l", litre: "l", litres: "l", cl: "l", ml: "l", pièce: "pc", piece: "pc", pièces: "pc", pc: "pc", u: "pc", "": "" };
+    const facteur = { kg: 1, g: 0.001, l: 1, litre: 1, litres: 1, cl: 0.01, ml: 0.001 };
+    const base = du[u] === undefined ? null : du[u];
+    const cible = du[unite] === undefined ? unite : du[unite];
+    if (base === null) return null;
+    if (base === "" || base === "pc") return cible === "pc" || base === "" ? val : null;
+    if (cible !== base) return null;
+    return val * (facteur[u] || 1);
+  };
+  let m = txt.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)\s*(kg|g|litres?|l|cl|ml|pi[eè]ces?|pc|u)?/);
+  if (m) { const r = conv(nb(m[1]) * nb(m[2]), m[3] || ""); if (r && r > 0) return Math.round(r * 1000) / 1000; }
+  m = txt.match(/(\d+(?:\.\d+)?)\s*(kg|g|litres?|l|cl|ml)\b/);
+  if (m) { const r = conv(nb(m[1]), m[2]); if (r && r > 0) return Math.round(r * 1000) / 1000; }
+  m = txt.match(/(\d+(?:\.\d+)?)\s*(pi[eè]ces?|pc|unit[ée]s?)\b/);
+  if (m) { const r = conv(nb(m[1]), "pc"); if (r && r > 0) return Math.round(r * 1000) / 1000; }
+  return null;
+}
+const arrondiQte = (n) => Math.round(n * 1000) / 1000;
+
+// Quantité modifiable : champ + deux boutons empilés (+ au-dessus, − en dessous), un pas = un conditionnement.
+function CelluleQuantite({ valeur, pas, onSet, fond, texte, label }) {
+  const [t, setT] = useState(String(valeur));
+  useEffect(() => { setT(String(valeur)); }, [valeur]);
+  const valider = () => { const n = parseFloat(String(t).replace(",", ".")); if (Number.isNaN(n) || n < 0) { setT(String(valeur)); return; } if (n !== Number(valeur)) onSet(arrondiQte(n)); };
+  const bouton = "w-9 h-8 rounded-md border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
+  return (
+    <div className="inline-flex items-center gap-1.5">
+      <input type="text" inputMode="decimal" value={t} onChange={(e) => setT(e.target.value)} onBlur={valider} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} aria-label={label}
+        className="w-16 h-[4.25rem] text-center text-base font-semibold border border-[var(--cadre)] rounded-lg" style={{ backgroundColor: fond || "#fff", color: texte || "var(--ink)" }} />
+      <div className="flex flex-col gap-1">
+        <button type="button" className={bouton} onClick={() => onSet(arrondiQte(Number(valeur) + pas))} aria-label={`Augmenter ${label}`}>+</button>
+        <button type="button" className={bouton} onClick={() => onSet(arrondiQte(Math.max(0, Number(valeur) - pas)))} aria-label={`Diminuer ${label}`}>−</button>
+      </div>
+    </div>
+  );
+}
+
 function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle }) {
   const [infosStockage, setInfosStockage] = useState(null);
   const [item, setItem] = useState({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" });
-  const [aCommander, setACommander] = useState({});
+  const [panier, setPanier] = useState({}); // { idProduit: quantité à commander (unité du produit) }
   const [dernierBon, setDernierBon] = useState(null);
   const [recherche, setRecherche] = useState("");
+  const [categorieChoisie, setCategorieChoisie] = useState(null);
+  const [filtresOuverts, setFiltresOuverts] = useState(false);
+  const [filtreEtat, setFiltreEtat] = useState("tous"); // tous | alerte | panier
   const [modeCatalogue, setModeCatalogue] = useState(null); // null | "ajouter" | "supprimer"
   const [nomASupprimer, setNomASupprimer] = useState("");
   const [confirmSuppressionOuverte, setConfirmSuppressionOuverte] = useState(false);
-  const [commandeEnCours, setCommandeEnCours] = useState(false);
-  const [commandeGeneree, setCommandeGeneree] = useState(false);
   const [vueListeCommande, setVueListeCommande] = useState(false);
   const [vueEnvoyerCommande, setVueEnvoyerCommande] = useState(false);
   const [inventaireActif, setInventaireActif] = useState(false);
   const today = todayISO();
+  const estResponsable = !!employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction";
 
   const addItem = () => {
     if (!item.nom) return;
@@ -10352,62 +10421,41 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     logActivity("Stock", "Article ajouté à l'inventaire", `${item.nom} (${item.quantite || 0} ${item.unite})`);
     setItem({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" });
   };
-
-  const adjustQty = (id, delta) => {
-    const s = stock.find((x) => x.id === id);
-    setStock(stock.map((s) => (s.id === id ? { ...s, quantite: Math.max(0, Number(s.quantite) + delta) } : s)));
-    if (s) logActivity("Stock", delta > 0 ? "Quantité augmentée" : "Quantité diminuée", `${s.nom} : ${delta > 0 ? "+" : ""}${delta} ${s.unite}`);
-  };
-
   const fixerQty = (id, n) => {
     const s = stock.find((x) => x.id === id);
     setStock(stock.map((x) => (x.id === id ? { ...x, quantite: n } : x)));
-    if (s) logActivity("Stock", "Quantité modifiée à la main", `${s.nom} : ${s.quantite} → ${n} ${s.unite}`);
+    if (s && Number(s.quantite) !== n) logActivity("Stock", n > Number(s.quantite) ? "Quantité augmentée" : "Quantité diminuée", `${s.nom} : ${s.quantite} → ${n} ${s.unite}`);
   };
-
-  const updateCible = (id, valeur) => setStock(stock.map((s) => (s.id === id ? { ...s, cible: valeur } : s)));
+  const fixerCible = (id, n) => {
+    const s = stock.find((x) => x.id === id);
+    setStock(stock.map((x) => (x.id === id ? { ...x, cible: n } : x)));
+    if (s && Number(s.cible) !== n) logActivity("Stock", "Stock à avoir modifié", `${s.nom} : ${s.cible || 0} → ${n} ${s.unite}`);
+  };
   const updateFournisseur = (id, valeur) => setStock(stock.map((s) => (s.id === id ? { ...s, fournisseur: valeur } : s)));
-
   const removeItem = (id) => setStock(stock.filter((s) => s.id !== id));
 
-  const manquants = stock.filter((s) => Number(s.quantite) < Number(s.cible));
-
-  const quantitePour = (s) => {
-    const surcharge = aCommander[s.id];
-    if (surcharge && surcharge.quantite !== undefined) return surcharge.quantite;
-    return Math.max(0, Number(s.cible) - Number(s.quantite));
-  };
-  const inclusPour = (s) => aCommander[s.id]?.inclus !== false;
-
-  const grouped = manquants.reduce((acc, s) => {
-    const f = s.fournisseur || "Fournisseur non renseigné";
-    (acc[f] = acc[f] || []).push(s);
-    return acc;
-  }, {});
+  const produitASupprimer = nomASupprimer.trim() ? stock.find((s) => s.nom.trim().toLowerCase() === nomASupprimer.trim().toLowerCase()) : null;
+  const pasDe = (s) => quantiteParConditionnement(s) || 1;
+  const enAlerte = (s) => Number(s.cible) > 0 && Number(s.quantite) < Number(s.cible);
+  const alertes = stock.filter(enAlerte);
+  const dansPanier = (s) => panier[s.id] != null;
+  const qteSuggeree = (s) => { const pas = pasDe(s); const manque = Math.max(0, Number(s.cible) - Number(s.quantite)); return arrondiQte(Math.max(pas, Math.ceil(manque / pas - 1e-9) * pas)); };
+  const basculerPanier = (s) => setPanier((p) => { const n = { ...p }; if (n[s.id] != null) delete n[s.id]; else n[s.id] = qteSuggeree(s); return n; });
+  const lignesPanier = stock.filter(dansPanier);
+  const groupesPanier = lignesPanier.reduce((acc, s) => { const f = s.fournisseur || "Fournisseur non renseigné"; (acc[f] = acc[f] || []).push(s); return acc; }, {});
+  const alertesHorsPanier = alertes.filter((s) => !dansPanier(s));
 
   const validerCommande = () => {
-    const lignes = manquants.filter((s) => inclusPour(s) && quantitePour(s) > 0);
+    const lignes = lignesPanier.filter((s) => Number(panier[s.id]) > 0);
     if (lignes.length === 0) return;
-    const parFournisseur = lignes.reduce((acc, s) => {
-      const f = s.fournisseur || "Fournisseur non renseigné";
-      (acc[f] = acc[f] || []).push(`${s.nom} — ${quantitePour(s)} ${s.unite}`);
-      return acc;
-    }, {});
+    const parFournisseur = lignes.reduce((acc, s) => { const f = s.fournisseur || "Fournisseur non renseigné"; (acc[f] = acc[f] || []).push(`${s.nom} — ${panier[s.id]} ${s.unite}`); return acc; }, {});
     const texte = Object.entries(parFournisseur).map(([f, items]) => `${f} :\n${items.map((i) => `  - ${i}`).join("\n")}`).join("\n\n");
-    const bon = { id: uid(), date: todayISO(), employeeId: currentUserId, texte, lignes: lignes.map((s) => ({ nom: s.nom, quantite: quantitePour(s), unite: s.unite, fournisseur: s.fournisseur })) };
+    const bon = { id: uid(), date: todayISO(), employeeId: currentUserId, texte, lignes: lignes.map((s) => ({ nom: s.nom, quantite: panier[s.id], unite: s.unite, fournisseur: s.fournisseur })) };
     setCommandesHistorique([bon, ...commandesHistorique]);
     setDernierBon(bon);
+    setPanier({});
     logActivity("Stock", "Bon de commande validé", `${lignes.length} article(s)`);
   };
-
-  const filtres = stock.filter((s) => {
-    const q = recherche.trim().toLowerCase();
-    if (!q) return true;
-    return s.nom.toLowerCase().includes(q) || (s.reference || "").toLowerCase().includes(q);
-  });
-  const parCategorie = filtres.reduce((acc, s) => { (acc[s.categorie || "Sans catégorie"] = acc[s.categorie || "Sans catégorie"] || []).push(s); return acc; }, {});
-
-  const produitASupprimer = nomASupprimer.trim() ? stock.find((s) => s.nom.trim().toLowerCase() === nomASupprimer.trim().toLowerCase()) : null;
 
   if (inventaireActif) {
     return <FicheInventaire stock={stock} setStock={setStock} logActivity={logActivity} today={today} onBack={() => setInventaireActif(false)} />;
@@ -10416,53 +10464,49 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   if (vueListeCommande) {
     return (
       <div>
-        <button onClick={() => setVueListeCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour</button>
-        <SectionHeader title="Liste à commander" subtitle="Articles dont le stock est inférieur au stock à avoir en réserve — la quantité proposée = stock à avoir − stock actuel. Vérifiez, ajustez les quantités, puis confirmez que la commande a été passée." />
+        <button onClick={() => setVueListeCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour au stock</button>
+        <SectionHeader title="Commande" subtitle="Les produits ajoutés au panier depuis le tableau du stock. Ajustez les quantités (un pas = un conditionnement), puis enregistrez la commande une fois passée." />
         <Card>
-          {manquants.length === 0 ? (
-            <p className="text-sm text-[var(--steel)]">Rien à commander pour le moment, tous les produits ont au moins le stock à avoir en réserve.</p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            <Button variant="ghost" onClick={() => setPanier((p) => { const n = { ...p }; alertesHorsPanier.forEach((s) => { n[s.id] = qteSuggeree(s); }); return n; })} disabled={alertesHorsPanier.length === 0}><AlertTriangle size={16} /> Ajouter les produits en alerte ({alertesHorsPanier.length})</Button>
+            <Button variant="ghost" onClick={() => setVueEnvoyerCommande(true)} disabled={lignesPanier.length === 0}><Mail size={16} /> Écrire les e-mails aux fournisseurs</Button>
+          </div>
+          {lignesPanier.length === 0 ? (
+            <p className="text-sm text-[var(--steel)]">Le panier est vide. Utilisez le bouton panier d'un produit dans le tableau du stock pour l'ajouter à la commande.</p>
           ) : (
             <>
-              {Object.entries(grouped).map(([fournisseur, items]) => (
+              {Object.entries(groupesPanier).map(([fournisseur, items]) => (
                 <div key={fournisseur} className="mb-4 last:mb-0">
                   <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{fournisseur}</div>
                   <div className="divide-y divide-[var(--line)]">
                     {items.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between py-2 text-sm">
-                        <label className="flex items-center gap-2 flex-1">
-                          <input type="checkbox" checked={inclusPour(s)} onChange={(e) => setACommander({ ...aCommander, [s.id]: { ...aCommander[s.id], inclus: e.target.checked, quantite: quantitePour(s) } })} />
-                          <span className="text-[var(--ink)]">{s.nom}</span>{s.conservation && <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] align-middle">{LIBELLE_CONSERVATION[s.conservation] || s.conservation}</span>}
-                          <span className="text-xs text-[var(--steel)]">({s.quantite} → {s.cible} {s.unite})</span>
-                        </label>
-                        <input
-                          type="number"
-                          className={`${inputCls} w-20 text-right`}
-                          value={quantitePour(s)}
-                          onChange={(e) => setACommander({ ...aCommander, [s.id]: { inclus: inclusPour(s), quantite: Number(e.target.value) } })}
-                        />
+                      <div key={s.id} className="flex items-center justify-between gap-3 py-2.5 text-sm flex-wrap">
+                        <div className="flex-1 min-w-[10rem]">
+                          <div className="text-[var(--ink)] font-medium">{s.nom}</div>
+                          <div className="text-xs text-[var(--steel)]">En stock : {s.quantite} {s.unite} · à avoir : {s.cible || 0} {s.unite}{s.conditionnement ? ` · ${s.conditionnement}` : ""}</div>
+                        </div>
+                        <CelluleQuantite valeur={panier[s.id]} pas={pasDe(s)} onSet={(n) => setPanier({ ...panier, [s.id]: n })} label={`quantité à commander de ${s.nom}`} />
+                        <span className="text-sm text-[var(--steel)] w-10">{s.unite}</span>
+                        <button type="button" onClick={() => basculerPanier(s)} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer du panier"><X size={18} /></button>
                       </div>
                     ))}
                   </div>
                 </div>
               ))}
-              <Button onClick={validerCommande} className="mt-2"><CheckCircle2 size={16} /> J'ai passé la commande (enregistrer)</Button>
+              <Button onClick={validerCommande} className="mt-3"><CheckCircle2 size={16} /> J'ai passé la commande (enregistrer)</Button>
             </>
           )}
-
           {dernierBon && (
             <div className="mt-5 pt-4 border-t border-[var(--line)]">
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Dernier bon généré — {dernierBon.date}</div>
               <pre className="text-xs text-[var(--ink)] bg-[var(--bg)] rounded-lg p-3 whitespace-pre-wrap">{dernierBon.texte}</pre>
             </div>
           )}
-
           {commandesHistorique.length > 0 && (
             <div className="mt-5 pt-4 border-t border-[var(--line)]">
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Historique des bons de commande</div>
               <div className="divide-y divide-[var(--line)]">
-                {commandesHistorique.slice(0, 10).map((b) => (
-                  <div key={b.id} className="py-2 text-sm text-[var(--ink)]">{b.date} — {b.lignes.length} article(s)</div>
-                ))}
+                {commandesHistorique.slice(0, 10).map((b) => (<div key={b.id} className="py-2 text-sm text-[var(--ink)]">{b.date} — {b.lignes.length} article(s)</div>))}
               </div>
             </div>
           )}
@@ -10474,16 +10518,16 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   if (vueEnvoyerCommande) {
     return (
       <div>
-        <button onClick={() => setVueEnvoyerCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour</button>
-        <SectionHeader title="Envoyer la commande" subtitle="L'envoi automatique directement sur le site de commande d'un fournisseur n'est pas possible depuis cette application (aucun accès à leurs sites) — voici le plus proche : un e-mail pré-rempli, prêt à envoyer, pour chaque fournisseur." />
-        {manquants.length === 0 ? (
-          <Card><p className="text-sm text-[var(--steel)]">Rien à commander pour le moment.</p></Card>
+        <button onClick={() => setVueEnvoyerCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à la commande</button>
+        <SectionHeader title="Envoyer la commande" subtitle="L'envoi automatique directement sur le site d'un fournisseur n'est pas possible depuis cette application : voici le plus proche — un e-mail prêt à envoyer, par fournisseur." />
+        {lignesPanier.length === 0 ? (
+          <Card><p className="text-sm text-[var(--steel)]">Le panier est vide.</p></Card>
         ) : (
           <div className="space-y-4">
-            {Object.entries(grouped).map(([fournisseur, items]) => {
-              const lignesF = items.filter((s) => inclusPour(s) && quantitePour(s) > 0);
+            {Object.entries(groupesPanier).map(([fournisseur, items]) => {
+              const lignesF = items.filter((s) => Number(panier[s.id]) > 0);
               if (lignesF.length === 0) return null;
-              const corps = [`Bonjour,`, ``, `Merci de nous confirmer la commande suivante :`, ``, ...lignesF.map((s) => `- ${s.nom} — ${quantitePour(s)} ${s.unite}`), ``, `Cordialement,`].join("\n");
+              const corps = [`Bonjour,`, ``, `Merci de nous confirmer la commande suivante :`, ``, ...lignesF.map((s) => `- ${s.nom} — ${panier[s.id]} ${s.unite}`), ``, `Cordialement,`].join("\n");
               const mailtoHref = `mailto:?subject=${encodeURIComponent(`Commande — ${fournisseur} — ${todayISO()}`)}&body=${encodeURIComponent(corps)}`;
               return (
                 <Card key={fournisseur}>
@@ -10499,112 +10543,116 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     );
   }
 
+  // ----- écran principal -----
+  const q = recherche.trim().toLowerCase();
+  const avecCat = stock.map((s) => ({ s, cat: categorieStock(s) }));
+  const nbParCat = (nom) => avecCat.filter((x) => x.cat === nom).length;
+  const catActive = categorieChoisie || (CATEGORIES_STOCK.find((c) => nbParCat(c.nom) > 0) || CATEGORIES_STOCK[0]).nom;
+  const infoCat = CATEGORIES_STOCK.find((c) => c.nom === catActive) || CATEGORIES_STOCK[CATEGORIES_STOCK.length - 1];
+  const correspond = (s) => !q || s.nom.toLowerCase().includes(q) || (s.reference || "").toLowerCase().includes(q) || (s.fournisseur || "").toLowerCase().includes(q);
+  const etatOk = (s) => filtreEtat === "tous" || (filtreEtat === "alerte" && enAlerte(s)) || (filtreEtat === "panier" && dansPanier(s));
+  const liste = avecCat.filter((x) => (q ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).map((x) => x.s).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
+  const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
+    <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
+      <div className="flex items-center gap-3">
+        <span className="w-12 h-12 rounded-lg bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={28} /></span>
+        <div className="min-w-0"><div className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-sm truncate" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-xs truncate" style={{ color: couleur }}>{sous}</div>}</div>
+      </div>
+    </button>
+  );
+  const aller = (etat) => { setFiltreEtat(etat); setRecherche(""); setFiltresOuverts(etat !== "tous"); setTimeout(() => { const el = document.getElementById("stock-tableau"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50); };
+
   return (
     <div>
-      <SectionHeader title="Stock" subtitle="Ce que vous avez en stock, avec son lot et sa date limite. Le stock à avoir en réserve sert à calculer les commandes." />
+      <div className="flex items-center gap-3 flex-wrap mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-14 h-14 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: "#F28C28" }}><Package size={30} /></span>
+          <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Stock</h2><p className="text-sm text-[var(--steel)]">Gérez vos produits, vos quantités et vos inventaires</p></div>
+        </div>
+        <div className="flex items-center gap-2 flex-1 min-w-[16rem] justify-end flex-wrap">
+          <div className="relative flex-1 min-w-[12rem] max-w-md">
+            <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
+            <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+          </div>
+          <button type="button" onClick={() => setFiltresOuverts(!filtresOuverts)} className="h-11 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-semibold text-[var(--ink)] flex items-center gap-2"><ListChecks size={18} /> Filtres</button>
+          {estResponsable && <button type="button" onClick={() => { setModeCatalogue("ajouter"); setTimeout(() => { const el = document.getElementById("stock-catalogue"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50); }} className="h-11 px-4 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: "#1E7B4B" }}><Plus size={18} /> Ajouter un produit</button>}
+        </div>
+      </div>
 
-      <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
-        className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-bold border-2 shadow-sm"
-        style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
-        <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
-        <span className="text-sm uppercase tracking-wide">⚠ Gestion du stock — Normes HACCP</span>
+      {filtresOuverts && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {[["tous", "Tous les produits"], ["alerte", `En alerte (${alertes.length})`], ["panier", `Dans le panier (${lignesPanier.length})`]].map(([id, lib]) => (
+            <button key={id} type="button" onClick={() => setFiltreEtat(id)} style={filtreEtat === id ? { backgroundColor: "#E5243B", color: "#fff", borderColor: "#E5243B" } : undefined} className={`h-10 px-4 rounded-lg border text-sm font-medium ${filtreEtat === id ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
+          ))}
+        </div>
+      )}
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
+        {carteKpi("Produits référencés", stock.length, Package, "#DDF3E6", "#B3E0C5", "#14653A", () => aller("tous"))}
+        {carteKpi("Produits en alerte", alertes.length, AlertTriangle, "#FDE4E8", "#F6B8C2", "#B4233A", () => aller("alerte"), "sous le stock à avoir")}
+        {carteKpi("À commander", alertesHorsPanier.length, ShoppingCart, "#FFF0D2", "#F3D69A", "#8A5300", () => aller("alerte"), "pas encore au panier")}
+        {carteKpi("Commande", lignesPanier.length, ClipboardList, "#E3EDFB", "#BCD3F2", "#1B4F9C", () => setVueListeCommande(true), lignesPanier.length ? "produit(s) au panier — voir" : "panier vide")}
+      </div>
+
+      <button onClick={() => setInfosStockage(FICHES_NORMES.stock)} className="mb-4 w-full sm:w-auto flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-left font-semibold border border-[var(--cadre)] bg-white text-sm text-[var(--ink)]">
+        <BookOpen size={18} className="shrink-0 text-[#1B4F9C]" /> Gestion du stock — normes HACCP
       </button>
       {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
 
-      <Card className="mb-6">
-        <div className="flex items-center justify-between mb-3 gap-3 flex-wrap">
-          <h3 className="font-semibold text-[var(--ink)]">Stock actuel ({stock.length})</h3>
-          <input className={`${inputCls} w-full sm:w-64`} placeholder="Rechercher un article ou une référence..." value={recherche} onChange={(e) => setRecherche(e.target.value)} />
-        </div>
-        {filtres.length === 0 ? (
-          <p className="text-sm text-[var(--steel)]">Aucun article ne correspond.</p>
-        ) : (
-          Object.entries(parCategorie).map(([categorie, items]) => (
-            <div key={categorie} className="mb-5 last:mb-0">
-              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{categorie} <span className="font-normal normal-case">({items.length})</span></div>
-              <div className="divide-y divide-[var(--line)]">
-                {items.map((s) => {
-                  const bas = Number(s.quantite) < Number(s.cible);
-                  return (
-                    <div key={s.id} className="py-3 first:pt-0">
-                      <div className="flex items-start justify-between gap-2 mb-1.5">
-                        <div className="min-w-0 flex-1">
-                          <div className="text-[var(--ink)] font-medium">{s.nom}</div>
-                          <input
-                            className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full"
-                            placeholder="Fournisseur non renseigné"
-                            value={s.fournisseur}
-                            onChange={(e) => updateFournisseur(s.id, e.target.value)}
-                          />
-                        </div>
-                        <span className="text-xs text-[var(--steel)] shrink-0 text-right">Code fournisseur : {s.reference || "—"}</span>
-                      </div>
-                      <div className="flex items-center gap-3 text-xs text-[var(--steel)] mb-2 flex-wrap">
-                        <span>Lot : {s.lot || "—"}</span>
-                        <span>DLC : {s.dlc || "—"}</span>
-                      </div>
-                      <div className="flex items-center justify-between gap-3 flex-wrap">
-                        <div className="flex items-center gap-2 shrink-0">
-                          <button onClick={() => adjustQty(s.id, -1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--cadre)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">−</button>
-                          {saisieManuelle ? <QuantiteEditable valeur={s.quantite} unite={s.unite} onCommit={(n) => fixerQty(s.id, n)} /> : <span className="text-center font-semibold text-[var(--ink)] whitespace-nowrap">{s.quantite} {s.unite}</span>}
-                          <button onClick={() => adjustQty(s.id, 1)} className="w-9 h-9 shrink-0 rounded-md border border-[var(--cadre)] text-[var(--ink)] text-base font-semibold active:scale-[0.95] transition-transform">+</button>
-                        </div>
-                        <div className="flex items-center gap-1.5 shrink-0">
-                          <span className="text-xs text-[var(--steel)] whitespace-nowrap" title="Quantité que vous voulez toujours avoir en réserve. Sous ce niveau, le produit passe dans la liste de commande.">Stock à avoir en réserve :</span>
-                          <input type="number" className={`${inputCls} w-16`} value={s.cible} onChange={(e) => updateCible(s.id, e.target.value)} />
-                        </div>
-                      </div>
-                      {bas && <div className="text-[10px] text-[var(--warn)] mt-1">Sous le stock à avoir en réserve — à commander</div>}
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          ))
-        )}
-      </Card>
-
-      <Button onClick={() => setCommandeEnCours(true)} className="w-full justify-center mb-3" style={{ padding: "16px 20px", fontSize: 16 }}>
-        <ShoppingCart size={18} /> Générer une commande
-      </Button>
-
-      {commandeGeneree && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-6">
-          <Button variant="ghost" onClick={() => setVueListeCommande(true)}><ClipboardList size={16} /> Voir la liste à commander</Button>
-          <Button variant="ghost" onClick={() => setVueEnvoyerCommande(true)}><Mail size={16} /> Écrire les e-mails aux fournisseurs</Button>
-        </div>
-      )}
-
-      {commandeEnCours && (
-        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
-            <div className="flex items-center justify-between mb-3">
-              <button onClick={() => setCommandeEnCours(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
-                <ArrowLeft size={15} /> Retour
-              </button>
-              <span className="w-14" />
-            </div>
-            <h3 className="font-semibold text-[var(--ink)] mb-1">Stock à avoir en réserve, par produit</h3>
-            <p className="text-xs text-[var(--steel)] mb-4">Pour chaque produit, indiquez le stock que vous voulez toujours avoir en réserve. Le logiciel commandera la différence entre ce stock à avoir et le stock actuel (uniquement pour les produits en dessous).</p>
-            <div className="divide-y divide-[var(--line)]">
-              {stock.map((s) => (
-                <div key={s.id} className="flex items-center justify-between py-2 gap-3 text-sm">
-                  <span className="text-[var(--ink)] flex-1">{s.nom}</span>
-                  <span className="text-xs text-[var(--steel)] shrink-0">{s.quantite} {s.unite} en stock</span>
-                  <input type="number" className={`${inputCls} w-20 shrink-0`} value={s.cible} onChange={(e) => updateCible(s.id, e.target.value)} />
-                </div>
-              ))}
-            </div>
-            <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-[var(--line)]">
-              <Button variant="ghost" onClick={() => setCommandeEnCours(false)}>Annuler</Button>
-              <Button onClick={() => { setCommandeEnCours(false); setCommandeGeneree(true); }}>Créer la liste de commande</Button>
-            </div>
+      <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4 mb-6">
+        <div className="rounded-xl border border-[var(--cadre)] bg-white p-3">
+          <h3 className="text-lg font-bold text-[var(--ink)] mb-2 px-1">Catégories</h3>
+          <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
+            {CATEGORIES_STOCK.map((c) => {
+              const actif = !q && c.nom === catActive;
+              return (
+                <button key={c.nom} type="button" onClick={() => choisirCat(c.nom)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: actif ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+                  <Package size={20} className="shrink-0" />
+                  <span className="flex-1 min-w-0 text-sm font-semibold truncate">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.nom)})</span></span>
+                  <ChevronRight size={16} className="shrink-0 hidden lg:block" />
+                </button>
+              );
+            })}
           </div>
         </div>
-      )}
+
+        <div id="stock-tableau" className="rounded-xl border border-[var(--cadre)] bg-white min-w-0 scroll-mt-4">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--line)] flex-wrap">
+            <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: q ? "#1D2321" : infoCat.fond, color: q ? "#fff" : infoCat.texte }}><Package size={20} /></span>
+            <h3 className="text-xl font-bold text-[var(--ink)]">{q ? "Résultats de la recherche" : infoCat.nom} ({liste.length})</h3>
+            {filtreEtat !== "tous" && <span className="text-xs font-semibold px-2 py-1 rounded-md bg-[var(--bg)] text-[var(--ink)]">Filtre : {filtreEtat === "alerte" ? "en alerte" : "dans le panier"} <button type="button" className="underline ml-1" onClick={() => setFiltreEtat("tous")}>retirer</button></span>}
+          </div>
+          <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
+            <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span>Unité / pas</span><span className="text-center">Panier</span>
+          </div>
+          {liste.length === 0 ? (
+            <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.{estResponsable ? " Utilisez « Ajouter un produit » pour en créer un." : ""}</p>
+          ) : liste.map((s) => {
+            const bas = enAlerte(s); const pas = pasDe(s); const pasConnu = !!quantiteParConditionnement(s); const dp = dansPanier(s);
+            return (
+              <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-2 px-4 py-3 border-t border-[var(--line)] items-center">
+                <div className="col-span-2 lg:col-span-1 min-w-0">
+                  <div className="text-base font-semibold text-[var(--ink)] break-words">{s.nom}</div>
+                  <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
+                  <div className="text-xs text-[var(--steel)]">Code : {s.reference || "—"}</div>
+                  {bas && <div className="text-[11px] font-semibold mt-0.5" style={{ color: "#B4233A" }}>Sous le stock à avoir</div>}
+                </div>
+                <div className="text-xs text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>DLC : {s.dlc || "—"}<br />Lot : {s.lot || "—"}</div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div><CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} /></div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div><CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} /></div>
+                <div className="text-sm text-[var(--ink)]"><b>{s.unite || "—"}</b><div className="text-xs text-[var(--steel)]">{pasConnu ? `+1 = ${pas} ${s.unite}` : "+1 = 1 (conditionnement non précisé)"}</div></div>
+                <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
+                  className="w-11 h-11 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
+              </div>
+            );
+          })}
+          <div className="px-4 py-3 border-t border-[var(--line)] text-sm text-[var(--steel)]">{liste.length} produit{liste.length > 1 ? "s" : ""}</div>
+        </div>
+      </div>
 
       {(employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction") && (
-        <Card className="mb-6">
+        <Card className="mb-6" id="stock-catalogue">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer le catalogue produits</h3>
           <p className="text-xs text-[var(--steel)] mb-4">Réservé au chef — ajouter un nouveau produit au stock, ou en supprimer un qui n'est plus utilisé.</p>
 
