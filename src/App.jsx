@@ -10548,10 +10548,11 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const avecCat = stock.map((s) => ({ s, cat: categorieStock(s) }));
   const nbParCat = (nom) => avecCat.filter((x) => x.cat === nom).length;
   const catActive = categorieChoisie || (CATEGORIES_STOCK.find((c) => nbParCat(c.nom) > 0) || CATEGORIES_STOCK[0]).nom;
-  const infoCat = CATEGORIES_STOCK.find((c) => c.nom === catActive) || CATEGORIES_STOCK[CATEGORIES_STOCK.length - 1];
+  const toutLeStock = catActive === "__tous__";
+  const infoCat = toutLeStock ? { nom: "Tous les produits", fond: "#1D2321", texte: "#fff" } : (CATEGORIES_STOCK.find((c) => c.nom === catActive) || CATEGORIES_STOCK[CATEGORIES_STOCK.length - 1]);
   const correspond = (s) => !q || s.nom.toLowerCase().includes(q) || (s.reference || "").toLowerCase().includes(q) || (s.fournisseur || "").toLowerCase().includes(q);
   const etatOk = (s) => filtreEtat === "tous" || (filtreEtat === "alerte" && enAlerte(s)) || (filtreEtat === "panier" && dansPanier(s));
-  const liste = avecCat.filter((x) => (q ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).map((x) => x.s).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).map((x) => x.s).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
   const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
   const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
     <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
@@ -10561,7 +10562,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
       </div>
     </button>
   );
-  const aller = (etat) => { setFiltreEtat(etat); setRecherche(""); setFiltresOuverts(etat !== "tous"); setTimeout(() => { const el = document.getElementById("stock-tableau"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50); };
+  const aller = (etat) => { setCategorieChoisie("__tous__"); setFiltreEtat(etat); setRecherche(""); setFiltresOuverts(etat !== "tous"); setTimeout(() => { const el = document.getElementById("stock-tableau"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50); };
 
   return (
     <div>
@@ -10575,17 +10576,8 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
             <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
           </div>
-          <button type="button" onClick={() => setFiltresOuverts(!filtresOuverts)} className="h-11 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-semibold text-[var(--ink)] flex items-center gap-2"><ListChecks size={18} /> Filtres</button>
         </div>
       </div>
-
-      {filtresOuverts && (
-        <div className="flex flex-wrap gap-2 mb-4">
-          {[["tous", "Tous les produits"], ["alerte", `En alerte (${alertes.length})`], ["panier", `Dans le panier (${lignesPanier.length})`]].map(([id, lib]) => (
-            <button key={id} type="button" onClick={() => setFiltreEtat(id)} style={filtreEtat === id ? { backgroundColor: "#E5243B", color: "#fff", borderColor: "#E5243B" } : undefined} className={`h-10 px-4 rounded-lg border text-sm font-medium ${filtreEtat === id ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
-          ))}
-        </div>
-      )}
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
         {carteKpi("Produits référencés", stock.length, Package, "#DDF3E6", "#B3E0C5", "#14653A", () => aller("tous"))}
@@ -10609,6 +10601,11 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         <div className="rounded-xl border border-[var(--cadre)] bg-white p-3">
           <h3 className="text-lg font-bold text-[var(--ink)] mb-2 px-1">Catégories</h3>
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
+            <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#E5243B", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+              <Package size={20} className="shrink-0" />
+              <span className="flex-1 min-w-0 text-sm font-semibold truncate">Tous les produits <span className="font-normal opacity-80">({stock.length})</span></span>
+              <ChevronRight size={16} className="shrink-0 hidden lg:block" />
+            </button>
             {CATEGORIES_STOCK.map((c) => {
               const actif = !q && c.nom === catActive;
               return (
