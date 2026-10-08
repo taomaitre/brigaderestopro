@@ -14397,23 +14397,17 @@ function TaskCategoryBlock({ categorie, list, employeeId, date, actorId, onToggl
   );
 }
 
-function HorairesDuJour({ employeeId, shifts }) {
-  const jourIdx = (new Date().getDay() + 6) % 7;
+function HorairesDuJour({ employeeId, shifts, date }) {
+  const jourIdx = (dateDepuisIso(date || todayISO()).getDay() + 6) % 7;
   const jour = JOURS[jourIdx];
   const mesCreneaux = shifts.filter((s) => s.employeeId === employeeId && s.jour === jour);
   return (
-    <div className="flex flex-wrap items-center gap-3 text-sm mb-5 pb-4 border-b border-[var(--line)]">
-      <Clock size={15} className="text-[var(--gold)] shrink-0" />
-      {mesCreneaux.length === 0 ? (
-        <span className="text-[var(--ink)] font-medium">Repos</span>
-      ) : (
-        SERVICES.map((sv) => {
-          const s = mesCreneaux.find((c) => c.service === sv);
-          if (!s) return null;
-          return <span key={sv} className="text-[var(--ink)] font-medium">{sv} {s.debut}–{s.fin}</span>;
-        })
-      )}
-      <span className="text-xs text-[var(--steel)]">(horaires Skello, saisis manuellement ici)</span>
+    <div className="flex flex-wrap items-center gap-2 text-sm mb-3">
+      <span className="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg border border-[var(--cadre)] bg-white text-[var(--ink)]">
+        <Clock size={16} className="text-[#1B4F9C] shrink-0" />
+        <span className="text-[var(--steel)]">Mes horaires :</span>
+        {mesCreneaux.length === 0 ? <b>Repos</b> : SERVICES.map((sv) => { const c = mesCreneaux.find((x) => x.service === sv); return c ? <b key={sv}>{sv} {c.debut}–{c.fin}</b> : null; })}
+      </span>
     </div>
   );
 }
@@ -15623,10 +15617,20 @@ function ResumeReservationsJour({ reservations, today, horaires }) {
     </div>
   );
   return (
-    <div className="mb-4 border-2 border-[var(--cadre)] rounded-xl bg-white">
-      <button type="button" onClick={() => setOuvert(!ouvert)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left">
-        <span className="flex items-center gap-2 font-semibold text-[var(--ink)]"><CalendarDays size={18} /> Réservations aujourd'hui</span>
-        <span className="text-sm text-[var(--steel)]">{liste.length ? `${pluriel(liste.length, "réservation")} · ${pluriel(pers(liste), "couvert")}` : "Aucune"} {ouvert ? "▲" : "▼"}</span>
+    <div className="mb-4 border border-[var(--cadre)] rounded-xl bg-white overflow-hidden">
+      <button type="button" onClick={() => setOuvert(!ouvert)} className="w-full flex items-center justify-between gap-3 px-4 py-3 text-left flex-wrap">
+        <span className="flex items-center gap-2.5 font-semibold text-[var(--ink)]"><CalendarDays size={22} className="text-[#1B4F9C]" /> Réservations aujourd'hui</span>
+        <span className="flex items-center gap-2 flex-wrap text-xs font-semibold">
+          {liste.length === 0 ? <span className="text-[var(--steel)] text-sm font-medium">Aucune</span> : (
+            <>
+              <span className="px-2.5 py-1 rounded-md" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{pluriel(pers(liste), "couvert")}</span>
+              <span className="px-2.5 py-1 rounded-md" style={{ backgroundColor: "#EBE2FA", color: "#5B34A8" }}>Midi : {pers(midi)}</span>
+              <span className="px-2.5 py-1 rounded-md" style={{ backgroundColor: "#DDEBFB", color: "#1B4F9C" }}>Soir : {pers(soir)}</span>
+              {groupes.length > 0 && <span className="px-2.5 py-1 rounded-md" style={{ backgroundColor: "#FFE6B8", color: "#8A5300" }}>{pluriel(groupes.length, "groupe")}</span>}
+            </>
+          )}
+          <span className="text-[var(--steel)] text-sm">{ouvert ? "▲" : "▼"}</span>
+        </span>
       </button>
       {ouvert && (
         <div className="px-4 pb-3">
@@ -15651,15 +15655,25 @@ const IcLune = makeIcon([P("M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z")]);
 const IcInfo = makeIcon([C(12, 12, 10), L(12, 16, 12, 12), L(12, 8, 12, 8)]);
 const ROUGE_PLANNING = "#E5243B";
 
-function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOuvrirFenetre }) {
+function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOuvrirFenetre, horaires, blocsNettoyage }) {
   const estAujourdhui = date === todayISO();
+  // Plages affichées : elles suivent les heures de service (midi / soir) réglées dans le planning.
+  const sv = horairesServiceDu(horaires, date);
+  const enH = (h) => { const [a, b] = String(h).split(":").map(Number); return a + (b || 0) / 60; };
+  const arr = (x) => Math.round(x * 2) / 2;
+  const hl = (x) => `${Math.floor(x)}h${String(Math.round((x % 1) * 60)).padStart(2, "0")}`;
+  const bornes = (debut, fin) => ({ debut: Math.max(0, arr(debut)), fin: Math.min(24, Math.ceil(fin * 2) / 2) });
+  const bm = bornes(enH(sv.midi.debut) - 2.5, enH(sv.midi.fin) + 0.5);
+  const bs = bornes(enH(sv.soir.debut) - 1, enH(sv.soir.fin) + 1);
+  const PL_MATIN = { id: "matin", ...bm, label: `Matin (${hl(bm.debut)} - ${hl(bm.fin)})` };
+  const PL_SOIR = { id: "soir", ...bs, label: `Soir (${hl(bs.debut)} - ${hl(bs.fin)})` };
   const [now, setNow] = useState(new Date());
   useEffect(() => { const i = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(i); }, []);
   const PX = 64; // px par heure
   const valeur = (heure) => { const [h, m] = String(heure).split(":").map(Number); return h + (m || 0) / 60; };
   const nowH = now.getHours() + now.getMinutes() / 60;
   const dansPlage = (t, pl) => t.heure && valeur(t.heure) >= pl.debut && valeur(t.heure) < pl.fin;
-  const horsPlage = tasks.filter((t) => !dansPlage(t, PLAGE_MATIN) && !dansPlage(t, PLAGE_SOIR));
+  const horsPlage = tasks.filter((t) => !dansPlage(t, PL_MATIN) && !dansPlage(t, PL_SOIR));
   const panneau = (pl, Icone, fond, entete, couleur) => {
     const hauteur = (pl.fin - pl.debut) * PX;
     const heuresPleines = []; for (let h = Math.ceil(pl.debut); h <= Math.floor(pl.fin); h++) heuresPleines.push(h);
@@ -15667,7 +15681,7 @@ function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOu
     return (
       <div className="flex-1 min-w-0 rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
         <div className="h-11 flex items-center justify-center gap-2 text-sm font-semibold" style={{ backgroundColor: entete, color: couleur }}>
-          <Icone size={20} /> {pl.label.replace("-", " - ")}
+          <Icone size={20} /> {pl.label}
         </div>
         <div className="flex">
           <div className="w-14 shrink-0 relative border-r border-[var(--cadre)] bg-white" style={{ height: hauteur }}>
@@ -15679,6 +15693,20 @@ function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOu
           <div className="relative flex-1 min-w-0" style={{ height: hauteur, backgroundColor: fond }}>
             {heuresPleines.map((h) => <div key={h} className="absolute left-0 right-0 border-t border-black/10" style={{ top: (h - pl.debut) * PX }} />)}
             {estAujourdhui && nowTop > 0 && nowTop < hauteur && <div className="absolute left-0 right-0 z-10 border-t-2 border-dashed" style={{ top: nowTop, borderColor: ROUGE_PLANNING }} />}
+            {(blocsNettoyage || []).filter((b) => b.moment === pl.id.replace("matin", "midi")).map((b) => {
+              const fin = b.moment === "midi" ? sv.midi.fin : sv.soir.fin;
+              const top = (enH(fin) - pl.debut) * PX;
+              if (top < 0 || top > hauteur - 20) return null;
+              const tout = b.faits === b.total;
+              return (
+                <button key={"net" + b.moment} type="button" onClick={() => { const el = document.getElementById("colonne-nettoyage"); if (el) el.scrollIntoView({ behavior: "smooth", block: "center" }); }}
+                  className="absolute left-2 right-2 text-left rounded-md px-2.5 py-1 z-10 flex items-center gap-2 shadow-sm"
+                  style={{ top, height: 38, backgroundColor: tout ? "#E3F4E8" : "#DCE9FB", borderLeft: `4px solid ${tout ? "#2F9E5B" : "#2F6DD0"}`, color: tout ? "#14653A" : "#1B4F9C" }}>
+                  <SprayCan size={16} className="shrink-0" />
+                  <span className="text-sm font-semibold truncate">{String(fin).slice(0, 5)} - Nettoyage de fin de service ({b.faits}/{b.total})</span>
+                </button>
+              );
+            })}
             {tasks.filter((t) => dansPlage(t, pl)).map((t) => {
               const top = (valeur(t.heure) - pl.debut) * PX;
               const hh = Math.max(((t.duree || 15) / 60) * PX, 36);
@@ -15700,8 +15728,8 @@ function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOu
   return (
     <div>
       <div className="flex flex-col lg:flex-row gap-4">
-        {panneau(PLAGE_MATIN, IcSoleil, "#EAF7EF", "#CDEED9", "#14653A")}
-        {panneau(PLAGE_SOIR, IcLune, "#E9F0FB", "#CFDFF6", "#1B4F9C")}
+        {panneau(PL_MATIN, IcSoleil, "#EAF7EF", "#CDEED9", "#14653A")}
+        {panneau(PL_SOIR, IcLune, "#E9F0FB", "#CFDFF6", "#1B4F9C")}
       </div>
       {horsPlage.length > 0 && (
         <p className="text-xs text-[var(--steel)] mt-2">Hors des plages affichées : {horsPlage.map((t) => `${t.heure ? t.heure + " " : ""}${t.titre}`).join(" · ")}</p>
@@ -15825,6 +15853,11 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   const resasAujourdhui = reservations.filter((r) => r.date === today).sort((a, b) => a.heure.localeCompare(b.heure));
   const whoTaches = (id) => employees.find((e) => e.id === id)?.nom;
   const mesProduits = produits.filter((p) => new RegExp(p.poste.replace(/^Poste\s*/i, "").trim(), "i").test(moi?.poste || ""));
+  const blocsNettoyageGrille = (d) => {
+    if (!ctxFin) return [];
+    const occ = occurrencesDuJour(ctxFin.cleaning, ctxFin.executions, d).filter((o) => !o.aValiderSeulement && !o.enRetard && o.date === d && concernesOccurrence(o, d, employees, ctxFin.shifts).ids.includes(currentUserId));
+    return ["midi", "soir"].map((m) => { const l = occ.filter((o) => o.moment === m); return { moment: m, total: l.length, faits: l.filter((o) => o.statut === "fait" || o.statut === "valide").length }; }).filter((b) => b.total > 0);
+  };
   const ouvrirFenetreMoi = (t) => {
     if (t.titre === "Contrôle") { setModalOuvert("controle-chef"); return; }
     if (t.titre === "Contrôle obligatoire") { setModalOuvert(`controle-obligatoire-${Number(t.heure?.split(":")[0]) < 16 ? "midi" : "soir"}`); return; }
@@ -15909,9 +15942,9 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         )}
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId !== "direction" && (
           <div>
-            <HorairesDuJour employeeId={currentUserId} shifts={shifts} />
+            <HorairesDuJour employeeId={currentUserId} shifts={shifts} date={dateSelectionnee} />
             <PlanningDeuxColonnes tasks={tasksForDate(currentUserId, dateSelectionnee)} employeeId={currentUserId} date={dateSelectionnee} actorId={currentUserId} onToggle={toggleTask}
-              onOuvrirFenetre={ouvrirFenetreMoi} />
+              onOuvrirFenetre={ouvrirFenetreMoi} horaires={horaires} blocsNettoyage={blocsNettoyageGrille(dateSelectionnee)} />
           </div>
         )}
 
@@ -16018,7 +16051,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         const LIM = toutesTaches ? 99 : 5;
         const tons = { or: ["#FFE8C2", "#9A5B00"], rouge: ["#FDE2E2", "#B42318"], bleu: ["#DCE9FB", "#1B4F9C"] };
         const colonneBas = (titre, nb, Ic, fond, entete, couleur, children) => (
-          <div className="rounded-lg border overflow-hidden min-w-0" style={{ borderColor: entete, backgroundColor: "#fff" }}>
+          <div id={titre === "Nettoyage" ? "colonne-nettoyage" : undefined} className="rounded-lg border overflow-hidden min-w-0" style={{ borderColor: entete, backgroundColor: "#fff" }}>
             <div className="h-11 px-3 flex items-center gap-2 font-semibold text-sm" style={{ backgroundColor: fond, color: couleur }}><Ic size={20} /> {titre} ({nb})</div>
             <div className="divide-y divide-[var(--line)]">{children}</div>
           </div>
