@@ -10188,8 +10188,8 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             </div>
             <span className="text-sm font-semibold text-[var(--ink)]">{catChoisie === "__tous__" ? "Tous les produits" : catChoisie} ({visibles.length})</span>
           </div>
-          <div className="hidden md:grid md:grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,1fr)_3.5rem] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
-            <span /><span>Produit</span><span>Référence</span><span>N° de lot actuel</span><span>DLC / DDM</span><span className="text-center">Jours</span>
+          <div className="hidden md:grid md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_3.5rem] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
+            <span /><span>Produit</span><span>Référence et n° de lot actuel</span><span>DLC / DDM</span><span className="text-center">Jours</span>
           </div>
           {visibles.length === 0 && <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>}
           {visibles.map((p) => {
@@ -10198,14 +10198,16 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             const lotActuel = ddm ? (p.ddmLotActuel || "") : genererLot(p.nom);
             const jours = ddm ? (dateLim ? Math.max(0, Math.round((new Date(dateLim + "T00:00:00") - new Date(todayISO() + "T00:00:00")) / 86400000)) : null) : (p.dlcJours ?? 0);
             return (
-              <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[2rem_minmax(0,1.5fr)_minmax(0,0.8fr)_minmax(0,1.1fr)_minmax(0,1fr)_3.5rem] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
+              <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_3.5rem] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
                 <span className="w-6 h-6 rounded border-2 flex items-center justify-center" style={sel ? { backgroundColor: "#E5243B", borderColor: "#E5243B", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{sel && <span className="text-xs leading-none">✓</span>}</span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</span>
                   <span className="inline-block text-[11px] font-medium px-1.5 py-0.5 rounded mt-0.5" style={{ backgroundColor: fond, color: texte }}>{cat}</span>
                 </span>
-                <span className="col-start-2 md:col-start-auto text-sm text-[var(--ink)]"><span className="md:hidden text-xs text-[var(--steel)]">Réf. : </span>{p.reference || "—"}</span>
-                <span className="col-start-2 md:col-start-auto text-sm text-[var(--ink)] break-all"><span className="md:hidden text-xs text-[var(--steel)]">Lot actuel : </span>{lotActuel || "—"}</span>
+                <span className="col-start-2 md:col-start-auto min-w-0 text-sm text-[var(--ink)] space-y-0.5">
+                  <span className="block break-all"><span className="text-xs text-[var(--steel)]">Réf. : </span>{p.reference || "—"}</span>
+                  <span className="block break-all"><span className="text-xs text-[var(--steel)]">Lot actuel : </span>{lotActuel || "—"}</span>
+                </span>
                 <span className="col-start-2 md:col-start-auto text-sm text-[var(--ink)]"><span className="md:hidden text-xs text-[var(--steel)]">{ddm ? "DDM" : "DLC"} : </span>{dateLim ? `${ddm ? "DDM" : "DLC"} ${dateLim.split("-").reverse().join("/")}` : (ddm ? "DDM à réception" : "—")}</span>
                 <span className="col-start-2 md:col-start-auto text-sm font-semibold text-[var(--ink)] md:text-center"><span className="md:hidden text-xs font-normal text-[var(--steel)]">Durée : </span>{jours == null ? "—" : `${jours} j`}</span>
               </button>
