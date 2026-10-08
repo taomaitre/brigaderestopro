@@ -13819,85 +13819,275 @@ function PlanningGrille({ tasks, employeeId, date, actorId, onToggle, protocoles
   );
 }
 
-function Reservations({ reservations, setReservations, currentUserId, employees, logActivity, onBack }) {
+const TYPES_RESERVATION = ["Standard", "Groupe", "Buffet", "Événement"];
+const TYPE_RESA_STYLE = {
+  "Standard": { fond: "#E8EBEE", texte: "#38424D", barre: "#2F6DD0" },
+  "Groupe": { fond: "#D9E8FB", texte: "#1B4F9C", barre: "#2F9E5B" },
+  "Buffet": { fond: "#FFE6B8", texte: "#8A5300", barre: "#E8A317" },
+  "Événement": { fond: "#FDD9DE", texte: "#B4233A", barre: "#E5243B" },
+};
+const STATUT_RESA_STYLE = {
+  "à confirmer": { fond: "#EDEFF1", texte: "#4A5560", lib: "À confirmer" },
+  "confirmée": { fond: "#D5F0DE", texte: "#14653A", lib: "Confirmée" },
+  "acompte versé": { fond: "#FFE9BF", texte: "#8A5300", lib: "Acompte versé" },
+};
+const IcEtoile = makeIcon([P("m12 2 3.1 6.3 6.9 1-5 4.9 1.2 6.8L12 17.8 5.8 21l1.2-6.8-5-4.9 6.9-1z")]);
+const IcLoupe = makeIcon([C(11, 11, 7), L(21, 21, 16.5, 16.5)]);
+const IcCrayon = makeIcon([P("M17 3a2.8 2.8 0 0 1 4 4L7.5 20.5 2 22l1.5-5.5Z")]);
+const IcDocTexte = makeIcon([P("M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"), P("M14 2v6h6"), L(8, 13, 16, 13), L(8, 17, 13, 17)]);
+const IcCloche = makeIcon([P("M3 18h18"), P("M5 18a7 7 0 0 1 14 0"), L(12, 8, 12, 5), L(10, 5, 14, 5)]);
+const typeResa = (r) => r.type || (Number(r.personnes) >= 8 ? "Groupe" : "Standard");
+const estGroupeResa = (r) => typeResa(r) === "Groupe" || Number(r.personnes) >= 8;
+const lignesDe = (txt) => String(txt || "").split("\n").map((x) => x.trim()).filter(Boolean);
+const demandesDe = (r) => [...lignesDe(r.demandes), ...lignesDe(r.notes)];
+const aDemandeSpeciale = (r) => demandesDe(r).length > 0 || typeResa(r) === "Buffet" || typeResa(r) === "Événement";
+const couvertsDe = (list) => list.reduce((n, r) => n + (Number(r.personnes) || 0), 0);
+
+const RESA_VIDE = { date: "", heure: "", nom: "", contact: "", personnes: "", telephone: "", email: "", type: "", demandes: "", notesCuisine: "", table: "", statut: "à confirmer", duree: "90" };
+
+function Reservations({ reservations, setReservations, currentUserId, employees, logActivity, onBack, integre, horaires, formOuvert: formOuvertExt, setFormOuvert: setFormOuvertExt }) {
   const [viewMode, setViewMode] = useState("jour");
   const [selectedDate, setSelectedDate] = useState(todayISO());
-  const [form, setForm] = useState({ date: todayISO(), heure: "", nom: "", personnes: "", telephone: "", notes: "", table: "", statut: "à confirmer", duree: "90" });
+  const [filtre, setFiltre] = useState("toutes");
+  const [recherche, setRecherche] = useState("");
+  const [selId, setSelId] = useState(null);
+  const [detailMobile, setDetailMobile] = useState(false);
+  const [formLocal, setFormLocal] = useState(false);
+  const formOuvert = formOuvertExt !== undefined ? formOuvertExt : formLocal;
+  const setFormOuvert = setFormOuvertExt || setFormLocal;
+  const [edition, setEdition] = useState(null); // id en cours de modification, ou null pour une nouvelle
+  const [form, setForm] = useState({ ...RESA_VIDE, date: todayISO() });
   const [commande, setCommande] = useState([""]);
+  const refListe = useRef(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
 
-  const addLigneCommande = () => setCommande([...commande, ""]);
-  const updateLigneCommande = (i, val) => setCommande(commande.map((c, idx) => (idx === i ? val : c)));
-  const removeLigneCommande = (i) => setCommande(commande.filter((_, idx) => idx !== i));
+  // « Nouvelle réservation » demandée depuis le bouton du haut (écran parent)
+  useEffect(() => {
+    if (formOuvert && edition === null && !form.nom && !form.heure) setForm((f) => ({ ...f, date: selectedDate }));
+  }, [formOuvert]); // eslint-disable-line
 
-  const addReservation = () => {
-    if (!form.nom || !form.heure) return;
-    const commandePropre = commande.map((c) => c.trim()).filter((c) => c !== "");
-    setReservations([...reservations, { id: uid(), employeeId: currentUserId, ...form, commande: commandePropre }].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
-    logActivity("Réservations", "Réservation ajoutée", `${form.nom}, ${form.personnes || "?"} pers. le ${form.date} à ${form.heure}`);
-    setForm({ date: form.date, heure: "", nom: "", personnes: "", telephone: "", notes: "", table: "", statut: "à confirmer", duree: "90" });
-    setCommande([""]);
-  };
-
-  const removeReservation = (id) => setReservations(reservations.filter((r) => r.id !== id));
-
-  const goDate = (d) => { setSelectedDate(d); setForm((f) => ({ ...f, date: d })); };
-  const jumpToday = () => goDate(todayISO());
-
-  const step = () => {
-    if (viewMode === "jour") return 1;
-    if (viewMode === "semaine") return 7;
-    return null; // mois géré à part
-  };
-  const onPrev = () => {
-    if (viewMode === "mois") { const d = new Date(selectedDate + "T00:00:00"); d.setMonth(d.getMonth() - 1); goDate(toISO(d)); }
-    else goDate(addDays(selectedDate, -step()));
-  };
-  const onNext = () => {
-    if (viewMode === "mois") { const d = new Date(selectedDate + "T00:00:00"); d.setMonth(d.getMonth() + 1); goDate(toISO(d)); }
-    else goDate(addDays(selectedDate, step()));
-  };
-
-  const label =
-    viewMode === "jour" ? fmtLong(selectedDate) :
-    viewMode === "semaine" ? `Semaine du ${fmtShort(startOfWeek(selectedDate))}` :
-    fmtMonthYear(selectedDate);
-
+  const goDate = (d) => { setSelectedDate(d); setSelId(null); };
+  const onPrev = () => { if (viewMode === "mois") { const d = new Date(selectedDate + "T00:00:00"); d.setMonth(d.getMonth() - 1); goDate(toISO(d)); } else goDate(addDays(selectedDate, viewMode === "semaine" ? -7 : -1)); };
+  const onNext = () => { if (viewMode === "mois") { const d = new Date(selectedDate + "T00:00:00"); d.setMonth(d.getMonth() + 1); goDate(toISO(d)); } else goDate(addDays(selectedDate, viewMode === "semaine" ? 7 : 1)); };
+  const label = viewMode === "jour" ? fmtLong(selectedDate) : viewMode === "semaine" ? `Semaine du ${fmtShort(startOfWeek(selectedDate))}` : fmtMonthYear(selectedDate);
   const reservationsDuJour = (d) => reservations.filter((r) => r.date === d).sort((a, b) => a.heure.localeCompare(b.heure));
+
+  const ouvrirNouvelle = () => { setEdition(null); setForm({ ...RESA_VIDE, date: selectedDate }); setCommande([""]); setFormOuvert(true); };
+  const ouvrirModifier = (r) => {
+    setEdition(r.id);
+    setForm({ ...RESA_VIDE, ...r, personnes: String(r.personnes || ""), type: r.type || "", demandes: [r.demandes || "", r.notes || ""].filter(Boolean).join("\n"), duree: String(r.duree || "90") });
+    setCommande(r.commande && r.commande.length ? r.commande : [""]);
+    setFormOuvert(true);
+  };
+  const fermerForm = () => { setFormOuvert(false); setEdition(null); };
+  const enregistrer = () => {
+    if (!form.nom || !form.heure || !form.date) return;
+    const commandePropre = commande.map((c) => c.trim()).filter((c) => c !== "");
+    const donnees = { ...form, notes: "", commande: commandePropre };
+    if (edition) {
+      setReservations(reservations.map((r) => (r.id === edition ? { ...r, ...donnees } : r)).sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
+      logActivity("Réservations", "Réservation modifiée", `${form.nom}, ${form.personnes || "?"} pers. le ${form.date} à ${form.heure}`);
+    } else {
+      const id = uid();
+      setReservations([...reservations, { id, employeeId: currentUserId, ...donnees }].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
+      logActivity("Réservations", "Réservation ajoutée", `${form.nom}, ${form.personnes || "?"} pers. le ${form.date} à ${form.heure}`);
+      setSelId(id);
+    }
+    if (form.date !== selectedDate) setSelectedDate(form.date);
+    fermerForm();
+  };
+  const removeReservation = (id) => { setReservations(reservations.filter((r) => r.id !== id)); setDetailMobile(false); setSelId(null); };
+  const majReservation = (id, patch) => setReservations(reservations.map((r) => (r.id === id ? { ...r, ...patch } : r)));
+
+  // ----- données du jour -----
+  const duJour = reservationsDuJour(selectedDate);
+  const limite = limiteMidiSoir(horaires, selectedDate);
+  const midi = duJour.filter((r) => r.heure < limite);
+  const soir = duJour.filter((r) => r.heure >= limite);
+  const groupes = duJour.filter(estGroupeResa);
+  const speciales = duJour.filter(aDemandeSpeciale);
+  const FILTRES = [["toutes", "Toutes", duJour], ["midi", "Midi", midi], ["soir", "Soir", soir], ["groupes", "Groupes", groupes], ["speciales", "Demandes spéciales", speciales]];
+  const listeFiltree = (FILTRES.find((f) => f[0] === filtre) || FILTRES[0])[2].filter((r) => {
+    const q = recherche.trim().toLowerCase();
+    return !q || [r.nom, r.contact, r.telephone, r.email].some((v) => String(v || "").toLowerCase().includes(q));
+  });
+  const selectionnee = listeFiltree.find((r) => r.id === selId) || listeFiltree[0] || null;
+  const aller = (f) => { setFiltre(f); setViewMode("jour"); setTimeout(() => refListe.current && refListe.current.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
+
+  const exemplesSpeciales = Array.from(new Set(speciales.map((r) => (typeResa(r) === "Buffet" ? "buffet" : typeResa(r) === "Événement" ? (/anniv/i.test(r.nom) ? "anniversaire" : "événement") : "demande")))).slice(0, 2).join(", ");
+  const carte = (id, titre, grand, unite, sous, Ic, fond, bord, couleur) => (
+    <button key={id} type="button" onClick={() => aller(id)} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
+      <div className="flex items-center gap-3">
+        <span className="w-12 h-12 rounded-full bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={26} /></span>
+        <div className="min-w-0">
+          <div className="text-sm font-medium truncate" style={{ color: couleur }}>{titre}</div>
+          <div className="flex items-baseline gap-1.5"><span className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
+          <div className="text-xs truncate" style={{ color: couleur }}>{sous}</div>
+        </div>
+      </div>
+    </button>
+  );
+
+  const ligneListe = (r) => {
+    const t = typeResa(r); const st = TYPE_RESA_STYLE[t]; const ss = STATUT_RESA_STYLE[r.statut] || STATUT_RESA_STYLE["à confirmer"];
+    const actif = selectionnee && selectionnee.id === r.id;
+    const ev = t === "Événement";
+    return (
+      <button key={r.id} type="button" onClick={() => { setSelId(r.id); setDetailMobile(true); }}
+        className="w-full text-left flex items-center gap-2 sm:gap-3 pr-3 py-3 border-t border-[var(--line)]"
+        style={{ borderLeft: `4px solid ${st.barre}`, backgroundColor: ev ? "#FDECEE" : actif ? "#F1F5FB" : "#fff" }}>
+        <span className="w-14 sm:w-16 pl-2 sm:pl-3 text-sm shrink-0" style={{ color: ev ? "#B4233A" : "var(--ink)" }}>{r.heure}</span>
+        <span className="flex-1 min-w-0 text-sm font-medium truncate" style={{ color: ev ? "#B4233A" : "var(--ink)" }}>{r.nom}</span>
+        <span className="w-8 text-center text-sm text-[var(--ink)] shrink-0">{r.personnes}</span>
+        <span className="hidden sm:inline-flex w-24 justify-center text-xs font-medium px-2 py-1 rounded shrink-0" style={{ backgroundColor: st.fond, color: st.texte }}>{t}</span>
+        <span className="hidden md:inline-flex w-24 justify-center text-xs font-medium px-2 py-1 rounded shrink-0" style={{ backgroundColor: ss.fond, color: ss.texte }}>{ss.lib}</span>
+        <ChevronRight size={16} className="text-[var(--ink)] shrink-0" />
+      </button>
+    );
+  };
+
+  const detail = (r) => {
+    const t = typeResa(r); const st = TYPE_RESA_STYLE[t]; const ss = STATUT_RESA_STYLE[r.statut] || STATUT_RESA_STYLE["à confirmer"];
+    const dem = demandesDe(r);
+    const tuile = (Ic, lib, val, bg) => (
+      <div className="rounded-lg border border-[var(--cadre)] bg-white px-3 py-2.5 flex items-center gap-2.5 min-w-0">
+        <Ic size={24} className="text-[var(--ink)] shrink-0" />
+        <div className="min-w-0"><div className="text-xs text-[var(--steel)] truncate">{lib}</div><div className="text-sm font-semibold truncate" style={bg ? { color: st.texte } : undefined}>{val}</div></div>
+      </div>
+    );
+    return (
+      <div>
+        <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
+          <div className="flex items-center gap-2.5"><IcDocTexte size={26} className="text-[var(--ink)]" /><h3 className="text-lg font-semibold text-[var(--ink)]">Détail de la réservation</h3></div>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => ouvrirModifier(r)} className="h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[var(--ink)] flex items-center gap-2"><IcCrayon size={16} /> Modifier</button>
+            <ConfirmerSuppressionBouton libelle={`Réservation ${r.nom} — ${r.heure}`} onConfirm={() => removeReservation(r.id)} />
+          </div>
+        </div>
+        <div className="flex items-center gap-3 mb-3">
+          <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: "#FDE4E8", color: "#E5243B" }}><Users size={26} /></span>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 flex-wrap"><span className="text-lg font-bold text-[var(--ink)]">{r.nom}</span><span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: st.fond, color: st.texte }}>{t}</span><span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: ss.fond, color: ss.texte }}>{ss.lib}</span></div>
+            {r.contact && <div className="text-sm text-[var(--ink)]">{r.contact}</div>}
+            <div className="flex items-center gap-4 flex-wrap text-sm text-[var(--ink)] mt-0.5">
+              {r.telephone && <a href={`tel:${r.telephone}`} className="flex items-center gap-1.5"><PhoneCall size={15} />{r.telephone}</a>}
+              {r.email && <a href={`mailto:${r.email}`} className="flex items-center gap-1.5 break-all"><Mail size={15} />{r.email}</a>}
+            </div>
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-2 mb-3">
+          {tuile(CalendarDays, "Date", fmtLong(r.date).replace(/^./, (c) => c.toUpperCase()))}
+          {tuile(Clock, "Heure", r.heure)}
+          {tuile(Users, "Nombre de personnes", r.personnes || "?")}
+          {tuile(IcDocTexte, "Type", t, true)}
+        </div>
+        {(dem.length > 0 || t === "Buffet" || t === "Événement") && (
+          <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: "#FDE8EA" }}>
+            <div className="flex items-center gap-2 font-semibold mb-1" style={{ color: "#B4233A" }}><IcEtoile size={18} /> Demandes spéciales</div>
+            {dem.length === 0 ? <p className="text-sm text-[var(--ink)]">{t} — pas de précision saisie.</p> : <ul className="list-disc pl-5 space-y-0.5 text-sm text-[var(--ink)]">{dem.map((d, i) => <li key={i}>{d}</li>)}</ul>}
+          </div>
+        )}
+        <div className="rounded-lg p-3 mb-3" style={{ backgroundColor: "#E4EDFB" }}>
+          <div className="flex items-center gap-2 font-semibold mb-1.5" style={{ color: "#1B4F9C" }}><IcDocTexte size={18} /> Notes internes (cuisine)</div>
+          <ChampTexteDiffere multiline value={r.notesCuisine || ""} onCommit={(v) => majReservation(r.id, { notesCuisine: v })} placeholder="À prévoir, confirmer avec le client, quantités…" className="w-full bg-white/70 border border-[#B5CDF0] rounded-lg px-3 py-2 text-sm text-[var(--ink)] min-h-[5rem]" />
+        </div>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
+          <label className="text-xs text-[var(--steel)] flex flex-col gap-1">Statut
+            <select className={`${inputCls} !min-h-[40px] !py-1.5`} value={r.statut || "à confirmer"} onChange={(e) => majReservation(r.id, { statut: e.target.value })}>{STATUTS_RESERVATION.map((x) => <option key={x} value={x}>{STATUT_RESA_STYLE[x].lib}</option>)}</select>
+          </label>
+          <label className="text-xs text-[var(--steel)] flex flex-col gap-1">Table
+            <ChampTexteDiffere value={r.table || ""} onCommit={(v) => majReservation(r.id, { table: v })} placeholder="Table 12-14, salon privé…" className={`${inputCls} !min-h-[40px] !py-1.5`} />
+          </label>
+        </div>
+        {r.commande && r.commande.length > 0 && (
+          <div className="mb-3"><div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Commande</div><div className="flex flex-wrap gap-1.5">{r.commande.map((item, i) => <span key={i} className="text-xs text-[var(--ink)] bg-[var(--bg)] rounded px-2 py-1">{item}</span>)}</div></div>
+        )}
+        <div className="mb-1">
+          <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Ce qui a été préparé</div>
+          <ChampTexteDiffere value={r.notePreparation || ""} onCommit={(v) => majReservation(r.id, { notePreparation: v })} placeholder="Noter ce qui a été préparé pour cette réservation…" className={`${inputCls} w-full`} />
+        </div>
+        {who(r.employeeId) && <p className="text-xs text-[var(--steel)] mt-2">Prise par {who(r.employeeId)}</p>}
+      </div>
+    );
+  };
 
   return (
     <div>
       {onBack && (
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
       )}
-      <SectionHeader
-        title="Agenda"
-        subtitle="Réservations, saisies ici et tenues à jour manuellement"
-        action={
-          <div className="flex gap-2 bg-[var(--bg)] p-1 rounded-lg">
-            {["jour", "semaine", "mois"].map((v) => (
-              <button key={v} onClick={() => setViewMode(v)}
-                className={`px-3 py-1.5 rounded-md text-sm font-medium capitalize ${viewMode === v ? "bg-white text-[var(--ink)] shadow-sm" : "text-[var(--steel)]"}`}>
-                {v}
-              </button>
-            ))}
-          </div>
-        }
-      />
-
-      <Card className="mb-6">
-        <div className="flex items-center justify-between mb-5 flex-wrap gap-3">
-          <CalendarNav label={label} onPrev={onPrev} onNext={onNext} avecHeure={viewMode === "jour"} />
-        </div>
-
-        {viewMode === "jour" && (
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+        <div className="flex items-center gap-3">
+          <Users size={34} className="text-[var(--ink)]" />
           <div>
-            <AgendaGrille reservations={reservationsDuJour(selectedDate)} isToday={selectedDate === todayISO()} who={who} onRemove={removeReservation} plage={PLAGE_JOURNEE}
-              onUpdateNote={(id, note) => setReservations(reservations.map((r) => (r.id === id ? { ...r, notePreparation: note } : r)))} />
+            <h2 className="text-2xl font-bold leading-tight" style={{ color: "#1B4F9C" }}>Réservations</h2>
+            <p className="text-sm text-[var(--steel)]">Gestion des réservations et des services</p>
           </div>
+        </div>
+        {!integre && (
+          <button type="button" onClick={ouvrirNouvelle} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ROUGE_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
         )}
+      </div>
 
-        {viewMode === "semaine" && (
+      <div className="flex items-center gap-3 flex-wrap justify-between mb-4">
+        <div className="flex items-center gap-2 min-w-0">
+          <button type="button" onClick={onPrev} className="w-11 h-11 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]" aria-label="Précédent"><ChevronLeft size={20} /></button>
+          <div className="h-11 px-4 min-w-[12rem] rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center gap-2.5 text-sm sm:text-base font-semibold text-[var(--ink)] capitalize"><CalendarDays size={20} className="text-[#1B4F9C]" /> {label}</div>
+          <button type="button" onClick={onNext} className="w-11 h-11 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]" aria-label="Suivant"><ChevronRight size={20} /></button>
+          {selectedDate !== todayISO() && <button type="button" onClick={() => goDate(todayISO())} className="h-11 px-3 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[#1B4F9C]">Aujourd'hui</button>}
+        </div>
+        <div className="flex rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
+          {["jour", "semaine", "mois"].map((v) => (
+            <button key={v} type="button" onClick={() => setViewMode(v)} style={viewMode === v ? { backgroundColor: ROUGE_PLANNING, color: "#fff" } : undefined} className={`h-11 px-4 text-sm font-semibold capitalize ${viewMode === v ? "" : "text-[var(--ink)]"}`}>{v}</button>
+          ))}
+        </div>
+      </div>
+
+      {viewMode === "jour" && (
+        <>
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-5">
+            {carte("toutes", "Total réservations", couvertsDe(duJour), "couverts", `${duJour.length} réservation${duJour.length > 1 ? "s" : ""}`, Users, "#E3EDFB", "#BCD3F2", "#1B4F9C")}
+            {carte("groupes", "Nombre de groupes", groupes.length, "", `(${couvertsDe(groupes)} couverts)`, Users, "#DDF3E6", "#B3E0C5", "#14653A")}
+            {carte("speciales", "Demandes spéciales", speciales.length, "", exemplesSpeciales ? `(${exemplesSpeciales}…)` : "(aucune)", IcEtoile, "#FFF0D2", "#F3D69A", "#8A5300")}
+            {carte("midi", "Service midi", couvertsDe(midi), "couverts", `(${midi.length} réservation${midi.length > 1 ? "s" : ""})`, IcCloche, "#EBE2FA", "#D2C2F2", "#5B34A8")}
+            {carte("soir", "Service soir", couvertsDe(soir), "couverts", `(${soir.length} réservation${soir.length > 1 ? "s" : ""})`, IcCloche, "#DDEBFB", "#B5D0F0", "#1B4F9C")}
+          </div>
+
+          <div ref={refListe} className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-4 mb-6 scroll-mt-4">
+            <Card>
+              <div className="flex items-center gap-3 flex-wrap mb-3">
+                <div className="flex items-center gap-2.5"><Users size={24} className="text-[var(--ink)]" /><h3 className="text-lg font-semibold text-[var(--ink)]">Liste des réservations ({duJour.length})</h3></div>
+                <div className="relative flex-1 min-w-[12rem]">
+                  <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
+                  <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher (nom, téléphone…)" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2 mb-3">
+                {FILTRES.map(([id, lib, l]) => (
+                  <button key={id} type="button" onClick={() => setFiltre(id)} style={filtre === id ? { backgroundColor: ROUGE_PLANNING, color: "#fff", borderColor: ROUGE_PLANNING } : undefined}
+                    className={`h-10 px-3.5 rounded-lg border text-sm font-medium ${filtre === id ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib} ({l.length})</button>
+                ))}
+              </div>
+              <div className="rounded-lg border border-[var(--cadre)] overflow-hidden">
+                <div className="flex items-center gap-2 sm:gap-3 pr-3 py-2 text-xs text-[var(--steel)] bg-[var(--bg)]" style={{ paddingLeft: 4 }}>
+                  <span className="w-14 sm:w-16 pl-2 sm:pl-3 shrink-0">Heure</span><span className="flex-1">Client / Événement</span><span className="w-8 text-center shrink-0">Pers.</span>
+                  <span className="hidden sm:inline-block w-24 text-center shrink-0">Type</span><span className="hidden md:inline-block w-24 text-center shrink-0">Statut</span><span className="w-4 shrink-0" />
+                </div>
+                {listeFiltree.length === 0 ? <p className="px-4 py-6 text-sm text-[var(--steel)] border-t border-[var(--line)]">Aucune réservation pour cette sélection.</p> : listeFiltree.map(ligneListe)}
+              </div>
+            </Card>
+            {selectionnee && (
+              <div className={`${detailMobile ? "fixed inset-0 z-50 overflow-y-auto bg-[var(--bg)] p-4" : "hidden"} lg:block lg:static lg:z-auto lg:overflow-visible lg:p-0 lg:bg-transparent`}>
+                <button type="button" onClick={() => setDetailMobile(false)} className="lg:hidden mb-3 h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium flex items-center gap-2"><ArrowLeft size={16} /> Retour à la liste</button>
+                <Card>{detail(selectionnee)}</Card>
+              </div>
+            )}
+          </div>
+        </>
+      )}
+
+      {viewMode === "semaine" && (
+        <Card className="mb-6">
           <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
             {Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(selectedDate), i)).map((d) => {
               const list = reservationsDuJour(d);
@@ -13906,13 +14096,9 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
                 <button key={d} onClick={() => { goDate(d); setViewMode("jour"); }} className="text-left">
                   <div className={`rounded-lg border p-2.5 h-full ${isToday ? "border-[var(--accent)]" : "border-[var(--line)]"}`}>
                     <div className="text-xs text-[var(--steel)] mb-1 capitalize">{JOURS[(new Date(d + "T00:00:00").getDay() + 6) % 7].slice(0, 3)} {d.slice(8, 10)}</div>
-                    {list.length === 0 ? (
-                      <div className="text-xs text-[var(--steel)]">—</div>
-                    ) : (
+                    {list.length === 0 ? <div className="text-xs text-[var(--steel)]">—</div> : (
                       <div className="space-y-1">
-                        {list.slice(0, 3).map((r) => (
-                          <div key={r.id} className="text-xs text-[var(--ink)] truncate">{r.heure} {r.nom}</div>
-                        ))}
+                        {list.slice(0, 3).map((r) => <div key={r.id} className="text-xs text-[var(--ink)] truncate">{r.heure} {r.nom}</div>)}
                         {list.length > 3 && <div className="text-xs text-[var(--accent)]">+{list.length - 3} autres</div>}
                       </div>
                     )}
@@ -13921,37 +14107,34 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
               );
             })}
           </div>
-        )}
+        </Card>
+      )}
 
-        {viewMode === "mois" && (() => {
-          const start = startOfMonth(selectedDate);
-          const lead = (new Date(start + "T00:00:00").getDay() + 6) % 7;
-          const total = daysInMonth(start);
-          const cells = [...Array(lead).fill(null), ...Array.from({ length: total }, (_, i) => addDays(start, i))];
-          while (cells.length % 7 !== 0) cells.push(null);
-          return (
-            <div>
-              <div className="grid grid-cols-7 gap-1 mb-1">
-                {JOURS.map((j) => <div key={j} className="text-xs text-[var(--steel)] text-center py-1">{j.slice(0, 3)}</div>)}
-              </div>
-              <div className="grid grid-cols-7 gap-1">
-                {cells.map((d, i) => {
-                  if (!d) return <div key={i} />;
-                  const list = reservationsDuJour(d);
-                  const isToday = d === todayISO();
-                  return (
-                    <button key={d} onClick={() => { goDate(d); setViewMode("jour"); }}
-                      className={`aspect-square rounded-md border flex flex-col items-center justify-center gap-0.5 ${isToday ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] hover:bg-[var(--bg)]"}`}>
-                      <span className="text-xs text-[var(--ink)]">{Number(d.slice(8, 10))}</span>
-                      {list.length > 0 && <span className="text-[10px] text-[var(--gold)] font-medium">{list.length}</span>}
-                    </button>
-                  );
-                })}
-              </div>
+      {viewMode === "mois" && (() => {
+        const start = startOfMonth(selectedDate);
+        const lead = (new Date(start + "T00:00:00").getDay() + 6) % 7;
+        const total = daysInMonth(start);
+        const cells = [...Array(lead).fill(null), ...Array.from({ length: total }, (_, i) => addDays(start, i))];
+        while (cells.length % 7 !== 0) cells.push(null);
+        return (
+          <Card className="mb-6">
+            <div className="grid grid-cols-7 gap-1 mb-1">{JOURS.map((j) => <div key={j} className="text-xs text-[var(--steel)] text-center py-1">{j.slice(0, 3)}</div>)}</div>
+            <div className="grid grid-cols-7 gap-1">
+              {cells.map((d, i) => {
+                if (!d) return <div key={i} />;
+                const list = reservationsDuJour(d);
+                const isToday = d === todayISO();
+                return (
+                  <button key={d} onClick={() => { goDate(d); setViewMode("jour"); }} className={`aspect-square rounded-md border flex flex-col items-center justify-center gap-0.5 ${isToday ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] hover:bg-[var(--bg)]"}`}>
+                    <span className="text-xs text-[var(--ink)]">{Number(d.slice(8, 10))}</span>
+                    {list.length > 0 && <span className="text-[10px] text-[var(--gold)] font-medium">{list.length}</span>}
+                  </button>
+                );
+              })}
             </div>
-          );
-        })()}
-      </Card>
+          </Card>
+        );
+      })()}
 
       <ImportPhotoIA
         titre="Importer des réservations par photo"
@@ -13989,42 +14172,66 @@ Une entrée par réservation visible. Si une information est illisible ou absent
         }}
       />
 
-      <Card>
-        <h3 className="font-semibold text-[var(--ink)] mb-4">Nouvelle réservation</h3>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-          <Field label="Date"><input className={inputCls} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
-          <Field label="Heure"><input className={inputCls} type="time" value={form.heure} onChange={(e) => setForm({ ...form, heure: e.target.value })} /></Field>
-          <Field label="Nom"><input className={inputCls} value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} /></Field>
-          <Field label="Personnes"><input className={inputCls} type="number" value={form.personnes} onChange={(e) => setForm({ ...form, personnes: e.target.value })} /></Field>
-          <Field label="Table"><input className={inputCls} placeholder="Table 12-14, salon privé..." value={form.table} onChange={(e) => setForm({ ...form, table: e.target.value })} /></Field>
-          <Field label="Statut">
-            <select className={inputCls} value={form.statut} onChange={(e) => setForm({ ...form, statut: e.target.value })}>
-              {STATUTS_RESERVATION.map((s) => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </Field>
-          <Field label="Durée (min)"><input className={inputCls} type="number" step="15" value={form.duree} onChange={(e) => setForm({ ...form, duree: e.target.value })} /></Field>
-          <Field label="Téléphone"><input className={inputCls} value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} /></Field>
-          <Field label="Notes"><input className={inputCls} placeholder="Allergies, table préférée..." value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} /></Field>
-        </div>
 
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-[var(--steel)]">Commande (optionnel — repas de groupe, séminaire...)</span>
-            <Button variant="ghost" onClick={addLigneCommande}><Plus size={14} /> Ligne</Button>
-          </div>
-          <div className="space-y-2">
-            {commande.map((c, i) => (
-              <div key={i} className="flex gap-2">
-                <input className={`${inputCls} flex-1`} placeholder="ex. 4x Pizza chèvre-miel" value={c} onChange={(e) => updateLigneCommande(i, e.target.value)} />
-                <button onClick={() => removeLigneCommande(i)} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
+      {formOuvert && (
+        <div className="fixed inset-0 z-[60] bg-black/50 flex items-start justify-center overflow-y-auto p-3 sm:p-6" onClick={fermerForm}>
+          <div className="bg-white rounded-xl w-full max-w-3xl p-4 sm:p-6 my-auto" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-lg font-semibold text-[var(--ink)]">{edition ? "Modifier la réservation" : "Nouvelle réservation"}</h3>
+              <button type="button" onClick={fermerForm} className="text-[var(--steel)]" aria-label="Fermer"><X size={20} /></button>
+            </div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+              <Field label="Date"><input className={inputCls} type="date" value={form.date} onChange={(e) => setForm({ ...form, date: e.target.value })} /></Field>
+              <Field label="Heure"><input className={inputCls} type="time" value={form.heure} onChange={(e) => setForm({ ...form, heure: e.target.value })} /></Field>
+              <Field label="Personnes"><input className={inputCls} type="number" value={form.personnes} onChange={(e) => setForm({ ...form, personnes: e.target.value })} /></Field>
+              <div className="col-span-2 sm:col-span-3"><Field label="Nom de la réservation / de l'événement"><input className={`${inputCls} w-full`} placeholder="Ex. Martin, Anniversaire - Sophie" value={form.nom} onChange={(e) => setForm({ ...form, nom: e.target.value })} /></Field></div>
+              <Field label="Type">
+                <select className={inputCls} value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}>
+                  <option value="">Automatique (groupe dès 8 pers.)</option>
+                  {TYPES_RESERVATION.map((t) => <option key={t} value={t}>{t}</option>)}
+                </select>
+              </Field>
+              <Field label="Statut"><select className={inputCls} value={form.statut} onChange={(e) => setForm({ ...form, statut: e.target.value })}>{STATUTS_RESERVATION.map((x) => <option key={x} value={x}>{STATUT_RESA_STYLE[x].lib}</option>)}</select></Field>
+              <Field label="Durée (min)"><input className={inputCls} type="number" step="15" value={form.duree} onChange={(e) => setForm({ ...form, duree: e.target.value })} /></Field>
+              <Field label="Nom du client"><input className={inputCls} placeholder="Mme Sophie Lambert" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })} /></Field>
+              <Field label="Téléphone"><input className={inputCls} inputMode="tel" value={form.telephone} onChange={(e) => setForm({ ...form, telephone: e.target.value })} /></Field>
+              <Field label="E-mail"><input className={inputCls} type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} /></Field>
+              <div className="col-span-2 sm:col-span-3"><Field label="Table"><input className={`${inputCls} w-full`} placeholder="Table 12-14, salon privé…" value={form.table} onChange={(e) => setForm({ ...form, table: e.target.value })} /></Field></div>
+              <div className="col-span-2 sm:col-span-3"><Field label="Demandes spéciales (une par ligne : allergies, gâteau, menu végétarien…)"><textarea className={`${inputCls} w-full min-h-[5rem]`} value={form.demandes} onChange={(e) => setForm({ ...form, demandes: e.target.value })} /></Field></div>
+              <div className="col-span-2 sm:col-span-3"><Field label="Notes internes (cuisine)"><textarea className={`${inputCls} w-full min-h-[4rem]`} value={form.notesCuisine} onChange={(e) => setForm({ ...form, notesCuisine: e.target.value })} /></Field></div>
+            </div>
+            <div className="mb-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-[var(--steel)]">Commande (facultatif — repas de groupe, séminaire…)</span>
+                <Button variant="ghost" onClick={() => setCommande([...commande, ""])}><Plus size={14} /> Ligne</Button>
               </div>
-            ))}
+              <div className="space-y-2">
+                {commande.map((c, i) => (
+                  <div key={i} className="flex gap-2">
+                    <input className={`${inputCls} flex-1`} placeholder="ex. 4 pizzas chèvre-miel" value={c} onChange={(e) => setCommande(commande.map((x, idx) => (idx === i ? e.target.value : x)))} />
+                    <button type="button" onClick={() => setCommande(commande.filter((_, idx) => idx !== i))} className="text-[var(--steel)] hover:text-[var(--warn)]"><X size={14} /></button>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="flex gap-2 justify-end">
+              <Button variant="ghost" onClick={fermerForm}>Annuler</Button>
+              <button type="button" onClick={enregistrer} disabled={!form.nom || !form.heure || !form.date} className="px-5 h-11 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ backgroundColor: ROUGE_PLANNING }}>{edition ? "Enregistrer" : "Ajouter la réservation"}</button>
+            </div>
           </div>
         </div>
-
-        <Button onClick={addReservation}><Plus size={16} /> Ajouter la réservation</Button>
-      </Card>
+      )}
     </div>
+  );
+}
+
+function ConfirmerSuppressionBouton({ libelle, onConfirm }) {
+  const [ouvert, setOuvert] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOuvert(true)} className="h-10 px-4 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ROUGE_PLANNING }}><Trash2 size={16} /> Supprimer</button>
+      {ouvert && <ModalConfirmerSuppression libelle={libelle} onAnnuler={() => setOuvert(false)} onConfirmer={() => { setOuvert(false); onConfirm(); }} />}
+    </>
   );
 }
 
@@ -15485,6 +15692,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   const decalerDateMois = (dateStr, delta) => { const d = new Date(dateStr + "T00:00:00"); d.setMonth(d.getMonth() + delta); return toISO(d); };
   const [jourDetailOuvert, setJourDetailOuvert] = useState(null);
   const [toutesTaches, setToutesTaches] = useState(false);
+  const [formResa, setFormResa] = useState(false);
   const [modalOuvert, setModalOuvert] = useState(null);
   const [modalCollegue, setModalCollegue] = useState(null);
   const moi = employees.find((e) => e.id === currentUserId);
@@ -15546,14 +15754,16 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
               );
             })}
           </div>
-          {vueAccueil === "reservations" ? (
+          {vueAccueil === "reservations" && currentUserId !== "direction" ? (
+            <button type="button" onClick={() => setFormResa(true)} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ROUGE_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
+          ) : vueAccueil === "reservations" ? (
             <button onClick={() => setTab("reservations")} className="text-sm text-[var(--accent)] font-medium">Voir tout l'agenda →</button>
           ) : currentUserId === "direction" ? (
             <button onClick={() => setTab("horaires")} className="text-sm text-[var(--accent)] font-medium">Modifier les horaires de la semaine →</button>
           ) : null}
         </div>
 
-        {currentUserId !== "direction" && (
+        {currentUserId !== "direction" && vueAccueil === "planning" && (
           <div className="mb-4">
             {(() => {
               const label = vueTemps === "jour" ? fmtLong(dateSelectionnee) : vueTemps === "semaine" ? `Semaine du ${fmtShort(startOfWeek(dateSelectionnee))}` : fmtMonthYear(dateSelectionnee);
@@ -15583,12 +15793,11 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           </div>
         )}
 
-        {vueTemps === "jour" && vueAccueil === "reservations" && currentUserId === "direction" && (
+        {vueAccueil === "reservations" && currentUserId === "direction" && (
           <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
         )}
-        {vueTemps === "jour" && vueAccueil === "reservations" && (
-          <AgendaGrille reservations={reservations.filter((r) => r.date === dateSelectionnee).sort((a, b) => a.heure.localeCompare(b.heure))} isToday={dateSelectionnee === todayISO()} who={whoTaches} onRemove={(id) => setReservations(reservations.filter((r) => r.id !== id))} plage={PLAGE_JOURNEE}
-            onUpdateNote={(id, note) => setReservations(reservations.map((r) => (r.id === id ? { ...r, notePreparation: note } : r)))} />
+        {vueAccueil === "reservations" && (
+          <Reservations integre reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivity} horaires={horaires} formOuvert={formResa} setFormOuvert={setFormResa} />
         )}
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId === "direction" && (
           <CarteGestionHorairesDirection employees={employees} shifts={shifts} setShifts={setShifts} logActivity={logActivity} setTab={setTab} />
@@ -15601,7 +15810,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           </div>
         )}
 
-        {vueTemps === "semaine" && (
+        {vueTemps === "semaine" && vueAccueil === "planning" && (
           <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
             {Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(dateSelectionnee), i)).map((d) => {
               const list = vueAccueil === "reservations"
@@ -15625,7 +15834,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           </div>
         )}
 
-        {vueTemps === "mois" && (() => {
+        {vueTemps === "mois" && vueAccueil === "planning" && (() => {
           const start = startOfMonth(dateSelectionnee);
           const lead = (new Date(start + "T00:00:00").getDay() + 6) % 7;
           const total = daysInMonth(start);
