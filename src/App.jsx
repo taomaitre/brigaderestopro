@@ -8698,7 +8698,7 @@ function EtiquetteRefroidissement({ r, who }) {
   );
 }
 
-const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme"];
+const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme", "Autre motif"];
 
 function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
@@ -8712,6 +8712,7 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
   const [unite, setUnite] = useState("kg");
   const [notes, setNotes] = useState("");
   const [suppId, setSuppId] = useState(null);
+  const [verdict, setVerdict] = useState(null); // résultat affiché après validation : { produit, conforme, detail }
   const today = todayISO();
 
   useEffect(() => {
@@ -8780,13 +8781,14 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
     // avoir à s'en souvenir plus tard une fois passé à autre chose.
     if (proposerEtiquetteRapide) proposerEtiquetteRapide(r.produit);
 
+    setVerdict({ produit: r.produit, conforme, depasse, detail: depasse ? (maintienAccepte ? "Délai dépassé, mais le produit a été maintenu à bonne température : aucun souci, il reste utilisable." : `Délai dépassé (${saisie.motif}). Le produit est NON CONFORME : il doit être détruit (jeté). Cette non-conformité est enregistrée dans les alertes.`) : (conforme ? "Température de fin atteinte dans le délai : produit conforme." : "La température de fin n'est pas atteinte : produit NON CONFORME, à détruire. Cette non-conformité est enregistrée.") });
     logActivity("HACCP", depasse ? `${r.type === "negatif" ? "Congélation" : "Refroidissement"} terminé(e) avec anomalie` : `${r.type === "negatif" ? "Congélation" : "Refroidissement"} terminé(e)`, `${r.produit} — ${saisie.tempFin}°C${depasse ? ` — ${saisie.motif}` : ""}`);
 
-    if (depasse) {
+    if (depasse || !conforme) {
       ajouterAlerteControle({
         id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: r.type === "negatif" ? "Congélation" : "Refroidissement", employeeId: currentUserId,
-        titre: `${r.produit} — dépassement du délai de ${r.type === "negatif" ? "surgélation" : "refroidissement"}`,
-        detail: `Motif : ${saisie.motif}. ${maintienAccepte ? "Accepté (maintien à température confirmé)." : "Produit à considérer comme non conforme — à jeter."}`,
+        titre: depasse ? `${r.produit} — dépassement du délai de ${r.type === "negatif" ? "surgélation" : "refroidissement"}` : `${r.produit} — température de fin non atteinte`,
+        detail: `${saisie.motif ? `Motif : ${saisie.motif}. ` : ""}${maintienAccepte ? "Accepté (maintien à température confirmé)." : "Produit à considérer comme non conforme — à jeter."}`,
         conforme: maintienAccepte,
       });
     }
@@ -8865,6 +8867,14 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
         <Button onClick={demarrer} disabled={!produit || tempDebut === ""}><Plus size={16} /> {neg ? "Démarrer la congélation" : "Démarrer le refroidissement"}</Button>
       </Card>
 
+      {verdict && (
+        <div className="mb-5 rounded-xl border-2 p-4" style={verdict.conforme ? { backgroundColor: "#EAF6EF", borderColor: "#B3E0C5" } : { backgroundColor: "#FDE4E8", borderColor: "#E5243B" }}>
+          <p className="text-lg font-bold mb-1" style={{ color: verdict.conforme ? "#14653A" : "#B4233A" }}>{verdict.conforme ? "✔ " : "⚠ "}{verdict.produit} : {verdict.conforme ? "conforme" : "NON CONFORME — à détruire"}</p>
+          <p className="text-sm text-[var(--ink)]">{verdict.detail}</p>
+          <button onClick={() => setVerdict(null)} className="mt-2 text-sm font-semibold underline" style={{ color: verdict.conforme ? "#14653A" : "#B4233A" }}>J'ai compris</button>
+        </div>
+      )}
+
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-3">Refroidissements et congélations en cours ({enCours.length})</h3>
         {enCours.length === 0 && <p className="text-sm text-[var(--steel)]">Rien en cours pour le moment.</p>}
@@ -8905,10 +8915,10 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
                       ))}
                     </div>
                     {saisie.motif && saisie.motif !== "Produit resté à bonne température (accepté)" && (
-                      <p className="text-xs text-[var(--warn)] mt-1.5">Ce motif rendra le refroidissement non conforme — le produit sera à jeter.</p>
+                      <p className="text-sm font-semibold mt-2 rounded-lg p-2" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>Ce motif rend le produit NON CONFORME : il devra être détruit. Vous en serez averti à la validation.</p>
                     )}
                     {saisie.motif === "Produit resté à bonne température (accepté)" && (
-                      <p className="text-xs text-[var(--accent)] mt-1.5">Accepté — le produit reste utilisable si la température de fin confirme un maintien correct.</p>
+                      <p className="text-sm font-semibold mt-2 rounded-lg p-2" style={{ backgroundColor: "#EAF6EF", color: "#14653A" }}>Accepté : le produit est resté à bonne température, il reste utilisable.</p>
                     )}
                   </div>
                 )}
