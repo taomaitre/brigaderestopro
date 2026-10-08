@@ -15407,73 +15407,61 @@ const IcSoleil = makeIcon([C(12, 12, 4), L(12, 2, 12, 4), L(12, 20, 12, 22), L(4
 const IcLune = makeIcon([P("M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z")]);
 const IcInfo = makeIcon([C(12, 12, 10), L(12, 16, 12, 12), L(12, 8, 12, 8)]);
 const ROUGE_PLANNING = "#E5243B";
-const AXE_DEBUT = 9;   // heure de début de l'axe (9h)
-const AXE_FIN = 24;    // heure de fin de l'axe (minuit)
-const PX_HEURE = 48;
 
 function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOuvrirFenetre }) {
-  const refDefil = useRef(null);
   const estAujourdhui = date === todayISO();
-  useEffect(() => {
-    if (!refDefil.current) return;
-    const n = new Date();
-    const h = estAujourdhui ? n.getHours() + n.getMinutes() / 60 : PLAGE_MATIN.debut;
-    refDefil.current.scrollTop = Math.max(0, (h - AXE_DEBUT - 1.5) * PX_HEURE);
-  }, [date, estAujourdhui]);
   const [now, setNow] = useState(new Date());
   useEffect(() => { const i = setInterval(() => setNow(new Date()), 60000); return () => clearInterval(i); }, []);
-  const hauteur = (AXE_FIN - AXE_DEBUT) * PX_HEURE;
+  const PX = 64; // px par heure
   const valeur = (heure) => { const [h, m] = String(heure).split(":").map(Number); return h + (m || 0) / 60; };
-  const avecHeure = tasks.filter((t) => t.heure && valeur(t.heure) >= AXE_DEBUT);
-  const sansHeure = tasks.filter((t) => !t.heure || valeur(t.heure) < AXE_DEBUT);
   const nowH = now.getHours() + now.getMinutes() / 60;
-  const nowTop = (nowH - AXE_DEBUT) * PX_HEURE;
-  const heures = Array.from({ length: AXE_FIN - AXE_DEBUT }, (_, i) => AXE_DEBUT + i);
-  const colonne = (id, titre, Icone, fond, entete, couleur, filtre) => (
-    <div className="relative flex-1 min-w-0" style={{ backgroundColor: fond }}>
-      <div className="sticky top-0 z-20 h-11 flex items-center justify-center gap-2 text-sm font-semibold" style={{ backgroundColor: entete, color: couleur }}>
-        <Icone size={20} /> {titre}
-      </div>
-      <div className="relative" style={{ height: hauteur }}>
-        {heures.map((h, i) => <div key={h} className="absolute left-0 right-0 border-t border-black/5" style={{ top: i * PX_HEURE }} />)}
-        {avecHeure.filter(filtre).map((t) => {
-          const top = (valeur(t.heure) - AXE_DEBUT) * PX_HEURE;
-          const hh = Math.max(((t.duree || 15) / 60) * PX_HEURE, 36);
-          const done = !!t.completions?.[date]?.[employeeId];
-          const special = TACHES_OUVRE_FENETRE.some((ts) => t.titre.startsWith(ts));
-          return (
-            <button key={t.id} type="button" onClick={() => (special && onOuvrirFenetre ? onOuvrirFenetre(t) : onToggle(t, date, employeeId, actorId))}
-              className="absolute left-2 right-2 text-left rounded-md px-2.5 py-1 z-10 flex items-center gap-2 shadow-sm"
-              style={{ top, height: hh, backgroundColor: done ? "#EEF0EE" : "#FFF1CC", borderLeft: `4px solid ${done ? "#8A938D" : "#E8A317"}`, color: done ? "#6B746E" : "#7A4B00" }}>
-              <span className={`text-sm font-semibold truncate ${done ? "line-through" : ""}`}>{t.heure} - {t.titre}</span>
-            </button>
-          );
-        })}
-      </div>
-    </div>
-  );
-  return (
-    <div>
-      <div className="rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
-        <div ref={refDefil} className="flex overflow-y-auto" style={{ maxHeight: "26rem" }}>
-          <div className="w-16 shrink-0 bg-white border-r border-[var(--cadre)]">
-            <div className="sticky top-0 z-20 h-11 flex items-center justify-center text-sm font-semibold text-[var(--ink)] bg-white">Horaires</div>
-            <div className="relative" style={{ height: hauteur }}>
-              {heures.map((h, i) => <div key={h} className="absolute left-0 right-0 text-center text-[13px] text-[var(--ink)]" style={{ top: i * PX_HEURE - 8 }}>{i === 0 ? "" : String(h).padStart(2, "0") + ":00"}</div>)}
-              {estAujourdhui && nowTop > 0 && nowTop < hauteur && (
-                <div className="absolute left-1 right-0 z-30 text-center text-xs font-bold text-white rounded py-0.5" style={{ top: nowTop - 10, backgroundColor: ROUGE_PLANNING }}>{String(now.getHours()).padStart(2, "0")}:{String(now.getMinutes()).padStart(2, "0")}</div>
-              )}
-            </div>
+  const dansPlage = (t, pl) => t.heure && valeur(t.heure) >= pl.debut && valeur(t.heure) < pl.fin;
+  const horsPlage = tasks.filter((t) => !dansPlage(t, PLAGE_MATIN) && !dansPlage(t, PLAGE_SOIR));
+  const panneau = (pl, Icone, fond, entete, couleur) => {
+    const hauteur = (pl.fin - pl.debut) * PX;
+    const heuresPleines = []; for (let h = Math.ceil(pl.debut); h <= Math.floor(pl.fin); h++) heuresPleines.push(h);
+    const nowTop = (nowH - pl.debut) * PX;
+    return (
+      <div className="flex-1 min-w-0 rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
+        <div className="h-11 flex items-center justify-center gap-2 text-sm font-semibold" style={{ backgroundColor: entete, color: couleur }}>
+          <Icone size={20} /> {pl.label.replace("-", " - ")}
+        </div>
+        <div className="flex">
+          <div className="w-14 shrink-0 relative border-r border-[var(--cadre)] bg-white" style={{ height: hauteur }}>
+            {heuresPleines.map((h) => <div key={h} className="absolute left-0 right-0 text-center text-[13px] text-[var(--ink)]" style={{ top: (h - pl.debut) * PX - 8 }}>{String(h).padStart(2, "0")}:00</div>)}
+            {estAujourdhui && nowTop > 0 && nowTop < hauteur && (
+              <div className="absolute left-1 right-1 z-20 text-center text-xs font-bold text-white rounded py-0.5" style={{ top: nowTop - 10, backgroundColor: ROUGE_PLANNING }}>{String(now.getHours()).padStart(2, "0")}:{String(now.getMinutes()).padStart(2, "0")}</div>
+            )}
           </div>
-          {colonne("matin", PLAGE_MATIN.label.replace("h00", "h00").replace("-", " - "), IcSoleil, "#EAF7EF", "#CDEED9", "#14653A", (t) => valeur(t.heure) < 16)}
-          {colonne("soir", PLAGE_SOIR.label.replace("-", " - "), IcLune, "#E9F0FB", "#CFDFF6", "#1B4F9C", (t) => valeur(t.heure) >= 16)}
-          {estAujourdhui && nowTop > 0 && nowTop < hauteur && (
-            <div className="absolute pointer-events-none" />
-          )}
+          <div className="relative flex-1 min-w-0" style={{ height: hauteur, backgroundColor: fond }}>
+            {heuresPleines.map((h) => <div key={h} className="absolute left-0 right-0 border-t border-black/10" style={{ top: (h - pl.debut) * PX }} />)}
+            {estAujourdhui && nowTop > 0 && nowTop < hauteur && <div className="absolute left-0 right-0 z-10 border-t-2 border-dashed" style={{ top: nowTop, borderColor: ROUGE_PLANNING }} />}
+            {tasks.filter((t) => dansPlage(t, pl)).map((t) => {
+              const top = (valeur(t.heure) - pl.debut) * PX;
+              const hh = Math.max(((t.duree || 15) / 60) * PX, 36);
+              const done = !!t.completions?.[date]?.[employeeId];
+              const special = TACHES_OUVRE_FENETRE.some((ts) => t.titre.startsWith(ts));
+              return (
+                <button key={t.id} type="button" onClick={() => (special && onOuvrirFenetre ? onOuvrirFenetre(t) : onToggle(t, date, employeeId, actorId))}
+                  className="absolute left-2 right-2 text-left rounded-md px-2.5 py-1 z-10 flex items-center gap-2 shadow-sm"
+                  style={{ top, height: hh, backgroundColor: done ? "#EEF0EE" : "#FFF1CC", borderLeft: `4px solid ${done ? "#8A938D" : "#E8A317"}`, color: done ? "#6B746E" : "#7A4B00" }}>
+                  <span className={`text-sm font-semibold truncate ${done ? "line-through" : ""}`}>{t.heure} - {t.titre}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
       </div>
-      {sansHeure.length > 0 && (
-        <p className="text-xs text-[var(--steel)] mt-2">Sans horaire précis : {sansHeure.map((t) => t.titre).join(" · ")}</p>
+    );
+  };
+  return (
+    <div>
+      <div className="flex flex-col lg:flex-row gap-4">
+        {panneau(PLAGE_MATIN, IcSoleil, "#EAF7EF", "#CDEED9", "#14653A")}
+        {panneau(PLAGE_SOIR, IcLune, "#E9F0FB", "#CFDFF6", "#1B4F9C")}
+      </div>
+      {horsPlage.length > 0 && (
+        <p className="text-xs text-[var(--steel)] mt-2">Hors des plages affichées : {horsPlage.map((t) => `${t.heure ? t.heure + " " : ""}${t.titre}`).join(" · ")}</p>
       )}
     </div>
   );
