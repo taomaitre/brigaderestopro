@@ -10119,15 +10119,19 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
     );
   }
 
+  // Nouvelle base : mêmes catégories que l'écran Stock (toutes affichées, même vides).
+  const catDe = (p) => (modeMigre ? categorieStock({ conservation: p.conservation || "", categorie: p.categorieCatalogue || p.nom }) : categorieDeProduitDlc(p));
+  const listeCats = modeMigre ? CATEGORIES_STOCK.map((c) => c.nom) : categoriesPresentes;
+  const nbCat = (c) => produitsUniques.filter((p) => catDe(p) === c).length;
   const visibles = produitsTries.filter((p) => {
     const q = recherche.trim().toLowerCase();
-    return (catChoisie === "__tous__" || categorieDeProduitDlc(p) === catChoisie) && (!q || p.nom.toLowerCase().includes(q));
+    return (catChoisie === "__tous__" || catDe(p) === catChoisie) && (!q || p.nom.toLowerCase().includes(q));
   });
   const produitsSel = produitsUniques.filter((p) => selection.includes(p.id));
   const nbDe = (id) => Math.max(1, Number(nbParProduit[id]) || 1);
   const changerNb = (id, delta) => setNbParProduit((m) => ({ ...m, [id]: Math.max(1, (Number(m[id]) || 1) + delta) }));
   const totalEtiq = produitsSel.reduce((t, p) => t + nbDe(p.id), 0);
-  const infoCat = (c) => COULEURS_CAT_DLC[c] || ["#7C8794", "#fff"];
+  const infoCat = (c) => { if (modeMigre) { const x = CATEGORIES_STOCK.find((k) => k.nom === c); return x ? [x.fond, x.texte] : ["#7C8794", "#fff"]; } return COULEURS_CAT_DLC[c] || ["#7C8794", "#fff"]; };
   const boutonPm = "w-9 h-9 rounded-lg border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
   const lignesDepuisSelection = () => produitsSel.map((p) => ({
     produitId: p.id, nom: p.nom,
@@ -10165,10 +10169,10 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
               <span className="flex-1 min-w-0 text-sm font-semibold">Tous les produits <span className="font-normal opacity-80">({produitsUniques.length})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
-            {categoriesPresentes.map((cat) => { const [fond, texte] = infoCat(cat); return (
+            {listeCats.map((cat) => { const [fond, texte] = infoCat(cat); return (
               <button key={cat} type="button" onClick={() => setCatChoisie(cat)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: fond, color: texte, outline: catChoisie === cat ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
                 <Package size={20} className="shrink-0" />
-                <span className="flex-1 min-w-0 text-sm font-semibold">{cat} <span className="font-normal opacity-80">({parCategorie[cat].length})</span></span>
+                <span className="flex-1 min-w-0 text-sm font-semibold">{cat} <span className="font-normal opacity-80">({nbCat(cat)})</span></span>
                 <ChevronRight size={16} className="shrink-0 hidden lg:block" />
               </button>
             ); })}
@@ -10189,7 +10193,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
           </div>
           {visibles.length === 0 && <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>}
           {visibles.map((p) => {
-            const sel = selection.includes(p.id); const cat = categorieDeProduitDlc(p); const [fond, texte] = infoCat(cat);
+            const sel = selection.includes(p.id); const cat = catDe(p); const [fond, texte] = infoCat(cat);
             const ddm = estDdm(p); const dateLim = dlcCalculeeProduit(p);
             const lotActuel = ddm ? (p.ddmLotActuel || "") : genererLot(p.nom);
             const jours = ddm ? (dateLim ? Math.max(0, Math.round((new Date(dateLim + "T00:00:00") - new Date(todayISO() + "T00:00:00")) / 86400000)) : null) : (p.dlcJours ?? 0);
@@ -17258,7 +17262,7 @@ function KitchenApp({ identiteExterne } = {}) {
     return cat.filter((c) => !["entretien", "emballage", "autre"].includes(c.conservation)).map((c) => {
       const jours = c.dlcJours == null ? null : Number(c.dlcJours);
       return {
-        id: c.id, nom: c.nom, poste: "", reference: c.reference || "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
+        id: c.id, nom: c.nom, poste: "", reference: c.reference || "", conservation: c.conservation || "", categorieCatalogue: c.categorie || "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
         typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), dlcJours: jours,
         ddmLotActuel: c.lot || null, ddmDateActuelle: c.dlc || null,
       };
