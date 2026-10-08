@@ -18404,15 +18404,23 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "haccp" && (
           <div>
-            <SectionHeader title="HACCP" subtitle="Les contrôles de sécurité alimentaire de la cuisine" />
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-6">
+            <div className="flex items-center gap-3 mb-5">
+              <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: "#FDE4E8", color: "#E5243B" }}><Thermometer size={30} /></span>
+              <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">HACCP</h2><p className="text-sm text-[var(--steel)]">Les contrôles de sécurité alimentaire de la cuisine</p></div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {NAV_HACCP.map((n) => {
                 const couleur = TUILE_COULEURS[n.id] || TUILE_COULEURS.default; const Icon = n.icon;
+                const desc = { haccpTemp: "Suivez et enregistrez les températures de vos équipements", haccpRefroid: "Contrôlez vos cycles de refroidissement et vos enregistrements", haccpHuile: "Suivez la qualité et la durée d'utilisation de vos huiles", haccpChaud: "Vérifiez et enregistrez les températures de maintien", haccpCuisson: "Contrôlez et enregistrez les températures de cuisson" }[n.id] || "";
                 return (
                   <button key={n.id} onClick={() => setTab(n.id)} style={{ background: couleur.fond, boxShadow: `0 8px 20px ${couleur.ombre}` }}
-                    className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[95px] px-2 text-center active:scale-95 transition-transform">
-                    <Icon size={32} color="#ffffff" strokeWidth={2} />
-                    <span className="text-sm font-bold text-white leading-tight line-clamp-2">{n.label}</span>
+                    className="relative overflow-hidden rounded-2xl text-left min-h-[150px] md:min-h-[180px] px-5 py-5 flex items-center gap-4 active:scale-[0.98] transition-transform">
+                    <Icon size={150} color="#ffffff" strokeWidth={1.4} className="absolute -right-4 top-1/2 -translate-y-1/2 opacity-25 pointer-events-none" />
+                    <span className="relative w-14 h-14 rounded-xl bg-white/25 flex items-center justify-center shrink-0"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
+                    <span className="relative min-w-0 pr-16 md:pr-28">
+                      <span className="block text-xl md:text-2xl font-bold text-white leading-tight">{n.label}</span>
+                      <span className="block text-sm md:text-base text-white/90 mt-1.5">{desc}</span>
+                    </span>
                   </button>
                 );
               })}
