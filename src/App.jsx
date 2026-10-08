@@ -9606,44 +9606,75 @@ function EditeurEtiquette({ nom, historique, creerEtiquetteDlc, currentUserId, w
 // montre déjà elle-même le nom, la DLC et le lot — on ne redemande jamais rien à taper. Enregistrée
 // avec la date, l'heure et le nom de la personne, conservée 2 mois, retrouvable dans le contrôle
 // traçabilité du chef/direction. Plusieurs produits à la suite : juste reprendre une photo.
-function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple }) {
+function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, dernieres = [], who }) {
   // Plusieurs photos possibles ici aussi (pas réservé au palier avec IA) : le nom, la DLC et le lot
   // ne sont pas toujours tous lisibles sur une seule face de l'emballage.
   const [photos, setPhotos] = useState([]);
   const [enregistre, setEnregistre] = useState(false);
+  const [photoOuverte, setPhotoOuverte] = useState(null);
 
   const confirmer = () => {
     if (photos.length === 0) return;
     enregistrerTracabilitePhotoSimple(photos);
     setEnregistre(true);
   };
-
   const nouveau = () => { setPhotos([]); setEnregistre(false); };
+  const fmtJour = (d) => (d ? d.split("-").reverse().join("/") : "");
 
-  if (enregistre) {
-    return (
-      <Card className="mb-6 flex flex-col items-center text-center gap-3 py-8">
-        <div className="w-12 h-12 rounded-full flex items-center justify-center text-[var(--accent)]" style={{ background: "var(--accent-soft)" }}><CheckCircle2 size={26} /></div>
-        <p className="text-sm text-[var(--ink)] font-medium">Traçabilité enregistrée — photo(s) conservée(s) 2 mois.</p>
-        <Button onClick={nouveau}><Camera size={16} /> Photographier un autre produit</Button>
-      </Card>
-    );
-  }
-
-  return (
-    <Card className="mb-6">
-      <h3 className="font-semibold text-[var(--ink)] mb-1">Ajouter une traçabilité</h3>
-      <p className="text-xs text-[var(--steel)] mb-4">Photographiez l'étiquette du produit, bien lisible (nom, DLC/DDM, numéro de lot) — plusieurs photos si besoin (devant/dos de l'emballage). Cliquez sur une photo pour l'agrandir et vérifier qu'elle est lisible.</p>
+  const carteAjout = enregistre ? (
+    <Card className="flex flex-col items-center text-center gap-3 py-10">
+      <div className="w-14 h-14 rounded-full flex items-center justify-center text-[var(--accent)]" style={{ background: "var(--accent-soft)" }}><CheckCircle2 size={30} /></div>
+      <p className="text-base text-[var(--ink)] font-semibold">Traçabilité enregistrée</p>
+      <p className="text-sm text-[var(--steel)]">Photo(s) conservée(s) 2 mois, classée(s) par jour.</p>
+      <Button onClick={nouveau}><Camera size={16} /> Photographier un autre produit</Button>
+    </Card>
+  ) : (
+    <Card className="flex flex-col items-center text-center">
+      <h3 className="text-xl font-bold text-[var(--ink)] self-start">Ajouter une traçabilité</h3>
+      <p className="text-sm text-[var(--steel)] self-start text-left mb-5">Photographiez l'étiquette du produit, bien lisible (nom, DLC/DDM, numéro de lot). Plusieurs photos si besoin (devant et dos de l'emballage).</p>
+      <PhotoInput rond geant value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"} />
+      <p className="text-base font-bold text-[var(--ink)] mt-4">{photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"}</p>
       {photos.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {photos.map((p, i) => (
-            <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
-          ))}
+        <div className="w-full mt-5 pt-4 border-t border-[var(--line)]">
+          <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo{photos.length > 1 ? "s" : ""} prise{photos.length > 1 ? "s" : ""} — cliquez pour agrandir et vérifier</p>
+          <div className="flex flex-wrap justify-center gap-3 mb-4">
+            {photos.map((p, i) => (
+              <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
+            ))}
+          </div>
+          <button type="button" onClick={confirmer} className="w-full h-12 rounded-lg text-white text-base font-bold" style={{ backgroundColor: "#1E7B4B" }}>Valider la traçabilité</button>
         </div>
       )}
-      <PhotoInput value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"} />
-      <Button className="mt-3 w-full justify-center" onClick={confirmer} disabled={photos.length === 0}><Camera size={16} /> Enregistrer la traçabilité</Button>
     </Card>
+  );
+
+  return (
+    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-4 mb-6">
+      {carteAjout}
+      <Card>
+        <div className="flex items-center gap-3 mb-4"><Clock size={24} className="text-[#1B4F9C]" /><h3 className="text-xl font-bold text-[#1B4F9C]">Dernières traçabilités</h3></div>
+        {dernieres.length === 0 ? <p className="text-sm text-[var(--steel)] py-6">Aucune traçabilité enregistrée pour l'instant.</p> : (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+            {dernieres.map((d) => (
+              <button key={d.id} type="button" onClick={() => setPhotoOuverte(d)} className="text-left rounded-xl border border-[var(--cadre)] overflow-hidden bg-white hover:shadow-md transition-shadow">
+                {d.photo ? <img src={d.photo} alt="" className="w-full h-28 object-cover" /> : <div className="w-full h-28 bg-[var(--bg)]" />}
+                <div className="px-2.5 py-2">
+                  <div className="text-xs text-[var(--steel)]">{fmtJour(d.date)} · {d.heure}</div>
+                  <div className="text-xs text-[var(--ink)] font-medium">{(who && who(d.employeeId)) || ""}{d.photos && d.photos.length > 1 ? ` · ${d.photos.length} photos` : ""}</div>
+                </div>
+              </button>
+            ))}
+          </div>
+        )}
+      </Card>
+      {photoOuverte && (
+        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4" onClick={() => setPhotoOuverte(null)}>
+          <div className="flex flex-wrap justify-center gap-3 max-h-[75vh] overflow-y-auto">{(photoOuverte.photos && photoOuverte.photos.length ? photoOuverte.photos : [photoOuverte.photo]).filter(Boolean).map((p, i) => <img key={i} src={p} alt="" className="max-w-full max-h-[70vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />)}</div>
+          <p className="text-white text-sm mt-3">{fmtJour(photoOuverte.date)} · {photoOuverte.heure}</p>
+          <Button className="mt-3" onClick={() => setPhotoOuverte(null)}>Fermer</Button>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -9909,14 +9940,16 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
 
   return (
     <div>
-      <SectionHeader title="Traçabilité" subtitle={sansIA ? "Photographiez l'étiquette du produit : la photo est conservée et classée par jour" : "Enregistrez la traçabilité d'un produit par photo, ou recherchez une traçabilité déjà enregistrée"} />
-
-      <BoutonInfosNormes ficheKey="tracabilite" onClick={ouvrirNormes} label="Qu'est-ce qu'une traçabilité et comment bien la faire" />
+      <BoutonInfosNormes ficheKey="tracabilite" onClick={ouvrirNormes} label="Qu'est-ce qu'une traçabilité et comment bien la faire" texte="Cliquez pour lire les règles officielles : informations à conserver, durée de conservation, rappel de produits." />
+      <div className="flex items-center gap-3 mb-4">
+        <span className="w-14 h-14 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={28} /></span>
+        <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Traçabilité</h2><p className="text-sm text-[var(--steel)]">{sansIA ? "Photographiez l'étiquette du produit : la photo est conservée et classée par jour" : "Enregistrez la traçabilité d'un produit par photo, ou recherchez une traçabilité déjà enregistrée"}</p></div>
+      </div>
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
 
       {IA_ACTIVEE && !sansIA
         ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} />
-        : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} />}
+        : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} who={who} dernieres={preparations.filter((p) => p.typeEntree === "photo-simple").sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure)).slice(0, 8)} />}
 
       {!sansIA && <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-3">Rechercher une traçabilité</h3>
@@ -11562,7 +11595,7 @@ function BoutonInfosNormes({ ficheKey, onClick, label, texte }) {
   );
 }
 
-function PhotoInput({ value, onChange, label = "Prendre la photo", small = false, grand = false, rond = false }) {
+function PhotoInput({ value, onChange, label = "Prendre la photo", small = false, grand = false, rond = false, geant = false }) {
   const inputId = "photo-" + Math.random().toString(36).slice(2, 9);
   const handleFile = async (e) => {
     const file = e.target.files?.[0];
@@ -11577,8 +11610,8 @@ function PhotoInput({ value, onChange, label = "Prendre la photo", small = false
           <label htmlFor={inputId} className="text-xs text-[var(--accent)] font-medium cursor-pointer">Reprendre</label>
         </div>
       ) : rond ? (
-        <label htmlFor={inputId} aria-label={label} title={label} className="w-16 h-16 rounded-full flex items-center justify-center text-white cursor-pointer shadow-md hover:opacity-90" style={{ backgroundColor: "#1B4F9C" }}>
-          <Camera size={30} />
+        <label htmlFor={inputId} aria-label={label} title={label} className={`${geant ? "w-40 h-40" : "w-16 h-16"} rounded-full flex items-center justify-center text-white cursor-pointer shadow-md hover:opacity-90`} style={geant ? { backgroundColor: "#1E7B4B", boxShadow: "0 0 0 8px #E7F1EB" } : { backgroundColor: "#1B4F9C" }}>
+          <Camera size={geant ? 68 : 30} />
         </label>
       ) : (
         <label htmlFor={inputId} style={grand ? { backgroundColor: "#C1432D", color: "#ffffff", borderColor: "#C1432D" } : undefined} className={`inline-flex items-center gap-1.5 ${grand ? "px-5 py-3.5 text-base font-semibold border-solid" : "px-3 py-1.5 text-xs font-medium border-dashed"} rounded-lg border border-[var(--cadre)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]`}>
