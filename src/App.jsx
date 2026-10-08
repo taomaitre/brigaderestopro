@@ -75,6 +75,8 @@ const Snowflake = makeIcon([L(12, 2, 12, 22), L(2, 12, 22, 12), L(4.9, 4.9, 19.1
 const Flame = makeIcon([P("M8.5 14.5A2.5 2.5 0 0 0 11 12c0-1.38-.5-2-1-3-1.072-2.143-.224-4.054 2-6 .5 2.5 2 4.9 4 6.5 2 1.6 3 3.5 3 5.5a7 7 0 1 1-14 0c0-1.153.433-2.294 1-3a2.5 2.5 0 0 0 2.5 2.5z")]);
 const TrendingDown = makeIcon([P("m22 17-8.5-8.5-5 5L2 7"), P("M16 17h6v-6")]);
 const PhoneCall = makeIcon([P("M13 2a9 9 0 0 1 9 9"), P("M13 6a5 5 0 0 1 5 5"), P("M21.6 16.5c.3.9-.1 1.9-.9 2.3l-1.1.6a2 2 0 0 1-2.1-.2c-1.6-1.2-3-2.6-4.2-4.2a2 2 0 0 1-.2-2.1l.6-1.1c.4-.8 1.4-1.2 2.3-.9")]);
+const Bell = makeIcon([P("M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"), P("M10.3 21a1.94 1.94 0 0 0 3.4 0")]);
+const Building2 = makeIcon([P("M6 22V4a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v18Z"), P("M6 12H4a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2"), P("M18 9h2a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2h-2"), P("M10 6h4"), P("M10 10h4"), P("M10 14h4"), P("M10 18h4")]);
 const Clock = makeIcon([C(12, 12, 10), P("M12 6v6l4 2")]);
 const ClipboardList = makeIcon([RC(8, 2, 8, 4, 1), P("M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"), L(9, 12, 15, 12), L(9, 16, 15, 16), L(9, 20, 13, 20)]);
 const ArrowLeft = makeIcon([L(19, 12, 5, 12), P("m12 19-7-7 7-7")]);
@@ -1148,6 +1150,13 @@ function HorlogeEnTete() {
       <span className="text-2xl font-bold tracking-tight text-[var(--accent)] tabular-nums leading-none rounded-lg bg-[var(--accent-soft)] px-3 py-1.5">{h}:{m}</span>
     </div>
   );
+}
+
+function HorlogeSombre() {
+  const [maintenant, setMaintenant] = useState(new Date());
+  useEffect(() => { const id = setInterval(() => setMaintenant(new Date()), 15000); return () => clearInterval(id); }, []);
+  const h = String(maintenant.getHours()).padStart(2, "0"); const m = String(maintenant.getMinutes()).padStart(2, "0");
+  return <div className="text-2xl font-bold tabular-nums leading-none" style={{ color: "#6EE7A8" }}>{h}:{m}</div>;
 }
 
 function HorlogeCompacte() {
@@ -14270,6 +14279,26 @@ function CommandeVocaleFlottante({ onCommande }) {
   const [enEcoute, setEnEcoute] = useState(false);
   const [enTraitement, setEnTraitement] = useState(false);
   const [retour, setRetour] = useState(null);
+  // Bouton déplaçable au doigt (ou à la souris) : la position est mémorisée sur l'appareil.
+  const TAILLE_MICRO = 76;
+  const [pos, setPos] = useState(() => {
+    try { const v = JSON.parse(localStorage.getItem("mc-micro-pos") || "null"); if (v && Number.isFinite(v.x) && Number.isFinite(v.y)) return v; } catch (e) { /* stockage indisponible */ }
+    return null;
+  });
+  const glisse = useRef(null);
+  const bornes = (x, y) => ({ x: Math.min(Math.max(8, x), Math.max(8, window.innerWidth - TAILLE_MICRO - 8)), y: Math.min(Math.max(8, y), Math.max(8, window.innerHeight - TAILLE_MICRO - 8)) });
+  const positionActuelle = pos ? bornes(pos.x, pos.y) : { x: window.innerWidth - TAILLE_MICRO - 20, y: window.innerHeight - TAILLE_MICRO - 28 };
+  const debutGlisse = (e) => { glisse.current = { dx: e.clientX - positionActuelle.x, dy: e.clientY - positionActuelle.y, x0: e.clientX, y0: e.clientY, bouge: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } };
+  const pendantGlisse = (e) => {
+    const g = glisse.current; if (!g) return;
+    if (!g.bouge && Math.hypot(e.clientX - g.x0, e.clientY - g.y0) < 8) return;
+    g.bouge = true; setPos(bornes(e.clientX - g.dx, e.clientY - g.dy));
+  };
+  const finGlisse = () => {
+    const g = glisse.current; glisse.current = null;
+    if (g && g.bouge) { try { localStorage.setItem("mc-micro-pos", JSON.stringify(pos)); } catch (e) { /* ignore */ } }
+    return g;
+  };
 
   const supporteVocal = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
@@ -14324,17 +14353,19 @@ function CommandeVocaleFlottante({ onCommande }) {
   if (!supporteVocal) return null;
 
   return (
-    <div className="fixed bottom-6 right-4 flex flex-col items-end gap-2 print:hidden" style={{ zIndex: 9998 }}>
-      {retour && <div className="max-w-[230px] text-xs bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">{retour}</div>}
-      {enEcoute && <div className="text-xs bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">Je vous écoute...</div>}
+    <div className="fixed flex flex-col items-end gap-2 print:hidden" style={{ zIndex: 9998, left: positionActuelle.x, top: positionActuelle.y, touchAction: "none" }}>
+      {retour && <div className="absolute bottom-full right-0 mb-2 w-[230px] text-xs bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">{retour}</div>}
+      {enEcoute && <div className="absolute bottom-full right-0 mb-2 whitespace-nowrap text-xs bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">Je vous écoute...</div>}
       <button
-        onClick={demarrer}
-        disabled={enEcoute || enTraitement}
-        style={enEcoute ? { backgroundColor: "#C1432D" } : { backgroundColor: "#2F6B4F" }}
-        className={`w-16 h-16 rounded-full flex items-center justify-center text-white shadow-xl ${enEcoute ? "animate-pulse" : ""}`}
-        title="Commande vocale"
+        onPointerDown={debutGlisse}
+        onPointerMove={pendantGlisse}
+        onPointerUp={() => { const g = finGlisse(); if (g && !g.bouge && !enEcoute && !enTraitement) demarrer(); }}
+        onPointerCancel={finGlisse}
+        style={{ width: TAILLE_MICRO, height: TAILLE_MICRO, backgroundColor: enEcoute ? "#F59E0B" : "#1769D6", border: "4px solid #111111", boxShadow: "0 0 0 3px #ffffff, 0 10px 24px rgba(0,0,0,0.45)", touchAction: "none", cursor: "grab" }}
+        className={`rounded-full flex items-center justify-center text-white select-none ${enEcoute ? "animate-pulse" : ""}`}
+        title="Commande vocale — glissez pour déplacer"
       >
-        {enTraitement ? <Loader2 size={26} className="animate-spin" /> : <Mic size={28} />}
+        {enTraitement ? <Loader2 size={32} className="animate-spin" /> : <Mic size={36} />}
       </button>
     </div>
   );
@@ -16379,6 +16410,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // dessous — en reprenant la tablette, elle retrouve exactement où elle en était, comme en
   // déverrouillant un téléphone.
   const [verrouille, setVerrouille] = useState(false);
+  const [menuProfil, setMenuProfil] = useState(false);
   const [refroidissementSuggere, setRefroidissementSuggere] = useState(null);
   const [cuissonSuggere, setCuissonSuggere] = useState(null);
   const [maintienChaudSuggere, setMaintienChaudSuggere] = useState(null);
@@ -17378,6 +17410,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const alertesTemp = tempLogs.filter((l) => l.date === todayISO() && !isTempOk(l.type, l.valeur)).length + relevesFroid.filter((r) => r.date === todayISO() && !r.conforme).length;
   const alertesStock = stock.filter((s) => Number(s.quantite) < Number(s.cible)).length;
   const badges = { haccp: alertesTemp, stock: alertesStock };
+  const reglagesEtablissementApp = modeExterne ? identiteExterne.reglagesEtablissement : null;
+  const nbNotifications = (alertesControle || []).filter((a) => !a.vue).length;
 
   const moi = modeExterne
     ? { id: identiteExterne.employeId, nom: identiteExterne.employeNom, poste: identiteExterne.employePoste, estChef: !!identiteExterne.estChef }
@@ -17438,7 +17472,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
-    <div className={`min-h-screen flex flex-col ${modeExterne ? "" : "md:flex-row"}`} style={{
+    <div className={`min-h-screen flex flex-col ${modeExterne ? "md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[auto_1fr]" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
       "--gold": "#B98A2E", "--gold-soft": "#F5ECD8",
@@ -17542,45 +17576,66 @@ function KitchenApp({ identiteExterne } = {}) {
         />
       )}
 
-      {/* nav desktop */}
+      {/* En-tête sombre (tablette / ordinateur) : logo, établissement, date et heure, notifications, profil */}
       {modeExterne && (
-        <div className="hidden md:block sticky top-0 z-30 bg-white border-b border-[var(--line)] shadow-sm">
-          <div className="flex items-center justify-between gap-4 px-6 py-2.5">
-            {typeAppareil !== "telephone" ? (
-              <button onClick={switchAccount} className="flex items-center gap-3 min-w-0 text-left group">
-                <Avatar nom={moi?.nom} size={40} />
-                <span className="min-w-0">
-                  <span className="block text-lg font-semibold text-[var(--ink)] truncate leading-tight">{moi?.nom}</span>
-                  <span className="block text-xs text-[var(--steel)] group-hover:text-[var(--accent)]">Changer de compte</span>
-                </span>
-              </button>
-            ) : (
-              <div className="flex items-center gap-3 min-w-0">
-                <Avatar nom={moi?.nom} size={40} />
-                <span className="text-lg font-semibold text-[var(--ink)] truncate">{moi?.nom}</span>
-              </div>
-            )}
-            <HorlogeEnTete />
+        <header className="hidden md:flex md:col-span-2 sticky top-0 z-40 items-center gap-4 px-5 h-[4.25rem] text-white" style={{ backgroundColor: "#121821", borderBottom: "1px solid #232C3A" }}>
+          <button onClick={() => setTab("accueil")} className="flex items-center gap-3 text-left shrink-0" title="Accueil">
+            <UtensilsCrossed size={34} color="#ffffff" />
+            <span className="leading-none">
+              <span className="block text-[1.35rem] font-bold tracking-tight" style={{ fontFamily: "Georgia, 'Times New Roman', serif" }}>Brigade<span style={{ color: "#E5243B" }}>Resto</span>Pro</span>
+              <span className="block text-[0.6rem] tracking-[0.18em] text-white/70 mt-1">GESTION DE CUISINE ET HACCP</span>
+            </span>
+          </button>
+          <div className="flex items-center gap-2 ml-3 px-3 py-2 rounded-lg text-sm min-w-0" style={{ backgroundColor: "#1D2733", border: "1px solid #2E3A4B" }}>
+            <Building2 size={18} className="shrink-0" />
+            <span className="truncate">{moi?.nom}{reglagesEtablissementApp && reglagesEtablissementApp.nom ? ` (${reglagesEtablissementApp.nom})` : ""}</span>
           </div>
-          <nav className="grid gap-1.5 px-4 pb-2" style={{ gridTemplateColumns: `5rem repeat(${Math.max(1, Math.ceil(navItems.length / 2))}, minmax(0, 1fr))`, gridTemplateRows: "repeat(2, 2.25rem)" }}>
-            <button onClick={() => setTab("accueil")} style={{ gridRow: "span 2" }}
-              className={`flex flex-col items-center justify-center gap-0.5 rounded-lg border-2 text-xs font-bold transition-colors ${tab === "accueil" ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
-              <ChefHat size={24} />Accueil
+          <div className="flex-1" />
+          <div className="flex items-center gap-3 shrink-0">
+            <div className="text-right leading-tight">
+              <div className="text-sm text-white/90 capitalize">{fmtLong(todayISO())}</div>
+              <HorlogeSombre />
+            </div>
+            <button onClick={() => setTab(moi?.estChef ? "controle" : "taches")} className="relative w-11 h-11 rounded-lg flex items-center justify-center hover:bg-white/10" title="Notifications">
+              <Bell size={22} />
+              {nbNotifications > 0 && <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold flex items-center justify-center" style={{ backgroundColor: "#E5243B", color: "#fff" }}>{nbNotifications}</span>}
             </button>
-            {navItems.map((n) => (
-              <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
-                className={`relative flex items-center justify-center gap-1.5 px-2 rounded-lg border-2 text-[11px] font-semibold leading-[1.1] text-left transition-colors ${(tab === n.id || (n.id === "haccp" && NAV_HACCP.some((x) => x.id === tab))) ? "bg-[var(--accent)] border-[var(--accent)] text-white shadow-md" : "bg-white border-[var(--cadre)] text-[var(--ink)] hover:border-[var(--accent)] hover:text-[var(--accent)]"}`}>
-                <n.icon size={15} className="shrink-0" />
-                <span className="line-clamp-2 min-w-0">{n.label}</span>
-                {badges[n.id] > 0 && (
-                  <span className="absolute top-1 right-1 text-[10px] rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#C1432D", color: "#ffffff" }}>{badges[n.id]}</span>
-                )}
+            <div className="relative">
+              <button onClick={() => setMenuProfil(!menuProfil)} className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-white/10">
+                <span className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-base" style={{ backgroundColor: "#2F8F63", color: "#fff" }}>{initials(moi?.nom)}</span>
+                <ChevronDown size={16} />
               </button>
-            ))}
-          </nav>
-        </div>
+              {menuProfil && (
+                <div className="absolute right-0 top-[calc(100%+6px)] w-56 rounded-xl p-2 shadow-2xl text-sm" style={{ backgroundColor: "#1D2733", border: "1px solid #2E3A4B" }}>
+                  <div className="px-3 py-2 border-b border-white/10 mb-1"><div className="font-semibold">{moi?.nom}</div><div className="text-xs text-white/60">{moi?.estChef ? "Chef / direction" : (moi?.poste || "Équipe")}</div></div>
+                  {typeAppareil !== "telephone" && <button onClick={() => { setMenuProfil(false); switchAccount(); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10">Changer de compte</button>}
+                  <button onClick={() => { setMenuProfil(false); setVerrouille(true); }} className="w-full text-left px-3 py-2 rounded-lg hover:bg-white/10">Verrouiller la session</button>
+                </div>
+              )}
+            </div>
+          </div>
+        </header>
       )}
-      <aside className={`${modeExterne ? "hidden" : "hidden md:flex"} md:flex-col w-60 shrink-0 border-r border-[var(--line)] bg-white p-5`}>
+      {modeExterne && (
+        <aside className="hidden md:flex md:flex-col w-60 shrink-0 md:col-start-1 md:row-start-2 md:sticky md:top-[4.25rem] md:self-start p-3 gap-1 overflow-y-auto" style={{ backgroundColor: "#151C26", height: "calc(100vh - 4.25rem)" }}>
+          {[{ id: "accueil", label: "Accueil", icon: ChefHat }, ...navItems].map((n) => {
+            const actif = tab === n.id || (n.id === "haccp" && NAV_HACCP.some((x) => x.id === tab));
+            return (
+              <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
+                className="relative flex items-center gap-3 px-3 py-3 min-h-[48px] rounded-xl text-[15px] font-medium text-left transition-colors"
+                style={actif ? { backgroundColor: "#1F6B47", color: "#fff", boxShadow: "inset 4px 0 0 #6EE7A8" } : { color: "#C5CEDA" }}
+                onMouseEnter={(e) => { if (!actif) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.07)"; }}
+                onMouseLeave={(e) => { if (!actif) e.currentTarget.style.backgroundColor = "transparent"; }}>
+                <n.icon size={21} className="shrink-0" />
+                <span className="flex-1 leading-tight">{n.label}</span>
+                {badges[n.id] > 0 && <span className="text-[11px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#E5243B", color: "#fff" }}>{badges[n.id]}</span>}
+              </button>
+            );
+          })}
+        </aside>
+      )}
+      {!modeExterne && (
+      <aside className={`hidden md:flex md:flex-col w-60 shrink-0 border-r border-[var(--line)] bg-white p-5`}>
         <button onClick={() => setTab("accueil")} className="flex items-center gap-2 mb-6 px-1 text-left">
           <ChefHat size={22} className="text-[var(--accent)]" />
           <span className="font-semibold text-[var(--ink)] tracking-tight">Ma Cuisine</span>
@@ -17609,6 +17664,7 @@ function KitchenApp({ identiteExterne } = {}) {
           ))}
         </nav>
       </aside>
+      )}
 
       {/* header mobile */}
       <header className="md:hidden flex items-center justify-between gap-2 px-4 py-3 bg-white border-b border-[var(--line)]">
@@ -17637,7 +17693,7 @@ function KitchenApp({ identiteExterne } = {}) {
         </div>
       )}
 
-      <main className={`flex-1 p-4 sm:p-6 lg:p-8 pb-8 ${modeExterne ? "w-full" : "max-w-6xl"}`}>
+      <main className={`flex-1 p-4 sm:p-6 lg:p-8 pb-8 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
         <IndicateurHorsLigne />
         {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin) && (
           <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement}>Un refroidissement ou une surgélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
