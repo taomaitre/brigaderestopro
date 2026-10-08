@@ -30,6 +30,9 @@ const ANTHROPIC_API_KEY = ""; // ne pas remplir ici — voir commentaire ci-dess
 // deviendra un vrai interrupteur par client dans TON panneau d'administration à toi (le rôle
 // "constructeur"), invisible et inaccessible depuis l'application de chaque restaurant.
 const IA_ACTIVEE = true;
+// L'option IA est « disponible » seulement si elle est activée pour le client ET que l'écran n'est pas en mode sans IA
+// (nouvelle base : pas encore d'IA). Sans l'option, aucun bouton micro ni caméra-IA ne doit être visible.
+function iaDispo() { return IA_ACTIVEE && !(typeof window !== "undefined" && window.MC_SANS_IA); }
 
 /* ---------- icônes (style lucide, recréées en local, sans dépendance externe) ---------- */
 const { createElement: h } = React;
@@ -6825,7 +6828,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       )}
 
       {/* 1. Bandeau photo IA */}
-      <Card className="mb-5 border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)]">
+      {iaDispo() && (      <Card className="mb-5 border-2 border-dashed border-[var(--accent)] bg-[var(--accent-soft)]">
         <div className="flex items-start gap-3 flex-wrap">
           <div className="w-11 h-11 rounded-xl bg-[var(--accent)] flex items-center justify-center shrink-0">
             <Sparkles size={22} color="#fff" />
@@ -6849,7 +6852,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             )}
           </div>
         )}
-      </Card>
+      </Card>)}
 
       {/* Nouvelle version : questionnaire à gauche, aperçu de la fiche qui se remplit à droite (deux colonnes dès que l'écran est assez large : ordinateur, tablette, téléphone tourné). */}
       <div style={avecModes && deuxColonnes ? { display: "grid", gridTemplateColumns: "minmax(0,1fr) minmax(0,1fr)", gap: 24, alignItems: "start" } : undefined}>
@@ -9856,7 +9859,7 @@ function lancerEcouteVocale(onResultat, onErreur) {
 function ChampRechercheVocale({ value, onChange, placeholder, label }) {
   const [enEcoute, setEnEcoute] = useState(false);
   const [erreur, setErreur] = useState(null);
-  const supporteVocal = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const supporteVocal = iaDispo() && typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   const demarrer = () => {
     setErreur(null);
@@ -11573,7 +11576,11 @@ function PhotoVignetteZoomable({ src, onRetake, onRemove }) {
 // Carte réutilisable : prendre une photo (ou déposer une capture d'écran) et la faire lire par
 // l'IA pour en extraire une liste structurée (utilisée pour importer un planning ou des
 // réservations sans attendre une passerelle/API dédiée avec le logiciel externe du restaurant).
-function ImportPhotoIA({ titre, description, consigne, onResultats, boutonLabel = "Analyser la photo" }) {
+function ImportPhotoIA(props) {
+  if (!iaDispo()) return null;
+  return <ImportPhotoIAInterne {...props} />;
+}
+function ImportPhotoIAInterne({ titre, description, consigne, onResultats, boutonLabel = "Analyser la photo" }) {
   const inputId = "import-photo-ia-" + Math.random().toString(36).slice(2, 9);
   const [photo, setPhoto] = useState(null);
   const [enCours, setEnCours] = useState(false);
@@ -11815,7 +11822,7 @@ function ChampCauseNC({ value, onChange }) {
 function ChampTexteOuVocal({ value, onChange, placeholder, suggestions, permettreVocal = true }) {
   const [enEcoute, setEnEcoute] = useState(false);
   const [erreur, setErreur] = useState(null);
-  const supporteVocal = permettreVocal && typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const supporteVocal = permettreVocal && iaDispo() && typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
   const listId = React.useMemo(() => `suggestions-${uid()}`, []);
 
   const demarrerEcoute = async () => {
@@ -12793,44 +12800,72 @@ function etatTemperatureReception(type, texte) {
   return "ok";
 }
 
+// Les 3 relevés de température pris dès le départ : un par famille de produits (le logiciel en déduit seul
+// si chaque produit saisi ensuite est conforme ou non).
+const FAMILLES_TEMP = [
+  { id: "viande", titre: "Viande et poisson", sous: "viande fraîche, poisson, haché, plats cuisinés", norme: "de -1°C à +4°C (poisson : +3°C maximum)", types: ["viande", "poisson"], typeRef: "viande", fond: "#FDE4E8", bord: "#F6B8C2", couleur: "#B4233A", Ic: ChefHat },
+  { id: "frais", titre: "Produits frais", sous: "laitiers, œufs, charcuterie, produits réfrigérés", norme: "de -1°C à +4°C", types: ["frais"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
+  { id: "surgele", titre: "Surgelés", sous: "tous les produits congelés", norme: "-18°C ou moins (tolérance transport jusqu'à -15°C)", types: ["surgele"], typeRef: "surgele", fond: "#E6F0FA", bord: "#BCD3F2", couleur: "#14527F", Ic: Snowflake },
+];
+const CONSIGNE_ETIQUETTE_RECEPTION = "Tu regardes la photo d'un produit alimentaire reçu en cuisine professionnelle (étiquette ou emballage). Identifie si visible : le nom du produit, la référence/le code article, le numéro de lot, la date limite de consommation (DLC/DDM), les allergènes déclarés, l'origine/provenance indiquée et le numéro d'agrément sanitaire CE s'il est visible. Réponds UNIQUEMENT en JSON strict, sans texte autour, format exact : {\"nom\": \"...\" ou null, \"reference\": \"...\" ou null, \"lot\": \"...\" ou null, \"dlc\": \"AAAA-MM-JJ\" ou null, \"allergenes\": \"...\" ou null, \"origine\": \"...\" ou null, \"agrementSanitaire\": \"...\" ou null}. Mets null si l'information n'est pas visible, n'invente jamais.";
+
 function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logActivity, onDone, onCancel }) {
   const moi = employees.find((e) => e.id === currentUserId);
   const nomMoi = (moi && moi.nom) || optionsExterne.moiNom || "";
   const receptionId = React.useMemo(() => uid(), []);
   const [date] = useState(todayISO());
   const [heure] = useState(new Date().toTimeString().slice(0, 5));
-  const [etape, setEtape] = useState(1); // 1 fournisseur, 2 produits, 3 problèmes, 4 récapitulatif
+  const [etape, setEtape] = useState(1); // 1 fournisseur, 2 températures, 3 produits, 4 problèmes, 5 récapitulatif
   const [fournisseur, setFournisseur] = useState("");
   const [autreFournisseur, setAutreFournisseur] = useState(false);
   const [photosBon, setPhotosBon] = useState([]);
+  const [temps, setTemps] = useState({ viande: { valeur: "", aucun: false, photo: null }, frais: { valeur: "", aucun: false, photo: null }, surgele: { valeur: "", aucun: false, photo: null } });
   const [produits, setProduits] = useState([]);
   const [brouillon, setBrouillon] = useState(null); // produit en cours de saisie
-  const [refusOuvert, setRefusOuvert] = useState(false);
   const [detailsOuverts, setDetailsOuverts] = useState(false);
-  const [mode3, setMode3] = useState(null); // null | "manquant"
+  const [mode4, setMode4] = useState(null); // null | "manquant"
   const [manqNom, setManqNom] = useState("");
   const [manqQte, setManqQte] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState("");
   const [fini, setFini] = useState(false);
+  const [scanEnCours, setScanEnCours] = useState(false);
+  const [scanMsg, setScanMsg] = useState("");
 
+  const iaDispo = IA_ACTIVEE && !(typeof window !== "undefined" && window.MC_SANS_IA);
   const fournisseursConnus = [...new Set([...stock.map((s) => s.fournisseur), ...((optionsExterne && optionsExterne.fournisseurs) || [])].filter(Boolean))];
   const norm = (t) => String(t || "").trim().toLowerCase();
+  const majTemp = (id, patch) => setTemps((t) => ({ ...t, [id]: { ...t[id], ...patch } }));
 
-  const nouveauBrouillon = (kind) => ({ id: uid(), kind: kind || "normal", nom: "", reference: "", conservation: "", quantite: "", temperature: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", raison: "", quantiteNC: "", photoNC: null, ecartPrix: "" });
-  const commencer = (kind) => { setBrouillon(nouveauBrouillon(kind)); setRefusOuvert(false); setDetailsOuverts(false); };
+  const nouveauBrouillon = (kind) => ({ id: uid(), kind: kind || "normal", nom: "", reference: "", conservation: "", quantite: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", plusRenvoi: false, autrePb: false, raisonPb: "", quantitePb: "", photoPb: null });
+  const commencer = (kind) => { setBrouillon(nouveauBrouillon(kind)); setDetailsOuverts(false); setScanMsg(""); };
   const maj = (patch) => setBrouillon((b) => ({ ...b, ...patch }));
+
+  // ── Température et conformité : tout est déduit des 3 relevés de l'étape 2 ──
+  const familleDe = (conservation) => FAMILLES_TEMP.find((f) => f.types.includes(conservation)) || null;
+  const evalue = (p) => {
+    if (p.manquant) return {};
+    const fam = familleDe(p.conservation);
+    const t = fam ? temps[fam.id] : null;
+    const val = t && !t.aucun && String(t.valeur).trim() !== "" ? String(t.valeur) : "";
+    const etat = val !== "" ? etatTemperatureReception(p.conservation, val) : null;
+    const tNC = etat === "hors" || etat === "gele";
+    const renvoiePlus = p.kind === "plus" && p.plusRenvoi;
+    let raison = ""; let qNC = 0; let photoNC = null;
+    if (tNC) { raison = etat === "gele" ? "Produit frais reçu gelé (température hors norme)" : "Température non conforme"; qNC = p.quantite; photoNC = (t && t.photo) || null; }
+    else if (renvoiePlus) { raison = "Produit non commandé (livré en plus) — renvoyé"; qNC = p.quantite; }
+    else if (p.autrePb) { raison = p.raisonPb || "Problème signalé sur le produit"; qNC = p.quantitePb === "" ? p.quantite : p.quantitePb; photoNC = p.photoPb || null; }
+    else if (p.kind === "plus") raison = "Produit en plus (non commandé) conservé";
+    return { temperature: val, etatTemp: etat, tempNC: tNC, conforme: !(tNC || renvoiePlus || p.autrePb), raison, quantiteNC: qNC, photoNC, ecartPrix: 0 };
+  };
+  const produitsF = produits.map((p) => ({ ...p, ...evalue(p) }));
+  const nonConformes = produitsF.filter((p) => !p.conforme);
+  const tempsCompletes = FAMILLES_TEMP.every((f) => temps[f.id].aucun || String(temps[f.id].valeur).trim() !== "");
 
   // ── Aides de saisie du brouillon ──
   const suggestions = brouillon && brouillon.nom.trim().length >= 1 && !stock.some((s) => norm(s.nom) === norm(brouillon.nom))
     ? stock.filter((s) => norm(s.nom).includes(norm(brouillon.nom))).slice(0, 6) : [];
-  // Température déjà relevée sur un produit précédent du même type : proposée d'office (modifiable).
-  const tempPrecedente = (type) => {
-    const l = produits.filter((p) => p.conservation === type && p.temperature !== "" && p.temperature != null && !p.manquant);
-    return l.length ? String(l[l.length - 1].temperature) : "";
-  };
-  const choisirDuStock = (s) => maj({ nom: s.nom, reference: s.reference || "", conservation: s.conservation || "", temperature: tempPrecedente(s.conservation || "") });
-
+  const choisirDuStock = (s) => maj({ nom: s.nom, reference: s.reference || "", conservation: s.conservation || "" });
   const sitStock = (p) => {
     if (!p.conservation || !norm(p.nom)) return null;
     if (p.reference && stock.some((x) => norm(x.reference) === norm(p.reference))) return null;
@@ -12839,53 +12874,43 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
     return c.some((x) => !x.conservation) ? { type: "question", c } : { type: "distinct", c };
   };
   const existeDansStock = (p) => stock.some((x) => norm(x.nom) === norm(p.nom));
-
-  const etatTemp = brouillon && TYPES_A_TEMPERATURE.includes(brouillon.conservation) ? etatTemperatureReception(brouillon.conservation, brouillon.temperature) : null;
-  const tempNC = etatTemp === "hors" || etatTemp === "gele";
   const alimentaire = brouillon && TYPES_ALIMENTAIRES.includes(brouillon.conservation);
-  const aTemperature = brouillon && TYPES_A_TEMPERATURE.includes(brouillon.conservation);
-
+  const brouillonVide = !brouillon || (!brouillon.nom.trim() && !String(brouillon.quantite).trim() && !brouillon.lot.trim() && !brouillon.dlc);
   const manque = [];
-  if (brouillon) {
+  if (brouillon && !brouillonVide) {
     if (!brouillon.nom.trim()) manque.push("le nom du produit");
     if (!(Number(brouillon.quantite) > 0)) manque.push("la quantité");
     if (!brouillon.conservation) manque.push("le type de produit");
-    if (aTemperature && String(brouillon.temperature).trim() === "") manque.push("la température");
     if (alimentaire && !brouillon.lot.trim()) manque.push("le n° de lot");
     if (alimentaire && !brouillon.dlc) manque.push("la DLC / DDM");
     const sit = sitStock(brouillon);
     if (sit && sit.type === "question" && !brouillon.fusion) manque.push("le choix « même article ? »");
+    if (brouillon.autrePb && !brouillon.raisonPb.trim()) manque.push("la cause du problème");
   }
+  const enregistrerBrouillon = () => setProduits((prev) => (prev.some((x) => x.id === brouillon.id) ? prev.map((x) => (x.id === brouillon.id ? brouillon : x)) : [...prev, brouillon]));
+  const produitSuivant = () => { enregistrerBrouillon(); setBrouillon(nouveauBrouillon()); setDetailsOuverts(false); setScanMsg(""); };
+  const validerEtapeProduits = () => { if (!brouillonVide) enregistrerBrouillon(); setBrouillon(null); setEtape(4); };
+  const retirer = (id) => setProduits((prev) => prev.filter((p) => p.id !== id));
 
-  const ajouter = (p) => {
-    setProduits((prev) => {
-      const existe = prev.some((x) => x.id === p.id);
-      return existe ? prev.map((x) => (x.id === p.id ? p : x)) : [...prev, p];
-    });
-    setBrouillon(null); setRefusOuvert(false);
+  // Lecture de l'étiquette par l'IA (uniquement si l'option IA est activée)
+  const scannerEtiquette = async (dataUrl) => {
+    setScanEnCours(true); setScanMsg("");
+    const r = await analyserImage(dataUrl, CONSIGNE_ETIQUETTE_RECEPTION);
+    setScanEnCours(false);
+    if (r && (r.nom || r.lot || r.dlc || r.reference)) {
+      setBrouillon((b) => ({ ...b, nom: r.nom || b.nom, reference: r.reference || b.reference, lot: r.lot || b.lot, dlc: r.dlc || b.dlc, allergenes: r.allergenes || b.allergenes, origine: r.origine || b.origine, agrementSanitaire: r.agrementSanitaire || b.agrementSanitaire }));
+      setScanMsg("Étiquette lue : vérifiez les informations, complétez la quantité et le type, puis passez au produit suivant.");
+    } else setScanMsg("L'étiquette n'a pas pu être lue : saisissez les informations à la main.");
   };
-  const accepter = () => {
-    ajouter({ ...brouillon, conforme: true, raison: brouillon.kind === "plus" ? "Produit en plus (non commandé) conservé" : "", quantiteNC: 0, photoNC: null, ecartPrix: 0 });
-  };
-  const confirmerRefus = () => {
-    const forcee = tempNC;
-    ajouter({
-      ...brouillon, conforme: false, tempNC: forcee,
-      raison: forcee ? (etatTemp === "gele" ? "Produit frais reçu gelé (température hors norme)" : "Température non conforme") : (brouillon.kind === "plus" ? "Produit non commandé (livré en plus) — renvoyé" : brouillon.raison),
-      quantiteNC: forcee ? brouillon.quantite : (brouillon.quantiteNC === "" ? brouillon.quantite : brouillon.quantiteNC),
-    });
-  };
-  const refusPossible = brouillon && brouillon.nom.trim() && Number(brouillon.quantite) > 0 && (tempNC ? !!brouillon.photoNC : (brouillon.kind === "plus" || brouillon.raison.trim()));
 
   const ajouterManquant = () => {
     if (!manqNom.trim()) return;
     const q = manqQte || "1";
-    setProduits((prev) => [...prev, { id: uid(), kind: "manquant", manquant: true, nom: manqNom.trim(), reference: "", conservation: "", quantite: q, temperature: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", conforme: false, raison: "Produit manquant (non livré)", quantiteNC: q, photoNC: null, ecartPrix: 0 }]);
-    setManqNom(""); setManqQte(""); setMode3(null);
+    setProduits((prev) => [...prev, { id: uid(), kind: "manquant", manquant: true, nom: manqNom.trim(), reference: "", conservation: "", quantite: q, lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", conforme: false, raison: "Produit manquant (non livré)", quantiteNC: q, photoNC: null, ecartPrix: 0 }]);
+    setManqNom(""); setManqQte(""); setMode4(null);
   };
 
   // ── Mail pour le chef / directeur ──
-  const nonConformes = produits.filter((p) => !p.conforme);
   const construireMail = () => {
     const sujetType = nonConformes.some((p) => !p.manquant) ? "Non-conformités" : "Produits manquants";
     const sujet = `Réception du ${date} — ${fournisseur} — ${sujetType}${nonConformes.some((p) => p.manquant) && nonConformes.some((p) => !p.manquant) ? " et produits manquants" : ""}`;
@@ -12894,7 +12919,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
     const corps = [
       `Bonjour,`, ``,
       `Réception du ${date} à ${heure}, réceptionnée par ${nomMoi}.`, ``,
-      ...(retournes.length ? [`Les produits suivants présentent une non-conformité et sont retournés :`, ...retournes.map((p) => `- ${p.nom} — ${p.quantiteNC} — motif : ${p.raison}${p.tempNC && p.temperature !== "" ? ` (température relevée : ${p.temperature} °C)` : ""}${Number(p.ecartPrix) ? ` — écart de prix signalé : ${p.ecartPrix} €` : ""}`), ``] : []),
+      ...(retournes.length ? [`Les produits suivants présentent une non-conformité et sont retournés :`, ...retournes.map((p) => `- ${p.nom} — ${p.quantiteNC} — motif : ${p.raison}${p.tempNC && p.temperature !== "" ? ` (température relevée : ${p.temperature} °C)` : ""}`), ``] : []),
       ...(manquants.length ? [`Les produits suivants figuraient sur la commande / le bon de livraison mais n'ont pas été livrés :`, ...manquants.map((p) => `- ${p.nom} — ${p.quantiteNC} manquant(s)`), ``] : []),
       `Merci de bien vouloir établir un avoir ou un remboursement correspondant à ces articles${manquants.length ? " (ou de livrer les produits manquants)" : ""}, et de nous confirmer la bonne prise en compte.`, ``,
       ...(retournes.length ? [`Photos du bon de livraison et des non-conformités jointes à ce message (bon n° ${receptionId.slice(0, 8)}, consultable dans notre application de gestion).`, ``] : []),
@@ -12906,7 +12931,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   const valider = async () => {
     if (enCours) return;
     setEnCours(true); setErreur("");
-    const entrees = produits.map((p) => {
+    const entrees = produitsF.map((p) => {
       const qte = Number(p.quantite) || 0;
       const acceptee = p.conforme ? qte : Math.max(0, qte - (Number(p.quantiteNC) || 0));
       const t = p.temperature !== "" && p.temperature != null ? Number(String(p.temperature).replace(",", ".")) : null;
@@ -12914,7 +12939,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
         id: uid(), receptionId, date, heure, employeeId: currentUserId, fournisseur, produit: p.nom, quantite: acceptee, lot: p.lot, dlc: p.dlc,
         allergenes: p.allergenes || "", origine: p.origine || "", agrementSanitaire: p.agrementSanitaire || "", conforme: p.conforme,
         raison: p.conforme ? "" : p.raison, quantiteNC: p.conforme ? 0 : (Number(p.quantiteNC) || 0), photoNC: p.conforme ? null : p.photoNC,
-        ecartPrix: p.conforme ? 0 : (Number(p.ecartPrix) || 0), valideChef: false, photoBon: null, photosBon,
+        ecartPrix: 0, valideChef: false, photoBon: null, photosBon,
         reference: (p.reference || "").trim(), conservation: p.conservation || "", categorie: "", fusion: p.fusion || "",
         temperature: t != null && !Number.isNaN(t) ? t : null,
       };
@@ -12924,7 +12949,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
       const m = nonConformes.length ? construireMail() : null;
       await optionsExterne.enregistrer(entrees, photosBon, {
         fournisseur, date, heure, receptionIdLocal: receptionId, parNom: nomMoi,
-        notification: m ? { sujet: m.sujet, corps: m.corps, ecartPrix: nonConformes.reduce((t, p) => t + (Number(p.ecartPrix) || 0), 0), nonConformes: nonConformes.map((p) => ({ nom: p.nom, quantiteNC: p.quantiteNC, raison: p.raison, manquant: !!p.manquant, photoNC: p.photoNC || null, ecartPrix: Number(p.ecartPrix) || 0 })) } : null,
+        notification: m ? { sujet: m.sujet, corps: m.corps, ecartPrix: 0, nonConformes: nonConformes.map((p) => ({ nom: p.nom, quantiteNC: p.quantiteNC, raison: p.raison, manquant: !!p.manquant, photoNC: p.photoNC || null, ecartPrix: 0 })) } : null,
       });
     } catch (e) {
       setErreur("Enregistrement impossible : " + ((e && e.message) || e) + " — rien n'a été validé, vous pouvez réessayer.");
@@ -12932,24 +12957,37 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
       return;
     }
     setEnCours(false);
-    logActivity("Stock", "Réception validée", `${fournisseur} — ${produits.filter((p) => p.conforme).length} conforme(s), ${nonConformes.length} non conforme(s)`);
+    logActivity("Stock", "Réception validée", `${fournisseur} — ${produitsF.filter((p) => p.conforme).length} conforme(s), ${nonConformes.length} non conforme(s)`);
     setFini(true);
   };
 
+  // ── Éléments d'affichage communs ──
   const gros = "w-full text-left rounded-xl border-2 border-[var(--cadre)] px-4 py-4 text-base font-semibold text-[var(--ink)] hover:border-[var(--accent)] active:scale-[0.98] transition-all";
-  const libelleEtapes = ["Fournisseur", "Produits", "Problèmes", "Récapitulatif"];
+  const lab = "block text-sm font-semibold text-[var(--ink)] mb-1.5";
+  const libelleEtapes = ["Fournisseur", "Températures", "Produits", "Problèmes", "Récapitulatif"];
   const entete = (
-    <div className="flex items-center justify-between mb-4">
-      <button onClick={onCancel} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Annuler la réception</button>
-      <span className="text-sm font-semibold text-[var(--ink)]">Étape {etape} / 4 — {libelleEtapes[etape - 1]}</span>
+    <div className="mb-4">
+      <div className="flex items-center justify-between mb-2.5">
+        <button onClick={onCancel} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Annuler la réception</button>
+        <span className="text-sm font-semibold text-[var(--ink)]">Étape {etape} / 5 — {libelleEtapes[etape - 1]}</span>
+      </div>
+      <div className="flex gap-1.5">{libelleEtapes.map((_, i) => <span key={i} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: i < etape ? "#E5243B" : "#E3E6EA" }} />)}</div>
     </div>
   );
+  const pied = (gauche, centre, droite) => (
+    <div className="mt-6 pt-4 border-t border-[var(--line)] grid grid-cols-1 sm:grid-cols-[1fr_auto_1fr] items-center gap-3">
+      <div className="sm:justify-self-start">{gauche}</div>
+      <div className="justify-self-center">{centre}</div>
+      <div className="sm:justify-self-end flex gap-2 flex-wrap">{droite}</div>
+    </div>
+  );
+  const badge = (ok, texte) => <span className="text-xs font-bold px-2.5 py-1 rounded-full text-white whitespace-nowrap" style={{ backgroundColor: ok ? "#2F6B4F" : "#C1432D" }}>{texte}</span>;
 
   if (fini) {
     return (
       <Card>
         <div className="flex items-center gap-2 mb-1"><CheckCircle2 size={22} className="text-[var(--accent)]" /><h3 className="font-semibold text-lg text-[var(--ink)]">Réception validée</h3></div>
-        <p className="text-sm text-[var(--steel)] mb-2">{produits.filter((p) => p.conforme).length} article(s) ajouté(s) au stock{nonConformes.length ? `, ${nonConformes.length} à retourner ou à réclamer au fournisseur` : ""}.</p>
+        <p className="text-sm text-[var(--steel)] mb-2">{produitsF.filter((p) => p.conforme).length} article(s) ajouté(s) au stock{nonConformes.length ? `, ${nonConformes.length} à retourner ou à réclamer au fournisseur` : ""}.</p>
         {nonConformes.length > 0 && <p className="text-sm text-[var(--steel)] mb-5">Le chef et le directeur ont été prévenus dans leur onglet Contrôle & Gestion : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire.</p>}
         <Button onClick={onDone}>Terminer</Button>
       </Card>
@@ -12979,8 +13017,6 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               <span className="text-xs text-[var(--steel)] block mt-1">Il sera ajouté à la liste des fournisseurs « en attente des coordonnées » : le chef les complétera plus tard.</span>
             </div>
           )}
-          <Button onClick={() => { setEtape(2); if (produits.length === 0) commencer(); }} disabled={!fournisseur.trim()}>Suivant : les produits</Button>
-          {!fournisseur.trim() && <p className="text-sm text-[var(--warn)] mt-2">Choisissez le fournisseur pour continuer.</p>}
           <div className="mt-6 flex flex-col items-center text-center">
             <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo du bon <span className="font-normal text-[var(--steel)]">(facultative, conseillée)</span></p>
             {photosBon.length > 0 && (
@@ -12995,75 +13031,134 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             )}
             <PhotoInput rond value={null} onChange={(v) => setPhotosBon([...photosBon, v])} label={photosBon.length > 0 ? "Ajouter une autre page du bon" : "Photographier le bon de livraison"} />
           </div>
+          {pied(null, null, <>
+            {!fournisseur.trim() && <span className="text-sm text-[var(--warn)] self-center">Choisissez le fournisseur pour continuer.</span>}
+            <Button onClick={() => setEtape(2)} disabled={!fournisseur.trim()}>Suivant : les températures <ChevronRight size={16} /></Button>
+          </>)}
         </Card>
       </div>
     );
   }
 
-  // ── ÉTAPE 2 : produits (un par écran) ──
+  // ── ÉTAPE 2 : températures (3 relevés) ──
   if (etape === 2) {
-    if (!brouillon) {
-      return (
-        <div>
-          {entete}
-          <Card>
-            <h3 className="font-semibold text-lg text-[var(--ink)] mb-3">Produits saisis ({produits.length})</h3>
-            <div className="space-y-2 mb-4">
-              {produits.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-2 border border-[var(--cadre)] rounded-lg px-3 py-2">
-                  <div className="text-sm text-[var(--ink)]"><strong>{p.nom}</strong> — {p.quantite} <span className="text-xs text-[var(--steel)]">{LIBELLE_CONSERVATION[p.conservation] || ""}</span></div>
-                  <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: p.conforme ? "#2F6B4F" : "#C1432D" }}>{p.conforme ? "Accepté" : "Refusé"}</span>
-                </div>
-              ))}
-            </div>
-            <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={() => commencer()}><Plus size={16} /> Produit suivant</Button>
-              <Button variant="ghost" onClick={() => setEtape(3)} disabled={produits.filter((p) => !p.manquant).length === 0}>J'ai fini ma liste de produits</Button>
-            </div>
-            <div className="mt-4"><Button variant="ghost" onClick={() => setEtape(1)}><ArrowLeft size={15} /> Retour</Button></div>
-          </Card>
-        </div>
-      );
-    }
-    const b = brouillon;
-    const sit = sitStock(b);
-    const reconnu = existeDansStock(b);
-    const numero = produits.filter((p) => !p.manquant).length + (produits.some((p) => p.id === b.id) ? 0 : 1);
     return (
       <div>
         {entete}
         <Card>
-          <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">{b.kind === "plus" ? "Produit livré en plus (non commandé)" : `Produit ${numero}`}</h3>
-          <p className="text-sm text-[var(--steel)] mb-4">Fournisseur : {fournisseur}</p>
+          <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Relevez les températures de la livraison</h3>
+          <p className="text-sm text-[var(--steel)] mb-4">Une température à cœur par famille de produits. Le logiciel sait ensuite, pour chaque produit saisi, s'il est conforme ou non. Si une famille n'est pas dans cette livraison, cochez « Pas de produit ».</p>
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+            {FAMILLES_TEMP.map((f) => {
+              const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? etatTemperatureReception(f.typeRef, t.valeur) : null;
+              const nc = etat === "hors" || etat === "gele";
+              return (
+                <div key={f.id} className="rounded-xl border-2 p-4 flex flex-col" style={{ borderColor: nc ? "#C1432D" : f.bord, backgroundColor: "#fff" }}>
+                  <div className="flex items-center gap-3 mb-2">
+                    <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: f.fond, color: f.couleur }}><f.Ic size={26} /></span>
+                    <div className="min-w-0"><div className="text-base font-bold" style={{ color: f.couleur }}>{f.titre}</div><div className="text-xs text-[var(--steel)]">{f.sous}</div></div>
+                  </div>
+                  <p className="text-xs text-[var(--ink)] mb-3 rounded-md px-2.5 py-1.5" style={{ backgroundColor: f.fond }}>Norme : <b>{f.norme}</b></p>
+                  <label className={lab}>Température à cœur (°C)</label>
+                  <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" step="0.1" inputMode="decimal" disabled={t.aucun} placeholder="0.0" value={t.valeur} onChange={(e) => majTemp(f.id, { valeur: e.target.value })} />
+                  <div className="min-h-[2.75rem] mt-2 text-sm">
+                    {etat === "ok" && <p style={{ color: "#2F6B4F" }}>✓ Température conforme</p>}
+                    {etat === "tolerance" && <p style={{ color: "#2F6B4F" }}>✓ Accepté (tolérance transport) — au congélateur immédiatement</p>}
+                    {nc && <p className="font-semibold text-[var(--warn)]">⚠ Hors norme{etat === "gele" ? " : produit gelé (un produit frais ne doit pas arriver gelé)" : ""} — les produits de cette famille seront refusés.</p>}
+                  </div>
+                  {nc && (
+                    <div className="flex flex-col items-center text-center mb-3">
+                      <p className="text-xs text-[var(--ink)] mb-1.5">Photo du thermomètre (conseillée)</p>
+                      <PhotoInput rond value={t.photo} onChange={(v) => majTemp(f.id, { photo: v })} label="Photographier le thermomètre" />
+                    </div>
+                  )}
+                  <button type="button" onClick={() => majTemp(f.id, { aucun: !t.aucun, valeur: "", photo: null })} className="mt-auto h-11 rounded-lg border text-sm font-medium flex items-center justify-center gap-2" style={t.aucun ? { backgroundColor: "#E7F1EB", borderColor: "#2F6B4F", color: "#2F6B4F" } : { borderColor: "var(--cadre)", color: "var(--ink)", backgroundColor: "#fff" }}>
+                    {t.aucun ? "✓ " : ""}Pas de produit {f.id === "surgele" ? "surgelé" : f.id === "frais" ? "frais" : "de viande ou poisson"} aujourd'hui
+                  </button>
+                </div>
+              );
+            })}
+          </div>
+          {pied(<Button variant="ghost" onClick={() => setEtape(1)}><ArrowLeft size={15} /> Retour</Button>, null, <>
+            {!tempsCompletes && <span className="text-sm text-[var(--warn)] self-center">Relevez les 3 températures (ou cochez « Pas de produit »).</span>}
+            <Button onClick={() => { if (!brouillon) commencer(); setEtape(3); }} disabled={!tempsCompletes}>Suivant : les produits <ChevronRight size={16} /></Button>
+          </>)}
+        </Card>
+      </div>
+    );
+  }
 
-          <label className="text-sm font-medium text-[var(--ink)]">Nom du produit</label>
-          <input autoComplete="off" className={`${inputCls} mb-1`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => maj({ nom: e.target.value })} />
-          {suggestions.length > 0 && (
-            <div className="flex flex-wrap gap-2 mb-2">
-              {suggestions.map((s) => <button key={s.id} onClick={() => choisirDuStock(s)} className="text-sm px-3 py-1.5 rounded-full border border-[var(--accent)] text-[var(--accent)]">{s.nom}{s.conservation ? ` · ${LIBELLE_CONSERVATION[s.conservation] || s.conservation}` : ""}</button>)}
+  // ── ÉTAPE 3 : produits (un par écran) ──
+  if (etape === 3) {
+    if (!brouillon) { setTimeout(() => commencer(), 0); return null; }
+    const b = brouillon;
+    const sit = sitStock(b);
+    const reconnu = existeDansStock(b);
+    const numero = produits.filter((p) => !p.manquant).length + (produits.some((p) => p.id === b.id) ? 0 : 1);
+    const fam = familleDe(b.conservation);
+    const ev = evalue(b);
+    const peutContinuer = !brouillonVide ? manque.length === 0 : produits.some((p) => !p.manquant);
+    return (
+      <div>
+        {entete}
+        <Card>
+          <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
+            <div>
+              <h3 className="font-semibold text-lg text-[var(--ink)]">{b.kind === "plus" ? "Produit livré en plus (non commandé)" : `Produit ${numero}`}</h3>
+              <p className="text-sm text-[var(--steel)]">Fournisseur : {fournisseur}</p>
             </div>
-          )}
-          {b.nom.trim() && !reconnu && <p className="text-xs text-[var(--steel)] mb-2">Nouveau produit : il sera ajouté au stock.</p>}
+            {produits.filter((p) => !p.manquant).length > 0 && (
+              <div className="flex flex-wrap gap-1.5 justify-end">
+                {produitsF.filter((p) => !p.manquant && p.id !== b.id).map((p) => (
+                  <span key={p.id} className="inline-flex items-center gap-1.5 text-xs font-medium pl-2.5 pr-1.5 py-1 rounded-full border" style={{ borderColor: p.conforme ? "#B3E0C5" : "#F6B8C2", backgroundColor: p.conforme ? "#EAF6EF" : "#FDE4E8", color: p.conforme ? "#14653A" : "#B4233A" }}>
+                    {p.conforme ? "✓" : "✗"} {p.nom}
+                    <button type="button" onClick={() => retirer(p.id)} aria-label="Retirer" className="w-4 h-4 rounded-full bg-white/80 flex items-center justify-center"><X size={10} /></button>
+                  </span>
+                ))}
+              </div>
+            )}
+          </div>
 
-          <div className="grid grid-cols-2 gap-3 mt-3">
-            <div>
-              <label className="text-sm font-medium text-[var(--ink)]">Quantité reçue</label>
-              <input className={inputCls} type="number" inputMode="decimal" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
+          {scanMsg && <p className="text-sm rounded-lg px-3 py-2 mt-3" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{scanMsg}</p>}
+          {scanEnCours && <p className="text-sm mt-3 text-[var(--steel)]">Lecture de l'étiquette en cours…</p>}
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4">
+            <div className="sm:col-span-2">
+              <label className={lab}>Nom du produit</label>
+              <input autoComplete="off" className={`${inputCls} w-full`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => maj({ nom: e.target.value })} />
+              {suggestions.length > 0 && (
+                <div className="flex flex-wrap gap-2 mt-2">
+                  {suggestions.map((s) => <button key={s.id} onClick={() => choisirDuStock(s)} className="text-sm px-3 py-1.5 rounded-full border border-[var(--accent)] text-[var(--accent)]">{s.nom}{s.conservation ? ` · ${LIBELLE_CONSERVATION[s.conservation] || s.conservation}` : ""}</button>)}
+                </div>
+              )}
+              {b.nom.trim() && !reconnu && <p className="text-xs text-[var(--steel)] mt-1.5">Nouveau produit : il sera ajouté au stock.</p>}
             </div>
             <div>
-              <label className="text-sm font-medium text-[var(--ink)]">Famille de température</label>
-              <select className={inputCls} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value, temperature: b.temperature === "" || b.temperature === tempPrecedente(b.conservation) ? tempPrecedente(e.target.value) : b.temperature })}>
+              <label className={lab}>Quantité reçue</label>
+              <input className={`${inputCls} w-full`} type="number" inputMode="decimal" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
+            </div>
+            <div>
+              <label className={lab}>Type de produit</label>
+              <select className={`${inputCls} w-full`} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value })}>
                 <option value="">Choisir…</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
             </div>
+            <div>
+              <label className={lab}>N° de lot{alimentaire || !b.conservation ? "" : " (facultatif)"}</label>
+              <input className={`${inputCls} w-full`} value={b.lot} onChange={(e) => maj({ lot: e.target.value })} />
+            </div>
+            <div>
+              <label className={lab}>DLC / DDM{alimentaire || !b.conservation ? "" : " (facultatif)"}</label>
+              <ChampDateSaisie value={b.dlc} onChange={(v) => maj({ dlc: v })} placeholder="JJ/MM/AAAA ou MM/AAAA" />
+            </div>
           </div>
 
-          {sit && sit.type === "distinct" && <p className="text-xs text-[var(--steel)] mt-2">« {sit.c[0].nom} » existe déjà dans le stock en <strong>{LIBELLE_CONSERVATION[sit.c[0].conservation] || sit.c[0].conservation}</strong> : ce produit reçu en <strong>{LIBELLE_CONSERVATION[b.conservation]}</strong> sera un article distinct, sans toucher à l'autre.</p>}
+          {sit && sit.type === "distinct" && <p className="text-xs text-[var(--steel)] mt-3">« {sit.c[0].nom} » existe déjà dans le stock en <strong>{LIBELLE_CONSERVATION[sit.c[0].conservation] || sit.c[0].conservation}</strong> : ce produit reçu en <strong>{LIBELLE_CONSERVATION[b.conservation]}</strong> sera un article distinct, sans toucher à l'autre.</p>}
           {sit && sit.type === "question" && (
-            <div className="mt-2 rounded-lg p-3" style={{ backgroundColor: "var(--warn-soft)" }}>
+            <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: "var(--warn-soft)" }}>
               <p className="text-sm text-[var(--ink)] mb-1.5">« {sit.c[0].nom} » existe déjà dans le stock, sans type précisé. Ce produit reçu en <strong>{LIBELLE_CONSERVATION[b.conservation]}</strong> est-il le même article ?</p>
-              <select className={inputCls} value={b.fusion} onChange={(e) => maj({ fusion: e.target.value })}>
+              <select className={`${inputCls} w-full`} value={b.fusion} onChange={(e) => maj({ fusion: e.target.value })}>
                 <option value="">Choisir…</option>
                 <option value="existant">Oui, l'ajouter à l'article existant « {sit.c[0].nom} »</option>
                 <option value="nouveau">Non, créer un article distinct ({LIBELLE_CONSERVATION[b.conservation]})</option>
@@ -13071,121 +13166,120 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             </div>
           )}
 
-          {aTemperature && (
-            <div className="mt-3">
-              <label className="text-sm font-medium text-[var(--ink)]">Température à cœur (°C) — norme : {SEUILS_RECEPTION_NOUVEAU[b.conservation].label}</label>
-              <input className={inputCls} type="number" step="0.1" inputMode="decimal" value={b.temperature} onChange={(e) => maj({ temperature: e.target.value })} />
-              {b.temperature !== "" && b.temperature === tempPrecedente(b.conservation) && <p className="text-xs text-[var(--steel)] mt-1">Reprise de la température du produit précédent du même type — modifiez-la si elle est différente.</p>}
-              {etatTemp === "ok" && <p className="text-sm mt-1" style={{ color: "#2F6B4F" }}>✓ Température conforme</p>}
-              {etatTemp === "tolerance" && <p className="text-sm mt-1" style={{ color: "#2F6B4F" }}>✓ Accepté (tolérance transport) — à mettre au congélateur immédiatement</p>}
-              {tempNC && <p className="text-base font-semibold mt-1 text-[var(--warn)]">⚠ Hors norme{etatTemp === "gele" ? " : produit gelé ? (un produit frais ne doit pas arriver gelé)" : ""} — ce produit doit être refusé.</p>}
+          {/* Verdict automatique selon la température relevée à l'étape 2 */}
+          {fam && (
+            <div className="mt-4 rounded-xl border px-4 py-3 flex items-center gap-3 flex-wrap" style={{ borderColor: ev.tempNC ? "#F6B8C2" : fam.bord, backgroundColor: ev.tempNC ? "#FDE4E8" : fam.fond }}>
+              <fam.Ic size={22} style={{ color: ev.tempNC ? "#B4233A" : fam.couleur }} />
+              <div className="flex-1 min-w-0 text-sm text-[var(--ink)]">
+                {temps[fam.id].aucun || ev.temperature === ""
+                  ? <>Aucune température relevée pour « {fam.titre} ». <button type="button" className="underline font-semibold" onClick={() => setEtape(2)}>Retourner aux températures</button></>
+                  : <>Température relevée pour « {fam.titre} » : <b>{ev.temperature} °C</b></>}
+              </div>
+              {ev.temperature !== "" && badge(!ev.tempNC, ev.tempNC ? "Non conforme — refusé" : "Conforme")}
+            </div>
+          )}
+          {ev.tempNC && <p className="text-sm mt-2 text-[var(--warn)]">Ce produit sera refusé et retourné au fournisseur (le chef et le directeur en seront informés).</p>}
+
+          {b.kind === "plus" && (
+            <div className="mt-4">
+              <label className={lab}>Que faites-vous de ce produit non commandé ?</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => maj({ plusRenvoi: false })} className="h-12 rounded-lg border-2 text-sm font-semibold" style={!b.plusRenvoi ? { borderColor: "#2F6B4F", backgroundColor: "#E7F1EB", color: "#2F6B4F" } : { borderColor: "var(--cadre)", color: "var(--ink)" }}>Je le garde</button>
+                <button type="button" onClick={() => maj({ plusRenvoi: true })} className="h-12 rounded-lg border-2 text-sm font-semibold" style={b.plusRenvoi ? { borderColor: "#C1432D", backgroundColor: "#FDE4E8", color: "#C1432D" } : { borderColor: "var(--cadre)", color: "var(--ink)" }}>Je le renvoie</button>
+              </div>
             </div>
           )}
 
-          {!tempNC && b.conservation && !alimentaire && <p className="text-xs text-[var(--steel)] mt-3">Lot et DLC facultatifs pour ce type de produit : notez-les seulement s'ils sont indiqués (ex. sachet de salade, menthe fraîche). Sinon, le nom et la quantité suffisent.</p>}
-          {!tempNC && (
-            <div className="grid grid-cols-2 gap-3 mt-3">
-              <div>
-                <label className="text-sm font-medium text-[var(--ink)]">N° de lot{alimentaire ? "" : " (facultatif)"}</label>
-                <input className={inputCls} value={b.lot} onChange={(e) => maj({ lot: e.target.value })} />
-              </div>
-              <div>
-                <label className="text-sm font-medium text-[var(--ink)]">DLC / DDM{alimentaire ? "" : " (facultatif)"}</label>
-                <ChampDateSaisie value={b.dlc} onChange={(v) => maj({ dlc: v })} placeholder="JJ/MM/AAAA ou MM/AAAA" />
-              </div>
-            </div>
-          )}
-
-          <button onClick={() => setDetailsOuverts(!detailsOuverts)} className="text-sm text-[var(--accent)] font-medium mt-3">{detailsOuverts ? "− Masquer les détails" : "+ Plus de détails (référence, allergènes, origine, agrément)"}</button>
-          {detailsOuverts && (
-            <div className="grid grid-cols-2 gap-2 mt-2">
-              <input className={inputCls} placeholder="Code article du bon de livraison" value={b.reference} onChange={(e) => maj({ reference: e.target.value })} />
-              <input className={inputCls} placeholder="Allergènes déclarés" value={b.allergenes} onChange={(e) => maj({ allergenes: e.target.value })} />
-              <input className={inputCls} placeholder="Origine / provenance" value={b.origine} onChange={(e) => maj({ origine: e.target.value })} />
-              <input className={inputCls} placeholder="N° d'agrément sanitaire (l'ovale sur l'étiquette)" value={b.agrementSanitaire} onChange={(e) => maj({ agrementSanitaire: e.target.value })} />
-            </div>
-          )}
-
-          {/* Décision */}
-          <div className="mt-5 pt-4 border-t border-[var(--line)]">
-            {!tempNC && !refusOuvert && (
-              <>
-                {manque.length > 0 && <p className="text-sm text-[var(--warn)] mb-2">Pour accepter, il manque : {manque.join(", ")}.</p>}
-                <div className="flex flex-col sm:flex-row gap-2">
-                  <button onClick={accepter} disabled={manque.length > 0}
-                    style={{ backgroundColor: "#2F6B4F", color: "#ffffff" }} className="flex-1 rounded-xl px-4 py-4 text-base font-bold disabled:opacity-40">✓ Accepter ce produit</button>
-                  <button onClick={() => { setRefusOuvert(true); if (b.kind !== "plus") maj({ quantiteNC: b.quantite }); }} disabled={!b.nom.trim() || !(Number(b.quantite) > 0)}
-                    style={{ borderColor: "#C1432D", color: "#C1432D" }} className="flex-1 rounded-xl px-4 py-4 text-base font-bold border-2 disabled:opacity-40">✗ Refuser (non conforme)</button>
-                </div>
-              </>
-            )}
-            {(tempNC || refusOuvert) && (
-              <div className="rounded-xl p-4 border-2" style={{ borderColor: "var(--warn)", backgroundColor: "var(--warn-soft)" }}>
-                <p className="text-base font-bold text-[var(--warn)] mb-2">NON CONFORME — retour obligatoire chez le fournisseur</p>
-                {tempNC ? (
-                  <p className="text-base text-[var(--ink)] mb-3"><strong>Photo obligatoire :</strong> photographiez le produit avec la température affichée sur le thermomètre.</p>
-                ) : (
-                  <div className="space-y-2 mb-3">
-                    {b.kind !== "plus" && <ChampCauseNC value={b.raison} onChange={(v) => maj({ raison: v })} />}
-                    <input className={inputCls} type="number" inputMode="decimal" placeholder="Quantité non conforme" value={b.quantiteNC} onChange={(e) => maj({ quantiteNC: e.target.value })} />
-                    <input className={inputCls} type="number" step="0.01" placeholder="Surcoût facturé en € (facultatif)" value={b.ecartPrix} onChange={(e) => maj({ ecartPrix: e.target.value })} />
-                    <p className="text-sm text-[var(--ink)]">Photo du produit (conseillée) :</p>
-                  </div>
-                )}
-                <PhotoInput grand value={b.photoNC} onChange={(v) => maj({ photoNC: v })} label={tempNC ? "Prendre la photo (obligatoire)" : "Prendre la photo"} />
-                {tempNC && !b.photoNC && <p className="text-base font-semibold text-[var(--warn)] mt-3">⚠ Sans cette photo, vous ne pouvez pas continuer.</p>}
-                <div className="flex gap-2 mt-4">
-                  <button onClick={confirmerRefus} disabled={!refusPossible} style={{ backgroundColor: "#C1432D", color: "#ffffff" }} className="flex-1 rounded-xl px-4 py-3.5 text-base font-bold disabled:opacity-40">Confirmer le refus</button>
-                  {!tempNC && <Button variant="ghost" onClick={() => setRefusOuvert(false)}>Annuler</Button>}
-                </div>
-                {!tempNC && b.kind !== "plus" && !b.raison.trim() && <p className="text-sm text-[var(--warn)] mt-2">Choisissez la cause du refus.</p>}
-              </div>
-            )}
+          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+            <button type="button" onClick={() => setDetailsOuverts(!detailsOuverts)} className="text-sm text-[var(--accent)] font-medium">{detailsOuverts ? "− Masquer les détails" : "+ Plus de détails (référence, allergènes, origine, agrément)"}</button>
+            <button type="button" onClick={() => maj({ autrePb: !b.autrePb })} className="text-sm font-medium" style={{ color: "#C1432D" }}>{b.autrePb ? "− Aucun autre problème sur ce produit" : "+ Autre problème sur ce produit (abîmé, DLC trop courte…)"}</button>
           </div>
-          <div className="mt-4"><Button variant="ghost" onClick={() => { setBrouillon(null); if (produits.length === 0) setEtape(1); }}><ArrowLeft size={15} /> {produits.length === 0 ? "Retour" : "Annuler ce produit"}</Button></div>
+          {detailsOuverts && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+              <input className={`${inputCls} w-full`} placeholder="Code article du bon de livraison" value={b.reference} onChange={(e) => maj({ reference: e.target.value })} />
+              <input className={`${inputCls} w-full`} placeholder="Allergènes déclarés" value={b.allergenes} onChange={(e) => maj({ allergenes: e.target.value })} />
+              <input className={`${inputCls} w-full`} placeholder="Origine / provenance" value={b.origine} onChange={(e) => maj({ origine: e.target.value })} />
+              <input className={`${inputCls} w-full`} placeholder="N° d'agrément sanitaire (l'ovale sur l'étiquette)" value={b.agrementSanitaire} onChange={(e) => maj({ agrementSanitaire: e.target.value })} />
+            </div>
+          )}
+          {b.autrePb && (
+            <div className="mt-3 rounded-xl p-4 border-2 space-y-2" style={{ borderColor: "#F6B8C2", backgroundColor: "#FFF5F6" }}>
+              <ChampCauseNC value={b.raisonPb} onChange={(v) => maj({ raisonPb: v })} />
+              <input className={`${inputCls} w-full`} type="number" inputMode="decimal" placeholder="Quantité concernée (par défaut : tout)" value={b.quantitePb} onChange={(e) => maj({ quantitePb: e.target.value })} />
+              <div className="flex items-center gap-3"><PhotoInput rond value={b.photoPb} onChange={(v) => maj({ photoPb: v })} label="Photographier le produit" /><span className="text-xs text-[var(--ink)]">Photo du produit (conseillée)</span></div>
+            </div>
+          )}
+
+          {manque.length > 0 && <p className="text-sm text-[var(--warn)] mt-4">Il manque : {manque.join(", ")}.</p>}
+
+          {pied(
+            <Button variant="ghost" onClick={() => { setBrouillon(null); setEtape(produits.length === 0 ? 2 : 2); }}><ArrowLeft size={15} /> Retour aux températures</Button>,
+            iaDispo ? (
+              <div className="flex flex-col items-center text-center">
+                <p className="text-sm font-semibold text-[var(--ink)] mb-1.5">Photo de l'étiquette</p>
+                <PhotoInput rond value={null} onChange={scannerEtiquette} label="Photographier l'étiquette du produit" />
+              </div>
+            ) : null,
+            <>
+              <Button variant="ghost" onClick={produitSuivant} disabled={brouillonVide || manque.length > 0}><Plus size={16} /> Produit suivant</Button>
+              <Button onClick={validerEtapeProduits} disabled={!peutContinuer}>Valider cette étape <ChevronRight size={16} /></Button>
+            </>
+          )}
         </Card>
       </div>
     );
   }
 
-  // ── ÉTAPE 3 : problèmes en plus ──
-  if (etape === 3) {
-    if (brouillon) { setTimeout(() => setEtape(2), 0); return null; }
-    const extras = produits.filter((p) => p.manquant || p.kind === "plus");
+  // ── ÉTAPE 4 : problèmes en plus ──
+  if (etape === 4) {
+    const extras = produitsF.filter((p) => p.manquant || p.kind === "plus");
     return (
       <div>
         {entete}
         <Card>
-          <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Y a-t-il un autre problème ?</h3>
-          <p className="text-sm text-[var(--steel)] mb-4">Un produit manquant, ou un produit livré en plus. Sinon, passez au récapitulatif.</p>
+          <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Y a-t-il un autre problème avec cette livraison ?</h3>
+          <p className="text-sm text-[var(--steel)] mb-4">Un produit manquant, ou un produit livré en plus. S'il n'y a rien à signaler, passez au récapitulatif.</p>
           {extras.length > 0 && (
-            <div className="space-y-1.5 mb-4">
-              {extras.map((p) => <div key={p.id} className="text-sm border border-[var(--cadre)] rounded-lg px-3 py-2"><strong>{p.nom}</strong> — {p.manquant ? `${p.quantiteNC} manquant(s)` : (p.conforme ? "en plus, conservé" : "en plus, renvoyé")}</div>)}
+            <div className="space-y-2 mb-4">
+              {extras.map((p) => (
+                <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--cadre)] px-4 py-2.5 text-sm text-[var(--ink)]">
+                  <span><strong>{p.nom}</strong> — {p.manquant ? `${p.quantiteNC} manquant(s)` : (p.conforme ? "livré en plus, conservé" : "livré en plus, renvoyé")}</span>
+                  <button type="button" onClick={() => retirer(p.id)} className="text-xs text-[var(--steel)] underline shrink-0">Retirer</button>
+                </div>
+              ))}
             </div>
           )}
-          {mode3 === "manquant" ? (
-            <div className="rounded-xl border-2 border-[var(--cadre)] p-4 space-y-2 mb-3">
-              <p className="text-sm text-[var(--steel)]">Un produit commandé (ou facturé) mais pas livré. Pas de photo : il sera indiqué dans le mail.</p>
-              <input className={inputCls} placeholder="Nom du produit manquant" value={manqNom} onChange={(e) => setManqNom(e.target.value)} />
-              <input className={inputCls} type="number" placeholder="Quantité manquante" value={manqQte} onChange={(e) => setManqQte(e.target.value)} />
-              <div className="flex gap-2"><Button onClick={ajouterManquant} disabled={!manqNom.trim()}>Ajouter</Button><Button variant="ghost" onClick={() => setMode3(null)}>Annuler</Button></div>
+          {mode4 === "manquant" ? (
+            <div className="rounded-xl border-2 border-[var(--cadre)] p-4 mb-3">
+              <p className="text-sm text-[var(--steel)] mb-3">Un produit commandé (ou facturé) mais pas livré. Pas de photo : il sera indiqué dans le mail.</p>
+              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 mb-3">
+                <div><label className={lab}>Nom du produit manquant</label><input className={`${inputCls} w-full`} value={manqNom} onChange={(e) => setManqNom(e.target.value)} /></div>
+                <div><label className={lab}>Quantité manquante</label><input className={`${inputCls} w-full`} type="number" value={manqQte} onChange={(e) => setManqQte(e.target.value)} /></div>
+              </div>
+              <div className="flex gap-2"><Button onClick={ajouterManquant} disabled={!manqNom.trim()}>Ajouter</Button><Button variant="ghost" onClick={() => setMode4(null)}>Annuler</Button></div>
             </div>
           ) : (
-            <div className="space-y-2 mb-3">
-              <button className={gros} onClick={() => setMode3("manquant")}>Il manque un produit</button>
-              <button className={gros} onClick={() => { commencer("plus"); setEtape(2); }}>Un produit en plus (je le garde ou je le renvoie)</button>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <button type="button" onClick={() => setMode4("manquant")} className="rounded-xl border-2 p-5 text-left flex items-center gap-4 hover:shadow-md transition-shadow" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
+                <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-white" style={{ color: "#8A5300" }}><AlertTriangle size={28} /></span>
+                <span><span className="block text-base font-bold" style={{ color: "#8A5300" }}>Il manque un produit</span><span className="block text-xs text-[var(--steel)]">Commandé ou facturé, mais pas livré</span></span>
+              </button>
+              <button type="button" onClick={() => { commencer("plus"); setEtape(3); }} className="rounded-xl border-2 p-5 text-left flex items-center gap-4 hover:shadow-md transition-shadow" style={{ borderColor: "#B5CDF0", backgroundColor: "#F2F7FE" }}>
+                <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-white" style={{ color: "#1B4F9C" }}><Package size={28} /></span>
+                <span><span className="block text-base font-bold" style={{ color: "#1B4F9C" }}>Un produit en plus</span><span className="block text-xs text-[var(--steel)]">Livré sans être commandé : je le garde ou je le renvoie</span></span>
+              </button>
             </div>
           )}
-          <Button onClick={() => setEtape(4)}>Non, tout est bon — récapitulatif</Button>
-          <div className="mt-4"><Button variant="ghost" onClick={() => setEtape(2)}><ArrowLeft size={15} /> Retour</Button></div>
+          {pied(<Button variant="ghost" onClick={() => { commencer(); setEtape(3); }}><ArrowLeft size={15} /> Retour aux produits</Button>, null,
+            <Button onClick={() => setEtape(5)}>{extras.length ? "Passer au récapitulatif" : "Non, tout est bon — récapitulatif"} <ChevronRight size={16} /></Button>)}
         </Card>
       </div>
     );
   }
 
-  // ── ÉTAPE 4 : récapitulatif ──
+  // ── ÉTAPE 5 : récapitulatif ──
   const m = nonConformes.length ? construireMail() : null;
-  const retirer = (id) => setProduits((prev) => prev.filter((p) => p.id !== id));
+  const colonnes = "lg:grid-cols-[minmax(0,1.7fr)_4.5rem_minmax(0,1fr)_5.5rem_minmax(0,1.3fr)_7rem_4rem]";
   return (
     <div>
       {entete}
@@ -13193,22 +13287,43 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
         <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Récapitulatif — {fournisseur}</h3>
         <p className="text-sm text-[var(--steel)] mb-4">Livraison du {date} à {heure} · réceptionnée par {nomMoi}</p>
         {erreur && <p className="text-sm text-[var(--warn)] mb-3">{erreur}</p>}
-        <div className="space-y-2 mb-4">
-          {produits.map((p) => (
-            <div key={p.id} className="flex items-start justify-between gap-2 border border-[var(--cadre)] rounded-lg px-3 py-2">
-              <div className="text-sm text-[var(--ink)]">
-                <div><strong>{p.nom}</strong> — {p.quantite} {p.conservation ? <span className="text-xs text-[var(--steel)]">· {LIBELLE_CONSERVATION[p.conservation]}</span> : null}</div>
-                <div className="text-xs text-[var(--steel)]">{p.manquant ? "Manquant (non livré)" : `Lot ${p.lot || "—"} · DLC ${p.dlc || "—"}${p.temperature !== "" ? ` · ${p.temperature} °C` : ""}`}{!p.conforme && !p.manquant ? ` · ${p.raison}` : ""}</div>
+
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
+          {FAMILLES_TEMP.map((f) => {
+            const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? etatTemperatureReception(f.typeRef, t.valeur) : null; const nc = etat === "hors" || etat === "gele";
+            return (
+              <div key={f.id} className="rounded-xl border p-3 flex items-center gap-3" style={{ borderColor: nc ? "#F6B8C2" : f.bord, backgroundColor: nc ? "#FDE4E8" : f.fond }}>
+                <f.Ic size={24} style={{ color: nc ? "#B4233A" : f.couleur }} />
+                <div className="min-w-0 flex-1"><div className="text-xs font-semibold" style={{ color: nc ? "#B4233A" : f.couleur }}>{f.titre}</div><div className="text-lg font-bold text-[var(--ink)]">{t.aucun ? "Pas de produit" : `${t.valeur} °C`}</div></div>
+                {!t.aucun && badge(!nc, nc ? "Hors norme" : "Conforme")}
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: p.conforme ? "#2F6B4F" : "#C1432D" }}>{p.conforme ? "Accepté" : p.manquant ? "Manquant" : "Refusé"}</span>
-                <button onClick={() => retirer(p.id)} className="text-xs text-[var(--steel)] underline">Retirer</button>
+            );
+          })}
+        </div>
+
+        <div className="rounded-xl border border-[var(--cadre)] overflow-hidden mb-4">
+          <div className={`hidden lg:grid ${colonnes} gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]`}>
+            <span>Produit</span><span className="text-center">Qté</span><span>Type</span><span className="text-center">Temp.</span><span>Lot · DLC</span><span className="text-center">Statut</span><span />
+          </div>
+          {produitsF.length === 0 && <p className="px-4 py-6 text-sm text-[var(--steel)]">Aucun produit saisi.</p>}
+          {produitsF.map((p) => (
+            <div key={p.id} className={`grid grid-cols-2 ${colonnes} gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center`}>
+              <div className="col-span-2 lg:col-span-1 min-w-0">
+                <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
+                {!p.conforme && !p.manquant && <div className="text-xs" style={{ color: "#B4233A" }}>{p.raison}</div>}
               </div>
+              <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Qté : </span>{p.quantite}</div>
+              <div className="text-sm text-[var(--ink)]">{p.manquant ? "—" : (LIBELLE_CONSERVATION[p.conservation] || "—")}</div>
+              <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Temp. : </span>{p.temperature !== "" && p.temperature != null && !p.manquant ? `${p.temperature} °C` : "—"}</div>
+              <div className="text-sm text-[var(--ink)]">{p.manquant ? "Non livré" : `${p.lot || "—"} · ${p.dlc || "—"}`}</div>
+              <div className="lg:text-center">{badge(p.conforme, p.conforme ? "Accepté" : p.manquant ? "Manquant" : "Refusé")}</div>
+              <div className="lg:text-center text-right"><button onClick={() => retirer(p.id)} className="text-xs text-[var(--steel)] underline">Retirer</button></div>
             </div>
           ))}
         </div>
+
         {m && (
-          <div className="mb-4">
+          <div className="mb-2">
             <p className="text-sm font-semibold text-[var(--ink)] mb-1">Mail prêt pour « {fournisseur} »</p>
             <p className="text-xs text-[var(--steel)] mb-2">À la validation, il est transmis au <strong>chef et au directeur</strong> : ce sont eux qui le vérifient et l'envoient (ou traitent le retour par téléphone). Vous n'avez rien à envoyer vous-même.</p>
             <div className="bg-[var(--bg)] rounded-lg p-3 text-xs text-[var(--ink)] whitespace-pre-wrap"><div className="font-semibold mb-1">Objet : {m.sujet}</div>{m.corps}</div>
@@ -13220,10 +13335,8 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             )}
           </div>
         )}
-        <div className="flex items-center justify-between pt-4 border-t border-[var(--line)]">
-          <Button variant="ghost" onClick={() => setEtape(3)}><ArrowLeft size={15} /> Retour</Button>
-          <Button onClick={valider} disabled={enCours || produits.length === 0}>{enCours ? "Enregistrement…" : "Terminer et enregistrer la réception"}</Button>
-        </div>
+        {pied(<Button variant="ghost" onClick={() => setEtape(4)}><ArrowLeft size={15} /> Retour</Button>, null,
+          <Button onClick={valider} disabled={enCours || produits.length === 0}>{enCours ? "Enregistrement…" : "Terminer et enregistrer la réception"}</Button>)}
       </Card>
     </div>
   );
@@ -14490,13 +14603,14 @@ function HorairesDuJour({ employeeId, shifts, date }) {
 }
 
 function CommandeBar({ onCommande }) {
+  if (!iaDispo()) return null;
   const [texte, setTexte] = useState("");
   const [enEcoute, setEnEcoute] = useState(false);
   const [enTraitement, setEnTraitement] = useState(false);
   const [dernierRetour, setDernierRetour] = useState(null);
   const [erreurVocale, setErreurVocale] = useState(null);
 
-  const supporteVocal = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const supporteVocal = iaDispo() && typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   const envoyer = async (valeur) => {
     const v = (valeur ?? texte).trim();
@@ -14625,7 +14739,7 @@ function CommandeVocaleFlottante({ onCommande }) {
     return g;
   };
 
-  const supporteVocal = typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
+  const supporteVocal = iaDispo() && typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   useEffect(() => {
     if (!retour) return;
@@ -16851,6 +16965,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // (plannings, stock, HACCP...) continue pour l'instant de lire/écrire l'ancien stockage local,
   // comme avant — ce n'est pas encore migré, voir le document de suivi infrastructure.
   const modeExterne = !!identiteExterne;
+  if (typeof window !== "undefined") window.MC_SANS_IA = modeExterne;
   const [tab, setTab] = useState("accueil");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [sessionActive, setSessionActive] = useState(false);
@@ -18180,7 +18295,7 @@ function KitchenApp({ identiteExterne } = {}) {
             manipuler l'écran avec les mains prises. Sur l'Accueil, la carte complète ci-dessous
             (avec saisie texte) reste affichée en plus — ce bouton flottant est donc masqué là-bas
             pour ne pas doubler l'affichage. */}
-        {consentementAccorde() && <CommandeVocaleFlottante onCommande={executerCommande} />}
+        {consentementAccorde() && iaDispo() && <CommandeVocaleFlottante onCommande={executerCommande} />}
 
         {tab === "accueil" && (
           <div>
