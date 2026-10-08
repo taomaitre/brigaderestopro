@@ -4045,9 +4045,9 @@ function HaccpRefroidPage({ cuissons, setCuissons, refroidissements, setRefroidi
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
+      <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire les règles officielles : de +63 °C à +10 °C en moins de 2 h." />
+      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire les règles officielles : passer sous −18 °C en moins de 4 h 30." />
       <SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" />
-      <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" />
-      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" />
       <HaccpRefroidissement cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -8598,6 +8598,10 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
   const [finForm, setFinForm] = useState({});
   const [etiquetteOuverte, setEtiquetteOuverte] = useState(null); // nom du produit dont on édite l'étiquette
   const [cuissonChoisieId, setCuissonChoisieId] = useState(null);
+  const [quantite, setQuantite] = useState("");
+  const [unite, setUnite] = useState("kg");
+  const [notes, setNotes] = useState("");
+  const [suppId, setSuppId] = useState(null);
   const today = todayISO();
 
   useEffect(() => {
@@ -8625,12 +8629,21 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
     // Un produit venant d'une cuisson (choisi dans la liste, ou saisi avec le même nom) ne doit être refroidi qu'une fois :
     // on le relie à sa cuisson, qui disparaît alors de « à mettre en refroidissement ».
     const cuissonLiee = cuissonsPretes.find((c) => c.id === cuissonChoisieId) || cuissonsPretes.find((c) => (c.produit || "").trim().toLowerCase() === produit.trim().toLowerCase());
-    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
+    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
     setRefroidissements([entry, ...refroidissements]);
     if (cuissonLiee && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === cuissonLiee.id ? { ...c, refroidissementLance: true } : c)));
     setCuissonChoisieId(null);
     logActivity("HACCP", modeDemarrage === "negatif" ? "Congélation / surgélation démarrée" : "Refroidissement démarré", `${produit} — ${tempDebut}°C à ${heureDepart}`);
-    setProduit(""); setTempDebut(""); setHeureDepart(new Date().toTimeString().slice(0, 5));
+    setProduit(""); setTempDebut(""); setQuantite(""); setNotes(""); setHeureDepart(new Date().toTimeString().slice(0, 5));
+  };
+
+  const supprimerEntree = (id) => {
+    const r = refroidissements.find((x) => x.id === id);
+    if (!r) return;
+    setRefroidissements(refroidissements.filter((x) => x.id !== id));
+    if (r.origineCuissonId && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === r.origineCuissonId ? { ...c, refroidissementLance: false } : c)));
+    logActivity("HACCP", r.type === "negatif" ? "Congélation supprimée" : "Refroidissement supprimé", r.produit);
+    setSuppId(null);
   };
 
   const majFin = (id, champ, valeur) => setFinForm({ ...finForm, [id]: { ...finForm[id], [champ]: valeur } });
@@ -8694,23 +8707,24 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
     );
   }
 
+  const neg = modeDemarrage === "negatif";
   return (
     <div>
-      <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/20 mb-3">
-        <p className="text-xs text-[var(--ink)]">
-          <strong>Refroidissement rapide — positif (réglementation française) :</strong> le produit doit être à plus de {REFROIDISSEMENT_NORME.debutMin}°C en fin de cuisson, puis passer en dessous de {REFROIDISSEMENT_NORME.finMax}°C en moins de {REFROIDISSEMENT_NORME.dureeMaxMin / 60}h ({REFROIDISSEMENT_NORME.dureeMaxMin} min) une fois en cellule. Après refroidissement, conservation entre 0°C et 3°C.
-        </p>
-      </Card>
-      <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/20 mb-6">
-        <p className="text-xs text-[var(--ink)]">
-          <strong>Congélation / surgélation — négatif (fiche HACCP "Surgélation avec cellule") :</strong> la denrée la plus compacte doit passer sous {SURGELATION_NORME.finMax}°C en moins de {SURGELATION_NORME.dureeMaxMin / 60}h ({SURGELATION_NORME.dureeMaxMin} min), puis être stockée dans une enceinte négative &lt; -18°C. Ne congelez que des aliments très frais, sains et mûrs à point. Interdiction de surgeler un produit déjà décongelé ou en cours de décongélation.
-        </p>
-      </Card>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
+        <button onClick={() => setModeDemarrage("positif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${!neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
+          <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Refroidissement</span>
+          <span className="block text-xs text-[var(--steel)] mt-1">Refroidir un plat cuit : de +63 °C à +10 °C en moins de 2 h, puis conservation entre 0 et +3 °C.</span>
+        </button>
+        <button onClick={() => setModeDemarrage("negatif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
+          <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Congélation</span>
+          <span className="block text-xs text-[var(--steel)] mt-1">Congeler / surgeler : passer sous −18 °C en moins de 4 h 30. Jamais de produit déjà décongelé.</span>
+        </button>
+      </div>
 
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Démarrer le refroidissement</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">L'heure de départ est pré-remplie à l'heure actuelle — modifiable si vous démarrez avec un léger décalage.</p>
-        {cuissonsPretes.length > 0 && (
+        <h3 className="font-semibold text-[var(--ink)] mb-1">{neg ? "Démarrer une congélation" : "Démarrer un refroidissement"}</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">Saisie manuelle. L'heure de départ est pré-remplie à l'heure actuelle, modifiable si vous démarrez avec un léger décalage.</p>
+        {!neg && cuissonsPretes.length > 0 && (
           <div className="mb-3 p-3 rounded-lg border border-[var(--warn)]/40 bg-[var(--warn-soft)]">
             <p className="text-xs font-medium text-[var(--ink)] mb-2">Sortis de cuisson, à mettre en refroidissement — touchez un produit pour le pré-remplir :</p>
             <div className="flex flex-wrap gap-2">
@@ -8722,68 +8736,94 @@ function HaccpRefroidissement({ cuissons = [], setCuissons, refroidissements, se
             </div>
           </div>
         )}
-        <div className="flex gap-2 mb-3">
-          <button onClick={() => setModeDemarrage("positif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "positif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Refroidir un plat cuit (de +63 °C à +10 °C en 2 h)</button>
-          <button onClick={() => setModeDemarrage("negatif")} className={`flex-1 text-sm font-medium px-3 py-2 rounded-lg border ${modeDemarrage === "negatif" ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Congeler / surgeler (à −18 °C)</button>
-        </div>
-        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-          <Field label="Produit"><input className={inputCls} value={produit} onChange={(e) => setProduit(e.target.value)} /></Field>
-          <Field label="Température de départ (°C)"><input className={inputCls} type="number" value={tempDebut} onChange={(e) => setTempDebut(e.target.value)} /></Field>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+          <Field label="Produit"><input className={inputCls} value={produit} onChange={(e) => setProduit(e.target.value)} placeholder="Ex. : Sauce bolognaise" /></Field>
+          <Field label="Quantité">
+            <div className="flex gap-2">
+              <input className={inputCls} type="number" inputMode="decimal" value={quantite} onChange={(e) => setQuantite(e.target.value)} placeholder="Ex. : 5" />
+              <select className={`${inputCls} w-28`} value={unite} onChange={(e) => setUnite(e.target.value)}>
+                <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="portions">portions</option><option value="bacs">bacs</option>
+              </select>
+            </div>
+          </Field>
+          <Field label="Température de départ (°C)"><input className={inputCls} type="number" inputMode="decimal" value={tempDebut} onChange={(e) => setTempDebut(e.target.value)} placeholder={neg ? "Ex. : 4" : "Ex. : 85"} /></Field>
           <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDepart} onChange={(e) => setHeureDepart(e.target.value)} /></Field>
         </div>
-        <Button onClick={demarrer}><Plus size={16} /> {modeDemarrage === "negatif" ? "Démarrer la surgélation" : "Démarrer le refroidissement"}</Button>
+        <div className="mb-3">
+          <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : bac gastro 65 mm, couvercle ouvert" /></Field>
+        </div>
+        <Button onClick={demarrer} disabled={!produit || tempDebut === ""}><Plus size={16} /> {neg ? "Démarrer la congélation" : "Démarrer le refroidissement"}</Button>
       </Card>
 
-      {enCours.length > 0 && (
-        <Card className="mb-6">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">En cours</h3>
-          <div className="space-y-3">
-            {enCours.map((r) => {
-              const norme = normeRefroidissement(r.type);
-              const minutes = Math.floor((Date.now() - r.debutTs) / 60000);
-              const depasse = minutes >= norme.dureeMaxMin;
-              const saisie = finForm[r.id] || {};
-              return (
-                <div key={r.id} className={`border rounded-lg p-3 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
-                  <div className="flex items-center justify-between mb-2">
-                    <div>
-                      <div className="text-sm font-medium text-[var(--ink)]">{r.type === "negatif" ? "❄ " : ""}{r.produit} — départ {r.tempDebut}°C à {r.heureDebut}</div>
-                      <MentionNormePersoFiche nom={r.produit} etape="refroid" />
-                      <div className={`text-xs ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? ` — délai de ${norme.dureeMaxMin / 60}h dépassé !` : ` / ${norme.dureeMaxMin} min max`} · {who(r.employeeId)}</div>
-                    </div>
-                  </div>
-
-                  {depasse && (
-                    <div className="mb-2">
-                      <p className="text-xs text-[var(--ink)] font-medium mb-1.5">Quelle est l'anomalie ?</p>
-                      <div className="flex flex-wrap gap-2">
-                        {MOTIFS_ANOMALIE_REFROIDISSEMENT.map((m) => (
-                          <button key={m} onClick={() => majFin(r.id, "motif", m)}
-                            className={`text-xs px-2.5 py-1.5 rounded-lg border ${saisie.motif === m ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)]"}`}>
-                            {m}
-                          </button>
-                        ))}
-                      </div>
-                      {saisie.motif && saisie.motif !== "Produit resté à bonne température (accepté)" && (
-                        <p className="text-xs text-[var(--warn)] mt-1.5">Ce motif rendra le refroidissement non conforme — le produit sera à jeter.</p>
-                      )}
-                      {saisie.motif === "Produit resté à bonne température (accepté)" && (
-                        <p className="text-xs text-[var(--accent)] mt-1.5">Accepté — le produit reste utilisable si la température de fin confirme un maintien correct.</p>
-                      )}
-                    </div>
-                  )}
-
-                  <div className="flex items-center gap-2">
-                    <input className={`${inputCls} w-28`} type="number" placeholder="Température finale (°C)" value={saisie.tempFin ?? ""} onChange={(e) => majFin(r.id, "tempFin", e.target.value)} />
-                    <Button onClick={() => terminer(r.id)} disabled={depasse && !saisie.motif}>{r.type === "negatif" ? "Terminer la surgélation" : "Terminer le refroidissement"}</Button>
-                  </div>
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Refroidissements et congélations en cours ({enCours.length})</h3>
+        {enCours.length === 0 && <p className="text-sm text-[var(--steel)]">Rien en cours pour le moment.</p>}
+        <div className="space-y-3">
+          {enCours.map((r) => {
+            const norme = normeRefroidissement(r.type);
+            const minutes = Math.floor((Date.now() - r.debutTs) / 60000);
+            const depasse = minutes >= norme.dureeMaxMin;
+            const saisie = finForm[r.id] || {};
+            const pct = Math.min(100, Math.round((minutes / norme.dureeMaxMin) * 100));
+            return (
+              <div key={r.id} className={`border rounded-xl p-3.5 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
+                <div className="flex flex-wrap items-center gap-2 mb-1">
+                  <span className="text-base font-semibold text-[var(--ink)]">{r.produit}</span>
+                  <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">{r.type === "negatif" ? "Congélation" : "Refroidissement"}</span>
                 </div>
-              );
-            })}
-          </div>
-        </Card>
-      )}
+                <MentionNormePersoFiche nom={r.produit} etape="refroid" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2 text-sm text-[var(--ink)]">
+                  <div><span className="text-xs text-[var(--steel)] block">Quantité</span>{r.quantite != null && r.quantite !== "" ? `${r.quantite} ${r.unite || ""}` : "Non précisée"}</div>
+                  <div><span className="text-xs text-[var(--steel)] block">Température de départ</span>{r.tempDebut} °C</div>
+                  <div><span className="text-xs text-[var(--steel)] block">Départ</span>{r.heureDebut} · {who(r.employeeId)}</div>
+                </div>
+                {r.notes && <p className="text-xs text-[var(--steel)] mb-2">Notes : {r.notes}</p>}
+                <div className="mb-3">
+                  <div className={`text-xs mb-1 ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? ` — délai de ${norme.dureeMaxMin / 60} h dépassé !` : ` sur ${norme.dureeMaxMin} min maximum`}</div>
+                  <div className="h-2 rounded-full bg-[var(--line)] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: depasse ? "#E5243B" : "#14653A" }} /></div>
+                </div>
 
+                {depasse && (
+                  <div className="mb-3">
+                    <p className="text-xs text-[var(--ink)] font-medium mb-1.5">Quelle est l'anomalie ?</p>
+                    <div className="flex flex-wrap gap-2">
+                      {MOTIFS_ANOMALIE_REFROIDISSEMENT.map((m) => (
+                        <button key={m} onClick={() => majFin(r.id, "motif", m)}
+                          className={`text-xs px-2.5 py-1.5 rounded-lg border ${saisie.motif === m ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)]"}`}>
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                    {saisie.motif && saisie.motif !== "Produit resté à bonne température (accepté)" && (
+                      <p className="text-xs text-[var(--warn)] mt-1.5">Ce motif rendra le refroidissement non conforme — le produit sera à jeter.</p>
+                    )}
+                    {saisie.motif === "Produit resté à bonne température (accepté)" && (
+                      <p className="text-xs text-[var(--accent)] mt-1.5">Accepté — le produit reste utilisable si la température de fin confirme un maintien correct.</p>
+                    )}
+                  </div>
+                )}
+
+                <div className="flex flex-wrap items-end gap-2">
+                  <label className="flex flex-col gap-1 text-sm">
+                    <span className="text-xs text-[var(--steel)]">Température de fin (°C)</span>
+                    <input className={`${inputCls} w-36`} type="number" inputMode="decimal" placeholder={r.type === "negatif" ? "Ex. : -20" : "Ex. : 8"} value={saisie.tempFin ?? ""} onChange={(e) => majFin(r.id, "tempFin", e.target.value)} />
+                  </label>
+                  <Button onClick={() => terminer(r.id)} disabled={(depasse && !saisie.motif) || saisie.tempFin === undefined || saisie.tempFin === ""}>Valider</Button>
+                  <Button variant="ghost" onClick={() => setSuppId(r.id)}><Trash2 size={16} /> Supprimer</Button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </Card>
+
+      {suppId && (
+        <ModalConfirmerSuppression
+          libelle={refroidissements.find((x) => x.id === suppId)?.produit || ""}
+          onAnnuler={() => setSuppId(null)}
+          onConfirmer={() => supprimerEntree(suppId)}
+        />
+      )}
     </div>
   );
 }
