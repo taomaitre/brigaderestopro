@@ -9947,6 +9947,7 @@ const DELAIS_RAPIDES_DLC = [
   { label: "7j", jours: 7 }, { label: "15j", jours: 15 }, { label: "1 mois", jours: 30 },
 ];
 
+const COULEURS_CAT_DLC = { "Produits laitiers": ["#F2B01E", "#3B2A00"], "Produits frais": ["#1E7B4B", "#fff"], "Charcuterie": ["#C2477A", "#fff"], "Viandes": ["#E5483A", "#fff"], "Poissons": ["#1769D6", "#fff"], "Fruits et légumes": ["#2F9E5B", "#fff"], "Sauces": ["#B5651D", "#fff"], "Desserts": ["#E0709A", "#fff"], "Pains & bases": ["#8A5A3C", "#fff"], "Surgelés": ["#7A4DE0", "#fff"], "Plats préparés": ["#F28C28", "#fff"], "Épicerie": ["#6B7C3A", "#fff"], "Autres": ["#7C8794", "#fff"] };
 function categorieDeProduitDlc(p) { return p.categorieManuelle || categoriserProduitDlc(p.nom); }
 
 function estDdm(p) { return p.typeDate === "DDM" || p.dlcSource === "reception"; }
@@ -9988,6 +9989,8 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   const [recherche, setRecherche] = useState("");
   const [panneauOuvert, setPanneauOuvert] = useState(null); // "produits" | "categories" | null
   const [selection, setSelection] = useState([]);
+  const [catChoisie, setCatChoisie] = useState("__tous__");
+  const [nbParProduit, setNbParProduit] = useState({});
   const [ongletAjoutRetrait, setOngletAjoutRetrait] = useState(null); // "ajouter" | "retirer" | null
   const [nouveauProduit, setNouveauProduit] = useState({ nom: "", categorie: ORDRE_CATEGORIES_DLC[0], typeDate: "DLC", delaiJours: "", ddmPremierLot: false, ddmLot: "", ddmDate: "" });
   const [rechercheRetrait, setRechercheRetrait] = useState("");
@@ -10024,14 +10027,6 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
     const el = document.getElementById(`dlc-cat-${cat}`);
     if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
   };
-
-  useEffect(() => {
-    const q = recherche.trim().toLowerCase();
-    if (q.length < 2) return;
-    const trouve = produitsTries.find((p) => p.nom.toLowerCase().includes(q));
-    if (trouve) allerAuProduit(trouve.id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [recherche]);
 
   const toggleSelection = (id) => setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
@@ -10083,8 +10078,8 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
 
   const majLigne = (produitId, champ, val) => setAssistantLignes((prev) => prev.map((l) => (l.produitId === produitId ? { ...l, [champ]: val } : l)));
 
-  const confirmerAssistant = () => {
-    const entries = assistantLignes
+  const confirmerAssistant = (lignesDirectes) => {
+    const entries = (Array.isArray(lignesDirectes) ? lignesDirectes : assistantLignes)
       .filter((l) => l.dlcDate)
       .map((l) => {
         const dlcFinale = l.decongele ? addDays(l.decongelDate, 2) : l.dlcDate;
@@ -10124,77 +10119,118 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
     );
   }
 
+  const visibles = produitsTries.filter((p) => {
+    const q = recherche.trim().toLowerCase();
+    return (catChoisie === "__tous__" || categorieDeProduitDlc(p) === catChoisie) && (!q || p.nom.toLowerCase().includes(q));
+  });
+  const produitsSel = produitsUniques.filter((p) => selection.includes(p.id));
+  const nbDe = (id) => Math.max(1, Number(nbParProduit[id]) || 1);
+  const changerNb = (id, delta) => setNbParProduit((m) => ({ ...m, [id]: Math.max(1, (Number(m[id]) || 1) + delta) }));
+  const totalEtiq = produitsSel.reduce((t, p) => t + nbDe(p.id), 0);
+  const infoCat = (c) => COULEURS_CAT_DLC[c] || ["#7C8794", "#fff"];
+  const boutonPm = "w-9 h-9 rounded-lg border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
+  const lignesDepuisSelection = () => produitsSel.map((p) => ({
+    produitId: p.id, nom: p.nom,
+    lot: genererLot(p.nom), dlcDate: dlcCalculeeProduit(p), quantiteUtilisee: "", nbEtiquettes: nbDe(p.id),
+    estSurgele: categorieDeProduitDlc(p) === "Surgelés", decongele: false,
+    decongelDate: todayISO(), decongelHeure: new Date().toTimeString().slice(0, 5),
+  }));
+  // « Valider » : impression directe. Seuls les cas qui demandent une précision (produit surgelé, DDM manquante) passent par l'assistant.
+  const validerSelection = () => {
+    const lignes = lignesDepuisSelection();
+    if (lignes.length === 0) return;
+    if (lignes.some((l) => l.estSurgele || !l.dlcDate)) { setAssistantLignes(lignes); setTimeout(() => { const el = document.getElementById("assistant-etiquettes"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80); return; }
+    confirmerAssistant(lignes);
+  };
+
   return (
     <div>
-      <SectionHeader title="Étiquette DLC" subtitle="Produits par catégorie — recherchez, sélectionnez et éditez vos étiquettes" />
-
-      <BoutonInfosNormes ficheKey="dlc" onClick={setFicheNormesOuverte} label="Durées de conservation (DLC) — repères officiels et professionnels" />
+      <BoutonInfosNormes ficheKey="dlc" onClick={setFicheNormesOuverte} label="Étiquetage DLC — normes HACCP" texte="Une étiquette doit porter : nom du produit, DLC ou DDM, n° de lot et date de fabrication. Cliquez pour lire les repères officiels de conservation." />
       {ficheNormesOuverte && <ModalInfosNormes fiche={FICHES_NORMES[ficheNormesOuverte]} onClose={() => setFicheNormesOuverte(null)} />}
 
-      <Card className="mb-4">
-        <Field label="Recherche rapide — tapez le nom d'un produit">
-          <input className={inputCls} value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Nom du produit" />
-        </Field>
+      <div className="flex items-center gap-3 flex-wrap mb-4">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-14 h-14 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: "#E5243B" }}><Printer size={28} /></span>
+          <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Étiquettes (DLC)</h2><p className="text-sm text-[var(--steel)]">Sélectionnez un ou plusieurs produits pour imprimer vos étiquettes DLC</p></div>
+        </div>
+      </div>
 
-        <div className="grid grid-cols-2 gap-3 mt-3">
-          <button onClick={() => setPanneauOuvert((v) => (v === "produits" ? null : "produits"))}
-            className={`rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[70px] px-2 text-center border-2 transition-colors ${panneauOuvert === "produits" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
-            <Package size={22} className="text-[var(--accent)]" />
-            <span className="text-sm font-bold text-[var(--ink)]">Produits</span>
-          </button>
-          <button onClick={() => setPanneauOuvert((v) => (v === "categories" ? null : "categories"))}
-            className={`rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[70px] px-2 text-center border-2 transition-colors ${panneauOuvert === "categories" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
-            <ListChecks size={22} className="text-[var(--accent)]" />
-            <span className="text-sm font-bold text-[var(--ink)]">Catégories</span>
-          </button>
+      <div className="grid grid-cols-1 lg:grid-cols-[15rem_minmax(0,1fr)_19rem] gap-4 mb-6">
+        {/* Catégories */}
+        <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 self-start">
+          <h3 className="text-lg font-bold text-[var(--ink)] mb-2 px-1">Catégories</h3>
+          <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
+            <button type="button" onClick={() => setCatChoisie("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#E5243B", color: "#fff", outline: catChoisie === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+              <Package size={20} className="shrink-0" />
+              <span className="flex-1 min-w-0 text-sm font-semibold">Tous les produits <span className="font-normal opacity-80">({produitsUniques.length})</span></span>
+              <ChevronRight size={16} className="shrink-0 hidden lg:block" />
+            </button>
+            {categoriesPresentes.map((cat) => { const [fond, texte] = infoCat(cat); return (
+              <button key={cat} type="button" onClick={() => setCatChoisie(cat)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: fond, color: texte, outline: catChoisie === cat ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+                <Package size={20} className="shrink-0" />
+                <span className="flex-1 min-w-0 text-sm font-semibold">{cat} <span className="font-normal opacity-80">({parCategorie[cat].length})</span></span>
+                <ChevronRight size={16} className="shrink-0 hidden lg:block" />
+              </button>
+            ); })}
+          </div>
         </div>
 
-        {panneauOuvert === "produits" && (
-          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-[var(--cadre)] divide-y divide-[var(--line)]">
-            {produitsTries.map((p) => (
-              <button key={p.id} onClick={() => allerAuProduit(p.id)} className="w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--bg)]">{p.nom}</button>
-            ))}
-          </div>
-        )}
-        {panneauOuvert === "categories" && (
-          <div className="mt-3 max-h-64 overflow-y-auto rounded-lg border border-[var(--cadre)] divide-y divide-[var(--line)]">
-            {categoriesPresentes.map((cat) => (
-              <button key={cat} onClick={() => allerALaCategorie(cat)} className="w-full text-left px-3 py-2 text-sm text-[var(--ink)] hover:bg-[var(--bg)]">{cat}</button>
-            ))}
-          </div>
-        )}
-      </Card>
-
-      <Card className="mb-6">
-        {categoriesPresentes.map((cat) => (
-          <div key={cat} id={`dlc-cat-${cat}`} className="mb-5 last:mb-0">
-            <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{cat}</h3>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-              {parCategorie[cat].map((p) => {
-                const selectionne = selection.includes(p.id);
-                return (
-                  <button key={p.id} id={`dlc-prod-${p.id}`} onClick={() => toggleSelection(p.id)}
-                    className={`text-left rounded-xl border-2 p-3 transition-colors ${selectionne ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
-                    <div className="flex items-start justify-between gap-1.5">
-                      <span className="text-sm text-[var(--ink)] font-medium leading-tight">{p.nom}</span>
-                      {selectionne ? <CheckCircle2 size={16} className="text-[var(--accent)] shrink-0" /> : <Circle size={16} className="text-[var(--line)] shrink-0" />}
-                    </div>
-                    <div className="text-[11px] text-[var(--steel)] font-medium mt-1">{libelleDelaiDlc(p)}</div>
-                  </button>
-                );
-              })}
+        {/* Tableau des produits */}
+        <div className="rounded-xl border border-[var(--cadre)] bg-white min-w-0 self-start">
+          <div className="p-3 border-b border-[var(--line)] flex items-center gap-3 flex-wrap">
+            <div className="relative flex-1 min-w-[12rem]">
+              <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
+              <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
             </div>
+            <span className="text-sm font-semibold text-[var(--ink)]">{catChoisie === "__tous__" ? "Tous les produits" : catChoisie} ({visibles.length})</span>
           </div>
-        ))}
-
-        <div className="flex flex-wrap justify-end gap-2 mt-5 pt-4 border-t border-[var(--line)]">
-          <Button variant="ghost" onClick={reediterEtiquettes} disabled={selection.length === 0}>Réimprimer la dernière étiquette</Button>
-          <Button onClick={ouvrirAssistantEdition} disabled={selection.length === 0}><Printer size={16} /> Créer des étiquettes</Button>
+          <div className="hidden sm:grid grid-cols-[2.5rem_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.3fr)] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
+            <span /><span>Produit</span><span>Catégorie</span><span>DLC / DDM</span>
+          </div>
+          {visibles.length === 0 && <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>}
+          {visibles.map((p) => {
+            const sel = selection.includes(p.id); const cat = categorieDeProduitDlc(p); const [fond, texte] = infoCat(cat);
+            return (
+              <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2.5rem_minmax(0,1fr)] sm:grid-cols-[2.5rem_minmax(0,1.6fr)_minmax(0,1fr)_minmax(0,1.3fr)] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
+                <span className="w-6 h-6 rounded border-2 flex items-center justify-center" style={sel ? { backgroundColor: "#E5243B", borderColor: "#E5243B", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{sel && <span className="text-xs leading-none">✓</span>}</span>
+                <span className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</span>
+                <span className="col-start-2 sm:col-start-auto"><span className="inline-block text-xs font-medium px-2 py-1 rounded" style={{ backgroundColor: fond, color: texte }}>{cat}</span></span>
+                <span className="col-start-2 sm:col-start-auto text-sm text-[var(--ink)]">{libelleDelaiDlc(p)}</span>
+              </button>
+            );
+          })}
         </div>
-      </Card>
+
+        {/* Produits sélectionnés */}
+        <div className="rounded-xl border border-[var(--cadre)] bg-white self-start">
+          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--line)]">
+            <h3 className="text-base font-bold text-[var(--ink)]">Produits sélectionnés ({produitsSel.length})</h3>
+            {produitsSel.length > 0 && <button type="button" onClick={() => { setSelection([]); setNbParProduit({}); }} className="text-sm font-semibold" style={{ color: "#E5243B" }}>Tout effacer</button>}
+          </div>
+          {produitsSel.length === 0 && <p className="px-4 py-6 text-sm text-[var(--steel)]">Cochez un ou plusieurs produits dans la liste.</p>}
+          {produitsSel.map((p) => (
+            <div key={p.id} className="px-4 py-3 border-b border-[var(--line)] last:border-b-0">
+              <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
+              <div className="text-xs text-[var(--steel)] mb-2">{estDdm(p) ? "DDM" : "DLC"} : {dlcCalculeeProduit(p) || "à renseigner"}</div>
+              <div className="flex items-center gap-2">
+                <button type="button" className={boutonPm} onClick={() => changerNb(p.id, -1)} aria-label={`Une étiquette de moins pour ${p.nom}`}>−</button>
+                <span className="min-w-[4.5rem] text-center text-sm font-semibold text-[var(--ink)]">{nbDe(p.id)} étiquette{nbDe(p.id) > 1 ? "s" : ""}</span>
+                <button type="button" className={boutonPm} onClick={() => changerNb(p.id, 1)} aria-label={`Une étiquette de plus pour ${p.nom}`}>+</button>
+                <button type="button" onClick={() => toggleSelection(p.id)} className="ml-auto w-9 h-9 flex items-center justify-center text-[#E5243B]" aria-label={`Retirer ${p.nom}`}><Trash2 size={18} /></button>
+              </div>
+            </div>
+          ))}
+          <div className="p-4 border-t border-[var(--line)]">
+            <button type="button" onClick={validerSelection} disabled={produitsSel.length === 0} className="w-full h-12 rounded-lg text-white text-base font-bold disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
+              Valider{totalEtiq > 0 ? ` (${totalEtiq} étiquette${totalEtiq > 1 ? "s" : ""})` : ""}
+            </button>
+            <button type="button" onClick={reediterEtiquettes} disabled={selection.length === 0} className="w-full mt-2 text-xs text-[var(--steel)] underline disabled:opacity-40">Réimprimer la dernière étiquette des produits sélectionnés</button>
+          </div>
+        </div>
+      </div>
 
       {assistantLignes && (
-        <Card className="mb-6 border-[var(--accent)]/40">
+        <Card id="assistant-etiquettes" className="mb-6 border-[var(--accent)]/40">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Édition d'étiquette{assistantLignes.length > 1 ? "s" : ""}</h3>
           <p className="text-xs text-[var(--steel)] mb-4">Lot et DLC/DDM sont calculés automatiquement par le logiciel à partir du catalogue produits — ils ne se saisissent pas à la main. Indiquez juste la quantité utilisée et le nombre d'étiquettes à imprimer.</p>
           <div className="space-y-4">
@@ -10236,7 +10272,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             ))}
           </div>
           <div className="flex gap-2 mt-4">
-            <Button onClick={confirmerAssistant}><Printer size={16} /> Imprimer les étiquettes</Button>
+            <Button onClick={() => confirmerAssistant()}><Printer size={16} /> Imprimer les étiquettes</Button>
             <Button variant="ghost" onClick={() => setAssistantLignes(null)}>Annuler</Button>
           </div>
         </Card>
@@ -11498,13 +11534,16 @@ function ModalInfosNormes({ fiche, onClose }) {
   );
 }
 
-function BoutonInfosNormes({ ficheKey, onClick, label }) {
+function BoutonInfosNormes({ ficheKey, onClick, label, texte }) {
   return (
     <button onClick={() => onClick(ficheKey)}
-      className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left font-bold border-2 shadow-sm"
+      className="mb-4 w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left border-2 shadow-sm"
       style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
-      <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
-      <span className="text-sm uppercase tracking-wide">⚠ {label || "Informations importantes — Normes HACCP"}</span>
+      <BookOpen size={24} className="shrink-0" style={{ color: "#c0392b" }} />
+      <span className="min-w-0">
+        <span className="block text-sm font-bold uppercase tracking-wide">⚠ {label || "Informations importantes — Normes HACCP"}</span>
+        <span className="block text-xs font-normal mt-0.5">{texte || "Cliquez pour lire les règles officielles et les points de contrôle à respecter."}</span>
+      </span>
     </button>
   );
 }
@@ -13356,23 +13395,12 @@ function Reception({ optionsExterne, stock, setStock, receptions, setReceptions,
 
   return (
     <div>
+      <BoutonInfosNormes ficheKey="reception" onClick={(k) => setFicheReception(FICHES_NORMES[k])} label="Réception des marchandises — Normes HACCP" texte="Cliquez pour lire les règles officielles : contrôle à la livraison, températures, étiquetage, produits non conformes." />
       <SectionHeader
         title="Réception"
         subtitle="Réception des marchandises, contrôle HACCP et suivi des lots"
       />
 
-      <div className="space-y-2 mb-6">
-        {[
-          { key: "reception", label: "Réception des marchandises — Normes HACCP" },
-        ].map(({ key, label }) => (
-          <button key={key} onClick={() => setFicheReception(FICHES_NORMES[key])}
-            className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold border-2 text-left shadow-sm"
-            style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
-            <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
-            <span className="uppercase tracking-wide">⚠ {label}</span>
-          </button>
-        ))}
-      </div>
       {ficheReception && <ModalInfosNormes fiche={ficheReception} onClose={() => setFicheReception(null)} />}
 
       <button onClick={() => setEnCours(true)}
