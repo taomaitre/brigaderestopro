@@ -35,7 +35,7 @@ function dateHeureIso(date, heure) {
 async function appelerEmployes(jeton, action, payload) {
   const reponse = await fetch(URL_FONCTION_EMPLOYES, {
     method: "POST",
-    headers: { "Content-Type": "application/json", apikey: CLE_PUBLIQUE, Authorization: `Bearer ${jeton}` },
+    headers: { "Content-Type": "application/json", apikey: CLE_PUBLIQUE, ...(jeton ? { Authorization: `Bearer ${jeton}` } : {}) },
     body: JSON.stringify({ action, ...payload }),
   });
   const data = await reponse.json().catch(() => null);
@@ -43,6 +43,46 @@ async function appelerEmployes(jeton, action, payload) {
     throw new Error(((data && data.erreur) || `Erreur serveur (${reponse.status})`) + (data && data.detail ? ` — ${data.detail}` : ""));
   }
   return data;
+}
+
+// Page ouverte par l'employé depuis son e-mail (?definir-code=...) : il choisit lui-même son code à 4 chiffres.
+function PageDefinirCode({ jeton }) {
+  const [nom, setNom] = useState(null);
+  const [erreur, setErreur] = useState("");
+  const [code1, setCode1] = useState("");
+  const [code2, setCode2] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const [fini, setFini] = useState(false);
+  useEffect(() => {
+    appelerEmployes(null, "lien_code", { token: jeton }).then((r) => setNom(r.nom || "")).catch((e) => setErreur(e.message));
+  }, [jeton]);
+  async function valider(e) {
+    e.preventDefault();
+    if (code1 !== code2) { setErreur("Les deux codes ne sont pas identiques."); return; }
+    setEnCours(true); setErreur("");
+    try { await appelerEmployes(null, "definir_code", { token: jeton, code: code1 }); setFini(true); }
+    catch (e2) { setErreur(e2.message); }
+    finally { setEnCours(false); }
+  }
+  const champ = `${champConnexion} text-center text-2xl tracking-[0.5em] pl-4`;
+  return (
+    <EcranConnexion>
+      <MarqueConnexion />
+      <CarteConnexion titre={fini ? "Code enregistré" : "Choisissez votre code"} sousTitre={fini ? "Votre code personnel est prêt." : nom ? `Bonjour ${nom}, choisissez le code à 4 chiffres qui vous servira à vous connecter.` : "Vérification du lien…"}>
+        {fini ? (
+          <p className="text-sm text-[var(--ink)]">Retenez-le bien et ne le communiquez à personne. Pour ouvrir l'application, utilisez l'accès de l'établissement donné par votre responsable (lien ou QR code), puis tapez votre code.</p>
+        ) : nom !== null ? (
+          <form onSubmit={valider}>
+            <ChampConnexion icone="lock"><input className={champ} value={code1} onChange={(e) => { setCode1(e.target.value.replace(/\D/g, "").slice(0, 4)); setErreur(""); }} inputMode="numeric" maxLength={4} placeholder="••••" autoFocus /></ChampConnexion>
+            <p className="text-xs text-[var(--steel)] mb-1">Tapez-le une seconde fois pour le confirmer :</p>
+            <ChampConnexion icone="lock"><input className={champ} value={code2} onChange={(e) => { setCode2(e.target.value.replace(/\D/g, "").slice(0, 4)); setErreur(""); }} inputMode="numeric" maxLength={4} placeholder="••••" /></ChampConnexion>
+            {erreur && <p className="text-sm mb-3" style={{ color: "var(--warn)" }}>{erreur}</p>}
+            <button type="submit" disabled={enCours || code1.length !== 4 || code2.length !== 4} className={boutonConnexion} style={{ backgroundColor: "var(--theme)", opacity: enCours || code1.length !== 4 || code2.length !== 4 ? 0.6 : 1 }}>Enregistrer mon code</button>
+          </form>
+        ) : erreur ? <p className="text-sm" style={{ color: "var(--warn)" }}>{erreur}</p> : null}
+      </CarteConnexion>
+    </EcranConnexion>
+  );
 }
 
 async function appelerInvitation(jeton, action, payload) {
@@ -223,6 +263,7 @@ export default function ConnexionReelle() {
   const [invitationEnCours, setInvitationEnCours] = useState(false);
   const [lienCopie, setLienCopie] = useState(false);
   const [arriveeParLien, setArriveeParLien] = useState(false);
+  const [jetonCode] = useState(() => { try { return new URLSearchParams(window.location.search).get("definir-code"); } catch (e) { return null; } });
 
   const [catalogue, setCatalogue] = useState(null);
   const [fournisseursCat, setFournisseursCat] = useState(null);
@@ -935,6 +976,8 @@ export default function ConnexionReelle() {
     setEtape("etablissement");
   }
 
+  if (jetonCode) return <PageDefinirCode jeton={jetonCode} />;
+
   if (etape === "connecte" && voirAppliReelle) {
     const identiteExterne = {
       employeId: employeIdentifie.id,
@@ -977,8 +1020,20 @@ export default function ConnexionReelle() {
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
-        id: e.id, nom: e.nom, poste: e.poste || "", estChef: estChefOuDirecteur(e.role), estDirection: e.role === "directeur",
+        id: e.id, nom: [e.prenom, e.nom].filter(Boolean).join(" "), prenom: e.prenom || "", nomFamille: e.nom, poste: e.poste || "", role: e.role,
+        email: e.email || "", services: e.services || [], codeDefini: e.code_defini !== false,
+        estChef: estChefOuDirecteur(e.role), estDirection: e.role === "directeur",
       })),
+      // Gestion des comptes (Contrôle & Gestion) : création, invitation par e-mail, suppression — réservée au chef / directeur.
+      gestionEquipe: estChefOuDirecteur(employeIdentifie.role) ? {
+        creer: async (d) => {
+          const rep = await appelerEmployes(session.token, "creer", { nom: d.nom, prenom: d.prenom, poste: d.poste, role: d.role, services: d.services, email: d.email });
+          await chargerEquipe(session.token, code);
+          return rep.employe;
+        },
+        inviter: async (employeId) => appelerEmployes(session.token, "inviter", { code, employe_id: employeId, origine: `${window.location.origin}${window.location.pathname}?nouveau-login=1` }),
+        supprimer: async (employeId) => { await appelerEmployes(session.token, "supprimer", { code, employe_id: employeId }); await chargerEquipe(session.token, code); },
+      } : undefined,
     };
     return (
       <div>

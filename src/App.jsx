@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
-import { POSTES as POSTES_EQUIPE } from './listesEquipe.js';
+import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
@@ -2551,7 +2551,199 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
   );
 }
 
-function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+const SERVICES_COMPTE = ["Cuisine", "Plonge", "Service", "Réception", "Stock", "Nettoyage", "Gestion"];
+const LIBELLE_STATUT = Object.fromEntries(STATUTS_EQUIPE.map((x) => [x.value, x.label]));
+
+// Gestion des comptes employés (nouvelle base) : création avec e-mail (l'employé choisit lui-même son code par un lien),
+// liste des comptes actifs, suppression rapide avec une simple confirmation.
+function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }) {
+  const [nom, setNom] = useState("");
+  const [prenom, setPrenom] = useState("");
+  const [poste, setPoste] = useState("");
+  const [statut, setStatut] = useState("cuisinier");
+  const [email, setEmail] = useState("");
+  const [services, setServices] = useState(["Cuisine"]);
+  const [enCours, setEnCours] = useState(false);
+  const [message, setMessage] = useState(null); // { type: "ok"|"erreur", texte, invitation? }
+  const [recherche, setRecherche] = useState("");
+  const [filtrePoste, setFiltrePoste] = useState("");
+  const [aide, setAide] = useState(false);
+  const [suppression, setSuppression] = useState(null);
+  const [lienCopie, setLienCopie] = useState(false);
+
+  const estGestion = statut === "chef" || statut === "directeur";
+  const servicesEffectifs = estGestion ? [...new Set([...services, "Gestion"])] : services.filter((x) => x !== "Gestion");
+  const basculer = (sv) => { if (sv === "Gestion") return; setServices((cur) => (cur.includes(sv) ? cur.filter((x) => x !== sv) : [...cur, sv])); };
+  const emailValide = /^[^@\s]+@[^@\s]+\.[^@\s]+$/.test(email.trim());
+  const pret = nom.trim() && prenom.trim() && emailValide;
+
+  const resultatInvitation = (nomComplet, rep) => {
+    if (rep.envoye) return { type: "ok", texte: `Compte créé. Un e-mail a été envoyé à ${email.trim() || "l'employé"} : il y choisira son code.` };
+    return { type: "ok", texte: `Compte créé pour ${nomComplet}. L'envoi automatique d'e-mails n'est pas encore activé : envoyez-lui son lien avec votre messagerie, il y choisira son code.`, invitation: { lien: rep.lien, email: email.trim(), nom: nomComplet } };
+  };
+
+  const creer = async () => {
+    if (!pret || enCours) return;
+    setEnCours(true); setMessage(null); setLienCopie(false);
+    try {
+      const nomComplet = `${prenom.trim()} ${nom.trim()}`;
+      const emp = await gestion.creer({ nom: nom.trim(), prenom: prenom.trim(), poste, role: statut, services: servicesEffectifs, email: email.trim().toLowerCase() });
+      logActivity("Équipe", "Compte créé", `${nomComplet} (${LIBELLE_STATUT[statut] || statut})`);
+      const rep = await gestion.inviter(emp.id);
+      setMessage(resultatInvitation(nomComplet, rep));
+      setNom(""); setPrenom(""); setPoste(""); setStatut("cuisinier"); setEmail(""); setServices(["Cuisine"]);
+    } catch (e) {
+      setMessage({ type: "erreur", texte: "Impossible de créer le compte : " + e.message });
+    } finally { setEnCours(false); }
+  };
+
+  const renvoyer = async (emp) => {
+    setMessage(null); setLienCopie(false);
+    try {
+      const rep = await gestion.inviter(emp.id);
+      const m = resultatInvitation(emp.nom, { ...rep });
+      setMessage({ ...m, texte: rep.envoye ? `Invitation renvoyée à ${emp.email}.` : `Nouvelle invitation pour ${emp.nom} : envoyez-lui son lien avec votre messagerie.`, invitation: rep.envoye ? undefined : { lien: rep.lien, email: emp.email, nom: emp.nom } });
+    } catch (e) { setMessage({ type: "erreur", texte: "Impossible d'envoyer l'invitation : " + e.message }); }
+  };
+
+  const supprimer = async (emp) => {
+    setSuppression(null); setMessage(null);
+    try { await gestion.supprimer(emp.id); logActivity("Équipe", "Compte supprimé", emp.nom); setMessage({ type: "ok", texte: `Compte de ${emp.nom} supprimé.` }); }
+    catch (e) { setMessage({ type: "erreur", texte: e.message }); }
+  };
+
+  const copier = async (lien) => { try { await navigator.clipboard.writeText(lien); setLienCopie(true); } catch (e) { window.prompt("Copiez ce lien :", lien); } };
+  const postes = [...new Set(employees.map((e) => e.poste).filter(Boolean))];
+  const visibles = employees.filter((e) => (!filtrePoste || e.poste === filtrePoste) && (!recherche.trim() || (e.nom + " " + (e.email || "")).toLowerCase().includes(recherche.trim().toLowerCase())));
+  const decouper = (e) => {
+    if (e.prenom) return { prenom: e.prenom, nom: e.nomFamille || e.nom };
+    const parts = (e.nom || "").split(" ");
+    return parts.length > 1 ? { prenom: parts[0], nom: parts.slice(1).join(" ") } : { prenom: "", nom: e.nom };
+  };
+
+  return (
+    <div className="mb-6 space-y-5">
+      <Card>
+        <div className="flex flex-wrap items-start justify-between gap-3 mb-4">
+          <div className="flex items-center gap-3">
+            <span className="w-10 h-10 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: "#1B4F9C" }}><Plus size={20} /></span>
+            <div>
+              <h3 className="text-lg font-bold text-[var(--ink)]">Créer un compte employé</h3>
+              <p className="text-xs text-[var(--steel)]">Définissez les informations et les accès de l'employé.</p>
+            </div>
+          </div>
+          <Button variant="ghost" onClick={() => setAide(!aide)}>Aide sur les niveaux d'accès</Button>
+        </div>
+        {aide && (
+          <div className="mb-4 rounded-lg p-3 text-sm text-[var(--ink)]" style={{ backgroundColor: "#EAF1FB" }}>
+            <p className="mb-1"><strong>Gestion</strong> = accès à Contrôle &amp; Gestion (chef de cuisine et directeur uniquement). Il se coche tout seul selon le statut choisi.</p>
+            <p>Les autres cases indiquent les services où l'employé travaille. Les employés n'ont jamais accès à Contrôle &amp; Gestion.</p>
+          </div>
+        )}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+          <Field label="Nom *"><input className={inputCls} value={nom} onChange={(e) => setNom(e.target.value)} placeholder="Ex. : Dupont" /></Field>
+          <Field label="Prénom *"><input className={inputCls} value={prenom} onChange={(e) => setPrenom(e.target.value)} placeholder="Ex. : Julie" /></Field>
+          <Field label="Poste">
+            <select className={inputCls} value={poste} onChange={(e) => setPoste(e.target.value)}>
+              <option value="">Aucun poste</option>
+              {POSTES_EQUIPE.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </Field>
+          <Field label="Statut dans la brigade *">
+            <select className={inputCls} value={statut} onChange={(e) => setStatut(e.target.value)}>
+              {STATUTS_EQUIPE.map((x) => <option key={x.value} value={x.value}>{x.label}</option>)}
+            </select>
+          </Field>
+        </div>
+        <div className="mb-3 max-w-xl">
+          <Field label="Adresse e-mail *"><input className={inputCls} type="email" autoComplete="off" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Ex. : julie@exemple.fr" /></Field>
+          <p className="text-xs text-[var(--steel)] mt-1">L'employé reçoit un lien sur cette adresse pour choisir lui-même son code personnel.</p>
+        </div>
+        <div className="flex flex-wrap items-center gap-x-5 gap-y-2 mb-4">
+          <span className="text-sm font-medium text-[var(--ink)]">Niveau d'accès</span>
+          {SERVICES_COMPTE.map((sv) => {
+            const coche = servicesEffectifs.includes(sv);
+            return (
+              <label key={sv} className={`inline-flex items-center gap-1.5 text-sm ${sv === "Gestion" ? "text-[var(--steel)]" : "text-[var(--ink)] cursor-pointer"}`} title={sv === "Gestion" ? "Réservé au chef de cuisine et au directeur (selon le statut choisi)" : ""}>
+                <input type="checkbox" checked={coche} disabled={sv === "Gestion"} onChange={() => basculer(sv)} /> {sv}
+              </label>
+            );
+          })}
+        </div>
+        <button onClick={creer} disabled={!pret || enCours} className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
+          <Plus size={18} /> {enCours ? "Création…" : "Créer le compte"}
+        </button>
+        {!pret && (nom || prenom || email) && <p className="text-xs text-[var(--steel)] mt-2">Nom, prénom et une adresse e-mail valide sont nécessaires.</p>}
+        {message && (
+          <div className="mt-4 rounded-xl border-2 p-3" style={message.type === "ok" ? { backgroundColor: "#EAF6EF", borderColor: "#B3E0C5", color: "#14653A" } : { backgroundColor: "#FDE4E8", borderColor: "#F6B8C2", color: "#B4233A" }}>
+            <p className="text-sm font-semibold">{message.texte}</p>
+            {message.invitation && (
+              <div className="flex flex-wrap gap-3 mt-2">
+                <a className="text-sm font-semibold underline" href={`mailto:${message.invitation.email}?subject=${encodeURIComponent("Votre accès à Ma Cuisine : choisissez votre code")}&body=${encodeURIComponent(`Bonjour ${message.invitation.nom},\n\nVotre compte Ma Cuisine a été créé. Choisissez votre code personnel à 4 chiffres avec ce lien (valable 7 jours, un seul usage) :\n${message.invitation.lien}\n\nCe code vous servira à vous connecter. Ne le communiquez à personne.`)}`}>Envoyer avec ma messagerie</a>
+                <button onClick={() => copier(message.invitation.lien)} className="text-sm font-semibold underline">{lienCopie ? "Lien copié ✓" : "Copier le lien"}</button>
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+
+      <Card>
+        <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+          <div>
+            <h3 className="text-lg font-bold text-[var(--ink)]">Comptes existants ({employees.length})</h3>
+            <p className="text-xs text-[var(--steel)]">Liste des employés ayant un accès à l'application.</p>
+          </div>
+          <div className="flex flex-wrap gap-2">
+            <input className={`${inputCls} w-56`} value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Rechercher un employé…" />
+            <select className={`${inputCls} w-44`} value={filtrePoste} onChange={(e) => setFiltrePoste(e.target.value)}>
+              <option value="">Tous les postes</option>
+              {postes.map((p) => <option key={p} value={p}>{p}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm min-w-[820px]">
+            <thead><tr className="text-left text-xs text-[var(--steel)] border-b border-[var(--line)]">
+              <th className="py-2 pr-3 font-semibold">Nom</th><th className="py-2 pr-3 font-semibold">Prénom</th><th className="py-2 pr-3 font-semibold">Poste</th>
+              <th className="py-2 pr-3 font-semibold">Accès</th><th className="py-2 pr-3 font-semibold">Services autorisés</th><th className="py-2 pr-3 font-semibold">Statut</th><th className="py-2 font-semibold text-right">Actions</th>
+            </tr></thead>
+            <tbody className="divide-y divide-[var(--line)]">
+              {visibles.map((e) => {
+                const n = decouper(e);
+                const svc = e.services && e.services.length ? e.services : (e.estChef ? ["Gestion"] : []);
+                return (
+                  <tr key={e.id}>
+                    <td className="py-2.5 pr-3 text-[var(--ink)] font-medium">{n.nom}</td>
+                    <td className="py-2.5 pr-3 text-[var(--ink)]">{n.prenom || "—"}</td>
+                    <td className="py-2.5 pr-3 text-[var(--ink)]">{e.poste || "—"}</td>
+                    <td className="py-2.5 pr-3"><span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={e.estChef ? { backgroundColor: "#EEE6FB", color: "#5B2FA8" } : { backgroundColor: "#E6F0FB", color: "#1B4F9C" }}>{LIBELLE_STATUT[e.role] || (e.estChef ? "Chef" : "Employé")}</span></td>
+                    <td className="py-2.5 pr-3 text-xs text-[var(--steel)]">{svc.length ? svc.join(" · ") : "—"}</td>
+                    <td className="py-2.5 pr-3">
+                      {e.codeDefini === false
+                        ? <span className="text-xs font-semibold px-2.5 py-1 rounded-full" style={{ backgroundColor: "#FFF4DC", color: "#8A5A00" }}>Code à choisir</span>
+                        : <span className="text-xs font-semibold inline-flex items-center gap-1.5" style={{ color: "#14653A" }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#1E7B4B" }} /> Actif</span>}
+                    </td>
+                    <td className="py-2.5 text-right whitespace-nowrap">
+                      {e.email && e.codeDefini === false && <button onClick={() => renvoyer(e)} className="text-xs font-semibold text-[var(--accent)] underline mr-3">Renvoyer l'invitation</button>}
+                      {e.id === currentUserId
+                        ? <span className="text-xs text-[var(--steel)] italic">Compte actuel</span>
+                        : <button onClick={() => setSuppression(e)} className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-[var(--line)] text-[var(--ink)]" title="Supprimer ce compte"><Trash2 size={14} /> Supprimer</button>}
+                    </td>
+                  </tr>
+                );
+              })}
+              {visibles.length === 0 && <tr><td colSpan={7} className="py-4 text-sm text-[var(--steel)]">Aucun employé trouvé.</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      {suppression && <ModalConfirmerSuppression libelle={suppression.nom} onAnnuler={() => setSuppression(null)} onConfirmer={() => supprimer(suppression)} />}
+    </div>
+  );
+}
+
+function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -3150,7 +3342,11 @@ function Controle({ chargerPlanDepart, employees, setEmployees, tasks, activityL
         <DeclarationTiac employees={employees} activityLog={activityLog} receptions={receptions} preparations={preparations} produits={produits} reservations={reservations} currentUserId={currentUserId} logActivity={logActivity} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} />
       )}
 
-      {sousEcran === "comptes" && (
+      {sousEcran === "comptes" && gestionComptes && (
+        <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} />
+      )}
+
+      {sousEcran === "comptes" && !gestionComptes && (
         <div className="mb-6 space-y-6">
           <Card>
             <h3 className="font-semibold text-[var(--ink)] mb-3">Créer un compte</h3>
@@ -17376,6 +17572,12 @@ function KitchenApp({ identiteExterne } = {}) {
   const [employeesExternes, setEmployeesExternes] = useState(() => (identiteExterne && identiteExterne.equipe) || []);
   const employees = modeExterne ? employeesExternes : employeesStockes;
   const setEmployees = modeExterne ? setEmployeesExternes : setEmployeesStockes;
+  // Équipe de la nouvelle base : se met à jour quand un compte est créé, supprimé ou invité (gestion des comptes).
+  const cleEquipeExterne = modeExterne ? JSON.stringify((identiteExterne.equipe || []).map((e) => [e.id, e.nom, e.poste, e.role, e.email, e.codeDefini, (e.services || []).join(",")])) : "";
+  useEffect(() => {
+    if (modeExterne && identiteExterne.equipe) setEmployeesExternes(identiteExterne.equipe);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [cleEquipeExterne]);
   const [currentUserIdStocke, setCurrentUserIdStocke, currentUserLoaded] = useStored("current-user-id", null);
   // En prévisualisation « nouvelle base » : l'utilisateur courant est UNIQUEMENT l'employé identifié par son
   // code (jamais l'ancien état mémorisé dans le navigateur, qui pouvait faire passer n'importe qui pour « Direction »).
@@ -18808,7 +19010,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {tab === "controle" && !bloqueChef && (
-          <Controle chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
