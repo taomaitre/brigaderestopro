@@ -1404,7 +1404,7 @@ function Dashboard({ employees, activityLog, shifts, tempLogs, stock, reservatio
     { label: "Alertes température", value: alertesTemp.length, icon: Thermometer, tone: alertesTemp.length ? "warn" : "ok", tab: "haccpTemp" },
     { label: "Produits à recommander", value: stockBas.length, icon: TrendingDown, tone: stockBas.length ? "warn" : "ok", tab: "stock" },
     { label: "Réservations aujourd'hui", value: `${resasAujourdhui.length} · ${personnesAujourdhui} pers.`, icon: CalendarDays, tone: "gold", tab: "reservations" },
-    { label: "Personnel en poste", value: equipeAujourdhui.length, icon: Users, tone: "gold", tab: "planning" },
+    { label: "Personnel en poste", value: equipeAujourdhui.length, icon: Users, tone: "gold", tab: "horaires" },
   ];
 
   return (
