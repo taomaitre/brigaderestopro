@@ -1287,6 +1287,16 @@ function IndicateurHorsLigne() {
   );
 }
 
+// Pastilles de résumé en haut d'un écran (simples informations, jamais des boutons ni des blocages).
+function ChipsResume({ items }) {
+  const tons = { neutre: ["#EEF1F5", "#334155"], ok: ["#E4F4EA", "#15803D"], attention: ["#FBF1D3", "#A16207"] };
+  return (
+    <div className="flex flex-wrap gap-2 mb-4">
+      {items.map(([texte, ton], i) => { const [fond, coul] = tons[ton || "neutre"]; return <span key={i} className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: fond, color: coul }}>{texte}</span>; })}
+    </div>
+  );
+}
+
 // Même fonction = même couleur et même logo partout : le logo du titre vient de la table couleurSousTuile.
 const LOGOS_TITRE = [
   ["Températures", "temperatures", () => Thermometer], ["Refroidissement", "cellule", () => Snowflake], ["Huile", "huile", () => Droplets],
@@ -4029,6 +4039,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
 
       {sousEcran === "origine" && (
         <div className="mb-6 space-y-6">
+          <ChipsResume items={[[`${stock.length} produit(s)`], [`${stock.filter((x) => origineProduits[x.nom]).length} origine renseignée`, "ok"], [`${stock.filter((x) => !origineProduits[x.nom]).length} à compléter`, stock.some((x) => !origineProduits[x.nom]) ? "attention" : "ok"]]} />
           <Card>
             <h3 className="font-semibold text-[var(--ink)] mb-2">Rechercher — produits</h3>
             <p className="text-xs text-[var(--steel)] mb-2">Tapez ou dictez, par ex. "viande" pour retrouver rapidement vos viandes. Renseigné automatiquement à la lecture de l'étiquette en réception (mis à jour en temps réel si un produit reçu diffère de l'habituel), modifiable ici à la main.</p>
