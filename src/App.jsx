@@ -2505,8 +2505,13 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
 
 // Gestion → Commandes : les commandes (livraisons) reçues, avec partage / e-mail / impression
 // (par exemple pour envoyer une copie à la comptabilité qui vérifie les factures).
-function CommandesRecues({ receptions, employees, nomMoi }) {
+function CommandesRecues({ receptions, setReceptions, employees, nomMoi, memoireSeule }) {
   const [ouverte, setOuverte] = useState(null);
+  const [ecarts, setEcarts] = useStoredOuMemoire("ecarts-reception", [], memoireSeule);
+  const [nouvelEcart, setNouvelEcart] = useState(null);
+  const ajouterEcart = (e) => { setEcarts([{ id: uid(), date: todayISO(), heure: new Date().toTimeString().slice(0, 5), renvoye: false, ...e }, ...ecarts]); setNouvelEcart(null); };
+  const marquerRenvoye = (id) => setEcarts(ecarts.map((e) => (e.id === id ? { ...e, renvoye: true, renvoyeDate: todayISO() } : e)));
+  const marquerVerifiee = (cle) => setReceptions && setReceptions(receptions.map((r) => ((r.receptionId || r.id) === cle ? { ...r, valideChef: true } : r)));
   const [message, setMessage] = useState("");
   const fmtDate = (iso) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || "");
   const who = (id) => (employees.find((e) => e.id === id) || {}).nom || "";
@@ -2550,9 +2555,43 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
     setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { /* ignore */ } setTimeout(() => f.remove(), 2000); }, 400);
   };
 
-  if (groupes.length === 0) return <p className="text-sm text-[var(--steel)]">Aucune commande reçue pour le moment. Elles apparaissent ici après chaque réception de marchandises.</p>;
+  const cadreEcarts = (
+    <PanneauStyle titre="Produits manquants ou en trop" aide="Un produit commandé mais non livré, ou livré en trop : pour garder une trace et le renvoyer au fournisseur" couleur="#2E86D6" teinte="#E6F0FB">
+      <div className="flex gap-2 mb-3 flex-wrap">
+        <Button variant="ghost" onClick={() => setNouvelEcart({ type: "manquant" })}>+ Manquant</Button>
+        <Button variant="ghost" onClick={() => setNouvelEcart({ type: "en-trop" })}>+ En trop</Button>
+      </div>
+      {nouvelEcart && (
+        <div className="rounded-lg border border-[var(--cadre)] p-3 mb-3 space-y-2">
+          <p className="text-sm font-medium text-[var(--ink)]">{nouvelEcart.type === "manquant" ? "Nouveau produit manquant" : "Nouveau produit livré en trop"}</p>
+          <Field label="Produit"><input className={inputCls} value={nouvelEcart.produit || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, produit: e.target.value })} /></Field>
+          <Field label="Fournisseur"><input className={inputCls} value={nouvelEcart.fournisseur || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, fournisseur: e.target.value })} /></Field>
+          <Field label="Quantité"><input className={inputCls} value={nouvelEcart.quantite || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, quantite: e.target.value })} /></Field>
+          <Field label="Note (optionnel)"><input className={inputCls} value={nouvelEcart.note || ""} onChange={(e) => setNouvelEcart({ ...nouvelEcart, note: e.target.value })} /></Field>
+          <div className="flex gap-2"><Button onClick={() => ajouterEcart(nouvelEcart)} disabled={!nouvelEcart.produit}>Enregistrer</Button><Button variant="ghost" onClick={() => setNouvelEcart(null)}>Annuler</Button></div>
+        </div>
+      )}
+      {ecarts.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun écart enregistré.</p> : (
+        <ul className="divide-y divide-[var(--line)]">
+          {ecarts.map((e) => (
+            <li key={e.id} className="py-2 text-sm">
+              <div className="flex items-center justify-between gap-2">
+                <span className="font-medium text-[var(--ink)]">{e.produit} {e.quantite ? `(${e.quantite})` : ""}</span>
+                <span className={`text-xs px-2 py-0.5 rounded-full shrink-0 ${e.type === "manquant" ? "bg-[var(--warn-soft)] text-[var(--warn)]" : "bg-[var(--accent-soft)] text-[var(--accent)]"}`}>{e.type === "manquant" ? "Manquant" : e.renvoye ? "En trop — renvoyé" : "En trop — à renvoyer"}</span>
+              </div>
+              <div className="text-xs text-[var(--steel)]">{e.date} à {e.heure}{e.fournisseur ? ` · ${e.fournisseur}` : ""}{e.note ? ` · ${e.note}` : ""}</div>
+              {e.type === "en-trop" && !e.renvoye && <Button variant="ghost" className="mt-1" onClick={() => marquerRenvoye(e.id)}>Marquer comme renvoyé</Button>}
+            </li>
+          ))}
+        </ul>
+      )}
+    </PanneauStyle>
+  );
+
+  if (groupes.length === 0) return <div className="space-y-3">{cadreEcarts}<p className="text-sm text-[var(--steel)]">Aucune commande reçue pour le moment. Elles apparaissent ici après chaque réception de marchandises.</p></div>;
   return (
     <div className="space-y-3">
+      {cadreEcarts}
       {message && <p className="text-sm" style={{ color: "#2F6B4F" }}>{message}</p>}
       {groupes.map((c) => {
         const nbNC = c.lignes.filter((l) => !l.conforme).length;
@@ -2567,7 +2606,7 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
                 </div>
                 <div className="flex items-center gap-2 shrink-0">
                   {nbNC > 0 && <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: "#C1432D" }}>{nbNC} non conforme(s)</span>}
-                  {c.lignes.every((l) => l.valideChef) && <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">Vérifiée</span>}
+                  {c.lignes.every((l) => l.valideChef) ? <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">✓ Vérifiée</span> : <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--bg)] text-[var(--steel)]">À vérifier</span>}
                 </div>
               </div>
             </button>
@@ -2581,6 +2620,7 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
                         <span className="text-xs font-semibold" style={{ color: l.conforme ? "#2F6B4F" : "#C1432D" }}>{statutLigne(l)}</span>
                       </div>
                       <div className="text-xs text-[var(--steel)]">{l.conforme ? l.quantite : `${l.quantiteNC} refusé(s)`}{l.lot ? ` · lot ${l.lot}` : ""}{l.dlc ? ` · DLC ${fmtDate(l.dlc)}` : ""}{l.temperature != null ? ` · ${l.temperature} °C` : ""}{l.conservation ? ` · ${LIBELLE_CONSERVATION[l.conservation] || l.conservation}` : ""}</div>
+                      {l.photoNC && <img src={l.photoNC} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] mt-1.5" />}
                     </div>
                   ))}
                 </div>
@@ -2591,6 +2631,7 @@ function CommandesRecues({ receptions, employees, nomMoi }) {
                   <Button variant="ghost" onClick={() => partager(c)}>Partager</Button>
                   <Button variant="ghost" onClick={() => envoyerMail(c)}><Mail size={16} /> Envoyer par e-mail</Button>
                   <Button variant="ghost" onClick={() => imprimer(c)}><Printer size={16} /> Imprimer</Button>
+                  {!c.lignes.every((l) => l.valideChef) && <Button onClick={() => marquerVerifiee(c.cle)}>Marquer cette réception comme vérifiée</Button>}
                 </div>
               </div>
             )}
@@ -3127,8 +3168,8 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
 
       {sousEcran === "commandes" && (
         <div>
-          <SectionHeader title="Commandes reçues" subtitle="Toutes les livraisons reçues — à partager, envoyer par e-mail ou imprimer (par exemple pour la comptabilité)" />
-          <CommandesRecues receptions={receptions} employees={employees} nomMoi={(employees.find((e) => e.id === currentUserId) || {}).nom} />
+          <SectionHeader title="Livraisons reçues" subtitle="Toutes les livraisons reçues, avec vérification par le chef, produits manquants ou en trop — à partager, envoyer par e-mail ou imprimer (par exemple pour la comptabilité)" />
+          <CommandesRecues receptions={receptions} setReceptions={setReceptions} memoireSeule={!!stockCatalogue} employees={employees} nomMoi={(employees.find((e) => e.id === currentUserId) || {}).nom} />
         </div>
       )}
 
