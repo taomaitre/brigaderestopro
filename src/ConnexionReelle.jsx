@@ -718,12 +718,18 @@ export default function ConnexionReelle() {
   const aujourdhuiIso = () => new Date().toISOString().slice(0, 10);
   async function chargerPms() {
     try {
+      // Le suivi du dossier PMS n'existe que pour l'abonnement Complet (aussi imposé côté base de données).
+      const ab = await supabasePublic.rpc("abonnement_courant");
+      if (ab.error || ab.data !== "complet") {
+        setPmsDonnees((d) => ({ ...d, charge: true, complet: false, prestataires: [], formations: [], documents: [] }));
+        return;
+      }
       const [rp, rf, rd] = await Promise.all([
         supabasePublic.from("prestataires").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_formations").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_documents").select("*").order("created_at", { ascending: false }),
       ]);
-      setPmsDonnees((d) => ({ ...d, charge: true, prestataires: rp.data || [], formations: rf.data || [], documents: rd.data || [] }));
+      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], formations: rf.data || [], documents: rd.data || [] }));
     } catch (e) { console.error("Dossier PMS non chargé :", e); }
   }
   const versNull = (v) => (v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim());
@@ -1110,7 +1116,8 @@ export default function ConnexionReelle() {
         return estChefOuDirecteur(data.employe.role) ? { ok: true, nom: data.employe.nom } : { ok: false };
       },
       reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
-        pms: pmsDonnees.charge ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
+        suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
+        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,

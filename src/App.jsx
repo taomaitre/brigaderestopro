@@ -1791,6 +1791,18 @@ function PmsAssistant({ reglages, employees, onOuvrirComptes, onFin }) {
 function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, onImprimer }) {
   const pms = reglages && reglages.pms;
   const [assistant, setAssistant] = useState(false);
+  if (reglages && !pms) {
+    // Abonnement Standard : seules les informations de l'établissement (qui font fonctionner le logiciel) sont proposées.
+    return (
+      <div>
+        <SectionHeader title="PMS — dossier" subtitle="Les informations de votre établissement" />
+        <Card className="mb-4">
+          <p className="text-sm text-[var(--ink)]">Avec votre abonnement, le PMS est un document qui indique ce que votre établissement doit mettre en place. Vous le tenez vous-même. Le suivi complet du dossier (prestataires avec rappels d'échéance, pièces jointes, dossier imprimable) est proposé avec l'abonnement Complet.</p>
+        </Card>
+        <PmsFicheEtablissement reglages={reglages} />
+      </div>
+    );
+  }
   if (reglages && pms && (!pms.demarrageTermine || assistant)) {
     return <PmsAssistant reglages={reglages} employees={employees} onOuvrirComptes={onOuvrirComptes} onFin={() => { setAssistant(false); if (!pms.demarrageTermine) pms.terminerDemarrage(true); }} />;
   }
@@ -3417,7 +3429,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!reglagesEtablissement)));
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms))));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
     if (tuile && tuile.tab) return setTab(tuile.tab);
@@ -3568,7 +3580,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         {SECTIONS_CG.map((x) => {
           const Icon = x.icon;
-          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!reglagesEtablissement))).length;
+          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)))).length;
           return (
             <button key={x.id} onClick={() => setSectionActive(x.id)}
               style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
@@ -4011,7 +4023,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
         </div>
       )}
 
-      {sousEcran === "pmsPrestataires" && accesPlanningReservations && (
+      {sousEcran === "pmsPrestataires" && accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms) && (
         <div className="mb-6">
           <SectionHeader title="Prestataires" subtitle="Antinuisibles, maintenance, laboratoire… les contacts utiles" />
           <PmsPrestataires pms={reglagesEtablissement && reglagesEtablissement.pms} editable={compteDirection} />
