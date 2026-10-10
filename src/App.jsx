@@ -398,11 +398,11 @@ const TUILE_COULEURS = {
   reception: { fond: "linear-gradient(160deg, #2E86D6 0%, #1B5FA8 100%)", ombre: "rgba(27,95,168,0.35)" },
   etiquettes: { fond: "linear-gradient(160deg, #9B5FD9 0%, #6E36AE 100%)", ombre: "rgba(110,54,174,0.35)" },
   tracabilite: { fond: "linear-gradient(160deg, #3C4653 0%, #1E242D 100%)", ombre: "rgba(30,36,45,0.35)" },
-  haccpTemp: { fond: "linear-gradient(160deg, #2E86D6 0%, #1B5FA8 100%)", ombre: "rgba(27,95,168,0.35)" },
-  haccpRefroid: { fond: "linear-gradient(160deg, #4FC3F7 0%, #1E88C7 100%)", ombre: "rgba(30,136,199,0.35)" },
-  haccpHuile: { fond: "linear-gradient(160deg, #D9A017 0%, #A6790E 100%)", ombre: "rgba(166,121,14,0.35)" },
-  haccpChaud: { fond: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)", ombre: "rgba(217,105,26,0.35)" },
-  haccpCuisson: { fond: "linear-gradient(160deg, #F0653B 0%, #C1432D 100%)", ombre: "rgba(193,67,45,0.35)" },
+  haccpTemp: { get fond() { return COULEURS_FONCTION.temperatures.fond; }, get ombre() { return COULEURS_FONCTION.temperatures.ombre; } },
+  haccpRefroid: { get fond() { return COULEURS_FONCTION.cellule.fond; }, get ombre() { return COULEURS_FONCTION.cellule.ombre; } },
+  haccpHuile: { get fond() { return COULEURS_FONCTION.huile.fond; }, get ombre() { return COULEURS_FONCTION.huile.ombre; } },
+  haccpChaud: { get fond() { return COULEURS_FONCTION.maintien.fond; }, get ombre() { return COULEURS_FONCTION.maintien.ombre; } },
+  haccpCuisson: { get fond() { return COULEURS_FONCTION.cuisson.fond; }, get ombre() { return COULEURS_FONCTION.cuisson.ombre; } },
   fiches: { fond: "linear-gradient(160deg, #C1893C 0%, #8C5E22 100%)", ombre: "rgba(140,94,34,0.35)" },
   controle: { fond: "linear-gradient(160deg, #5C6B7A 0%, #3C4653 100%)", ombre: "rgba(60,70,83,0.35)" },
   comptes: { fond: "linear-gradient(160deg, #64748B 0%, #334155 100%)", ombre: "rgba(51,65,85,0.35)" },
@@ -431,18 +431,36 @@ const ACCUEIL_TUILES = [
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
   { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
 ];
-// Une même fonction garde la même couleur partout : les sous-tuiles de Contrôle & Gestion qui existent aussi ailleurs
-// (écran HACCP, accueil) reprennent exactement la couleur de l'autre écran. Les autres gardent la couleur de leur section.
+// Chaque fonction a SA couleur (jamais deux fonctions identiques, pour que le cerveau retienne la couleur et l'emplacement),
+// et une même fonction garde la même couleur partout (écran HACCP, accueil, Contrôle & Gestion).
+const degrade = (c1, c2) => {
+  const n = parseInt(c2.slice(1), 16);
+  return { fond: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)`, ombre: `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},0.35)` };
+};
+const COULEURS_FONCTION = {
+  temperatures: degrade("#4F46E5", "#312E81"),
+  cellule: degrade("#4FC3F7", "#1E88C7"),
+  huile: degrade("#84CC16", "#4D7C0F"),
+  maintien: degrade("#F97316", "#C2410C"),
+  cuisson: degrade("#BC6C4D", "#7F3F2A"),
+  planningEmploye: degrade("#7E22CE", "#581C87"),
+  reservationsClient: degrade("#C026D3", "#86198F"),
+  comptes: degrade("#475569", "#1E293B"),
+  creationFiche: degrade("#84A98C", "#52796F"),
+  carte: degrade("#E07A5F", "#B5523B"),
+  fournisseur: degrade("#2F55C7", "#1E3A8A"),
+  commandes: degrade("#A8A29E", "#57534E"),
+  pms: degrade("#DB2777", "#831843"),
+  allergenes: degrade("#EAB308", "#A16207"),
+  origine: degrade("#0EA5E9", "#075985"),
+  tiac: degrade("#4B5563", "#111827"),
+};
 const COULEUR_CONTROLE_COMMUNE = {
-  temperatures: () => TUILE_COULEURS.haccpTemp,
-  huile: () => TUILE_COULEURS.haccpHuile,
-  cuisson: () => TUILE_COULEURS.haccpCuisson,
-  cellule: () => TUILE_COULEURS.haccpRefroid,
-  maintien: () => TUILE_COULEURS.haccpChaud,
   tracabilite: () => ACCUEIL_TUILES.find((x) => x.id === "tracabilite"),
   planning: () => ACCUEIL_TUILES.find((x) => x.id === "taches"),
 };
 const couleurSousTuile = (id, parDefaut) => {
+  if (COULEURS_FONCTION[id]) return COULEURS_FONCTION[id];
   const f = COULEUR_CONTROLE_COMMUNE[id];
   const c = f ? f() : null;
   return c && c.fond ? { fond: c.fond, ombre: c.ombre } : parDefaut;
@@ -5783,7 +5801,7 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
       </div>
     );
   }
-  const rose = { fond: "linear-gradient(160deg, #E0457B 0%, #B02A5B 100%)", ombre: "rgba(176,42,91,0.35)" };
+  const rose = COULEURS_FONCTION.pms;
   return (
     <div>
       <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
@@ -8476,7 +8494,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)" }}><UtensilsCrossed size={24} /></div>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.carte.fond }}><UtensilsCrossed size={24} /></div>
           <div>
             <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">Ma carte</h2>
             <p className="text-sm text-[var(--steel)]">{`Créez et gérez votre carte à partir des fiches techniques — et sachez ce que chaque employé doit préparer. ${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`}</p>
