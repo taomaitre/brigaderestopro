@@ -2910,11 +2910,11 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   const SECTIONS_CG = [
     { id: "equipe", label: "Équipe et planning", desc: "Horaires, heures de service, réservations, comptes", icon: Users, couleur: { fond: "linear-gradient(160deg, #2563B8 0%, #1D4E89 100%)", ombre: "rgba(29,78,137,0.35)" } },
     { id: "controle", label: "Contrôles du jour", desc: "Températures, huile, cuisson, refroidissement, réception", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
-    { id: "cuisine", label: "Cuisine et achats", desc: "Fiches techniques, carte, fournisseurs, livraisons", icon: BookOpen, couleur: { fond: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", ombre: "rgba(180,83,9,0.35)" } },
+    { id: "cuisine", label: "Cuisine et achats", desc: "Fiches techniques, carte, fournisseurs, livraisons", icon: ChefHat, couleur: { fond: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", ombre: "rgba(180,83,9,0.35)" } },
     { id: "hygiene", label: "Hygiène et réglementation", desc: "Plan de nettoyage, allergènes, origine des viandes, TIAC", icon: SprayCan, couleur: { fond: "linear-gradient(160deg, #B83A6B 0%, #8B2450 100%)", ombre: "rgba(139,36,80,0.35)" } },
   ];
   const SOUS_TUILES_CONTROLE_TOUTES = [
-    { id: "planningEmploye", label: "Planning employé et heures de service", icon: ListChecks, section: "equipe", tab: "horaires" },
+    { id: "planningEmploye", label: "Planning employé et heures de service", icon: Clock, section: "equipe", tab: "horaires" },
     { id: "reservationsClient", label: "Réservations client", icon: CalendarDays, section: "equipe", tab: "reservations" },
     { id: "comptes", label: "Gestion des comptes", icon: Users, section: "equipe" },
     { id: "planning", label: "Tâches du jour", icon: ListChecks, section: "controle" },
@@ -2925,7 +2925,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
     { id: "maintien", label: "Maintien au chaud", icon: Soup, section: "controle" },
     { id: "tracabilite", label: "Traçabilité", icon: Camera, section: "controle" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
-    { id: "carte", label: "Ma carte", icon: BookOpen, section: "cuisine" },
+    { id: "carte", label: "Ma carte", icon: UtensilsCrossed, section: "cuisine" },
     { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "cuisine" },
     { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "cuisine" },
     { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
@@ -8397,7 +8397,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
     <div>
       <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
         <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)" }}><BookOpen size={24} /></div>
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)" }}><UtensilsCrossed size={24} /></div>
           <div>
             <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">Ma carte</h2>
             <p className="text-sm text-[var(--steel)]">{`Créez et gérez votre carte à partir des fiches techniques — et sachez ce que chaque employé doit préparer. ${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`}</p>
