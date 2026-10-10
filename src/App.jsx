@@ -584,10 +584,8 @@ function equipementEcartAnomalie(eq, valeur) {
 const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const addDays = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + n); return toISO(d); };
 const subMonths = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d.setMonth(d.getMonth() - n); return toISO(d); };
-// Durées de conservation de la traçabilité (décision de Loïc, 10/10) : les photos (lourdes) sont gardées 6 mois,
-// ce qui correspond au minimum pour les produits périssables ; les données texte (nom, lot, DLC, date, auteur) sont
-// gardées 5 ans, durée minimale générale de la traçabilité des denrées (GBPH Restaurateur, règlement 178/2002).
-const CONSERVATION_PHOTOS_TRACABILITE_MOIS = 6;
+// Durée de conservation de la traçabilité (décision de Loïc, 10/10) : 5 ans, photos comprises (durée minimale générale
+// de la traçabilité des denrées : GBPH Restaurateur, règlement 178/2002).
 const CONSERVATION_DONNEES_TRACABILITE_MOIS = 60;
 const startOfWeek = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return toISO(d); };
 const startOfMonth = (dateStr) => dateStr.slice(0, 7) + "-01";
@@ -14710,7 +14708,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Retour</button>
         <span className="text-xs text-[var(--steel)]">{tracabiliteFiltree.length} entrée(s)</span>
       </div>
-      <SectionHeader title="Traçabilité — historique complet" subtitle="Toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) conservées 5 ans ; les photos des entrées déjà lues en texte sont retirées après 6 mois (nom, lot, DLC, date et auteur restent) ; les entrées « photo seule » gardent leur photo 5 ans." />
+      <SectionHeader title="Traçabilité — historique complet" subtitle="Toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) photos comprises, puis supprimées automatiquement après 5 ans." />
       <Card>
         <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Rechercher (produit, lot ou date)" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
         <div className="divide-y divide-[var(--line)] mt-3">
@@ -18719,25 +18717,14 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [dernierControleRappelConso]);
 
   useEffect(() => {
-    const seuilPhotos = subMonths(todayISO(), CONSERVATION_PHOTOS_TRACABILITE_MOIS);
+    // Décision de Loïc (10/10) : les photos de traçabilité sont gardées aussi longtemps que les données (5 ans),
+    // sans les retirer avant. Les traçabilités de plus de 5 ans sont supprimées.
     const seuilDonnees = subMonths(todayISO(), CONSERVATION_DONNEES_TRACABILITE_MOIS);
     setPreparations((prev) => {
       const conservees = prev.filter((p) => p.date >= seuilDonnees);
-      const supprimees = prev.length - conservees.length;
-      let photosRetirees = 0;
-      const apresPhotos = conservees.map((p) => {
-        const aDesPhotos = p.photo || p.photoEtiquette || (Array.isArray(p.photos) && p.photos.length > 0);
-        // Une entrée "photo seule" (offre sans IA) n'a ni nom, ni lot, ni DLC en texte : la photo EST la
-        // traçabilité, donc elle est gardée aussi longtemps que les données (5 ans). On ne retire les
-        // photos qu'aux entrées qui ont déjà leurs informations en texte (nom, lot, DLC).
-        const aSesInfosEnTexte = !!(p.lot || p.nomLibre || p.produitId);
-        if (p.date >= seuilPhotos || !aDesPhotos || p.typeEntree === "photo-simple" || !aSesInfosEnTexte) return p;
-        photosRetirees += 1;
-        return { ...p, photo: null, photoEtiquette: null, photos: [], photosPurgees: true };
-      });
-      if (supprimees === 0 && photosRetirees === 0) return prev;
-      logActivitySafe("HACCP", "Purge automatique de la traçabilité", `${photosRetirees} lot(s) de photos de plus de ${CONSERVATION_PHOTOS_TRACABILITE_MOIS} mois retiré(s) ; ${supprimees} entrée(s) de plus de ${CONSERVATION_DONNEES_TRACABILITE_MOIS / 12} ans supprimée(s)`);
-      return apresPhotos;
+      if (conservees.length === prev.length) return prev;
+      logActivitySafe("HACCP", "Purge automatique de la traçabilité", `${prev.length - conservees.length} entrée(s) de plus de ${CONSERVATION_DONNEES_TRACABILITE_MOIS / 12} ans supprimée(s)`);
+      return conservees;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
