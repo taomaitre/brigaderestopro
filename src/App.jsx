@@ -8135,6 +8135,79 @@ function ChangerCarte({ carte, majCarte, plats, categories, nomDe, aujourdhui })
   );
 }
 
+// Aperçu de la carte : ce que verra le client, à imprimer ou à télécharger (PDF via l'impression, Word, Excel).
+function ApercuCarte({ carte, plats, categories, onClose }) {
+  const [date, setDate] = useState(todayISO());
+  const [avecPrix, setAvecPrix] = useState(true);
+  const [avecAllergenes, setAvecAllergenes] = useState(true);
+  const [message, setMessage] = useState("");
+  const ids = platsAuCarte(carte, date);
+  const parCat = categories.map((c) => ({ c, items: plats.filter((f) => f.categorie === c && ids.includes(f.id)) })).filter((x) => x.items.length > 0);
+  const allergenesDe = (f) => (f.allergenesTexte != null ? f.allergenesTexte : (f.allergenes || []).join(", ")) || "";
+  const prixDe = (f) => (f.cout && f.cout.prixVente ? `${f.cout.prixVente} €` : "");
+  const titre = (carte && carte.nom) || "Ma carte";
+  const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const html = () => {
+    const corps = parCat.map(({ c, items }) => `<h2>${esc(c)}</h2>` + items.map((f) => `<p class="plat"><b>${esc(f.nom)}</b>${avecPrix && prixDe(f) ? ` <span class="prix">${esc(prixDe(f))}</span>` : ""}${avecAllergenes && allergenesDe(f) ? `<br><span class="all">Allergènes : ${esc(allergenesDe(f))}</span>` : ""}</p>`).join("")).join("");
+    return `<html><head><meta charset="utf-8"><title>${esc(titre)}</title><style>body{font-family:Georgia,serif;padding:32px;color:#1D2321;max-width:720px;margin:auto}h1{text-align:center;margin-bottom:4px}.sous{text-align:center;color:#657069;margin-bottom:24px}h2{border-bottom:1px solid #ccc;padding-bottom:4px;margin-top:24px;text-transform:uppercase;font-size:15px;letter-spacing:1px}.plat{margin:8px 0}.prix{float:right}.all{font-size:12px;color:#657069}</style></head><body><h1>${esc(titre)}</h1><div class="sous">Carte du ${esc(joliDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}</div>${corps || "<p>Aucun plat sur la carte ce jour-là.</p>"}</body></html>`;
+  };
+  const imprimer = () => {
+    const fr = document.createElement("iframe");
+    fr.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    document.body.appendChild(fr);
+    fr.contentDocument.open(); fr.contentDocument.write(html()); fr.contentDocument.close();
+    setTimeout(() => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { /* ignore */ } setTimeout(() => fr.remove(), 2000); }, 400);
+  };
+  const telecharger = (blob, nom) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nom; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); };
+  const nomFichier = `${titre.replace(/[^\p{L}\p{N}]+/gu, "-")}-${date}`;
+  const word = () => { telecharger(new Blob(["﻿", html()], { type: "application/msword;charset=utf-8" }), `${nomFichier}.doc`); setMessage("Fichier Word téléchargé."); };
+  const excel = async () => {
+    try {
+      const XLSX = await import("xlsx");
+      const lignes = [["Catégorie", "Plat", ...(avecPrix ? ["Prix"] : []), ...(avecAllergenes ? ["Allergènes"] : [])]];
+      parCat.forEach(({ c, items }) => items.forEach((f) => lignes.push([c, f.nom, ...(avecPrix ? [prixDe(f)] : []), ...(avecAllergenes ? [allergenesDe(f)] : [])])));
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lignes), "Carte");
+      XLSX.writeFile(wb, `${nomFichier}.xlsx`); setMessage("Fichier Excel téléchargé.");
+    } catch (e) { setMessage("Le fichier Excel n'a pas pu être créé."); }
+  };
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
+      <div className="bg-white rounded-xl max-w-2xl w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "90vh", WebkitOverflowScrolling: "touch" }}>
+        <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-3"><ArrowLeft size={15} /> Fermer l'aperçu</button>
+        <div className="flex flex-wrap items-center gap-3 mb-3 text-sm text-[var(--ink)]">
+          <label className="flex items-center gap-2">Carte du <input type="date" className={inputCls} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={avecPrix} onChange={(e) => setAvecPrix(e.target.checked)} /> Prix</label>
+          <label className="flex items-center gap-1.5"><input type="checkbox" checked={avecAllergenes} onChange={(e) => setAvecAllergenes(e.target.checked)} /> Allergènes</label>
+        </div>
+        <div className="flex flex-wrap gap-2 mb-4">
+          <Button onClick={imprimer}><Printer size={15} /> Imprimer</Button>
+          <Button variant="ghost" onClick={imprimer}>PDF</Button>
+          <Button variant="ghost" onClick={word}>Word</Button>
+          <Button variant="ghost" onClick={excel}>Excel</Button>
+        </div>
+        {message && <p className="text-xs text-[var(--steel)] mb-2">{message}</p>}
+        <p className="text-xs text-[var(--steel)] mb-3">PDF : dans la fenêtre d'impression, choisissez « Enregistrer au format PDF ». Pensez à afficher l'origine des viandes (décret n° 2025-141) et les allergènes (règlement (UE) n° 1169/2011) à vos clients.</p>
+        <div className="border border-[var(--cadre)] rounded-xl p-5" style={{ fontFamily: "Georgia, serif" }}>
+          <h2 className="text-xl font-bold text-center text-[var(--ink)]">{titre}</h2>
+          <p className="text-center text-xs text-[var(--steel)] mb-4">Carte du {joliDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
+          {parCat.length === 0 && <p className="text-sm text-[var(--steel)] text-center">Aucun plat sur la carte ce jour-là.</p>}
+          {parCat.map(({ c, items }) => (
+            <div key={c} className="mb-4">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--ink)] border-b border-[var(--cadre)] pb-1 mb-2">{c}</h3>
+              {items.map((f) => (
+                <div key={f.id} className="mb-2">
+                  <div className="flex justify-between gap-3 text-sm text-[var(--ink)]"><span className="font-semibold">{f.nom}</span>{avecPrix && prixDe(f) && <span>{prixDe(f)}</span>}</div>
+                  {avecAllergenes && allergenesDe(f) && <div className="text-xs text-[var(--steel)]">Allergènes : {allergenesDe(f)}</div>}
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, reservations }) {
   const [quantiteOuverte, setQuantiteOuverte] = useState(null);
   const [jourDetail, setJourDetail] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
@@ -8147,6 +8220,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const [categorieOuverte, setCategorieOuverte] = useState(null);
   const [confirmerSuppr, setConfirmerSuppr] = useState(false);
   const [confirmerType, setConfirmerType] = useState(false);
+  const [apercuOuvert, setApercuOuvert] = useState(false);
   const carte = triees.find((c) => c.id === choisieId) || enCours || triees[triees.length - 1] || null;
   const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
   const categories = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
@@ -8204,6 +8278,12 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   return (
     <div>
       <SectionHeader title="Ma carte" subtitle={`${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`} />
+      {carte && (
+        <div className="mb-4">
+          <Button variant="ghost" onClick={() => setApercuOuvert(true)}><BookOpen size={16} /> Aperçu de la carte — imprimer ou télécharger</Button>
+        </div>
+      )}
+      {apercuOuvert && carte && <ApercuCarte carte={carte} plats={plats} categories={categories} onClose={() => setApercuOuvert(false)} />}
       {periodique && (
         <Card className="mb-4">
           <p className="text-sm font-semibold text-[var(--ink)] mb-2">Mes cartes</p>
