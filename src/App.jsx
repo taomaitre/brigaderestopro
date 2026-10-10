@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
+import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
@@ -1380,6 +1381,90 @@ const champNet = `${champNetAuto} w-full`;
 const libNet = "block text-sm font-medium text-[var(--ink)] mb-1";
 const inputCls =
   "border border-[var(--cadre)] rounded-lg px-3 py-2.5 min-h-[44px] text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)] bg-white";
+
+/* ---------- PMS — dossier : fiche de l'établissement (module 1) ---------- */
+
+function PmsFicheEtablissement({ reglages }) {
+  const fiche = reglages && reglages.fiche;
+  const [brouillon, setBrouillon] = useState({});
+  const [etat, setEtat] = useState({}); // cle -> "ok" | "erreur"
+  if (!reglages) return <Card><p className="text-sm text-[var(--steel)]">La fiche de l'établissement est disponible avec la nouvelle base de données.</p></Card>;
+  if (!fiche) return <Card><p className="text-sm text-[var(--steel)]">Chargement de la fiche…</p></Card>;
+  const valeur = (c) => (brouillon[c.cle] !== undefined ? brouillon[c.cle] : fiche[c.cle]);
+  const enregistrer = async (c, v) => {
+    const propre = c.cle === "siret" && typeof v === "string" ? v.replace(/\s/g, "") : v;
+    const ok = await reglages.enregistrerFiche(c.cle, propre);
+    setBrouillon((b) => { const n = { ...b }; delete n[c.cle]; return n; });
+    setEtat((e) => ({ ...e, [c.cle]: ok ? "ok" : "erreur" }));
+  };
+  const surSortie = (c) => {
+    if (brouillon[c.cle] === undefined) return;
+    if (String(brouillon[c.cle]) === String(fiche[c.cle])) { setBrouillon((b) => { const n = { ...b }; delete n[c.cle]; return n; }); return; }
+    enregistrer(c, brouillon[c.cle]);
+  };
+  const requis = FICHE_ETAB_CHAMPS.filter((c) => c.requis);
+  const remplis = requis.filter((c) => String(fiche[c.cle] || "").trim() !== "").length;
+  return (
+    <div>
+      <Card className="mb-4">
+        <p className="text-sm text-[var(--ink)] font-medium">{remplis} information(s) essentielle(s) renseignée(s) sur {requis.length}</p>
+        <p className="text-xs text-[var(--steel)] mt-1">Ces informations servent uniquement à construire votre PMS et à faire fonctionner vos rappels dans l'application. Elles ne sont transmises à aucune autorité ni à aucun tiers sans une action explicite de votre part. Chaque champ s'enregistre dès que vous quittez la case.</p>
+      </Card>
+      {FICHE_ETAB_GROUPES.map((g) => (
+        <Card key={g.id} className="mb-4">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{g.titre}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            {FICHE_ETAB_CHAMPS.filter((c) => c.groupe === g.id).map((c) => {
+              const v = valeur(c);
+              const remarque = c.type === "texte" ? remarqueChamp(c.cle, v) : "";
+              return (
+                <div key={c.cle} className={c.type === "liste" ? "sm:col-span-2" : ""}>
+                  <Field label={c.label}>
+                    {c.type === "choix" ? (
+                      <select className={inputCls} value={v || ""} onChange={(e) => enregistrer(c, e.target.value)}>
+                        <option value="">—</option>
+                        {c.options.map((o) => <option key={o} value={o}>{o}</option>)}
+                      </select>
+                    ) : c.type === "liste" ? (
+                      <div className="flex flex-wrap gap-2">
+                        {c.options.map((o) => {
+                          const coche = (v || []).includes(o);
+                          return (
+                            <button key={o} type="button" onClick={() => enregistrer(c, coche ? (v || []).filter((x) => x !== o) : [...(v || []), o])}
+                              className={`px-3 py-2 min-h-[44px] rounded-lg border text-sm font-medium ${coche ? "bg-[var(--accent-soft)] border-[var(--accent)] text-[var(--accent)]" : "bg-white border-[var(--cadre)] text-[var(--ink)]"}`}>{coche ? "✓ " : ""}{o}</button>
+                          );
+                        })}
+                      </div>
+                    ) : c.type === "date" ? (
+                      <input type="date" className={inputCls} value={v || ""} onChange={(e) => enregistrer(c, e.target.value)} />
+                    ) : (
+                      <input type={c.type === "nombre" ? "number" : "text"} min={c.type === "nombre" ? "0" : undefined} className={inputCls} value={v || ""}
+                        onChange={(e) => setBrouillon((b) => ({ ...b, [c.cle]: e.target.value }))} onBlur={() => surSortie(c)} />
+                    )}
+                  </Field>
+                  {c.aide && <p className="text-xs text-[var(--steel)] mt-1">{c.aide}</p>}
+                  {remarque && <p className="text-xs text-[var(--steel)] mt-1">{remarque}</p>}
+                  {etat[c.cle] === "ok" && brouillon[c.cle] === undefined && <p className="text-xs text-[var(--accent)] mt-1">Enregistré ✓</p>}
+                  {etat[c.cle] === "erreur" && <p className="text-xs text-[var(--warn)] mt-1">Non enregistré — réessayez.</p>}
+                </div>
+              );
+            })}
+          </div>
+        </Card>
+      ))}
+    </div>
+  );
+}
+
+function PmsDossier({ reglages }) {
+  return (
+    <div>
+      <SectionHeader title="PMS — dossier" subtitle="Les informations de votre établissement, réunies pour un contrôle et pour faire fonctionner le logiciel" />
+      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">1 — Établissement</h3>
+      <PmsFicheEtablissement reglages={reglages} />
+    </div>
+  );
+}
 
 function Avatar({ nom, size = 40, tone = "accent" }) {
   const bg = tone === "gold" ? "var(--gold-soft)" : "var(--accent-soft)";
@@ -2970,6 +3055,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
     { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "cuisine" },
     { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "cuisine" },
     { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
+    { id: "pmsDossier", label: "PMS — dossier", icon: Building2, section: "hygiene" },
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
     { id: "tiac", label: "Procédure de TIAC", icon: Activity, section: "hygiene" },
@@ -2980,7 +3066,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations));
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
     if (tuile && tuile.tab) return setTab(tuile.tab);
@@ -3127,7 +3213,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         {SECTIONS_CG.map((x) => {
           const Icon = x.icon;
-          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations)).length;
+          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement))).length;
           return (
             <button key={x.id} onClick={() => setSectionActive(x.id)}
               style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
@@ -3561,6 +3647,12 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       {sousEcran === "pms" && (
         <div className="mb-6">
           <NettoyagePage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} employees={employees} logActivity={logActivity} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
+        </div>
+      )}
+
+      {sousEcran === "pmsDossier" && compteDirection && (
+        <div className="mb-6">
+          <PmsDossier reglages={reglagesEtablissement} />
         </div>
       )}
 

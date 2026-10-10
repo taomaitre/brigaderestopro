@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import KitchenApp from './App.jsx';
 import { QRCode, NIVEAU_CORRECTION_M } from './qrVendor.js';
 import { POSTES, STATUTS_EQUIPE, estChefOuDirecteur } from './listesEquipe.js';
+import { FICHE_ETAB_CHAMPS } from './ficheEtablissement.js';
 
 /* =========================================================================================
    PRÉVISUALISATION — Écran de connexion réel (établissement + code employé)
@@ -357,6 +358,7 @@ export default function ConnexionReelle() {
   const [listesFroid, setListesFroid] = useState(null);
   // Réglages de l'établissement (nom, cellule de refroidissement, congélation décrite au PMS) et listes « Autre » (demandes d'ajout).
   const [reglagesEtab, setReglagesEtab] = useState(null);
+  const [ficheEtab, setFicheEtab] = useState(null); // fiche de l'établissement (module 1 du PMS)
   const [demandesAjoutListe, setDemandesAjoutListe] = useState([]);
 
   const EST_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -679,10 +681,11 @@ export default function ConnexionReelle() {
   async function chargerReglagesEtab() {
     try {
       const [re, rd] = await Promise.all([
-        supabasePublic.from("etablissements").select("nom, congelation_decrite_pms, dispose_cellule_refroidissement").eq("id", session.etablissement.id).maybeSingle(),
+        supabasePublic.from("etablissements").select("nom, congelation_decrite_pms, dispose_cellule_refroidissement, siret, exploitant, responsable_hygiene, raison_sociale, forme_juridique, adresse_siege, adresse_site, telephone, email_general, code_naf, couverts_jour, effectif, date_debut_activite, date_declaration_activite, exploitant_fonction, responsable_hygiene_fonction, convention_collective, type_etablissement, services").eq("id", session.etablissement.id).maybeSingle(),
         supabasePublic.from("demandes_ajout").select("type, valeur").eq("etablissement_id", session.etablissement.id).order("cree_le", { ascending: true }),
       ]);
       if (re.data) setReglagesEtab({ nom: re.data.nom || "", congelPms: !!re.data.congelation_decrite_pms, cellule: !!re.data.dispose_cellule_refroidissement });
+      if (re.data) setFicheEtab(FICHE_ETAB_CHAMPS.reduce((o, c) => ({ ...o, [c.cle]: re.data[c.colonne] == null ? (c.type === "liste" ? [] : "") : (c.type === "liste" ? re.data[c.colonne] : String(re.data[c.colonne])) }), {}));
       if (rd.data) setDemandesAjoutListe(rd.data);
     } catch (e) { console.error("Réglages de l'établissement non chargés :", e); }
   }
@@ -691,6 +694,22 @@ export default function ConnexionReelle() {
     setReglagesEtab((r) => (r ? { ...r, [champ]: !!valeur } : r));
     const { error } = await supabasePublic.from("etablissements").update({ [colonne]: !!valeur }).eq("id", session.etablissement.id);
     if (error) { console.error("Réglage non enregistré :", error); chargerReglagesEtab(); }
+  }
+
+  // Enregistre un champ de la fiche de l'établissement (réservé à la direction côté écran). Retourne true si enregistré.
+  async function enregistrerFicheEtab(cle, valeur) {
+    const champ = FICHE_ETAB_CHAMPS.find((c) => c.cle === cle);
+    if (!champ) return false;
+    let v = valeur;
+    if (champ.type === "liste") v = Array.isArray(valeur) ? valeur : [];
+    else if (champ.type === "nombre") v = valeur === "" || valeur == null ? null : (Number.isFinite(Number(valeur)) ? Math.round(Number(valeur)) : null);
+    else if (champ.type === "date") v = valeur ? valeur : null;
+    else v = (valeur || "").trim() || null;
+    setFicheEtab((f) => (f ? { ...f, [cle]: valeur } : f));
+    if (cle === "nom" && v) setReglagesEtab((r) => (r ? { ...r, nom: v } : r));
+    const { error } = await supabasePublic.from("etablissements").update({ [champ.colonne]: v }).eq("id", session.etablissement.id);
+    if (error) { console.error("Fiche établissement non enregistrée :", error); chargerReglagesEtab(); return false; }
+    return true;
   }
 
   // Demande d'ajout à la liste de l'éditeur (ex. appareil de cuisson saisi à la main) : enregistrée pour être traitée lors d'une mise à jour.
@@ -996,7 +1015,7 @@ export default function ConnexionReelle() {
         const data = await appelerEmployes(session.token, "verifier", { code: codeSaisi });
         return estChefOuDirecteur(data.employe.role) ? { ok: true, nom: data.employe.nom } : { ok: false };
       },
-      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab } : undefined,
+      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab } : undefined,
       demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,
