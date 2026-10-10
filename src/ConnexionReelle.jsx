@@ -274,7 +274,7 @@ export default function ConnexionReelle() {
   async function chargerCatalogue() {
     try {
       const [rf, rp, rl] = await Promise.all([
-        supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, note, coordonnees_a_completer").order("nom"),
+        supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, planning_commande, planning_livraison, note, coordonnees_a_completer").order("nom"),
         supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, type_date, delai_jours_dlc, delai_apres_ouverture_jours, allergenes_norme, origine_norme, fournisseurs(nom)").order("nom"),
         supabasePublic.from("lots_produits").select("produit_id, numero_lot, dlc, quantite_restante, date_reception").order("date_reception", { ascending: false }).limit(1000),
       ]);

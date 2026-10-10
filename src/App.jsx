@@ -4432,8 +4432,9 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
                   <span>
                     <span className="font-medium text-[var(--ink)] text-sm block">{f.nom}</span>
                     {f.coordonnees_a_completer && <span className="block text-xs font-medium" style={{ color: "var(--warn)" }}>En attente des coordonnées</span>}
+                    {!planningRenseigne(f.planning_commande) && !planningRenseigne(f.planning_livraison) && !f.jours_livraison && <span className="block text-xs font-medium text-[var(--steel)]">Fournisseur à compléter : jours de commande et de livraison</span>}
                   </span>
-                  <span className="text-xs text-[var(--steel)]">{f.jours_livraison ? `Livraison : ${f.jours_livraison} ` : ""}{fournisseurOuvert === f.id ? "▲" : "▼"}</span>
+                  <span className="text-xs text-[var(--steel)] text-right">{planningRenseigne(f.planning_commande) ? <span className="block">Commande : {resumePlanning(f.planning_commande)}</span> : null}{planningRenseigne(f.planning_livraison) ? <span className="block">Livraison : {resumePlanning(f.planning_livraison)}</span> : (f.jours_livraison ? <span className="block">Livraison : {f.jours_livraison}</span> : null)}{fournisseurOuvert === f.id ? "▲" : "▼"}</span>
                 </button>
                 {fournisseurOuvert === f.id && (
                   <div className="px-4 pb-3 text-xs text-[var(--steel)] space-y-0.5">
@@ -4525,6 +4526,72 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
   );
 }
 
+// ---- Jours de commande / de livraison d'un fournisseur (deux listes indépendantes) ----
+const JOURS_COURTS = [["lun", "Lun"], ["mar", "Mar"], ["mer", "Mer"], ["jeu", "Jeu"], ["ven", "Ven"], ["sam", "Sam"], ["dim", "Dim"]];
+const CODE_JOUR_DATE = ["dim", "lun", "mar", "mer", "jeu", "ven", "sam"];
+const NOM_JOUR_LONG = { lun: "lundi", mar: "mardi", mer: "mercredi", jeu: "jeudi", ven: "vendredi", sam: "samedi", dim: "dimanche" };
+const REPETITIONS_PLANNING = [["semaine", "Chaque semaine"], ["quinzaine", "Toutes les 2 semaines"], ["mois", "Chaque mois (ex. le 1er lundi)"], ["annee", "Une date précise par an"]];
+const RANGS_MOIS = [[1, "1er"], [2, "2e"], [3, "3e"], [4, "4e"], [5, "dernier"]];
+function jourPrevuPlanning(plan, iso) {
+  if (!plan || !iso) return false;
+  const d = new Date(iso + "T00:00:00");
+  if (plan.repetition === "annee") return !!plan.dateAnnee && iso.slice(5) === plan.dateAnnee;
+  if (!Array.isArray(plan.jours) || !plan.jours.includes(CODE_JOUR_DATE[d.getDay()])) return false;
+  if (plan.repetition === "quinzaine") {
+    const ancre = new Date((plan.ancre || iso) + "T00:00:00");
+    const sem = Math.round((d - ancre) / (7 * 86400000));
+    return ((sem % 2) + 2) % 2 === 0;
+  }
+  if (plan.repetition === "mois") {
+    const rang = Math.ceil(d.getDate() / 7);
+    const dernier = d.getDate() + 7 > new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+    return Number(plan.rang) === 5 ? dernier : Number(plan.rang || 1) === rang;
+  }
+  return true;
+}
+function planningRenseigne(plan) { return !!plan && (plan.repetition === "annee" ? !!plan.dateAnnee : Array.isArray(plan.jours) && plan.jours.length > 0); }
+function resumePlanning(plan) {
+  if (!planningRenseigne(plan)) return "";
+  if (plan.repetition === "annee") return `le ${plan.dateAnnee.slice(3)}/${plan.dateAnnee.slice(0, 2)}`;
+  const j = JOURS_COURTS.filter(([c]) => plan.jours.includes(c)).map(([, l]) => l.toLowerCase() + ".").join(", ");
+  if (plan.repetition === "quinzaine") return `${j} (1 semaine sur 2)`;
+  if (plan.repetition === "mois") return `${j} (${(RANGS_MOIS.find(([n]) => n === Number(plan.rang || 1)) || [0, "1er"])[1]} du mois)`;
+  return j;
+}
+function PlanningJoursFournisseur({ titre, couleur, fond, valeur, onChange }) {
+  const plan = valeur || { jours: [], repetition: "semaine" };
+  const maj = (m) => onChange({ ...plan, ...m });
+  const basculer = (c) => { const j = new Set(plan.jours || []); if (j.has(c)) j.delete(c); else j.add(c); maj({ jours: [...j], ancre: plan.ancre || todayISO() }); };
+  const champ = "border border-[var(--cadre)] rounded-lg px-2 py-1 text-sm bg-white";
+  return (
+    <div className="rounded-xl p-3 sm:col-span-2" style={{ background: fond, border: `1px solid ${couleur}33` }}>
+      <div className="text-xs font-semibold mb-2" style={{ color: couleur }}>{titre}</div>
+      {plan.repetition !== "annee" && (
+        <div className="flex flex-wrap gap-1.5 mb-2">
+          {JOURS_COURTS.map(([c, l]) => {
+            const on = (plan.jours || []).includes(c);
+            return <button key={c} type="button" onClick={() => basculer(c)} className="px-2.5 py-1 rounded-lg text-xs font-semibold border" style={on ? { background: couleur, color: "#fff", borderColor: couleur } : { background: "#fff", color: "var(--ink)", borderColor: "var(--cadre)" }}>{l}</button>;
+          })}
+        </div>
+      )}
+      <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--steel)]">
+        Répétition
+        <select value={plan.repetition || "semaine"} onChange={(e) => maj({ repetition: e.target.value, ancre: plan.ancre || todayISO() })} className={champ}>
+          {REPETITIONS_PLANNING.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+        {plan.repetition === "mois" && (
+          <select value={plan.rang || 1} onChange={(e) => maj({ rang: Number(e.target.value) })} className={champ}>
+            {RANGS_MOIS.map(([n, l]) => <option key={n} value={n}>{l}</option>)}
+          </select>
+        )}
+        {plan.repetition === "annee" && (
+          <input type="date" value={plan.dateAnnee ? `2026-${plan.dateAnnee}` : ""} onChange={(e) => e.target.value && maj({ dateAnnee: e.target.value.slice(5) })} className={champ} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 const CHAMPS_FOURNISSEUR = [
   { cle: "nom", label: "Nom du fournisseur", requis: true },
   { cle: "contact_nom", label: "Contact (nom de la personne)" },
@@ -4532,7 +4599,6 @@ const CHAMPS_FOURNISSEUR = [
   { cle: "email", label: "E-mail" },
   { cle: "adresse", label: "Adresse" },
   { cle: "numero_client", label: "Numéro de client" },
-  { cle: "jours_livraison", label: "Jours de livraison (ex. Mardi, Vendredi)" },
   { cle: "note", label: "Note" },
 ];
 const UNITES_PRODUIT = ["kg", "g", "L", "cL", "pièce", "botte", "boîte", "sachet", "barquette"];
@@ -4554,7 +4620,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     const sortie = {};
     const cles = estProduit
       ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours", "allergenes_norme", "origine_norme"]
-      : CHAMPS_FOURNISSEUR.map((c) => c.cle);
+      : [...CHAMPS_FOURNISSEUR.map((c) => c.cle), "jours_livraison", "planning_commande", "planning_livraison"];
     cles.forEach((c) => {
       let val = v[c];
       if (c === "reference_verifiee") val = !!val;
@@ -4572,6 +4638,9 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
       sortie.allergenes_norme = Array.isArray(v.allergenes_norme) ? v.allergenes_norme : [];
     }
     if (!estProduit) {
+      sortie.planning_commande = planningRenseigne(v.planning_commande) ? v.planning_commande : null;
+      sortie.planning_livraison = planningRenseigne(v.planning_livraison) ? v.planning_livraison : null;
+      sortie.jours_livraison = planningRenseigne(v.planning_livraison) ? resumePlanning(v.planning_livraison) : null;
       const aUneCoordonnee = ["contact_nom", "telephone", "email", "adresse"].some((c) => sortie[c]);
       sortie.coordonnees_a_completer = aUneCoordonnee ? false : !!(edition.valeurs && edition.valeurs.coordonnees_a_completer);
     }
@@ -4637,7 +4706,13 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
             </div>
             {champTexte("note", "Note")}
           </>
-        ) : CHAMPS_FOURNISSEUR.map((c) => champTexte(c.cle, c.label, c.requis))}
+        ) : (
+          <>
+            {CHAMPS_FOURNISSEUR.map((c) => champTexte(c.cle, c.label, c.requis))}
+            <PlanningJoursFournisseur titre="Jours de commande" couleur="#0E7490" fond="#E6F6F8" valeur={v.planning_commande} onChange={(x) => maj("planning_commande", x)} />
+            <PlanningJoursFournisseur titre="Jours de livraison" couleur="#8B5E34" fond="#F6EEE6" valeur={v.planning_livraison} onChange={(x) => maj("planning_livraison", x)} />
+          </>
+        )}
       </div>
       {erreur && <div className="text-xs text-[var(--warn)] mt-2">{erreur}</div>}
       <div className="flex gap-2 mt-3">
@@ -18128,7 +18203,7 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
 
 const ONGLETS_PLANNING = [["planning", "Mon planning", ClipboardList], ["reservations", "Réservations", Users]];
 
-function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires, cartes }) {
+function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires, cartes, fournisseursPlanning }) {
   // Planning et réservations : seuls le chef et le directeur créent ou modifient ; les employés consultent.
   const peutGererPlanning = currentUserId === "direction" || !!employees.find((e) => e.id === currentUserId)?.estChef;
   const today = todayISO();
@@ -18235,6 +18310,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       const maintien = entriesMaintienChaud.filter((e) => e.statut === "en-cours");
       const nettoyagesPeriodiques = ctxFin ? 0 : cleaning.filter((c) => (c.poste === moi?.poste || c.poste === "Tous") && (c.frequence === "Hebdomadaire" || c.frequence === "Mensuelle") && tacheDueAujourdhuiOuEnRetard(c, today) && !c.fait).length;
       const infos = [
+        ...(fournisseursPlanning || []).filter((f) => jourPrevuPlanning(f.planning_livraison, today)).map((f) => ({ cle: "liv" + f.id, nom: `Livraison ${f.nom} — réception à faire à l'arrivée`, tag: "Aujourd'hui", ton: "bleu" })),
+        ...(peutGererPlanning ? (fournisseursPlanning || []).filter((f) => jourPrevuPlanning(f.planning_commande, today)).map((f) => ({ cle: "cmd" + f.id, nom: `Commande ${f.nom} à passer`, tag: "Aujourd'hui", ton: "bleu" })) : []),
         ...refroids.map((r) => { const restant = normeRefroidissement(r.type).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
         ...maintien.map((e) => ({ cle: "m" + e.id, nom: `${e.nom} (maintien au chaud)`, tag: `depuis ${Math.floor((Date.now() - e.debutTs) / 60000)} min`, ton: "bleu" })),
         ...preparations.filter((p) => !p.jete && p.dlcDate === demain).map((p) => ({ cle: "a" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "À utiliser ce soir", ton: "or" })),
@@ -20608,7 +20685,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <div className="mb-4"><button onClick={() => setTab("haccp")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white"><ChevronLeft size={14} />Retour HACCP</button></div>
         )}
         {tab === "taches" && (
-          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes} />
+          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} />
         )}
         {tab === "stock" && (
           consentementAccorde()
