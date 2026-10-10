@@ -3679,6 +3679,68 @@ const ENTRETIEN_REF = [
   { titre: "Produits d'entretien — Salle", note: "Hygiène des mains, nettoyants WC/urinoirs, désinfection éviers, entretien sols et surfaces. Aucune référence encore renseignée — à remplir dès réception des fiches techniques ou photos d'étiquettes." },
 ];
 
+/* Import sans IA du catalogue : produits (création ou mise à jour des prix et références, ex. depuis une facture) et fournisseurs. */
+function ImportCatalogue({ stock, fournisseurs, gestion }) {
+  const [table, setTable] = useState("produits");
+  const [apercu, setApercu] = useState(null);
+  const [message, setMessage] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const norm = (t) => String(t == null ? "" : t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+  const val = (r, ...noms) => { for (const n of noms) { const k = Object.keys(r).find((x) => norm(x) === norm(n)); if (k && String(r[k]).trim() !== "") return String(r[k]).trim(); } return ""; };
+  const nombre = (t) => { if (t === "") return null; const n = Number(String(t).replace(/[€\s]/g, "").replace(",", ".")); return Number.isNaN(n) ? null : n; };
+  const preparer = (rows) => {
+    setMessage("");
+    const lignes = []; let ignorees = 0;
+    rows.forEach((r) => {
+      const nom = val(r, "Nom", "Produit", "Désignation", "Fournisseur");
+      if (table === "fournisseurs") {
+        const nomF = val(r, "Nom", "Fournisseur");
+        if (!nomF) { ignorees += 1; return; }
+        const existant = (fournisseurs || []).find((f) => norm(f.nom) === norm(nomF));
+        lignes.push({ id: uid(), cibleId: existant ? existant.id : null, valeurs: { nom: nomF, contact_nom: val(r, "Contact") || undefined, telephone: val(r, "Téléphone", "Telephone") || undefined, email: val(r, "E-mail", "Email", "Mail") || undefined, adresse: val(r, "Adresse") || undefined, numero_client: val(r, "Numéro de client", "Numero client") || undefined }, info: existant ? "mise à jour" : "nouveau" });
+        return;
+      }
+      const reference = val(r, "Référence", "Reference", "Réf.", "Code");
+      if (!nom && !reference) { ignorees += 1; return; }
+      const nomFourn = val(r, "Fournisseur");
+      const four = nomFourn ? (fournisseurs || []).find((f) => norm(f.nom) === norm(nomFourn)) : null;
+      const prixBrut = val(r, "Prix d'achat", "Prix", "Prix HT", "PU HT");
+      const prix = nombre(prixBrut);
+      const existant = (stock || []).find((x) => x.brut && ((reference && norm(x.reference) === norm(reference) && (!four || x.brut.fournisseur_id === four.id)) || (nom && norm(x.nom) === norm(nom))));
+      if (!existant && !nom) { ignorees += 1; return; }
+      const valeurs = { nom: nom || (existant && existant.nom), reference: reference || undefined, categorie: val(r, "Catégorie", "Categorie") || undefined, conditionnement: val(r, "Conditionnement") || undefined, unite: val(r, "Unité", "Unite") || undefined, prix_achat: prix == null ? undefined : prix, fournisseur_id: four ? four.id : undefined };
+      const alertes = [];
+      if (nomFourn && !four) alertes.push(`fournisseur « ${nomFourn} » inconnu (à créer d'abord)`);
+      if (prixBrut && prix == null) alertes.push("prix illisible");
+      lignes.push({ id: uid(), cibleId: existant ? existant.brut.id : null, valeurs, info: existant ? "mise à jour" : "nouveau", alertes });
+    });
+    if (!lignes.length) { setApercu(null); setMessage(table === "produits" ? "Aucune ligne reconnue — colonnes attendues : Nom, Fournisseur, Référence, Catégorie, Conditionnement, Unité, Prix d'achat." : "Aucune ligne reconnue — colonnes attendues : Nom, Contact, Téléphone, E-mail, Adresse."); return; }
+    setApercu({ lignes, ignorees });
+  };
+  const valider = async () => {
+    setEnCours(true); let ok = 0; let echecs = 0;
+    for (const l of apercu.lignes) {
+      const v = {}; Object.entries(l.valeurs).forEach(([k, x]) => { if (x !== undefined) v[k] = x; });
+      try { await gestion.enregistrer(table, l.cibleId, v); ok += 1; } catch (e) { echecs += 1; }
+    }
+    setEnCours(false); setApercu(null);
+    setMessage(`${ok} ligne(s) enregistrée(s)${echecs ? ` — ${echecs} ligne(s) en échec (à refaire)` : ""}.`);
+  };
+  return (
+    <PanneauStyle titre="Importer des produits, des prix ou des fournisseurs" aide="Excel / CSV, PDF texte ou copier-coller — avec aperçu avant d'enregistrer" couleur="#6E36AE" teinte="#F3ECFB" className="mb-5">
+      <div className="flex gap-2 mb-3">
+        {[["produits", "Produits et prix (catalogue, facture)"], ["fournisseurs", "Fournisseurs"]].map(([k, l]) => (
+          <button key={k} type="button" onClick={() => { setTable(k); setApercu(null); setMessage(""); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${table === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{l}</button>
+        ))}
+      </div>
+      <ImportSansIA colonnes={table === "produits" ? "Nom, Fournisseur, Référence, Catégorie, Conditionnement, Unité, Prix d'achat" : "Nom, Contact, Téléphone, E-mail, Adresse"} onLignes={preparer} />
+      {apercu && <ApercuImport titre={table === "produits" ? "Aperçu des produits" : "Aperçu des fournisseurs"} lignes={apercu.lignes} ignorees={apercu.ignorees} resume={(l) => `${l.info === "nouveau" ? "Nouveau" : "Mise à jour"} — ${l.valeurs.nom}${l.valeurs.reference ? ` (${l.valeurs.reference})` : ""}${l.valeurs.prix_achat != null ? ` — ${l.valeurs.prix_achat} €` : ""}${l.alertes && l.alertes.length ? ` ⚠ ${l.alertes.join(", ")}` : ""}`} onValider={valider} onAnnuler={() => setApercu(null)} />}
+      {enCours && <p className="text-xs text-[var(--steel)]">Enregistrement en cours…</p>}
+      {message && <p className="text-xs text-[var(--steel)] mt-2">{message}</p>}
+    </PanneauStyle>
+  );
+}
+
 function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
   const [catOuverte, setCatOuverte] = useState(null);
   const [fournisseurOuvert, setFournisseurOuvert] = useState(null);
@@ -3725,6 +3787,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
           <button onClick={() => setEdition({ table: "produits", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un produit</button>
         </div>
       )}
+      {gestion && !edition && <ImportCatalogue stock={stock} fournisseurs={fournisseurs} gestion={gestion} />}
       {fournisseurs && (fournisseurs.length > 0 || gestion) && (
         <div className="mb-5">
           <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-2">Fournisseurs</div>
