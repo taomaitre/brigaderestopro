@@ -3652,6 +3652,13 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
 
   const parCategorie = stock.reduce((acc, s) => { (acc[s.categorie] = acc[s.categorie] || []).push(s); return acc; }, {});
   const categories = Object.keys(parCategorie);
+  // Regroupement : par fournisseur (par défaut en gestion) ou par catégorie, avec recherche.
+  const [groupement, setGroupement] = useState(gestion ? "fournisseur" : "categorie");
+  const [rechercheProduit, setRechercheProduit] = useState("");
+  const qProd = rechercheProduit.trim().toLowerCase();
+  const stockFiltre = qProd ? stock.filter((s) => `${s.nom} ${s.reference || ""} ${s.fournisseur || ""} ${s.categorie || ""}`.toLowerCase().includes(qProd)) : stock;
+  const parGroupe = stockFiltre.reduce((acc, s) => { const k = groupement === "fournisseur" ? (s.fournisseur || "Sans fournisseur") : (s.categorie || "Autres"); (acc[k] = acc[k] || []).push(s); return acc; }, {});
+  const groupes = Object.keys(parGroupe).sort((a, b) => a.localeCompare(b));
 
   return (
     <div>
@@ -3706,17 +3713,24 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
         </div>
       )}
 
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <input className={`${inputCls} flex-1 min-w-[200px]`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={rechercheProduit} onChange={(e) => setRechercheProduit(e.target.value)} />
+        <div className="flex gap-1">
+          <button type="button" onClick={() => { setGroupement("fournisseur"); setCatOuverte(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${groupement === "fournisseur" ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--cadre)] text-[var(--steel)]"}`}>Par fournisseur</button>
+          <button type="button" onClick={() => { setGroupement("categorie"); setCatOuverte(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${groupement === "categorie" ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--cadre)] text-[var(--steel)]"}`}>Par catégorie</button>
+        </div>
+      </div>
       {(
         <div className="space-y-2">
-          {categories.map((cat) => (
+          {groupes.map((cat) => (
             <Card key={cat} className="!p-0 overflow-hidden">
               <button onClick={() => setCatOuverte((c) => (c === cat ? null : cat))} className="w-full flex items-center justify-between px-4 py-3 bg-[var(--accent-soft)]/40 text-left">
                 <span className="font-medium text-[var(--ink)] text-sm">{cat}</span>
-                <span className="text-xs text-[var(--steel)]">{parCategorie[cat].length} produit(s) {catOuverte === cat ? "▲" : "▼"}</span>
+                <span className="text-xs text-[var(--steel)]">{parGroupe[cat].length} produit(s) {(catOuverte === cat || qProd) ? "▲" : "▼"}</span>
               </button>
-              {catOuverte === cat && (
+              {(catOuverte === cat || qProd) && (
                 <ul className="divide-y divide-[var(--line)]">
-                  {parCategorie[cat].map((s) => (
+                  {parGroupe[cat].map((s) => (
                     <li key={s.id} className="px-4 py-2.5">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="text-sm font-medium text-[var(--ink)] flex items-center gap-2">
@@ -3729,6 +3743,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
                         <dl className="mt-1 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 text-xs">
                           {[
                             ["Fournisseur", s.fournisseur || "—"],
+                            ["Catégorie", s.categorie || "—"],
                             ["Référence", s.reference || "—"],
                             ["Conditionnement", s.conditionnement || "—"],
                             ["Prix d'achat", s.prixUnitaire || "—"],
@@ -14084,6 +14099,23 @@ function Reception({ optionsExterne, stock, setStock, receptions, setReceptions,
         style={{ backgroundColor: "#2F6B4F", color: "#ffffff", padding: "18px 20px", fontSize: 17 }}>
         <Plus size={22} /> Nouvelle réception
       </button>
+
+      {(() => {
+        // Un employé ne voit que la dernière réception ; tout l'historique est dans Contrôle & Gestion.
+        const cleDe = (r) => r.receptionId || `${r.date}|${r.heure}|${r.fournisseur}|${r.employeeId}`;
+        const triees = [...(receptions || [])].sort((x, y) => ((y.date || "") + (y.heure || "")).localeCompare((x.date || "") + (x.heure || "")));
+        if (triees.length === 0) return null;
+        const cle = cleDe(triees[0]);
+        const lignes = triees.filter((r) => cleDe(r) === cle);
+        const nc = lignes.filter((l) => l.conforme === false).length;
+        return (
+          <Card>
+            <h3 className="font-semibold text-[var(--ink)] mb-1">Dernière réception</h3>
+            <p className="text-sm text-[var(--ink)]">{lignes[0].fournisseur || "Fournisseur non précisé"} — {fmtShort(lignes[0].date)}{lignes[0].heure ? ` à ${lignes[0].heure}` : ""}</p>
+            <p className="text-xs text-[var(--steel)] mt-1">{lignes.length} produit(s) · {lignes.length - nc} conforme(s){nc > 0 ? ` · ${nc} non conforme(s)` : ""}{lignes[0].employeeId && who(lignes[0].employeeId) ? ` · réceptionné par ${who(lignes[0].employeeId)}` : ""}</p>
+          </Card>
+        );
+      })()}
     </div>
   );
 }
@@ -14790,6 +14822,7 @@ function CartesReservations({ reservations, date, horaires, onChoisir }) {
 }
 
 function Reservations({ reservations, setReservations, currentUserId, employees, logActivity, onBack, integre, horaires, formOuvert: formOuvertExt, setFormOuvert: setFormOuvertExt, dateExt, setDateExt, filtreExt, setFiltreExt }) {
+  const { estResponsable } = useAcces();
   const [viewMode, setViewMode] = useState("jour");
   const [dateLocal, setDateLocal] = useState(todayISO());
   const [filtreLocal, setFiltreLocal] = useState("toutes");
@@ -14895,8 +14928,8 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
         <div className="flex items-center justify-between gap-2 flex-wrap mb-3">
           <div className="flex items-center gap-2.5"><IcDocTexte size={26} className="text-[var(--ink)]" /><h3 className="text-lg font-semibold text-[var(--ink)]">Détail de la réservation</h3></div>
           <div className="flex items-center gap-2">
-            <button type="button" onClick={() => ouvrirModifier(r)} className="h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[var(--ink)] flex items-center gap-2"><IcCrayon size={16} /> Modifier</button>
-            <ConfirmerSuppressionBouton libelle={`Réservation ${r.nom} — ${r.heure}`} onConfirm={() => removeReservation(r.id)} />
+            {estResponsable && <button type="button" onClick={() => ouvrirModifier(r)} className="h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[var(--ink)] flex items-center gap-2"><IcCrayon size={16} /> Modifier</button>}
+            {estResponsable && <ConfirmerSuppressionBouton libelle={`Réservation ${r.nom} — ${r.heure}`} onConfirm={() => removeReservation(r.id)} />}
           </div>
         </div>
         <div className="flex items-center gap-3 mb-3">
@@ -16290,14 +16323,101 @@ function ModalDetailNettoyage({ item, onToggle, onClose }) {
   );
 }
 
+// Lecture d'un tableau collé (tabulations, point-virgule ou virgule) : la première ligne donne les titres des colonnes.
+function parserTexteTableau(texte) {
+  const lignes = String(texte || "").split(/\r?\n/).filter((l) => l.trim());
+  if (lignes.length < 2) return [];
+  const premiere = lignes[0];
+  const comptes = [["\t", (premiere.match(/\t/g) || []).length], [";", (premiere.match(/;/g) || []).length], [",", (premiere.match(/,/g) || []).length]].sort((x, y) => y[1] - x[1]);
+  const sep = comptes[0][0];
+  const decouper = (l) => l.split(sep).map((x) => x.trim().replace(/^"|"$/g, ""));
+  const entetes = decouper(lignes[0]);
+  return lignes.slice(1).map((l) => { const c = decouper(l); const o = {}; entetes.forEach((h, i) => { o[h] = c[i] == null ? "" : c[i]; }); return o; });
+}
+
+async function lireFichierTableau(file) {
+  const XLSX = await import("xlsx");
+  const buf = await file.arrayBuffer();
+  const wb = XLSX.read(buf, { type: "array", cellDates: true });
+  return XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { defval: "" });
+}
+
+// Importer sans IA : trois choix (fichier Excel/CSV, PDF avec texte, copier-coller). L'import ne s'applique jamais seul :
+// le composant renvoie les lignes lues, l'écran affiche un aperçu puis demande la validation.
+function ImportSansIA({ colonnes, onLignes }) {
+  const [mode, setMode] = useState(null);
+  const [texte, setTexte] = useState("");
+  const [message, setMessage] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const lireFichier = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setEnCours(true); setMessage("");
+    try { onLignes(await lireFichierTableau(file)); setMode(null); }
+    catch (err) { setMessage("Le fichier n'a pas pu être lu. Vérifiez qu'il s'agit bien d'un fichier Excel (.xlsx) ou CSV."); }
+    finally { setEnCours(false); e.target.value = ""; }
+  };
+  const lireTexte = () => {
+    const rows = parserTexteTableau(texte);
+    if (rows.length === 0) { setMessage("Rien à lire : collez le tableau avec sa première ligne de titres."); return; }
+    setMessage(""); onLignes(rows); setMode(null); setTexte("");
+  };
+  const bouton = (id, libelle) => (
+    <button type="button" onClick={() => { setMode(mode === id ? null : id); setMessage(""); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${mode === id ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--cadre)] bg-white text-[var(--ink)]"}`}>{libelle}</button>
+  );
+  return (
+    <div className="mb-3">
+      <p className="text-xs text-[var(--steel)] mb-2">Colonnes attendues : <strong>{colonnes}</strong>. Choisissez comment importer :</p>
+      <div className="flex flex-wrap gap-2 mb-2">
+        {bouton("fichier", "Fichier Excel ou CSV")}
+        {bouton("pdf", "PDF (texte)")}
+        {bouton("coller", "Copier-coller")}
+      </div>
+      {mode === "fichier" && (
+        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--cadre)] bg-white text-[var(--ink)] cursor-pointer ${enCours ? "opacity-50 pointer-events-none" : ""}`}>
+          <Plus size={16} /> {enCours ? "Lecture en cours..." : "Choisir un fichier .xlsx, .xls ou .csv"}
+          <input type="file" accept=".xlsx,.xls,.csv" onChange={lireFichier} className="hidden" disabled={enCours} />
+        </label>
+      )}
+      {(mode === "pdf" || mode === "coller") && (
+        <div>
+          {mode === "pdf" && <p className="text-xs text-[var(--steel)] mb-1">PDF contenant du texte (pas une photo) : ouvrez-le, sélectionnez le tableau, copiez-le puis collez-le ici. Vous pourrez tout relire avant de valider.</p>}
+          <textarea className={`${inputCls} w-full text-xs font-mono`} rows={6} value={texte} onChange={(e) => setTexte(e.target.value)} placeholder="Collez ici le tableau, première ligne = titres des colonnes" />
+          <div className="mt-2"><Button onClick={lireTexte} disabled={!texte.trim()}>Lire ce texte</Button></div>
+        </div>
+      )}
+      {message && <p className="text-xs text-[var(--warn)] mt-2">{message}</p>}
+    </div>
+  );
+}
+
+function ApercuImport({ titre, lignes, ignorees, resume, onValider, onAnnuler }) {
+  return (
+    <Card className="mb-3 border-2" style={{ borderColor: "var(--accent)" }}>
+      <p className="text-sm font-semibold text-[var(--ink)] mb-1">{titre}</p>
+      <p className="text-xs text-[var(--steel)] mb-2">{lignes.length} ligne(s) reconnue(s){ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s) (donnée manquante ou non reconnue)` : ""}. Relisez avant de valider : rien n'est enregistré tant que vous n'avez pas validé.</p>
+      <ul className="text-xs text-[var(--ink)] divide-y divide-[var(--line)] mb-3 max-h-48 overflow-y-auto">
+        {lignes.slice(0, 20).map((l) => <li key={l.id} className="py-1">{resume(l)}</li>)}
+        {lignes.length > 20 && <li className="py-1 text-[var(--steel)]">… et {lignes.length - 20} autre(s)</li>}
+      </ul>
+      <div className="flex gap-2">
+        <Button onClick={onValider} disabled={lignes.length === 0}>Valider l'import</Button>
+        <Button variant="ghost" onClick={onAnnuler}>Annuler</Button>
+      </div>
+    </Card>
+  );
+}
+
 function CarteImportExcelReservations({ reservations, setReservations, logActivity }) {
   const [importMsg, setImportMsg] = useState(null);
-  const [importEnCours, setImportEnCours] = useState(false);
+  const [apercu, setApercu] = useState(null);
 
   const dateDepuisValeur = (v) => {
     if (v instanceof Date) return toISO(v);
     const texte = String(v || "").trim();
     if (/^\d{4}-\d{2}-\d{2}$/.test(texte)) return texte;
+    const m = texte.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{4})$/);
+    if (m) return `${m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`;
     const d = new Date(texte);
     return Number.isNaN(d.getTime()) ? null : toISO(d);
   };
@@ -16306,62 +16426,46 @@ function CarteImportExcelReservations({ reservations, setReservations, logActivi
     return String(v || "").trim();
   };
 
-  const importerExcel = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportEnCours(true);
-    setImportMsg(null);
-    try {
-      const XLSX = await import("xlsx");
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array", cellDates: true });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-      const nouvelles = [];
-      let ignorees = 0;
-      rows.forEach((r) => {
-        const date = dateDepuisValeur(r["Date"]);
-        const heure = heureDepuisValeur(r["Heure"]);
-        const nom = String(r["Nom"] || "").trim();
-        const personnes = String(r["Personnes"] || r["Pers."] || "").trim();
-        if (!date || !heure || !nom) { ignorees += 1; return; }
-        nouvelles.push({
-          id: uid(), employeeId: null, date, heure, nom, personnes,
-          telephone: String(r["Téléphone"] || r["Telephone"] || "").trim(),
-          notes: String(r["Notes"] || "").trim(),
-          table: String(r["Table"] || "").trim(),
-          statut: STATUTS_RESERVATION.includes(String(r["Statut"] || "").trim()) ? String(r["Statut"]).trim() : "à confirmer",
-          duree: String(r["Durée"] || r["Duree"] || "90").trim(),
-          commande: [],
-        });
+  const preparer = (rows) => {
+    const nouvelles = [];
+    let ignorees = 0;
+    rows.forEach((r) => {
+      const date = dateDepuisValeur(r["Date"]);
+      const heure = heureDepuisValeur(r["Heure"]);
+      const nom = String(r["Nom"] || "").trim();
+      const personnes = String(r["Personnes"] || r["Pers."] || "").trim();
+      if (!date || !heure || !nom) { ignorees += 1; return; }
+      nouvelles.push({
+        id: uid(), employeeId: null, date, heure, nom, personnes,
+        telephone: String(r["Téléphone"] || r["Telephone"] || "").trim(),
+        notes: String(r["Notes"] || "").trim(),
+        table: String(r["Table"] || "").trim(),
+        statut: STATUTS_RESERVATION.includes(String(r["Statut"] || "").trim()) ? String(r["Statut"]).trim() : "à confirmer",
+        duree: String(r["Durée"] || r["Duree"] || "90").trim(),
+        commande: [],
       });
+    });
+    if (nouvelles.length === 0) { setApercu(null); setImportMsg("Aucune ligne reconnue — vérifiez les colonnes (Date, Heure, Nom, Personnes, Table, Statut, Téléphone, Notes)."); return; }
+    setImportMsg(null);
+    setApercu({ lignes: nouvelles, ignorees });
+  };
 
-      if (nouvelles.length === 0) {
-        setImportMsg("Aucune ligne reconnue — vérifiez les colonnes (Date, Heure, Nom, Personnes, Table, Statut, Téléphone, Notes).");
-      } else {
-        const cles = new Set(nouvelles.map((n) => `${n.date}__${n.heure}__${n.nom}`));
-        const conservees = reservations.filter((r) => !cles.has(`${r.date}__${r.heure}__${r.nom}`));
-        setReservations([...conservees, ...nouvelles].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
-        logActivity("Réservations", "Réservations importées depuis Excel", `${nouvelles.length} réservation(s)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
-        setImportMsg(`${nouvelles.length} réservation(s) importée(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s)` : ""}.`);
-      }
-    } catch (err) {
-      setImportMsg("Le fichier n'a pas pu être lu. Vérifiez qu'il s'agit bien d'un .xlsx.");
-    } finally {
-      setImportEnCours(false);
-      e.target.value = "";
-    }
+  const valider = () => {
+    const { lignes: nouvelles, ignorees } = apercu;
+    const cles = new Set(nouvelles.map((n) => `${n.date}__${n.heure}__${n.nom}`));
+    const conservees = reservations.filter((r) => !cles.has(`${r.date}__${r.heure}__${r.nom}`));
+    setReservations([...conservees, ...nouvelles].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
+    logActivity("Réservations", "Réservations importées", `${nouvelles.length} réservation(s)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
+    setImportMsg(`${nouvelles.length} réservation(s) importée(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s)` : ""}.`);
+    setApercu(null);
   };
 
   return (
     <Card className="mb-4">
-      <p className="text-sm text-[var(--ink)] mb-1">Importer ou mettre à jour les réservations depuis un fichier Excel.</p>
-      <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues : <strong>Date, Heure, Nom, Personnes, Table, Statut, Téléphone, Notes</strong>. Une ligne = une réservation ; une ligne avec la même date/heure/nom qu'une réservation existante la remplace.</p>
-      <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--cadre)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
-        <Plus size={16} /> {importEnCours ? "Import en cours..." : "Importer un fichier .xlsx"}
-        <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
-      </label>
+      <p className="text-sm text-[var(--ink)] mb-1">Importer ou mettre à jour les réservations.</p>
+      <ImportSansIA colonnes="Date, Heure, Nom, Personnes, Table, Statut, Téléphone, Notes" onLignes={preparer} />
+      {apercu && <ApercuImport titre="Aperçu des réservations" lignes={apercu.lignes} ignorees={apercu.ignorees} resume={(l) => `${fmtShort(l.date)} ${l.heure} — ${l.nom} — ${l.personnes || "?"} pers.${l.table ? ` — table ${l.table}` : ""}`} onValider={valider} onAnnuler={() => setApercu(null)} />}
+      <p className="text-xs text-[var(--steel)]">Une ligne = une réservation ; une ligne avec la même date, heure et nom met à jour la réservation existante.</p>
       {importMsg && <p className="text-xs text-[var(--steel)] mt-2">{importMsg}</p>}
     </Card>
   );
@@ -16369,7 +16473,7 @@ function CarteImportExcelReservations({ reservations, setReservations, logActivi
 
 function CarteGestionHorairesDirection({ employees, shifts, setShifts, logActivity, setTab }) {
   const [importMsg, setImportMsg] = useState(null);
-  const [importEnCours, setImportEnCours] = useState(false);
+  const [apercu, setApercu] = useState(null);
 
   const jourDepuisValeur = (v) => {
     if (v instanceof Date) return JOURS[(v.getDay() + 6) % 7];
@@ -16385,57 +16489,42 @@ function CarteGestionHorairesDirection({ employees, shifts, setShifts, logActivi
     return String(v || "").trim();
   };
 
-  const importerExcel = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setImportEnCours(true);
+  const preparer = (rows) => {
+    const nouveaux = [];
+    let ignorees = 0;
+    rows.forEach((r) => {
+      const nomBrut = String(r["Employé"] || r["Employe"] || r["Nom"] || "").trim();
+      const emp = trouverCorrespondance(nomBrut, employees, (e) => e.nom);
+      const jour = jourDepuisValeur(r["Jour"] || r["Date"]);
+      const service = String(r["Service"] || "Midi").trim().toLowerCase().startsWith("s") ? "Soir" : "Midi";
+      const debut = heureDepuisValeur(r["Début"] || r["Debut"] || r["Heure début"]);
+      const fin = heureDepuisValeur(r["Fin"] || r["Heure fin"]);
+      if (!emp || !jour || !debut || !fin) { ignorees += 1; return; }
+      nouveaux.push({ id: uid(), employeeId: emp.id, jour, service, debut, fin });
+    });
+    if (nouveaux.length === 0) { setApercu(null); setImportMsg("Aucune ligne reconnue — vérifiez les colonnes (Employé, Jour, Service, Début, Fin) et que les noms correspondent à l'équipe déjà enregistrée."); return; }
     setImportMsg(null);
-    try {
-      const XLSX = await import("xlsx");
-      const buf = await file.arrayBuffer();
-      const wb = XLSX.read(buf, { type: "array", cellDates: true });
-      const sheet = wb.Sheets[wb.SheetNames[0]];
-      const rows = XLSX.utils.sheet_to_json(sheet, { defval: "" });
-
-      const nouveaux = [];
-      let ignorees = 0;
-      rows.forEach((r) => {
-        const nomBrut = String(r["Employé"] || r["Employe"] || r["Nom"] || "").trim();
-        const emp = trouverCorrespondance(nomBrut, employees, (e) => e.nom);
-        const jour = jourDepuisValeur(r["Jour"] || r["Date"]);
-        const service = String(r["Service"] || "Midi").trim().toLowerCase().startsWith("s") ? "Soir" : "Midi";
-        const debut = heureDepuisValeur(r["Début"] || r["Debut"] || r["Heure début"]);
-        const fin = heureDepuisValeur(r["Fin"] || r["Heure fin"]);
-        if (!emp || !jour || !debut || !fin) { ignorees += 1; return; }
-        nouveaux.push({ id: uid(), employeeId: emp.id, jour, service, debut, fin });
-      });
-
-      if (nouveaux.length === 0) {
-        setImportMsg("Aucune ligne reconnue — vérifiez les colonnes (Employé, Jour, Service, Début, Fin) et que les noms correspondent à l'équipe déjà enregistrée.");
-      } else {
-        const cles = new Set(nouveaux.map((n) => `${n.employeeId}__${n.jour}__${n.service}`));
-        const conserves = shifts.filter((s) => !cles.has(`${s.employeeId}__${s.jour}__${s.service}`));
-        setShifts([...conserves, ...nouveaux]);
-        logActivity("Planning", "Planning importé depuis Excel", `${nouveaux.length} créneau(x)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
-        setImportMsg(`${nouveaux.length} créneau(x) importé(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s) (nom ou horaire non reconnu)` : ""}.`);
-      }
-    } catch (err) {
-      setImportMsg("Le fichier n'a pas pu être lu. Vérifiez qu'il s'agit bien d'un .xlsx.");
-    } finally {
-      setImportEnCours(false);
-      e.target.value = "";
-    }
+    setApercu({ lignes: nouveaux, ignorees });
   };
 
+  const valider = () => {
+    const { lignes: nouveaux, ignorees } = apercu;
+    const cles = new Set(nouveaux.map((n) => `${n.employeeId}__${n.jour}__${n.service}`));
+    const conserves = shifts.filter((s) => !cles.has(`${s.employeeId}__${s.jour}__${s.service}`));
+    setShifts([...conserves, ...nouveaux]);
+    logActivity("Planning", "Planning importé", `${nouveaux.length} créneau(x)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
+    setImportMsg(`${nouveaux.length} créneau(x) importé(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s) (nom ou horaire non reconnu)` : ""}.`);
+    setApercu(null);
+  };
+
+  const nomDe = (id) => (employees.find((e) => e.id === id) || {}).nom || "?";
   return (
     <div>
-      <p className="text-sm text-[var(--ink)] mb-1">En tant que Direction, gérez ici les horaires de toute l'équipe.</p>
-      <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues dans le fichier : <strong>Employé, Jour, Service (Midi/Soir), Début, Fin</strong>. Une ligne = un créneau — les noms sont reconnus même approximatifs.</p>
+      <p className="text-sm text-[var(--ink)] mb-1">Chef et directeur gèrent ici les horaires de toute l'équipe ; les employés les consultent seulement.</p>
+      <p className="text-xs text-[var(--steel)] mb-3">Une ligne = un créneau — les noms sont reconnus même s'ils sont écrits un peu différemment.</p>
+      <ImportSansIA colonnes="Employé, Jour, Service (Midi/Soir), Début, Fin" onLignes={preparer} />
+      {apercu && <ApercuImport titre="Aperçu du planning" lignes={apercu.lignes} ignorees={apercu.ignorees} resume={(l) => `${nomDe(l.employeeId)} — ${l.jour} ${l.service} — ${l.debut} à ${l.fin}`} onValider={valider} onAnnuler={() => setApercu(null)} />}
       <div className="flex flex-wrap items-center gap-2 mb-3">
-        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--cadre)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
-          <Plus size={16} /> {importEnCours ? "Import en cours..." : "Importer un planning .xlsx"}
-          <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
-        </label>
         <Button variant="ghost" onClick={() => setTab("horaires")}>Modifier la grille horaire →</Button>
       </div>
       {importMsg && <p className="text-xs text-[var(--steel)]">{importMsg}</p>}
@@ -16648,6 +16737,8 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
 const ONGLETS_PLANNING = [["planning", "Mon planning", ClipboardList], ["reservations", "Réservations", Users]];
 
 function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires, cartes }) {
+  // Planning et réservations : seuls le chef et le directeur créent ou modifient ; les employés consultent.
+  const peutGererPlanning = currentUserId === "direction" || !!employees.find((e) => e.id === currentUserId)?.estChef;
   const today = todayISO();
   const ctxFin = React.useContext(NettoyageContext);
   const [form, setForm] = useState({ titre: "", heure: "", categorie: "Préparation", assignedTo: "tous", recurrence: "Quotidienne", jour: "Lundi", jourDuMois: 1, date: today, declencheHuile: false, declencheChangementHuile: false, declencheTracabilite: false, declencheRefroidissement: false });
@@ -16805,11 +16896,12 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
               );
             })}
           </div>
-          {vueAccueil === "reservations" && currentUserId !== "direction" ? (
-            <button type="button" onClick={() => setFormResa(true)} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ROUGE_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
-          ) : vueAccueil === "reservations" ? (
-            <button onClick={() => setTab("reservations")} className="text-sm text-[var(--accent)] font-medium">Voir tout l'agenda →</button>
-          ) : currentUserId === "direction" ? (
+          {vueAccueil === "reservations" && peutGererPlanning ? (
+            <div className="flex items-center gap-3 flex-wrap">
+              <button type="button" onClick={() => setFormResa(true)} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ROUGE_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
+              <button onClick={() => setTab("reservations")} className="text-sm text-[var(--accent)] font-medium">Voir tout l'agenda →</button>
+            </div>
+          ) : vueAccueil === "reservations" ? null : peutGererPlanning ? (
             <button onClick={() => setTab("horaires")} className="text-sm text-[var(--accent)] font-medium">Modifier les horaires de la semaine →</button>
           ) : null}
         </div>
@@ -16844,13 +16936,13 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           </div>
         )}
 
-        {vueAccueil === "reservations" && currentUserId === "direction" && (
+        {vueAccueil === "reservations" && peutGererPlanning && (
           <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
         )}
         {vueAccueil === "reservations" && (
           <Reservations integre reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivity} horaires={horaires} formOuvert={formResa} setFormOuvert={setFormResa} dateExt={dateResa} setDateExt={setDateResa} filtreExt={filtreResa} setFiltreExt={setFiltreResa} />
         )}
-        {vueTemps === "jour" && vueAccueil === "planning" && currentUserId === "direction" && (
+        {vueTemps === "jour" && vueAccueil === "planning" && peutGererPlanning && (
           <CarteGestionHorairesDirection employees={employees} shifts={shifts} setShifts={setShifts} logActivity={logActivity} setTab={setTab} />
         )}
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId !== "direction" && (
