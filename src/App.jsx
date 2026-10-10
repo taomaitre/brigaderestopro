@@ -584,6 +584,11 @@ function equipementEcartAnomalie(eq, valeur) {
 const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const addDays = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + n); return toISO(d); };
 const subMonths = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d.setMonth(d.getMonth() - n); return toISO(d); };
+// Durées de conservation de la traçabilité (décision de Loïc, 10/10) : les photos (lourdes) sont gardées 6 mois,
+// ce qui correspond au minimum pour les produits périssables ; les données texte (nom, lot, DLC, date, auteur) sont
+// gardées 5 ans, durée minimale générale de la traçabilité des denrées (GBPH Restaurateur, règlement 178/2002).
+const CONSERVATION_PHOTOS_TRACABILITE_MOIS = 6;
+const CONSERVATION_DONNEES_TRACABILITE_MOIS = 60;
 const startOfWeek = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return toISO(d); };
 const startOfMonth = (dateStr) => dateStr.slice(0, 7) + "-01";
 const daysInMonth = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
@@ -4236,7 +4241,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
           <div>
             <p className="text-xs text-[var(--steel)] mb-1">Document généré le</p>
             <p className="text-sm text-[var(--ink)]">{fmtLong(todayISO())}</p>
-            <p className="text-xs text-[var(--steel)] mt-2">Registre à conserver 5 ans conformément à la réglementation</p>
+            <p className="text-xs text-[var(--steel)] mt-2">Traçabilité des denrées : 6 mois (produits périssables) à 5 ans selon le produit. Autres enregistrements : durée appropriée fixée par l'établissement.</p>
           </div>
         </div>
       </div>
@@ -10645,7 +10650,7 @@ function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDl
 
 // Traçabilité SANS IA (offre d'entrée) : un seul geste, une seule photo de l'étiquette. La photo
 // montre déjà elle-même le nom, la DLC et le lot — on ne redemande jamais rien à taper. Enregistrée
-// avec la date, l'heure et le nom de la personne, conservée 2 mois, retrouvable dans le contrôle
+// avec la date, l'heure et le nom de la personne, conservée 6 mois (les données texte 5 ans), retrouvable dans le contrôle
 // traçabilité du chef/direction. Plusieurs produits à la suite : juste reprendre une photo.
 function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, dernieres = [], who }) {
   // Plusieurs photos possibles ici aussi (pas réservé au palier avec IA) : le nom, la DLC et le lot
@@ -10666,7 +10671,7 @@ function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, dernie
     <Card className="flex flex-col items-center text-center gap-3 py-10">
       <div className="w-14 h-14 rounded-full flex items-center justify-center text-[var(--accent)]" style={{ background: "var(--accent-soft)" }}><CheckCircle2 size={30} /></div>
       <p className="text-base text-[var(--ink)] font-semibold">Traçabilité enregistrée</p>
-      <p className="text-sm text-[var(--steel)]">Photo(s) conservée(s) 2 mois, classée(s) par jour.</p>
+      <p className="text-sm text-[var(--steel)]">Photo(s) conservée(s) 6 mois, classée(s) par jour.</p>
       <Button onClick={nouveau}><Camera size={16} /> Photographier un autre produit</Button>
     </Card>
   ) : (
@@ -14705,7 +14710,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
         <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Retour</button>
         <span className="text-xs text-[var(--steel)]">{tracabiliteFiltree.length} entrée(s)</span>
       </div>
-      <SectionHeader title="Traçabilité — historique complet" subtitle="Toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) sur les 2 derniers mois — au-delà, elles sont supprimées automatiquement." />
+      <SectionHeader title="Traçabilité — historique complet" subtitle="Toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) conservées 5 ans ; les photos sont retirées automatiquement après 6 mois (le nom, le lot, la DLC, la date et l'auteur restent)." />
       <Card>
         <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Rechercher (produit, lot ou date)" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
         <div className="divide-y divide-[var(--line)] mt-3">
@@ -18714,12 +18719,21 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [dernierControleRappelConso]);
 
   useEffect(() => {
-    const seuil = subMonths(todayISO(), 2);
+    const seuilPhotos = subMonths(todayISO(), CONSERVATION_PHOTOS_TRACABILITE_MOIS);
+    const seuilDonnees = subMonths(todayISO(), CONSERVATION_DONNEES_TRACABILITE_MOIS);
     setPreparations((prev) => {
-      const conservees = prev.filter((p) => p.date >= seuil);
-      if (conservees.length === prev.length) return prev;
-      logActivitySafe("HACCP", "Purge automatique de la traçabilité", `${prev.length - conservees.length} entrée(s) de plus de 2 mois supprimée(s)`);
-      return conservees;
+      const conservees = prev.filter((p) => p.date >= seuilDonnees);
+      const supprimees = prev.length - conservees.length;
+      let photosRetirees = 0;
+      const apresPhotos = conservees.map((p) => {
+        const aDesPhotos = p.photo || p.photoEtiquette || (Array.isArray(p.photos) && p.photos.length > 0);
+        if (p.date >= seuilPhotos || !aDesPhotos) return p;
+        photosRetirees += 1;
+        return { ...p, photo: null, photoEtiquette: null, photos: [], photosPurgees: true };
+      });
+      if (supprimees === 0 && photosRetirees === 0) return prev;
+      logActivitySafe("HACCP", "Purge automatique de la traçabilité", `${photosRetirees} lot(s) de photos de plus de ${CONSERVATION_PHOTOS_TRACABILITE_MOIS} mois retiré(s) ; ${supprimees} entrée(s) de plus de ${CONSERVATION_DONNEES_TRACABILITE_MOIS / 12} ans supprimée(s)`);
+      return apresPhotos;
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -19022,7 +19036,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // Traçabilité la plus simple possible (offre SANS IA) : une ou plusieurs photos de l'étiquette
   // (pas limité à une seule — devant/dos de l'emballage si besoin), qui montrent déjà elles-mêmes le
   // nom, la DLC et le numéro de lot du produit — on ne redemande rien à l'employé, rien à taper. Les
-  // photos datées et nommées par qui les a prises SONT la traçabilité ; conservées 2 mois, elles se
+  // photos datées et nommées par qui les a prises SONT la traçabilité ; conservées 6 mois, elles se
   // retrouvent dans le contrôle traçabilité du chef/direction par date.
   const enregistrerTracabilitePhotoSimple = useCallback((photos) => {
     const photosFinal = Array.isArray(photos) ? photos : (photos ? [photos] : []);
