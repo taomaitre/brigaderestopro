@@ -16306,8 +16306,11 @@ function CarteRemarquesChef({ remarquesChef, setRemarquesChef, currentUserId, to
 // ControlePlanningJour (chef). Les tâches hebdo/mensuelles réelles viennent de construireItemsNettoyageDuJour
 // (même source que le Contrôle du chef) ; une tâche non validée n'est jamais marquée "fait" dans
 // `cleaning`, donc tacheDueAujourdhuiOuEnRetard la fera réapparaître automatiquement le lendemain.
-function ModalNettoyage({ moi, moment, cleaning, setCleaning, onClose, onDemarrerRefroidissementBainMarie, onOuvrirHuileTest, currentUserId, logActivity }) {
+function ModalNettoyage({ moi, moment, cleaning, setCleaning, employees, onClose, onDemarrerRefroidissementBainMarie, onOuvrirHuileTest, currentUserId, logActivity }) {
   const today = todayISO();
+  // Nouveau système (exécutions + validation du chef) : quand il est actif, cette fenêtre l'utilise, comme la colonne « Nettoyage ».
+  const ctxNet = React.useContext(NettoyageContext);
+  const miennesNet = ctxNet ? occurrencesDuJour(ctxNet.cleaning, ctxNet.executions, today).filter((o) => !o.aValiderSeulement && (o.enRetard || o.moment === moment) && concernesOccurrence(o, today, employees || [], ctxNet.shifts).ids.includes(moi?.id)) : [];
   const [bainMarieLance, setBainMarieLance] = useState(false);
   const [statutsParJour, setStatutsParJour] = useStored("nettoyage-employe-statuts", {});
   const [notesParJour, setNotesParJour] = useStored("nettoyage-employe-notes", {});
@@ -16344,11 +16347,11 @@ function ModalNettoyage({ moi, moment, cleaning, setCleaning, onClose, onDemarre
 
   // Étapes détaillées du quotidien (avec le protocole complet) + vraies tâches de nettoyage
   // (quotidien/hebdo/mensuel) dues aujourd'hui pour le poste de l'employé et pour "Tous".
-  const itemsQuotidienDetail = [
+  const itemsQuotidienDetail = ctxNet ? [] : [
     ...etapesPosteRestantes.map((texte, i) => ({ key: `etape-poste-${moi?.poste}-${moment}-${i}`, groupe: moi?.poste || "Mon poste", label: texte })),
     ...etapesTous.map((texte, i) => ({ key: `etape-tous-${moment}-${i}`, groupe: "Pour tout le monde", label: texte })),
   ];
-  const itemsPlan = construireItemsNettoyageDuJour(cleaning, today).filter(
+  const itemsPlan = ctxNet ? [] : construireItemsNettoyageDuJour(cleaning, today).filter(
     (it) => it.cleaningId && (it.assignedTo === clePoste(moi?.poste) || it.assignedTo === "tous")
   );
   const tousItems = [...itemsQuotidienDetail, ...itemsPlan];
@@ -16367,7 +16370,8 @@ function ModalNettoyage({ moi, moment, cleaning, setCleaning, onClose, onDemarre
           <h2 className="font-semibold text-[var(--ink)]">Nettoyage</h2>
           <span className="w-14" />
         </div>
-        <p className="text-xs text-[var(--steel)] mb-4">{valides} ✓ validé(s) · {nonValides} ✗ non fait(s) · {restants} restant(s) — un point non fait peut recevoir une note, et reste à faire tant qu'il n'est pas validé.</p>
+        {ctxNet ? <p className="text-xs text-[var(--steel)] mb-4">Cochez ✓ quand c'est fait, ✗ si ce n'est pas possible (avec une note). Le responsable valide ensuite : c'est la même liste que la colonne « Nettoyage » des tâches du jour.</p> : null}
+        {!ctxNet && <p className="text-xs text-[var(--steel)] mb-4">{valides} ✓ validé(s) · {nonValides} ✗ non fait(s) · {restants} restant(s) — un point non fait peut recevoir une note, et reste à faire tant qu'il n'est pas validé.</p>}
 
         {etapeBainMarie && (
           <div className="mb-4 pb-3 border-b border-[var(--line)]">
@@ -16386,6 +16390,7 @@ function ModalNettoyage({ moi, moment, cleaning, setCleaning, onClose, onDemarre
           </div>
         )}
 
+        {ctxNet && (miennesNet.length > 0 ? <LignesNettoyageJour ctx={ctxNet} miennes={miennesNet} employees={employees || []} currentUserId={currentUserId} logActivity={logActivity} today={today} /> : <p className="text-sm text-[var(--steel)]">Rien à nettoyer pour ce service.</p>)}
         {groupes.map((groupe) => (
           <div key={groupe} className="mb-4 last:mb-0">
             <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1.5">{groupe}</div>
@@ -16434,7 +16439,7 @@ function ModalNettoyage({ moi, moment, cleaning, setCleaning, onClose, onDemarre
             </ul>
           </div>
         ))}
-        {tousItems.length === 0 && <p className="text-sm text-[var(--steel)]">Rien à nettoyer aujourd'hui.</p>}
+        {!ctxNet && tousItems.length === 0 && <p className="text-sm text-[var(--steel)]">Rien à nettoyer aujourd'hui.</p>}
       </div>
     </div>
   );
@@ -17548,7 +17553,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       )}
 
       {(modalOuvert === "nettoyage-midi" || modalOuvert === "nettoyage-soir") && (
-        <ModalNettoyage moi={modalCollegue || moi} moment={modalOuvert === "nettoyage-midi" ? "midi" : "soir"} cleaning={cleaning} setCleaning={setCleaning}
+        <ModalNettoyage moi={modalCollegue || moi} moment={modalOuvert === "nettoyage-midi" ? "midi" : "soir"} cleaning={cleaning} setCleaning={setCleaning} employees={employees}
           currentUserId={currentUserId} logActivity={logActivity}
           onClose={() => { setModalOuvert(null); setModalCollegue(null); }} onDemarrerRefroidissementBainMarie={onDemarrerRefroidissementBainMarie}
           onOuvrirHuileTest={() => { setModalOuvert(null); setModalCollegue(null); onOuvrirHuileTest(); }} />
