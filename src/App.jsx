@@ -5625,18 +5625,49 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
 
 function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, employees, logActivity, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, demandesAjout, signalerAjout }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
+  const [vue, setVue] = useState(null); // null | "protocoles" | "planning"
+  if (vue === "planning") {
+    return (
+      <div>
+        <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
+        <button onClick={() => setVue(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour au plan de nettoyage</button>
+        <SectionHeader title="Planning de nettoyage" subtitle="Quoi nettoyer, où, à quelle fréquence et par qui" />
+      <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
+      </div>
+    );
+  }
+  if (vue === "protocoles") {
+    return (
+      <div>
+        <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
+        <button onClick={() => setVue(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour au plan de nettoyage</button>
+        <SectionHeader title="Protocoles de nettoyage" subtitle="Pour chaque surface ou matériel : les produits à utiliser et les étapes à suivre" />
+        <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
+      </div>
+    );
+  }
+  const rose = { fond: "linear-gradient(160deg, #E0457B 0%, #B02A5B 100%)", ombre: "rgba(176,42,91,0.35)" };
   return (
     <div>
-      <SectionHeader title="PMS — plan de nettoyage" subtitle="PMS = Plan de Maîtrise Sanitaire : le plan de nettoyage et d'hygiène de la cuisine" />
-      {!chargerPlanDepart && <Card className="bg-[var(--warn-soft)] border-[var(--warn)]/30 mb-6">
-        <p className="text-xs text-[var(--ink)]">
-          <strong>À finaliser :</strong> détaillez pour chaque matériel les étapes de nettoyage selon le protocole HACCP (comme pour la friteuse), puis indiquez le produit utilisé par votre établissement avec sa quantité / dilution exacte. À compléter dans « Protocoles de nettoyage détaillés » ci-dessous, produit par produit.
-        </p>
-      </Card>}
-      <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
-      {!chargerPlanDepart && <div className="mt-6">
-        <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
-      </div>}
+      <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
+      <SectionHeader title="PMS — plan de nettoyage" subtitle="Deux étapes simples : d'abord définir comment nettoyer, ensuite planifier qui nettoie quoi et quand" />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
+        <button onClick={() => setVue("protocoles")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-4 min-h-[120px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
+          <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><SprayCan size={32} color="#ffffff" /></span>
+          <span className="min-w-0">
+            <span className="block text-lg font-bold text-white leading-tight">1. Protocoles de nettoyage</span>
+            <span className="block text-sm text-white/90 mt-1 leading-snug">Par surface ou matériel : les produits à utiliser et les étapes à suivre</span>
+          </span>
+        </button>
+        <button onClick={() => setVue("planning")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-4 min-h-[120px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
+          <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><CalendarDays size={32} color="#ffffff" /></span>
+          <span className="min-w-0">
+            <span className="block text-lg font-bold text-white leading-tight">2. Planning de nettoyage</span>
+            <span className="block text-sm text-white/90 mt-1 leading-snug">Par zone, surface ou matériel : la fréquence et les employés concernés</span>
+          </span>
+        </button>
+      </div>
+      <p className="text-xs text-[var(--steel)]">Les protocoles et le planning se relient : un nettoyage planifié s'appuie sur son protocole. Les tâches faites restent barrées dans le planning des employés.</p>
     </div>
   );
 }
