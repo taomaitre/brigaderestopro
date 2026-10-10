@@ -7728,6 +7728,19 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   ) : "Calculé automatiquement dès que des ingrédients sont reliés au stock (étape 2)."}
                 </div>
               </div>
+              {(() => {
+                const cp = Number(String(coutPortionApercu || "").replace(",", "."));
+                if (!(cp > 0)) return null;
+                const taux = 30, tva = 10;
+                const est = Math.round(cp / (taux / 100) * (1 + tva / 100) * 20) / 20;
+                return (
+                  <div className="mt-3 rounded-lg px-3 py-2.5 text-xs flex flex-wrap items-center gap-2" style={{ backgroundColor: "var(--bg)", color: "var(--steel)" }}>
+                    <span>Estimation indicative du prix de vente : <strong>{est.toFixed(2).replace(".", ",")} € TTC</strong> (coût matière ≈ {taux} % du prix de vente HT, TVA {tva} %). Vous pouvez la modifier librement.</span>
+                    <button type="button" className="underline font-semibold" onClick={() => champ("prixVente", est.toFixed(2).replace(".", ","))}>Utiliser cette estimation</button>
+                    <span className="w-full">Repère usuel en restauration : coût matière de 25 à 35 % du prix de vente HT (soit un coefficient d'environ 3 à 4). Aide au calcul, pas une obligation ; la TVA applicable dépend de votre activité.</span>
+                  </div>
+                );
+              })()}
             </div>
             <div className="pt-3 border-t border-[var(--line)]">
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Dressage et envoi</div>
