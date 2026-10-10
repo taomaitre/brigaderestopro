@@ -8253,6 +8253,19 @@ function ApercuCarte({ carte, plats, categories, onClose }) {
   );
 }
 
+/* Panneau du nouveau style : filet de couleur en haut + bandeau teinté avec titre et aide. */
+function PanneauStyle({ titre, aide, couleur = "#D9691A", teinte = "#FDF3E7", children, className = "mb-4" }) {
+  return (
+    <div className={`bg-white rounded-xl border border-[var(--line)] overflow-hidden shadow-sm ${className}`} style={{ borderTop: `3px solid ${couleur}` }}>
+      <div className="px-4 py-2.5 flex flex-wrap items-baseline gap-x-3" style={{ backgroundColor: teinte }}>
+        <h3 className="font-bold text-[var(--ink)] text-sm">{titre}</h3>
+        {aide && <span className="text-xs text-[var(--steel)]">{aide}</span>}
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
 function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, reservations }) {
   const [quantiteOuverte, setQuantiteOuverte] = useState(null);
   const [jourDetail, setJourDetail] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
@@ -8322,16 +8335,19 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const parCategorie = categories.map((c) => ({ c, ids: idsAujourdhui.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
   return (
     <div>
-      <SectionHeader title="Ma carte" subtitle={`${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`} />
-      {carte && (
-        <div className="mb-4">
-          <Button variant="ghost" onClick={() => setApercuOuvert(true)}><BookOpen size={16} /> Aperçu de la carte — imprimer ou télécharger</Button>
+      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
+        <div className="flex items-center gap-3">
+          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)" }}><BookOpen size={24} /></div>
+          <div>
+            <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">Ma carte</h2>
+            <p className="text-sm text-[var(--steel)]">{`Créez et gérez votre carte à partir des fiches techniques — et sachez ce que chaque employé doit préparer. ${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`}</p>
+          </div>
         </div>
-      )}
+        {carte && <Button variant="ghost" onClick={() => setApercuOuvert(true)}><BookOpen size={16} /> Aperçu de la carte</Button>}
+      </div>
       {apercuOuvert && carte && <ApercuCarte carte={carte} plats={plats} categories={categories} onClose={() => setApercuOuvert(false)} />}
       {periodique && (
-        <Card className="mb-4">
-          <p className="text-sm font-semibold text-[var(--ink)] mb-2">Mes cartes</p>
+        <PanneauStyle titre="Période de la carte" aide="Choisissez la carte à afficher ou créez la période suivante" couleur="#2E86D6" teinte="#E6F0FB">
           <div className="flex flex-wrap gap-2">
             {triees.map((c) => {
               const active = carte && c.id === carte.id; const courante = c.debut <= aujourdhui && aujourdhui <= c.fin;
@@ -8344,11 +8360,11 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
               <label className="flex items-center gap-2 text-sm text-[var(--ink)]"><input type="checkbox" className="w-5 h-5" checked={copier} onChange={() => setCopier(!copier)} /> Partir de la carte précédente</label>
             </div>
           )}
-        </Card>
+        </PanneauStyle>
       )}
       {carte && estChef && <ChangerCarte carte={carte} majCarte={majCarte} plats={plats} categories={categories} nomDe={nomDe} aujourdhui={aujourdhui} />}
       {carte && (
-        <Card className="mb-4">
+        <PanneauStyle titre="Plats de la carte" aide="Ajoutez des plats depuis les fiches techniques, choisissez leurs jours de service" couleur="#D9691A" teinte="#FDF3E7">
           {estChef ? (
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
               <div className={periodique ? "sm:col-span-1" : "sm:col-span-3"}><label className={libNet}>Nom de la carte</label><ChampTexteDiffere value={carte.nom} onCommit={(v) => v.trim() && majCarte({ nom: v.trim() })} className={`${champNet}`} /></div>
@@ -8358,8 +8374,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
           ) : <h3 className="font-semibold text-[var(--ink)] mb-3">{carte.nom}</h3>}
 
           {estChef && (
-            <>
-              <p className="text-sm font-semibold text-[var(--ink)] mb-2">Ajouter des plats : choisissez une catégorie</p>
+            <div className="rounded-xl p-3 mb-4" style={{ backgroundColor: "#EAF6EE", border: "1px solid #CFE8D8" }}>
+              <p className="text-sm font-bold text-[var(--ink)] mb-2">Ajouter des plats depuis les fiches techniques : choisissez une catégorie</p>
               {categories.length === 0 ? <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique de plat pour l'instant : créez d'abord vos plats dans « Créer une fiche technique ».</p> : (
                 <div className="flex flex-wrap gap-2 mb-3">
                   {categories.map((c) => {
@@ -8384,7 +8400,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                   </ul>
                 </div>
               )}
-            </>
+            </div>
           )}
 
           <p className="text-sm font-semibold text-[var(--ink)] mb-2">Plats de la carte aujourd'hui ({idsAujourdhui.filter((id) => nomDe(id)).length})</p>
@@ -8545,7 +8561,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                 : <Button variant="ghost" onClick={() => setConfirmerType(true)}>Changer le type de carte</Button>}
             </div>
           )}
-        </Card>
+        </PanneauStyle>
       )}
     </div>
   );
