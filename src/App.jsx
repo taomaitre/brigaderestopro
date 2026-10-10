@@ -18754,8 +18754,11 @@ function KitchenApp({ identiteExterne } = {}) {
     garder(setRefroidissements, refroidissements, "refroidissements");
     garder(setEntriesMaintienChaud, entriesMaintienChaud, "maintiens au chaud");
     garder(setHuileTests, huileTests, "tests d'huile");
+    garder(setPmsExecutions, pmsExecutions, "exécutions de nettoyage");
+    // Journal d'activité : même règle, sans écrire de ligne de journal pour ne pas écraser la liste qu'on purge.
+    if (trop(activityLog)) setActivityLog((prev) => prev.filter((x) => !(x && x.date && x.date < seuil)));
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [relevesFroid, surveillancesFroid, cuissons, refroidissements, entriesMaintienChaud, huileTests]);
+  }, [relevesFroid, surveillancesFroid, cuissons, refroidissements, entriesMaintienChaud, huileTests, pmsExecutions, activityLog]);
 
   useEffect(() => {
     if (!modeExterne) setProduits((prev) => {
