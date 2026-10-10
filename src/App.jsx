@@ -1656,15 +1656,15 @@ function PmsDocuments({ pms, reglages }) {
   };
   const origineEau = reglages && reglages.fiche && reglages.fiche.origineEau;
   const eauPrivee = origineEau === "Source privée (puits, forage)";
-  const manquantsEau = eauPrivee ? ["autorisation_eau_privee", "analyse_eau"].filter((c) => !docs.some((d) => d.categorie === c)) : [];
+  const manquantsEau = eauPrivee ? ["autorisation_eau_privee", "analyse_eau"].filter((c) => !docs.some((d) => d.categorie === c)) : (origineEau === "Réseau public" && !docs.some((d) => d.categorie === "attestation_eau") ? ["attestation_eau"] : []);
   return (
     <div>
       <Card className="mb-3">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Eau</h3>
         {!origineEau && <p className="text-sm text-[var(--steel)]">Indiquez l'origine de l'eau dans la fiche de l'établissement (partie 1) pour savoir quelles pièces joindre.</p>}
-        {origineEau === "Réseau public" && <p className="text-sm text-[var(--steel)]">Eau du réseau public : aucune analyse n'est à votre charge. Vous pouvez joindre, si vous l'avez, votre attestation de raccordement.</p>}
-        {eauPrivee && <p className="text-sm text-[var(--steel)]">Eau de source privée (puits, forage) : une autorisation préfectorale et des analyses régulières, à votre charge, sont attendues.</p>}
-        {manquantsEau.length > 0 && <p className="text-xs font-semibold text-[var(--gold)] mt-1">À joindre : {manquantsEau.map((c) => libelleDe(CATEGORIES_DOCUMENT, c)).join(" · ")}</p>}
+        {origineEau === "Réseau public" && <p className="text-sm text-[var(--steel)]">Eau du réseau public : conservez l'attestation de raccordement délivrée par votre distributeur d'eau (elle peut être établie librement). L'État ne fait pas de contrôle sanitaire spécifique de votre établissement sur cette eau, mais vous restez responsable de sa qualité jusqu'à vos robinets : si un doute existe (canalisations anciennes, adoucisseur, filtre), faites une analyse.</p>}
+        {eauPrivee && <p className="text-sm text-[var(--steel)]">Eau de source privée (puits, forage) : une autorisation préfectorale et un programme d'analyses par un laboratoire agréé, à votre charge, sont attendus.</p>}
+        {manquantsEau.length > 0 && <p className="text-xs font-semibold text-[var(--gold)] mt-1">À conserver ou joindre : {manquantsEau.map((c) => libelleDe(CATEGORIES_DOCUMENT, c)).join(" · ")}</p>}
       </Card>
       {CATEGORIES_DOCUMENT.map((c) => {
         const ceux = docs.filter((d) => d.categorie === c.value);

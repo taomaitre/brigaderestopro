@@ -22,7 +22,7 @@ export const FICHE_ETAB_CHAMPS = [
   { cle: "adresseSite", colonne: "adresse_site", groupe: "site", label: "Adresse du site d'exploitation", type: "texte", requis: true },
   { cle: "telephone", colonne: "telephone", groupe: "site", label: "Téléphone", type: "texte", requis: true },
   { cle: "emailGeneral", colonne: "email_general", groupe: "site", label: "E-mail général", type: "texte", requis: true },
-  { cle: "origineEau", colonne: "origine_eau", groupe: "site", label: "Origine de l'eau utilisée en cuisine", type: "choix", options: ORIGINES_EAU, aide: "Réseau public : aucune analyse à votre charge. Source privée (puits, forage) : autorisation préfectorale et analyses régulières à votre charge." },
+  { cle: "origineEau", colonne: "origine_eau", groupe: "site", label: "Origine de l'eau utilisée en cuisine", type: "choix", options: ORIGINES_EAU, aide: "Réseau public : conservez l'attestation de raccordement délivrée par votre distributeur d'eau. Source privée (puits, forage) : autorisation préfectorale et analyses à votre charge." },
   { cle: "dateDebutActivite", colonne: "date_debut_activite", groupe: "site", label: "Début d'activité sur le site", type: "date" },
   { cle: "dateDeclarationActivite", colonne: "date_declaration_activite", groupe: "site", label: "Date de la déclaration d'activité (Cerfa 13984)", type: "date", aide: "Déposée auprès de la DDPP avant le démarrage de l'activité. Gardez le récépissé." },
   { cle: "codeNaf", colonne: "code_naf", groupe: "activite", label: "Code NAF / APE", type: "texte", requis: true, aide: "Exemple : 56.10A. Il détermine si la formation hygiène de 14 h s'applique." },
