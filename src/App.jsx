@@ -20400,7 +20400,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
-    <AccesContext.Provider value={{ estResponsable: !!moi?.estChef }}>
+    <AccesContext.Provider value={{ estResponsable: !!moi?.estChef || currentUserId === "direction" }}>
     <div className={`min-h-screen flex flex-col ${modeExterne ? "md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[auto_1fr]" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
