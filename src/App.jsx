@@ -8188,16 +8188,14 @@ function BoutonsExport({ titre, colonnes, lignes }) {
 function ApercuCarte({ carte, plats, categories, onClose }) {
   const [date, setDate] = useState(todayISO());
   const [avecPrix, setAvecPrix] = useState(true);
-  const [avecAllergenes, setAvecAllergenes] = useState(true);
   const [message, setMessage] = useState("");
   const ids = platsAuCarte(carte, date);
   const parCat = categories.map((c) => ({ c, items: plats.filter((f) => f.categorie === c && ids.includes(f.id)) })).filter((x) => x.items.length > 0);
-  const allergenesDe = (f) => (f.allergenesTexte != null ? f.allergenesTexte : (f.allergenes || []).join(", ")) || "";
   const prixDe = (f) => (f.cout && f.cout.prixVente ? `${f.cout.prixVente} €` : "");
   const titre = (carte && carte.nom) || "Ma carte";
   const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const html = () => {
-    const corps = parCat.map(({ c, items }) => `<h2>${esc(c)}</h2>` + items.map((f) => `<p class="plat"><b>${esc(f.nom)}</b>${avecPrix && prixDe(f) ? ` <span class="prix">${esc(prixDe(f))}</span>` : ""}${avecAllergenes && allergenesDe(f) ? `<br><span class="all">Allergènes : ${esc(allergenesDe(f))}</span>` : ""}</p>`).join("")).join("");
+    const corps = parCat.map(({ c, items }) => `<h2>${esc(c)}</h2>` + items.map((f) => `<p class="plat"><b>${esc(f.nom)}</b>${avecPrix && prixDe(f) ? ` <span class="prix">${esc(prixDe(f))}</span>` : ""}</p>`).join("")).join("");
     return `<html><head><meta charset="utf-8"><title>${esc(titre)}</title><style>body{font-family:Georgia,serif;padding:32px;color:#1D2321;max-width:720px;margin:auto}h1{text-align:center;margin-bottom:4px}.sous{text-align:center;color:#657069;margin-bottom:24px}h2{border-bottom:1px solid #ccc;padding-bottom:4px;margin-top:24px;text-transform:uppercase;font-size:15px;letter-spacing:1px}.plat{margin:8px 0}.prix{float:right}.all{font-size:12px;color:#657069}</style></head><body><h1>${esc(titre)}</h1><div class="sous">Carte du ${esc(joliDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}</div>${corps || "<p>Aucun plat sur la carte ce jour-là.</p>"}</body></html>`;
   };
   const imprimer = () => {
@@ -8213,8 +8211,8 @@ function ApercuCarte({ carte, plats, categories, onClose }) {
   const excel = async () => {
     try {
       const XLSX = await import("xlsx");
-      const lignes = [["Catégorie", "Plat", ...(avecPrix ? ["Prix"] : []), ...(avecAllergenes ? ["Allergènes"] : [])]];
-      parCat.forEach(({ c, items }) => items.forEach((f) => lignes.push([c, f.nom, ...(avecPrix ? [prixDe(f)] : []), ...(avecAllergenes ? [allergenesDe(f)] : [])])));
+      const lignes = [["Catégorie", "Plat", ...(avecPrix ? ["Prix"] : [])]];
+      parCat.forEach(({ c, items }) => items.forEach((f) => lignes.push([c, f.nom, ...(avecPrix ? [prixDe(f)] : [])])));
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lignes), "Carte");
       XLSX.writeFile(wb, `${nomFichier}.xlsx`); setMessage("Fichier Excel téléchargé.");
     } catch (e) { setMessage("Le fichier Excel n'a pas pu être créé."); }
@@ -8226,7 +8224,6 @@ function ApercuCarte({ carte, plats, categories, onClose }) {
         <div className="flex flex-wrap items-center gap-3 mb-3 text-sm text-[var(--ink)]">
           <label className="flex items-center gap-2">Carte du <input type="date" className={inputCls} value={date} onChange={(e) => e.target.value && setDate(e.target.value)} /></label>
           <label className="flex items-center gap-1.5"><input type="checkbox" checked={avecPrix} onChange={(e) => setAvecPrix(e.target.checked)} /> Prix</label>
-          <label className="flex items-center gap-1.5"><input type="checkbox" checked={avecAllergenes} onChange={(e) => setAvecAllergenes(e.target.checked)} /> Allergènes</label>
         </div>
         <div className="flex flex-wrap gap-2 mb-4">
           <Button onClick={imprimer}><Printer size={15} /> Imprimer</Button>
@@ -8246,7 +8243,6 @@ function ApercuCarte({ carte, plats, categories, onClose }) {
               {items.map((f) => (
                 <div key={f.id} className="mb-2">
                   <div className="flex justify-between gap-3 text-sm text-[var(--ink)]"><span className="font-semibold">{f.nom}</span>{avecPrix && prixDe(f) && <span>{prixDe(f)}</span>}</div>
-                  {avecAllergenes && allergenesDe(f) && <div className="text-xs text-[var(--steel)]">Allergènes : {allergenesDe(f)}</div>}
                 </div>
               ))}
             </div>
