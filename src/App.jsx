@@ -3127,56 +3127,199 @@ function CommandesRecues({ receptions, setReceptions, employees, nomMoi, memoire
     </PanneauStyle>
   );
 
-  if (groupes.length === 0) return <div className="space-y-3">{cadreEcarts}<p className="text-sm text-[var(--steel)]">Aucune commande reçue pour le moment. Elles apparaissent ici après chaque réception de marchandises.</p></div>;
-  return (
-    <div className="space-y-3">
-      {cadreEcarts}
-      {message && <p className="text-sm" style={{ color: "#2F6B4F" }}>{message}</p>}
-      {groupes.map((c) => {
-        const nbNC = c.lignes.filter((l) => !l.conforme).length;
-        const ouv = ouverte === c.cle;
-        return (
-          <Card key={c.cle}>
-            <button className="w-full text-left" onClick={() => setOuverte(ouv ? null : c.cle)}>
-              <div className="flex items-center justify-between gap-2">
-                <div>
-                  <div className="font-semibold text-[var(--ink)]">{c.fournisseur || "Fournisseur non renseigné"}</div>
-                  <div className="text-xs text-[var(--steel)]">{fmtDate(c.date)} à {c.heure} · {c.lignes.length} article(s) · réceptionnée par {who(c.employeeId) || "—"}</div>
-                </div>
-                <div className="flex items-center gap-2 shrink-0">
-                  {nbNC > 0 && <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ backgroundColor: "#C1432D" }}>{nbNC} non conforme(s)</span>}
-                  {c.lignes.every((l) => l.valideChef) ? <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">✓ Vérifiée</span> : <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--bg)] text-[var(--steel)]">À vérifier</span>}
-                </div>
-              </div>
-            </button>
-            {ouv && (
-              <div className="mt-3 pt-3 border-t border-[var(--line)]">
-                <div className="space-y-1.5 mb-3">
-                  {c.lignes.map((l) => (
-                    <div key={l.id} className="text-sm border border-[var(--cadre)] rounded-lg px-3 py-2">
-                      <div className="flex items-center justify-between gap-2">
-                        <strong className="text-[var(--ink)]">{l.produit}</strong>
-                        <span className="text-xs font-semibold" style={{ color: l.conforme ? "#2F6B4F" : "#C1432D" }}>{statutLigne(l)}</span>
-                      </div>
-                      <div className="text-xs text-[var(--steel)]">{l.conforme ? l.quantite : `${l.quantiteNC} refusé(s)`}{l.lot ? ` · lot ${l.lot}` : ""}{l.dlc ? ` · DLC ${fmtDate(l.dlc)}` : ""}{l.temperature != null ? ` · ${l.temperature} °C` : ""}{l.conservation ? ` · ${LIBELLE_CONSERVATION[l.conservation] || l.conservation}` : ""}</div>
-                      {l.photoNC && <img src={l.photoNC} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] mt-1.5" />}
-                    </div>
-                  ))}
-                </div>
-                {c.photosBon.length > 0 && (
-                  <div className="flex flex-wrap gap-2 mb-3">{c.photosBon.map((p, i) => <img key={i} src={p} alt="Bon de livraison" className="w-20 h-20 object-cover rounded-lg border border-[var(--cadre)]" />)}</div>
-                )}
-                <div className="flex flex-wrap gap-2">
-                  <Button variant="ghost" onClick={() => partager(c)}>Partager</Button>
-                  <Button variant="ghost" onClick={() => envoyerMail(c)}><Mail size={16} /> Envoyer par e-mail</Button>
-                  <Button variant="ghost" onClick={() => imprimer(c)}><Printer size={16} /> Imprimer</Button>
-                  {!c.lignes.every((l) => l.valideChef) && <Button onClick={() => marquerVerifiee(c.cle)}>Marquer cette réception comme vérifiée</Button>}
-                </div>
+  const [filtreDu, setFiltreDu] = useState("");
+  const [filtreAu, setFiltreAu] = useState("");
+  const [filtreFournisseur, setFiltreFournisseur] = useState("");
+  const [filtreStatut, setFiltreStatut] = useState("");
+  const [filtreTexte, setFiltreTexte] = useState("");
+  const [detail, setDetail] = useState(null);
+
+  const estVerifiee = (c) => c.lignes.every((l) => l.valideChef);
+  const nbConformes = (c) => c.lignes.filter((l) => l.conforme).length;
+  const nbNonConformes = (c) => c.lignes.filter((l) => !l.conforme).length;
+  const fournisseurs = [...new Set(groupes.map((g) => g.fournisseur).filter(Boolean))].sort((a, b) => a.localeCompare(b, "fr"));
+  const q = filtreTexte.trim().toLowerCase();
+  const filtrees = groupes.filter((c) => {
+    if (filtreDu && c.date < filtreDu) return false;
+    if (filtreAu && c.date > filtreAu) return false;
+    if (filtreFournisseur && c.fournisseur !== filtreFournisseur) return false;
+    if (filtreStatut === "nc" && nbNonConformes(c) === 0) return false;
+    if (filtreStatut === "ok" && nbNonConformes(c) > 0) return false;
+    if (q && !((c.fournisseur || "") + " " + c.lignes.map((l) => l.produit).join(" ") + " " + String(c.cle)).toLowerCase().includes(q)) return false;
+    return true;
+  });
+  const jours = [...new Set(filtrees.map((c) => c.date))];
+  const libelleJour = (iso) => (iso && /^\d{4}-\d{2}-\d{2}$/.test(iso) ? new Date(iso + "T12:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" }) : iso || "Date inconnue");
+  const COULEURS_JOURS = [["#E8F1FD", "#3B82C4"], ["#E6F6EA", "#2F9E5C"], ["#FFF3DC", "#D97706"], ["#F3ECFB", "#8E6BD1"]];
+  const Pastille = ({ children, ton }) => (
+    <span className="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1 text-xs font-semibold whitespace-nowrap"
+      style={ton === "v" ? { background: "#EAF8EF", borderColor: "#BFE8CD", color: "#1B5E3A" } : ton === "r" ? { background: "#FDEAEA", borderColor: "#F5B5B5", color: "#9B1C1C" } : { background: "#fff", borderColor: "var(--cadre)", color: "var(--ink)" }}>{children}</span>
+  );
+  const Compteur = ({ n, ton }) => (
+    <span className="inline-block min-w-[34px] text-center rounded-lg px-2 py-0.5 font-bold text-sm"
+      style={ton === "v" ? { background: "#D9F3E2", color: "#1B5E3A" } : ton === "r" ? { background: "#FBDCDC", color: "#9B1C1C" } : { background: "#EEF0F2", color: "#6B7280" }}>{n}</span>
+  );
+  const StatutVerif = ({ c }) => estVerifiee(c)
+    ? <span className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-semibold whitespace-nowrap" style={{ background: "#EAF8EF", color: "#1B5E3A" }}>✓ Vérifiée</span>
+    : <span className="inline-flex items-center gap-1 rounded-lg px-2 py-0.5 text-xs font-semibold whitespace-nowrap" style={{ background: "#FFF3DC", color: "#8A5200" }}>● À vérifier</span>;
+
+  // ---------- Détail d'une réception ----------
+  const cDetail = detail ? groupes.find((g) => g.cle === detail) : null;
+  if (cDetail) {
+    const c = cDetail;
+    const ecartsLies = ecarts.filter((e) => e.date === c.date && (!e.fournisseur || !c.fournisseur || e.fournisseur.toLowerCase() === c.fournisseur.toLowerCase()));
+    const manquantsLignes = c.lignes.filter((l) => l.manquant);
+    const temps = [];
+    c.lignes.forEach((l) => {
+      if (l.temperature == null || l.temperature === "") return;
+      const cons = LIBELLE_CONSERVATION[l.conservation] || "Autre";
+      const hors = !l.conforme && l.raison === "Température non conforme";
+      const ex = temps.find((t) => t.cons === cons && t.temp === l.temperature);
+      if (ex) ex.hors = ex.hors || hors; else temps.push({ cons, temp: l.temperature, hors });
+    });
+    const Carte = ({ titre, fond, bord, children }) => (
+      <div className="rounded-xl overflow-hidden bg-white mb-4" style={{ border: "1px solid var(--cadre)" }}>
+        <div className="px-4 py-2 text-sm font-bold" style={{ background: fond, borderTop: `3px solid ${bord}`, color: "var(--ink)" }}>{titre}</div>
+        <div className="px-4 py-3 text-sm">{children}</div>
+      </div>
+    );
+    return (
+      <div className="space-y-3">
+        <div className="flex flex-wrap items-center gap-3">
+          <button type="button" onClick={() => setDetail(null)} aria-label="Retour à la liste" title="Retour à la liste" className="w-11 h-11 rounded-xl border border-[var(--cadre)] bg-white flex items-center justify-center"><ArrowLeft size={20} /></button>
+          <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg,#C48A4A,#8C5A22)" }}><Truck size={24} /></span>
+          <div className="min-w-0">
+            <h3 className="text-lg font-bold text-[var(--ink)]">{c.fournisseur || "Fournisseur non renseigné"}</h3>
+            <p className="text-xs text-[var(--steel)]">{libelleJour(c.date)} à {c.heure}</p>
+          </div>
+          <div className="ml-auto flex items-center gap-2"><StatutVerif c={c} />{!estVerifiee(c) && setReceptions && <Button onClick={() => marquerVerifiee(c.cle)}>Marquer comme vérifiée</Button>}</div>
+        </div>
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2">
+          {[["Produits", c.lignes.length, "#E3EEFB"], ["Conformes", nbConformes(c), "#E3F4E8"], ["Non conformes", nbNonConformes(c), nbNonConformes(c) ? "#FDEAEA" : "#EEF0F2"], ["Manquants", manquantsLignes.length + ecartsLies.filter((e) => e.type === "manquant").length, "#FFF3DC"], ["En trop", ecartsLies.filter((e) => e.type === "en-trop").length, "#F3ECFB"]].map(([l, n, fond]) => (
+            <div key={l} className="rounded-xl p-3" style={{ background: fond }}><div className="text-xl font-bold text-[var(--ink)]">{n}</div><div className="text-xs text-[var(--steel)]">{l}</div></div>
+          ))}
+        </div>
+        <Carte titre="Informations de la réception" fond="#EEF0F2" bord="#9CA3AF">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-x-6 gap-y-2">
+            <div><span className="text-xs text-[var(--steel)]">Fournisseur</span><br /><b>{c.fournisseur || "—"}</b></div>
+            <div><span className="text-xs text-[var(--steel)]">Date et heure</span><br /><b>{fmtDate(c.date)} à {c.heure}</b></div>
+            <div><span className="text-xs text-[var(--steel)]">Réceptionnée par</span><br /><b>{who(c.employeeId) || "—"}</b></div>
+            <div><span className="text-xs text-[var(--steel)]">Produits conformes / non conformes</span><br /><b>{nbConformes(c)} / {nbNonConformes(c)}</b></div>
+            <div><span className="text-xs text-[var(--steel)]">Vérification du chef</span><br /><b>{estVerifiee(c) ? "Vérifiée" : "À vérifier"}</b></div>
+            <div><span className="text-xs text-[var(--steel)]">Référence</span><br /><b>{String(c.cle).slice(0, 8)}</b></div>
+          </div>
+        </Carte>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Carte titre="Bon de livraison" fond="#E3EEFB" bord="#5B9BD5">
+            {c.photosBon.length === 0 ? <p className="text-[var(--steel)]">Aucune photo du bon.</p> : <div className="flex flex-wrap gap-2">{c.photosBon.map((ph, i) => <img key={i} src={ph} alt={`Bon de livraison, page ${i + 1}`} className="w-24 h-24 object-cover rounded-lg border border-[var(--cadre)]" />)}</div>}
+          </Carte>
+          <Carte titre="Températures à la réception" fond="#FDF0DC" bord="#F0A030">
+            {temps.length === 0 ? <p className="text-[var(--steel)]">Aucune température enregistrée.</p> : temps.map((t) => (
+              <div key={t.cons + t.temp} className="py-0.5">{t.cons} : <b>{t.temp} °C</b> <span className="ml-1 text-xs font-semibold rounded-lg px-2 py-0.5" style={t.hors ? { background: "#FDEAEA", color: "#9B1C1C" } : { background: "#EAF8EF", color: "#1B5E3A" }}>{t.hors ? "Hors norme" : "Conforme"}</span></div>
+            ))}
+          </Carte>
+        </div>
+        <Carte titre="Produits reçus" fond="#E3F4E8" bord="#4CAF7A">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm" style={{ minWidth: 680 }}>
+              <thead><tr className="text-left text-xs text-[var(--steel)]"><th className="py-1.5 pr-3">Produit</th><th className="pr-3">Quantité</th><th className="pr-3">Type</th><th className="pr-3">T°</th><th className="pr-3">Lot</th><th className="pr-3">DLC</th><th className="pr-3">Statut</th></tr></thead>
+              <tbody className="divide-y divide-[var(--line)]">
+                {c.lignes.map((l) => (
+                  <tr key={l.id}>
+                    <td className="py-1.5 pr-3 font-semibold text-[var(--ink)]">{l.produit}{l.photoNC && <img src={l.photoNC} alt="" className="w-10 h-10 object-cover rounded border border-[var(--cadre)] mt-1" />}</td>
+                    <td className="pr-3">{l.conforme ? l.quantite : `${l.quantiteNC} refusé(s)`}</td>
+                    <td className="pr-3">{LIBELLE_CONSERVATION[l.conservation] || "—"}</td>
+                    <td className="pr-3">{l.temperature != null && l.temperature !== "" ? `${l.temperature} °C` : "—"}</td>
+                    <td className="pr-3">{l.lot || "—"}</td>
+                    <td className="pr-3">{l.dlc ? fmtDate(l.dlc) : "—"}</td>
+                    <td className="pr-3 font-semibold" style={{ color: l.conforme ? "#1B5E3A" : "#C1432D" }}>{statutLigne(l)}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Carte>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <Carte titre="Manquants et en trop" fond="#FDEAEA" bord="#E07070">
+            {manquantsLignes.length === 0 && ecartsLies.length === 0 ? <p className="text-[var(--steel)]">Rien à signaler.</p> : (
+              <div className="space-y-0.5">
+                {manquantsLignes.map((l) => <div key={l.id}>Manquant : {l.produit}</div>)}
+                {ecartsLies.map((e) => <div key={e.id}>{e.type === "manquant" ? "Manquant" : "En trop"} : {e.produit}{e.quantite ? ` (${e.quantite})` : ""}{e.note ? ` — ${e.note}` : ""}</div>)}
               </div>
             )}
-          </Card>
+          </Carte>
+          <Carte titre="Partager ou imprimer" fond="#EFE8FA" bord="#8E6BD1">
+            <div className="flex flex-wrap gap-2">
+              <Button variant="ghost" onClick={() => partager(c)}>Partager</Button>
+              <Button variant="ghost" onClick={() => envoyerMail(c)}><Mail size={16} /> Envoyer par e-mail</Button>
+              <Button variant="ghost" onClick={() => imprimer(c)}><Printer size={16} /> Imprimer</Button>
+            </div>
+            {message && <p className="text-sm mt-2" style={{ color: "#2F6B4F" }}>{message}</p>}
+          </Carte>
+        </div>
+      </div>
+    );
+  }
+
+  // ---------- Liste : un bloc par jour ----------
+  return (
+    <div className="space-y-3">
+      <div className="flex flex-wrap items-center gap-3">
+        <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(135deg,#C48A4A,#8C5A22)" }}><Truck size={24} /></span>
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold" style={{ color: "#6B4519" }}>Réception des marchandises</h3>
+          <p className="text-xs text-[var(--steel)]">Historique des réceptions par jour et par fournisseur. Cliquez sur « Voir le détail » pour ouvrir une réception.</p>
+        </div>
+      </div>
+      <Card>
+        <div className="flex flex-wrap items-end gap-2">
+          <div><label className="block text-xs text-[var(--steel)]">Période du</label><input type="date" className={inputCls} value={filtreDu} onChange={(e) => setFiltreDu(e.target.value)} /></div>
+          <div><label className="block text-xs text-[var(--steel)]">au</label><input type="date" className={inputCls} value={filtreAu} onChange={(e) => setFiltreAu(e.target.value)} /></div>
+          <select className={inputCls} value={filtreFournisseur} onChange={(e) => setFiltreFournisseur(e.target.value)}><option value="">Tous les fournisseurs</option>{fournisseurs.map((f) => <option key={f} value={f}>{f}</option>)}</select>
+          <select className={inputCls} value={filtreStatut} onChange={(e) => setFiltreStatut(e.target.value)}><option value="">Tous les statuts</option><option value="nc">Avec non-conformité</option><option value="ok">Tout conforme</option></select>
+          <input className={`${inputCls} flex-1 min-w-[200px]`} value={filtreTexte} onChange={(e) => setFiltreTexte(e.target.value)} placeholder="Rechercher un fournisseur, un produit…" />
+        </div>
+      </Card>
+      {groupes.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune commande reçue pour le moment. Elles apparaissent ici après chaque réception de marchandises.</p>}
+      {groupes.length > 0 && filtrees.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune réception ne correspond à ces filtres.</p>}
+      {jours.map((j, idx) => {
+        const rr = filtrees.filter((c) => c.date === j);
+        const ok = rr.reduce((a, c) => a + nbConformes(c), 0);
+        const ko = rr.reduce((a, c) => a + nbNonConformes(c), 0);
+        const [fond, couleur] = COULEURS_JOURS[idx % COULEURS_JOURS.length];
+        return (
+          <div key={j} className="rounded-xl overflow-hidden" style={{ background: fond, border: "1px solid var(--cadre)" }}>
+            <div className="flex flex-wrap items-center gap-2 px-4 py-2.5">
+              <span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: couleur }}><CalendarDays size={18} /></span>
+              <h4 className="font-bold text-[var(--ink)] capitalize">{libelleJour(j)}</h4>
+              <span className="flex-1" />
+              <Pastille><Truck size={14} /> {rr.length} réception{rr.length > 1 ? "s" : ""}</Pastille>
+              <Pastille ton="v">✓ {ok} produit(s) conforme(s)</Pastille>
+              <Pastille ton={ko ? "r" : undefined}>{ko} non conforme(s)</Pastille>
+            </div>
+            <div className="overflow-x-auto bg-white">
+              <table className="w-full text-sm" style={{ minWidth: 640 }}>
+                <thead><tr className="text-left text-xs text-[var(--steel)]"><th className="px-3 py-2">Heure</th><th className="pr-3">Fournisseur</th><th className="pr-3">Produits</th><th className="pr-3">Conformes</th><th className="pr-3">Non conformes</th><th className="pr-3">Statut</th><th /></tr></thead>
+                <tbody className="divide-y divide-[var(--line)]">
+                  {rr.map((c) => (
+                    <tr key={c.cle}>
+                      <td className="px-3 py-2">{c.heure}</td>
+                      <td className="pr-3 font-semibold text-[var(--ink)]">{c.fournisseur || "Non renseigné"}</td>
+                      <td className="pr-3">{c.lignes.length}</td>
+                      <td className="pr-3"><Compteur n={nbConformes(c)} ton="v" /></td>
+                      <td className="pr-3"><Compteur n={nbNonConformes(c)} ton={nbNonConformes(c) ? "r" : undefined} /></td>
+                      <td className="pr-3"><StatutVerif c={c} /></td>
+                      <td className="pr-3 text-right"><button type="button" onClick={() => setDetail(c.cle)} className="rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap min-h-[36px]" style={{ background: "#E8F1FD", borderColor: "#BFDBFE", color: "#1D4A7A" }}>Voir le détail ›</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
         );
       })}
+      {cadreEcarts}
+      {message && <p className="text-sm" style={{ color: "#2F6B4F" }}>{message}</p>}
     </div>
   );
 }
