@@ -1804,6 +1804,10 @@ function CarteHuileDuJour({ huileTests, who }) {
 // ---- Nettoyage de fin de service (nouvelle version) : écrans employé et chef ----
 // Les données (plan, exécutions, horaires) arrivent par ce contexte, fourni par KitchenApp en mode « nouvelle base ».
 const NettoyageContext = React.createContext(null);
+// Règle d'accès : un employé voit et fait les tâches ; ajouter, modifier, supprimer et consulter les historiques
+// se fait uniquement dans Contrôle & Gestion (chef, directeur).
+const AccesContext = React.createContext({ estResponsable: true });
+const useAcces = () => React.useContext(AccesContext);
 
 const libelleDateCourte = (iso) => { const [y, m, d] = String(iso).split("-"); return `${d}/${m}`; };
 const heureMaintenant = () => new Date().toTimeString().slice(0, 5);
@@ -8490,6 +8494,7 @@ function HaccpTemperatures({
   equipementsFroid, setEquipementsFroid, relevesFroid, setRelevesFroid, surveillancesFroid, setSurveillancesFroid,
   tempLogs, setTempLogs, currentUserId, logActivity, who, ajouterAlerteControle, ouvrirNormes,
 }) {
+  const { estResponsable } = useAcces();
   const [saisieManuelle, setSaisieManuelle] = useState({}); // { [equipementId]: { valeur, note } }
   const [recontrole, setRecontrole] = useState({}); // { [surveillanceId]: valeur }
   const [anomalieForm, setAnomalieForm] = useState({}); // { [surveillanceId]: { motif, note } }
@@ -8682,8 +8687,8 @@ function HaccpTemperatures({
                       <input className={`${inputCls} w-full max-w-[220px]`} placeholder="Note (optionnel)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
                     </td>
                     <td className="px-3 py-2 align-top whitespace-nowrap">
-                      <button className="text-xs text-[var(--steel)] underline mr-2" onClick={() => commencerEdition(eq)}>Modifier</button>
-                      <button className="text-[var(--warn)]" onClick={() => setSuppressionDemandee(eq)} title="Retirer cet appareil"><Trash2 size={15} /></button>
+                      {estResponsable && <button className="text-xs text-[var(--steel)] underline mr-2" onClick={() => commencerEdition(eq)}>Modifier</button>}
+                      {estResponsable && <button className="text-[var(--warn)]" onClick={() => setSuppressionDemandee(eq)} title="Retirer cet appareil"><Trash2 size={15} /></button>}
                     </td>
                   </tr>
                 );
@@ -8733,7 +8738,7 @@ function HaccpTemperatures({
         </Card>
       )}
 
-      <Card>
+      {estResponsable && <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer les appareils</h3>
         <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — la norme de température est pré-remplie automatiquement, modifiable ensuite si besoin.</p>
         <div className="flex flex-wrap items-end gap-2 mb-2">
@@ -8760,7 +8765,7 @@ function HaccpTemperatures({
           <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === ""}><Plus size={14} /> Ajouter cet appareil</Button>
         </div>
         <p className="text-xs text-[var(--steel)]">Le numéro de sonde peut être renseigné tout de suite ou ajouté plus tard (bouton "Modifier" sur la ligne de l'appareil). Une fois les sondes connectées réellement installées, le bouton "Connecter cette sonde" sur chaque ligne permettra de l'activer en un geste à sa mise en service.</p>
-      </Card>
+      </Card>}
 
       {suppressionDemandee && (
         <ModalConfirmerSuppression
@@ -8782,6 +8787,7 @@ const DEFAULT_PRODUITS_MAINTIEN_CHAUD = ["Sauce champignons & parmesan", "Sauce 
 // refroidissement rapide, où l'alarme de durée s'applique (normes propres à ce module).
 
 function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, ajouterAlerteControle, produitSuggere, setProduitSuggere, onLancerRefroidissement }) {
+  const { estResponsable } = useAcces();
   const [selection, setSelection] = useState([]);
   const [appareil, setAppareil] = useState("Bain-marie");
   const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
@@ -8862,20 +8868,20 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
       <Card className="mb-6" >
         <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Play size={16} /></span> Démarrer un maintien au chaud</h3>
         <p className="text-xs text-[var(--steel)] mb-3">Cochez le ou les produits, renseignez l'appareil et l'heure de début.</p>
-        {catalogue.length === 0 && <p className="text-sm text-[var(--steel)] mb-3">Aucun produit dans la liste pour le moment : ajoutez-en un ci-dessous.</p>}
+        {catalogue.length === 0 && <p className="text-sm text-[var(--steel)] mb-3">Aucun produit dans la liste pour le moment : le chef peut en ajouter dans Contrôle & Gestion.</p>}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
           {catalogue.map((nom) => (
             <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[#1E7B4B] bg-[#EAF6EF] text-[#14653A] font-medium" : "border-[var(--line)] text-[var(--ink)]"}`}>
               <input type="checkbox" checked={selection.includes(nom)} onChange={() => toggleSelection(nom)} />
               <span className="min-w-0">{nom}</span>
-              <button onClick={(ev) => { ev.preventDefault(); retirerProduit(nom); }} className="ml-auto text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title="Retirer de la liste"><X size={13} /></button>
+              {estResponsable && <button onClick={(ev) => { ev.preventDefault(); retirerProduit(nom); }} className="ml-auto text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title="Retirer de la liste"><X size={13} /></button>}
             </label>
           ))}
         </div>
-        <div className="flex flex-wrap items-end gap-2 mb-4">
+        {estResponsable && <div className="flex flex-wrap items-end gap-2 mb-4">
           <Field label="Ajouter un produit à la liste"><input className={inputCls} value={nouveauProduit} onChange={(ev) => setNouveauProduit(ev.target.value)} /></Field>
           <Button variant="ghost" onClick={ajouterProduit}><Plus size={14} /> Ajouter</Button>
-        </div>
+        </div>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <Field label="Appareil *">
             <select className={inputCls} value={appareil} onChange={(ev) => setAppareil(ev.target.value)}>
@@ -9011,6 +9017,7 @@ function EtiquetteRefroidissement({ r, who }) {
 const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme", "Autre motif"];
 
 function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+  const { estResponsable } = useAcces();
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
   const [produit, setProduit] = useState("");
   const [tempDebut, setTempDebut] = useState("");
@@ -9252,7 +9259,7 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
                     <input className={`${inputCls} w-36`} type="number" inputMode="decimal" placeholder={r.type === "negatif" ? "Ex. : -20" : "Ex. : 8"} value={saisie.tempFin ?? ""} onChange={(e) => majFin(r.id, "tempFin", e.target.value)} />
                   </label>
                   <Button onClick={() => terminer(r.id)} disabled={(depasse && !saisie.motif) || saisie.tempFin === undefined || saisie.tempFin === ""}>Valider</Button>
-                  <Button variant="ghost" onClick={() => setSuppId(r.id)}><Trash2 size={16} /> Supprimer</Button>
+                  {estResponsable && <Button variant="ghost" onClick={() => setSuppId(r.id)}><Trash2 size={16} /> Supprimer</Button>}
                 </div>
               </div>
             );
@@ -9724,17 +9731,18 @@ function HistoriqueCuissons({ cuissons, who }) {
 }
 
 function HaccpHuile({ huileTests, who, manuelPossible }) {
+  const { estResponsable } = useAcces();
   const [photoVue, setPhotoVue] = useState(null);
   const bon = (r) => ["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(r);
   const limiteR = (r) => /Limite/.test(r || "");
   return (
     <div>
       <Card>
-        <h3 className="text-lg font-bold text-[var(--ink)] mb-1">Historique des tests</h3>
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1">{estResponsable ? "Historique des tests" : "Dernier test"}</h3>
         {!manuelPossible && <p className="text-xs text-[var(--steel)] mb-4">Le test (photo de la bandelette + "Huile bonne" / "Huile à changer") se fait uniquement à la validation des tâches de nettoyage liées — aucune saisie manuelle ici.</p>}
         {huileTests.length === 0 ? <p className="text-sm text-[var(--steel)] mt-2">Aucun test enregistré.</p> : (
           <div className="divide-y divide-[var(--line)] mt-2">
-            {huileTests.map((h) => (
+            {(estResponsable ? huileTests : huileTests.slice(0, 1)).map((h) => (
               <div key={h.id} className="flex items-center justify-between gap-3 py-3 text-sm">
                 <div className="flex items-center gap-3 min-w-0">
                   {h.photo && <button onClick={() => setPhotoVue(h.photo)}><img src={h.photo} alt="Bandelette" className="w-14 h-14 object-cover rounded-lg border border-[var(--cadre)]" /></button>}
@@ -10076,7 +10084,9 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
   );
 }
 
-function EditeurEtiquette({ nom, historique, creerEtiquetteDlc, currentUserId, who, onBack, produits }) {
+function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDlc, currentUserId, who, onBack, produits }) {
+  const { estResponsable } = useAcces();
+  const historique = estResponsable ? historiqueComplet : historiqueComplet.slice(0, 1);
   const [quantiteUtilisee, setQuantiteUtilisee] = useState("");
   const [nbEtiquettes, setNbEtiquettes] = useState(1);
   const [entreeCreee, setEntreeCreee] = useState(null);
@@ -10165,7 +10175,7 @@ function EditeurEtiquette({ nom, historique, creerEtiquetteDlc, currentUserId, w
 
       {historique.length > 0 && (
         <Card>
-          <h3 className="font-semibold text-[var(--ink)] mb-3">Étiquettes précédentes pour ce produit</h3>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{estResponsable ? "Étiquettes précédentes pour ce produit" : "Dernière étiquette pour ce produit (réimpression)"}</h3>
           <div className="divide-y divide-[var(--line)]">
             {historique.map((h) => (
               <div key={h.id} className="flex items-center justify-between py-2.5 text-sm">
@@ -10508,6 +10518,7 @@ function ChampRechercheVocale({ value, onChange, placeholder, label }) {
 }
 
 function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabilitePhotoSimple, employees, allergenesStandard, setAllergenesStandard, setAllergenesProduits, origineStandard, setOrigineStandard, setOrigineProduits, dlcJoursStandard, setDlcJoursStandard, catalogueProduits, setCatalogueProduits, setProduitsLotException, sansIA }) {
+  const { estResponsable } = useAcces();
   const [recherche, setRecherche] = useState("");
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
@@ -10537,7 +10548,7 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
         ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} />
         : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} who={who} dernieres={preparations.filter((p) => p.typeEntree === "photo-simple").sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure)).slice(0, 8)} />}
 
-      {!sansIA && <Card>
+      {!sansIA && estResponsable && <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-3">Rechercher une traçabilité</h3>
         <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Nom du produit, numéro de lot ou date" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
         {resultats.length > 0 && (
@@ -10602,6 +10613,7 @@ function genererLot(nom) {
 }
 
 function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits, modeMigre }) {
+  const { estResponsable } = useAcces();
   const who = (id) => employees.find((e) => e.id === id)?.nom;
 
   const [ficheNormesOuverte, setFicheNormesOuverte] = useState(null);
@@ -10916,7 +10928,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
           <p className="text-sm text-[var(--steel)]">Les produits de cet écran viennent de votre catalogue (Contrôle & Gestion → Gestion → Fournisseur). Pour ajouter un produit ou régler sa durée de conservation (DLC en jours ou DDM), ouvrez sa fiche produit à cet endroit.</p>
         </Card>
       )}
-      {!modeMigre && <Card className="mb-6">
+      {!modeMigre && estResponsable && <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-3">Ajouter ou retirer un produit</h3>
         <div className="flex gap-2 mb-4">
           <Button variant={ongletAjoutRetrait === "ajouter" ? "primary" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "ajouter" ? null : "ajouter"))}><Plus size={16} /> Ajouter un produit</Button>
@@ -11174,7 +11186,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               <pre className="text-xs text-[var(--ink)] bg-[var(--bg)] rounded-lg p-3 whitespace-pre-wrap">{dernierBon.texte}</pre>
             </div>
           )}
-          {commandesHistorique.length > 0 && (
+          {estResponsable && commandesHistorique.length > 0 && (
             <div className="mt-5 pt-4 border-t border-[var(--line)]">
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Historique des bons de commande</div>
               <div className="divide-y divide-[var(--line)]">
@@ -18750,6 +18762,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
+    <AccesContext.Provider value={{ estResponsable: !!moi?.estChef }}>
     <div className={`min-h-screen flex flex-col ${modeExterne ? "md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[auto_1fr]" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
@@ -19134,6 +19147,7 @@ function KitchenApp({ identiteExterne } = {}) {
         />
       )}
     </div>
+    </AccesContext.Provider>
     </NettoyageContext.Provider>
   );
 }
