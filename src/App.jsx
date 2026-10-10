@@ -455,6 +455,10 @@ const COULEURS_FONCTION = {
   allergenes: degrade("#EAB308", "#A16207"),
   origine: degrade("#0EA5E9", "#075985"),
   tiac: degrade("#4B5563", "#111827"),
+  historiqueJour: degrade("#0F766E", "#134E4A"),
+  preparations: degrade("#E07A5F", "#B5523B"),
+  pmsDossier: degrade("#DB2777", "#831843"),
+  pmsPrestataires: degrade("#DB2777", "#831843"),
 };
 const COULEUR_CONTROLE_COMMUNE = {
   tracabilite: () => ACCUEIL_TUILES.find((x) => x.id === "tracabilite"),
@@ -1283,12 +1287,28 @@ function IndicateurHorsLigne() {
   );
 }
 
+// Même fonction = même couleur et même logo partout : le logo du titre vient de la table couleurSousTuile.
+const LOGOS_TITRE = [
+  ["Températures", "temperatures", () => Thermometer], ["Refroidissement", "cellule", () => Snowflake], ["Huile", "huile", () => Droplets],
+  ["Maintien au chaud", "maintien", () => Soup], ["Cuisson", "cuisson", () => Flame], ["Planning de nettoyage", "pms", () => SprayCan],
+  ["Protocoles de nettoyage", "pms", () => SprayCan], ["PMS — plan de nettoyage", "pms", () => SprayCan], ["PMS — dossier", "pmsDossier", () => Building2],
+  ["Prestataires", "pmsPrestataires", () => PhoneCall], ["Ma carte", "carte", () => UtensilsCrossed], ["Fiches techniques", "creationFiche", () => Sparkles],
+  ["Préparation culinaire", "creationFiche", () => Sparkles], ["Référentiel produits", "fournisseur", () => ShoppingCart], ["Livraisons reçues", "commandes", () => ClipboardList],
+  ["Vérification des réceptions", "commandes", () => ClipboardList], ["Traçabilité", "tracabilite", () => Camera], ["Historique de la journée", "historiqueJour", () => ClipboardList],
+  ["Commande", "fournisseur", () => ShoppingCart], ["Envoyer la commande", "fournisseur", () => ShoppingCart],
+];
 function SectionHeader({ title, subtitle, action }) {
+  const logo = typeof title === "string" ? LOGOS_TITRE.find(([debut]) => title.startsWith(debut)) : null;
+  const Ic = logo ? logo[2]() : null;
+  const coul = logo ? couleurSousTuile(logo[1], { fond: "linear-gradient(160deg,#64748B,#334155)", ombre: "rgba(51,65,85,0.3)" }) : null;
   return (
     <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
-      <div>
-        <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">{title}</h2>
-        {subtitle && <p className="text-sm text-[var(--steel)] mt-1">{subtitle}</p>}
+      <div className="flex items-start gap-3">
+        {Ic && <span className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-white" style={{ background: coul.fond, boxShadow: `0 4px 12px ${coul.ombre}` }}><Ic size={22} /></span>}
+        <div>
+          <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">{title}</h2>
+          {subtitle && <p className="text-sm text-[var(--steel)] mt-1">{subtitle}</p>}
+        </div>
       </div>
       {action}
     </div>
