@@ -2052,7 +2052,7 @@ function EmployeeDetail({ employee, employees, shifts, activityLog, tasks, toggl
 
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Semaine de travail</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Horaires Skello, saisis manuellement ici en attendant une synchronisation.</p>
+        <p className="text-xs text-[var(--steel)] mb-3">Horaires saisis dans le planning par la direction.</p>
         <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-7 gap-2">
           {JOURS.map((jour) => {
             const s = mesCreneaux.find((c) => c.jour === jour);
@@ -17265,7 +17265,7 @@ function CarteRemarquesChef({ remarquesChef, setRemarquesChef, currentUserId, to
             <p className="text-xs text-[var(--steel)] mt-1.5">Remarque du chef — {r.date} à {r.heure}</p>
             <button onClick={() => setRemarquesChef(remarquesChef.map((x) => (x.id === r.id ? { ...x, vue: true } : x)))}
               className="mt-2 text-xs text-[var(--accent)] font-medium">
-              ✓ Lu et compris
+              ✓ J'ai lu et compris
             </button>
           </div>
         ))}
@@ -18250,7 +18250,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         return (
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
             <CarteInfo onClick={() => allerBloc("colonne-preparations")} titre="Préparations culinaires à faire" grand={prepsRestantes} sous={`sur ${dj.preparations_.length} aujourd'hui`} Ic={ChefHat} fond="#FDE4E8" bord="#F6B8C2" couleur="#B4233A" />
-            <CarteInfo onClick={() => allerBloc("colonne-nettoyage")} titre="Tâches de nettoyage à faire" grand={netRestants} sous={`sur ${netTotal + dj.nettoyagesPeriodiques} aujourd'hui`} Ic={SprayCan} fond="#DCE9FB" bord="#B5CDF0" couleur="#1B4F9C" />
+            <CarteInfo onClick={() => allerBloc("colonne-nettoyage")} titre="Tâches de nettoyage à faire" grand={netRestants} sous={`sur ${netTotal + dj.nettoyagesPeriodiques} aujourd'hui`} Ic={SprayCan} fond="#FBE3EF" bord="#F1B3D3" couleur="#9D174D" />
             <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="DLC à traiter avant la fin de la journée" grand={dlc.length} sous="produits à utiliser ou à jeter" Ic={Clock} fond="#FFEFD0" bord="#F3D69A" couleur="#8A5300" />
             <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="Refroidissements et maintiens au chaud en cours" grand={enCours} sous={enCours ? "à surveiller" : "rien en cours"} Ic={IcInfo} fond="#DDF3E6" bord="#B3E0C5" couleur="#14653A" />
             <CarteInfo onClick={() => setVueAccueil("reservations")} titre="Réservations aujourd'hui" grand={couverts} unite="couverts" sous={`${nbResa} réservation${nbResa > 1 ? "s" : ""}`} Ic={Users} fond="#EBE2FA" bord="#D2C2F2" couleur="#5B34A8" />
@@ -18298,7 +18298,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                     <button type="button" onClick={() => pas(1)} className={bt} aria-label="Suivant"><ChevronRight size={22} /></button>
                   </div>
                   <div className="flex rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
-                    {["jour", "semaine"].map((v) => (
+                    {["jour", "semaine", "mois"].map((v) => (
                       <button key={v} type="button" onClick={() => setVueTemps(v)}
                         style={vueTemps === v ? { backgroundColor: ROUGE_PLANNING, color: "#ffffff" } : undefined}
                         className={`h-12 px-5 text-sm font-semibold capitalize ${vueTemps === v ? "" : "text-[var(--ink)]"}`}>
@@ -18418,9 +18418,9 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                 </button>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-                {colonneBas("Préparations culinaires", preparations_.length, ChefHat, "#FDE4E8", "#F6B8C2", "#B4233A",
+                {colonneBas("Préparations culinaires", preparations_.length, ChefHat, "#FBE9E2", "#EFC2B2", "#B5523B",
                   preparations_.length === 0 ? vide(carteJ ? "Rien à préparer aujourd'hui." : "Aucune préparation : renseignez Ma carte (quantités à avoir en stock).") : preparations_.slice(0, LIM).map((x) => ligne(x.cle, x.nom, true, () => basculerPrep(x), !!(prepsFaites || {})[cleFaite(x)], null, true)))}
-                {colonneBas("Nettoyage", nettoyages.length + miennesNet.length + (nettoyagesPeriodiques > 0 ? 1 : 0), SprayCan, "#DCE9FB", "#B5CDF0", "#1B4F9C",
+                {colonneBas("Nettoyage", nettoyages.length + miennesNet.length + (nettoyagesPeriodiques > 0 ? 1 : 0), SprayCan, "#FBE3EF", "#F1B3D3", "#9D174D",
                   (nettoyages.length === 0 && miennesNet.length === 0 && nettoyagesPeriodiques === 0) ? vide("Aucun nettoyage prévu.") : [
                     ctxFin && miennesNet.length > 0 ? <LignesNettoyageJour key="plan" ctx={ctxFin} miennes={miennesNet} employees={employees} currentUserId={currentUserId} logActivity={logActivity} today={today} /> : null,
                     ...nettoyages.slice(0, LIM).map((t) => ligne(t.id, t.titre, true, () => clic(t), fait(t), null, true)),
