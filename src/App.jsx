@@ -1068,9 +1068,9 @@ function useStored(key, initial) {
 
 /* ---------- éléments d'UI partagés ---------- */
 
-function Card({ children, className = "", id }) {
+function Card({ children, className = "", id, style }) {
   return (
-    <div id={id} className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
+    <div id={id} style={style} className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
       {children}
     </div>
   );
@@ -6737,6 +6737,21 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 
       {fiche.sousTitre && <p className="text-sm text-[var(--steel)] mb-4">{fiche.sousTitre}</p>}
 
+      {/* Carrés d'information (simples repères, pas des boutons) */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
+        {[
+          ["Ingrédients", (fiche.ingredients || []).length, "#2F55C7", "#E6ECFA"],
+          ["Points de contrôle", (fiche.haccp || []).length, "#15803D", "#E4F4EA"],
+          ["Allergènes", fiche.allergenes && fiche.allergenes.length ? fiche.allergenes.length : (fiche.allergenesConfirmes ? 0 : "?"), "#A16207", "#FBF1D3"],
+          ["Conservation", fiche.dlcJours != null && fiche.dlcJours !== "" ? `${fiche.dlcJours} j` : "—", "#0E7490", "#DDF1F6"],
+        ].map(([lib, val, coul, fond]) => (
+          <div key={lib} className="rounded-xl px-3 py-2 text-center" style={{ background: fond }}>
+            <div className="text-lg font-bold" style={{ color: coul }}>{val}</div>
+            <div className="text-[11px] font-medium" style={{ color: coul }}>{lib}</div>
+          </div>
+        ))}
+      </div>
+
       {avecModes && onModifier && (
         <div className="flex flex-wrap gap-2 mb-4">
           <Button variant="ghost" onClick={() => (estChef ? onModifier(fiche, "modifier") : setDemandeCode("modifier"))}>Modifier cette fiche</Button>
@@ -6941,14 +6956,14 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       )}
 
       {expert && fiche.materiel.length > 0 && (
-        <Card className="mb-5">
+        <Card className="mb-5 border-l-4" style={{ borderLeftColor: "#7E22CE" }}>
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[2] || "2. Matériel nécessaire"}</h3>
           {ligneBloc(fiche.materiel)}
         </Card>
       )}
 
       {fiche.haccp.length > 0 && (
-        <Card className="mb-5">
+        <Card className="mb-5 border-l-4" style={{ borderLeftColor: "#15803D" }}>
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[4] || "4. Points de contrôle — HACCP"}</h3>
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
@@ -6997,7 +7012,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       )}
 
       {expert && fiche.refroidissementStockage.length > 0 && (
-        <Card className="mb-5">
+        <Card className="mb-5 border-l-4" style={{ borderLeftColor: "#0E7490" }}>
           <h3 className="font-semibold text-[var(--ink)] mb-3">{t[6] || "6. Refroidissement — stockage — utilisation"}</h3>
           {ligneBloc(fiche.refroidissementStockage)}
         </Card>
