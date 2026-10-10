@@ -7914,6 +7914,27 @@ function ApercuVide({ texte }) {
 
 
 /* ---------- Ma carte : les plats proposés, par période ---------- */
+const DEGRADES_CARTE = [
+  { fond: "linear-gradient(160deg, #F0983B 0%, #D9691A 100%)", ombre: "rgba(217,105,26,0.35)" },
+  { fond: "linear-gradient(160deg, #2E86D6 0%, #1B5FA8 100%)", ombre: "rgba(27,95,168,0.35)" },
+  { fond: "linear-gradient(160deg, #3FA877 0%, #2F6B4F 100%)", ombre: "rgba(47,107,79,0.35)" },
+  { fond: "linear-gradient(160deg, #9B5FD9 0%, #6E36AE 100%)", ombre: "rgba(110,54,174,0.35)" },
+  { fond: "linear-gradient(160deg, #E0457B 0%, #B02A5B 100%)", ombre: "rgba(176,42,91,0.35)" },
+  { fond: "linear-gradient(160deg, #22B5C9 0%, #138799 100%)", ombre: "rgba(19,135,153,0.35)" },
+];
+/* Tuile du nouveau style : dégradé uni + logo blanc dans un carré translucide. */
+function TuileStyle({ degrade, icone: Icone, titre, detail, actif, onClick, disabled }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} style={{ background: degrade.fond, boxShadow: actif ? `0 0 0 3px #1E242D, 0 8px 20px ${degrade.ombre}` : `0 8px 20px ${degrade.ombre}`, opacity: disabled ? 0.5 : (actif === false ? 0.85 : 1) }} className="rounded-2xl flex items-center gap-3 min-h-[72px] px-3 py-3 text-left active:scale-[0.98] transition-transform">
+      <span className="shrink-0 w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center"><Icone size={24} color="#ffffff" /></span>
+      <span className="min-w-0">
+        <span className="block text-sm font-bold text-white leading-tight break-words">{titre}</span>
+        {detail && <span className="block text-xs text-white/90 mt-0.5 leading-snug break-words">{detail}</span>}
+      </span>
+    </button>
+  );
+}
+
 const TYPES_CARTE = [
   ["fixe", "Carte fixe", "Les mêmes plats toute l'année, vous cochez simplement vos plats."],
   ["jour", "Menu du jour", "Un menu différent chaque jour."],
@@ -8321,10 +8342,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
           {!estChef && <p className="text-sm text-[var(--warn)]">Seul le responsable ou le directeur peut créer la carte.</p>}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             {TYPES_CARTE.map(([k, lib, aide]) => (
-              <button key={k} type="button" disabled={!estChef} onClick={() => choisirType(k)} className="text-left border-2 border-[var(--cadre)] rounded-xl p-4 bg-white hover:border-[var(--accent)] disabled:opacity-50">
-                <div className="font-semibold text-[var(--ink)]">{lib}</div>
-                <div className="text-sm text-[var(--steel)] mt-1">{aide}</div>
-              </button>
+              <TuileStyle key={k} degrade={DEGRADES_CARTE[TYPES_CARTE.findIndex((x) => x[0] === k) % DEGRADES_CARTE.length]} icone={CalendarDays} titre={lib} detail={aide} disabled={!estChef} onClick={() => choisirType(k)} />
             ))}
           </div>
         </Card>
@@ -8349,10 +8367,10 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
       {apercuOuvert && carte && <ApercuCarte carte={carte} plats={plats} categories={categories} onClose={() => setApercuOuvert(false)} />}
       {periodique && (
         <PanneauStyle titre="Période de la carte" aide="Choisissez la carte à afficher ou créez la période suivante" couleur="#2E86D6" teinte="#E6F0FB">
-          <div className="flex flex-wrap gap-2">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {triees.map((c) => {
               const active = carte && c.id === carte.id; const courante = c.debut <= aujourdhui && aujourdhui <= c.fin;
-              return <button key={c.id} type="button" onClick={() => { setChoisieId(c.id); setCategorieOuverte(null); setConfirmerSuppr(false); }} className={`px-3 py-2 rounded-lg text-sm font-medium border-2 ${active ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{c.nom}{courante ? " • en cours" : ""}</button>;
+              return <TuileStyle key={c.id} degrade={DEGRADES_CARTE[1]} icone={CalendarDays} titre={c.nom} detail={courante ? "en cours" : ""} actif={active} onClick={() => { setChoisieId(c.id); setCategorieOuverte(null); setConfirmerSuppr(false); }} />;
             })}
           </div>
           {estChef && (
@@ -8378,10 +8396,11 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             <div className="rounded-xl p-3 mb-4" style={{ backgroundColor: "#EAF6EE", border: "1px solid #CFE8D8" }}>
               <p className="text-sm font-bold text-[var(--ink)] mb-2">Ajouter des plats depuis les fiches techniques : choisissez une catégorie</p>
               {categories.length === 0 ? <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique de plat pour l'instant : créez d'abord vos plats dans « Créer une fiche technique ».</p> : (
-                <div className="flex flex-wrap gap-2 mb-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
                   {categories.map((c) => {
                     const dispo = plats.filter((f) => f.categorie === c); const prises = dispo.filter((f) => idsCarte.includes(f.id)).length; const ouverte = categorieOuverte === c;
-                    return <button key={c} type="button" onClick={() => setCategorieOuverte(ouverte ? null : c)} className={`px-3 py-2 rounded-lg text-sm font-medium border-2 ${ouverte ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{c} <span className={ouverte ? "text-white/80" : "text-[var(--steel)]"}>({prises}/{dispo.length})</span></button>;
+                    const ic = /pizza/i.test(c) ? Flame : /dessert/i.test(c) ? ChefHat : /entr|salade|potage/i.test(c) ? Soup : UtensilsCrossed;
+                    return <TuileStyle key={c} degrade={DEGRADES_CARTE[categories.indexOf(c) % DEGRADES_CARTE.length]} icone={ic} titre={c} detail={`${prises} sur la carte / ${dispo.length} fiches`} actif={ouverte} onClick={() => setCategorieOuverte(ouverte ? null : c)} />;
                   })}
                 </div>
               )}
@@ -8534,9 +8553,9 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             const { groupes, sansRendement } = calculerPreparationsCarte({ ...carte, plats: platsAuCarte(carte, dateJ) }, fiches, jourDetail, restesJour);
             const postes = Object.keys(groupes).sort((a, b) => a.localeCompare(b, "fr"));
             return (
-              <div className="border-2 border-[var(--cadre)] rounded-xl p-3 mt-3 bg-[var(--bg)]">
+              <div className="rounded-xl p-3 mt-3" style={{ backgroundColor: "#F3ECFB", border: "1px solid #DCCBF0", borderTop: "3px solid #6E36AE" }}>
                 <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                  <p className="text-sm font-semibold text-[var(--ink)]">Préparations à faire — par poste</p>
+                  <p className="text-sm font-bold text-[var(--ink)]">Préparations à faire — par poste</p>
                   {estChef && <button type="button" className="text-sm text-[var(--steel)] underline" onClick={() => majCarte({ detailPrep: false })}>Masquer le détail</button>}
                 </div>
                 <div className="flex flex-wrap gap-2 mb-3">
