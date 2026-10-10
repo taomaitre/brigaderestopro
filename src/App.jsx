@@ -3431,6 +3431,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
           <Card>
             <h3 className="font-semibold text-[var(--ink)] mb-1">Origine / provenance — produits ({stock.length})</h3>
             <p className="text-xs text-[var(--steel)] mb-3">Pour les viandes, indiquez les pays selon le décret : si naissance, élevage et abattage sont dans le même pays, « Origine : pays » ; sinon bœuf « Né : …, élevé : … et abattu : … », porc, agneau/mouton et volaille « Élevé : … et abattu : … ». La mention se compose toute seule.</p>
+            <p className="text-xs font-semibold text-[var(--ink)] mb-3">Cette information est obligatoire. Son absence peut être sanctionnée d'une contravention de 5ᵉ classe.</p>
             <BoutonsExport titre="Origine des produits" colonnes={["Produit", "Catégorie", "Mention à afficher"]} lignes={stock.map((x) => [x.nom, x.categorie || "", origineProduits[x.nom] || ""])} />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
