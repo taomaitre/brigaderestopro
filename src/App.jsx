@@ -2883,7 +2883,6 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
     { id: "cellule", label: "Refroidissement rapide (cellule)", icon: Snowflake, section: "controle" },
     { id: "maintien", label: "Maintien au chaud", icon: Soup, section: "controle" },
     { id: "tracabilite", label: "Traçabilité", icon: Camera, section: "controle" },
-    { id: "reception", label: "Réception", icon: Truck, section: "controle" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
     { id: "carte", label: "Ma carte", icon: BookOpen, section: "cuisine" },
     { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "cuisine" },
@@ -2899,7 +2898,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations));
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
     if (tuile && tuile.tab) return setTab(tuile.tab);
