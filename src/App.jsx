@@ -3263,6 +3263,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
           </Card>
           <Card>
             <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes — plats ({(fiches || []).length})</h3>
+            <BoutonsExport titre="Allergènes — plats" colonnes={["Plat", "Catégorie", "Allergènes"]} lignes={(fiches || []).map((f) => [f.nom, f.categorie || "", allergenesPlats[f.nom] || ""])} />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Plat</th><th className="py-1.5 pr-3">Catégorie</th><th className="py-1.5">Allergènes (à renseigner)</th></tr></thead>
@@ -3301,6 +3302,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
           </Card>
           <Card>
             <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes — produits ({stock.length})</h3>
+            <BoutonsExport titre="Allergènes — produits" colonnes={["Produit", "Catégorie", "Allergènes"]} lignes={stock.map((x) => [x.nom, x.categorie || "", allergenesProduits[x.nom] || ""])} />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Produit</th><th className="py-1.5 pr-3">Catégorie</th><th className="py-1.5">Allergènes (à renseigner)</th></tr></thead>
@@ -3355,6 +3357,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
           <Card>
             <h3 className="font-semibold text-[var(--ink)] mb-1">Origine / provenance — produits ({stock.length})</h3>
             <p className="text-xs text-[var(--steel)] mb-3">Pour les viandes, indiquez les pays selon le décret : si naissance, élevage et abattage sont dans le même pays, « Origine : pays » ; sinon bœuf « Né : …, élevé : … et abattu : … », porc, agneau/mouton et volaille « Élevé : … et abattu : … ». La mention se compose toute seule.</p>
+            <BoutonsExport titre="Origine des produits" colonnes={["Produit", "Catégorie", "Mention à afficher"]} lignes={stock.map((x) => [x.nom, x.categorie || "", origineProduits[x.nom] || ""])} />
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
                 <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Produit</th><th className="py-1.5 pr-3">Espèce</th><th className="py-1.5 pr-3">Né en</th><th className="py-1.5 pr-3">Élevé en</th><th className="py-1.5 pr-3">Abattu en</th><th className="py-1.5">Mention à afficher</th></tr></thead>
@@ -8149,6 +8152,39 @@ function ChangerCarte({ carte, majCarte, plats, categories, nomDe, aujourdhui })
 }
 
 // Aperçu de la carte : ce que verra le client, à imprimer ou à télécharger (PDF via l'impression, Word, Excel).
+/* Boutons Imprimer / PDF / Word / Excel pour un tableau (colonnes + lignes). */
+function BoutonsExport({ titre, colonnes, lignes }) {
+  const [message, setMessage] = useState("");
+  const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+  const html = () => `<!doctype html><html><head><meta charset="utf-8"><title>${esc(titre)}</title><style>body{font-family:Arial,sans-serif;padding:24px}h1{font-size:20px}table{border-collapse:collapse;width:100%;font-size:13px}th,td{border:1px solid #999;padding:6px 8px;text-align:left}th{background:#eee}</style></head><body><h1>${esc(titre)}</h1><table><thead><tr>${colonnes.map((c) => `<th>${esc(c)}</th>`).join("")}</tr></thead><tbody>${lignes.map((l) => `<tr>${l.map((v) => `<td>${esc(v)}</td>`).join("")}</tr>`).join("")}</tbody></table></body></html>`;
+  const imprimer = () => {
+    const fr = document.createElement("iframe");
+    fr.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0";
+    document.body.appendChild(fr);
+    fr.contentDocument.open(); fr.contentDocument.write(html()); fr.contentDocument.close();
+    setTimeout(() => { try { fr.contentWindow.focus(); fr.contentWindow.print(); } catch (e) { /* ignore */ } setTimeout(() => fr.remove(), 2000); }, 400);
+  };
+  const telecharger = (blob, nom) => { const a = document.createElement("a"); a.href = URL.createObjectURL(blob); a.download = nom; document.body.appendChild(a); a.click(); setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000); };
+  const nomFichier = `${titre.replace(/[^\p{L}\p{N}]+/gu, "-")}-${todayISO()}`;
+  const excel = async () => {
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([colonnes, ...lignes]), "Tableau");
+      XLSX.writeFile(wb, `${nomFichier}.xlsx`); setMessage("Fichier Excel téléchargé.");
+    } catch (e) { setMessage("Export Excel impossible ici."); }
+  };
+  const bt = "px-3 py-1.5 rounded-lg border border-[var(--line)] text-xs font-semibold text-[var(--ink)] hover:bg-[var(--bg)]";
+  return (
+    <div className="flex flex-wrap items-center gap-2 mb-3">
+      <button type="button" className={bt} onClick={imprimer}>Imprimer</button>
+      <button type="button" className={bt} onClick={imprimer}>PDF</button>
+      <button type="button" className={bt} onClick={() => { telecharger(new Blob(["\ufeff", html()], { type: "application/msword;charset=utf-8" }), `${nomFichier}.doc`); setMessage("Fichier Word téléchargé."); }}>Word</button>
+      <button type="button" className={bt} onClick={excel}>Excel</button>
+      {message && <span className="text-xs text-[var(--steel)]">{message}</span>}
+    </div>
+  );
+}
+
 function ApercuCarte({ carte, plats, categories, onClose }) {
   const [date, setDate] = useState(todayISO());
   const [avecPrix, setAvecPrix] = useState(true);
