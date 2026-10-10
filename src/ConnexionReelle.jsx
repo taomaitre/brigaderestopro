@@ -682,7 +682,7 @@ export default function ConnexionReelle() {
   async function chargerReglagesEtab() {
     try {
       const [re, rd] = await Promise.all([
-        supabasePublic.from("etablissements").select("nom, congelation_decrite_pms, dispose_cellule_refroidissement, siret, exploitant, responsable_hygiene, raison_sociale, forme_juridique, adresse_siege, adresse_site, telephone, email_general, code_naf, couverts_jour, effectif, date_debut_activite, date_declaration_activite, exploitant_fonction, responsable_hygiene_fonction, convention_collective, type_etablissement, services, pms_demarrage_termine").eq("id", session.etablissement.id).maybeSingle(),
+        supabasePublic.from("etablissements").select("nom, congelation_decrite_pms, dispose_cellule_refroidissement, siret, exploitant, responsable_hygiene, raison_sociale, forme_juridique, adresse_siege, adresse_site, telephone, email_general, code_naf, couverts_jour, effectif, date_debut_activite, date_declaration_activite, exploitant_fonction, responsable_hygiene_fonction, convention_collective, type_etablissement, services, origine_eau, pms_demarrage_termine").eq("id", session.etablissement.id).maybeSingle(),
         supabasePublic.from("demandes_ajout").select("type, valeur").eq("etablissement_id", session.etablissement.id).order("cree_le", { ascending: true }),
       ]);
       if (re.data) setReglagesEtab({ nom: re.data.nom || "", congelPms: !!re.data.congelation_decrite_pms, cellule: !!re.data.dispose_cellule_refroidissement });

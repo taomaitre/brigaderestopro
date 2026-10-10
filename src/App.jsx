@@ -1626,7 +1626,7 @@ function PmsPersonnel({ employees, pms, editable, onOuvrirComptes }) {
   );
 }
 
-function PmsDocuments({ pms }) {
+function PmsDocuments({ pms, reglages }) {
   const [meta, setMeta] = useState({ categorie: "declaration_activite", titre: "", dateDocument: "", dateEcheance: "" });
   const [fichier, setFichier] = useState(null);
   const [message, setMessage] = useState("");
@@ -1654,8 +1654,18 @@ function PmsDocuments({ pms }) {
     const url = await pms.urlDocument(d);
     if (url && fen) fen.location.href = url; else { if (fen) fen.close(); setMessage("Lien du document indisponible."); }
   };
+  const origineEau = reglages && reglages.fiche && reglages.fiche.origineEau;
+  const eauPrivee = origineEau === "Source privée (puits, forage)";
+  const manquantsEau = eauPrivee ? ["autorisation_eau_privee", "analyse_eau"].filter((c) => !docs.some((d) => d.categorie === c)) : [];
   return (
     <div>
+      <Card className="mb-3">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Eau</h3>
+        {!origineEau && <p className="text-sm text-[var(--steel)]">Indiquez l'origine de l'eau dans la fiche de l'établissement (partie 1) pour savoir quelles pièces joindre.</p>}
+        {origineEau === "Réseau public" && <p className="text-sm text-[var(--steel)]">Eau du réseau public : aucune analyse n'est à votre charge. Vous pouvez joindre, si vous l'avez, votre attestation de raccordement.</p>}
+        {eauPrivee && <p className="text-sm text-[var(--steel)]">Eau de source privée (puits, forage) : une autorisation préfectorale et des analyses régulières, à votre charge, sont attendues.</p>}
+        {manquantsEau.length > 0 && <p className="text-xs font-semibold text-[var(--gold)] mt-1">À joindre : {manquantsEau.map((c) => libelleDe(CATEGORIES_DOCUMENT, c)).join(" · ")}</p>}
+      </Card>
       {CATEGORIES_DOCUMENT.map((c) => {
         const ceux = docs.filter((d) => d.categorie === c.value);
         if (!ceux.length) return null;
@@ -1777,7 +1787,7 @@ function PmsAssistant({ reglages, employees, onOuvrirComptes, onFin }) {
       {etape === 0 && <PmsFicheEtablissement reglages={reglages} />}
       {etape === 1 && <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} />}
       {etape === 2 && <PmsPrestataires pms={pms} editable />}
-      {etape === 3 && <PmsDocuments pms={pms} />}
+      {etape === 3 && <PmsDocuments pms={pms} reglages={reglages} />}
       <div className="flex gap-2 mt-4">
         {etape > 0 && <Button variant="ghost" onClick={() => setEtape(etape - 1)}><ArrowLeft size={16} /> Précédent</Button>}
         {etape < etapes.length - 1 && <Button onClick={() => setEtape(etape + 1)}>Suivant</Button>}
@@ -1820,7 +1830,7 @@ function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, onImprimer 
       <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">3 — Prestataires</h3>
       <PmsPrestataires pms={pms} editable />
       <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">4 — Pièces jointes</h3>
-      <PmsDocuments pms={pms} />
+      <PmsDocuments pms={pms} reglages={reglages} />
       <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">5 — Enregistrements du logiciel</h3>
       <PmsSyntheseLogiciel donnees={donnees} />
     </div>

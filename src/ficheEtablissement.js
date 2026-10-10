@@ -3,6 +3,7 @@
 // `type` : texte | nombre | date | choix | liste. `requis` = compte dans le niveau de remplissage.
 export const FORMES_JURIDIQUES = ["SARL", "SAS", "SASU", "EURL", "SA", "EI / micro-entreprise", "Association", "Autre"];
 export const TYPES_ETABLISSEMENT = ["Restaurant", "Pizzeria", "Crêperie", "Brasserie", "Snack", "Traiteur", "Bar avec restauration", "Autre"];
+export const ORIGINES_EAU = ["Réseau public", "Source privée (puits, forage)"];
 export const SERVICES_ETABLISSEMENT = ["Sur place", "À emporter", "Livraison", "Buffet"];
 
 export const FICHE_ETAB_GROUPES = [
@@ -21,6 +22,7 @@ export const FICHE_ETAB_CHAMPS = [
   { cle: "adresseSite", colonne: "adresse_site", groupe: "site", label: "Adresse du site d'exploitation", type: "texte", requis: true },
   { cle: "telephone", colonne: "telephone", groupe: "site", label: "Téléphone", type: "texte", requis: true },
   { cle: "emailGeneral", colonne: "email_general", groupe: "site", label: "E-mail général", type: "texte", requis: true },
+  { cle: "origineEau", colonne: "origine_eau", groupe: "site", label: "Origine de l'eau utilisée en cuisine", type: "choix", options: ORIGINES_EAU, aide: "Réseau public : aucune analyse à votre charge. Source privée (puits, forage) : autorisation préfectorale et analyses régulières à votre charge." },
   { cle: "dateDebutActivite", colonne: "date_debut_activite", groupe: "site", label: "Début d'activité sur le site", type: "date" },
   { cle: "dateDeclarationActivite", colonne: "date_declaration_activite", groupe: "site", label: "Date de la déclaration d'activité (Cerfa 13984)", type: "date", aide: "Déposée auprès de la DDPP avant le démarrage de l'activité. Gardez le récépissé." },
   { cle: "codeNaf", colonne: "code_naf", groupe: "activite", label: "Code NAF / APE", type: "texte", requis: true, aide: "Exemple : 56.10A. Il détermine si la formation hygiène de 14 h s'applique." },
@@ -68,7 +70,9 @@ export const CATEGORIES_DOCUMENT = [
   { value: "declaration_activite", label: "Déclaration d'activité (récépissé)" },
   { value: "attestation_formation", label: "Attestation de formation" },
   { value: "contrat_nuisibles", label: "Contrat ou rapport antinuisibles" },
-  { value: "attestation_eau", label: "Attestation d'eau potable" },
+  { value: "attestation_eau", label: "Attestation de raccordement au réseau public" },
+  { value: "autorisation_eau_privee", label: "Autorisation préfectorale (eau de source privée)" },
+  { value: "analyse_eau", label: "Analyse de l'eau (source privée)" },
   { value: "rapport_laboratoire", label: "Rapport de laboratoire" },
   { value: "contrat_maintenance", label: "Contrat ou rapport de maintenance" },
   { value: "fds", label: "Fiche de données de sécurité" },
