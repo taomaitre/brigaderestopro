@@ -431,6 +431,22 @@ const ACCUEIL_TUILES = [
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
   { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
 ];
+// Une même fonction garde la même couleur partout : les sous-tuiles de Contrôle & Gestion qui existent aussi ailleurs
+// (écran HACCP, accueil) reprennent exactement la couleur de l'autre écran. Les autres gardent la couleur de leur section.
+const COULEUR_CONTROLE_COMMUNE = {
+  temperatures: () => TUILE_COULEURS.haccpTemp,
+  huile: () => TUILE_COULEURS.haccpHuile,
+  cuisson: () => TUILE_COULEURS.haccpCuisson,
+  cellule: () => TUILE_COULEURS.haccpRefroid,
+  maintien: () => TUILE_COULEURS.haccpChaud,
+  tracabilite: () => ACCUEIL_TUILES.find((x) => x.id === "tracabilite"),
+  planning: () => ACCUEIL_TUILES.find((x) => x.id === "taches"),
+};
+const couleurSousTuile = (id, parDefaut) => {
+  const f = COULEUR_CONTROLE_COMMUNE[id];
+  const c = f ? f() : null;
+  return c && c.fond ? { fond: c.fond, ombre: c.ombre } : parDefaut;
+};
 const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccp", "fiches", "controle"];
 
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -3154,7 +3170,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
             const Icon = t.icon;
             return (
               <button key={t.id} onClick={() => ouvrirSousTuile(t.id)}
-                style={{ background: sectionInfo.couleur.fond, boxShadow: `0 8px 20px ${sectionInfo.couleur.ombre}` }}
+                style={{ background: couleurSousTuile(t.id, sectionInfo.couleur).fond, boxShadow: `0 8px 20px ${couleurSousTuile(t.id, sectionInfo.couleur).ombre}` }}
                 className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[88px] px-2 text-center active:scale-95 transition-transform">
                 <Icon size={28} color="#ffffff" strokeWidth={2} />
                 <span className="text-xs font-bold text-white leading-tight line-clamp-2">{t.label}</span>
