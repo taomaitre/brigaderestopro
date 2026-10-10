@@ -1554,8 +1554,9 @@ function PmsPrestataires({ pms, editable }) {
   );
 }
 
-function PmsPersonnel({ employees, pms, editable, onOuvrirComptes }) {
+function PmsPersonnel({ employees, pms, editable, onOuvrirComptes, comptes }) {
   const [edition, setEdition] = useState(null);
+  const [comptesOuverts, setComptesOuverts] = useState(false);
   if (!pms) return <Card><p className="text-sm text-[var(--steel)]">Chargement…</p></Card>;
   const formations = pms.formations || [];
   const equipe = employees || [];
@@ -1580,8 +1581,9 @@ function PmsPersonnel({ employees, pms, editable, onOuvrirComptes }) {
             <span className="text-xs text-[var(--steel)] truncate">{e.email || ""}</span>
           </div>
         ))}
-        {editable && onOuvrirComptes && <div className="mt-3"><Button variant="ghost" onClick={onOuvrirComptes}>Ajouter ou modifier les comptes</Button></div>}
+        {editable && (comptes || onOuvrirComptes) && <div className="mt-3"><Button variant="ghost" onClick={() => (comptes ? setComptesOuverts(!comptesOuverts) : onOuvrirComptes())}>{comptes && comptesOuverts ? "Masquer la gestion des comptes" : "Ajouter ou modifier les comptes"}</Button></div>}
       </Card>
+      {editable && comptes && comptesOuverts && comptes}
       {TYPES_FORMATION.map((t) => {
         const lignes = formations.filter((f) => f.type === t.value);
         return (
@@ -1777,7 +1779,47 @@ function PmsDossierImprimable({ reglages, employees, donnees, onBack }) {
   );
 }
 
-function PmsAssistant({ reglages, employees, onOuvrirComptes, onFin }) {
+// Échéances à surveiller (prestataires et pièces jointes) : dépassées ou à 30 jours ou moins.
+function alertesEcheancesPms(pms, aujourdhui, avecPieces) {
+  if (!pms) return [];
+  const sortie = [];
+  (pms.prestataires || []).forEach((p) => {
+    const e = etatEcheance(p.date_prochaine_echeance, aujourdhui);
+    if (e.etat === "depassee" || e.etat === "bientot") sortie.push({ cle: "p" + p.id, texte: `${p.nom || p.libelle || libelleDe(TYPES_PRESTATAIRE, p.type)} (${libelleDe(TYPES_PRESTATAIRE, p.type).toLowerCase()})`, etat: e.etat, jours: e.jours, cible: "pmsPrestataires" });
+  });
+  if (avecPieces) (pms.documents || []).forEach((d) => {
+    const e = etatEcheance(d.date_echeance, aujourdhui);
+    if (e.etat === "depassee" || e.etat === "bientot") sortie.push({ cle: "d" + d.id, texte: d.titre || libelleDe(CATEGORIES_DOCUMENT, d.categorie), etat: e.etat, jours: e.jours, cible: "pmsDossier" });
+  });
+  return sortie.sort((a, b) => a.jours - b.jours);
+}
+
+function BandeauEcheancesPms({ alertes, onOuvrir }) {
+  if (!alertes.length) return null;
+  const depassees = alertes.filter((a) => a.etat === "depassee").length;
+  return (
+    <Card className="mb-6 border-2" style={{ borderColor: depassees ? "#C1432D" : "var(--gold)" }}>
+      <div className="flex items-start gap-3">
+        <AlertTriangle size={22} className="shrink-0 mt-0.5" style={{ color: depassees ? "#C1432D" : "var(--gold)" }} />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-bold text-[var(--ink)]">{depassees ? `${depassees} échéance(s) dépassée(s)` : "Échéances à prévoir"}{alertes.length > depassees ? ` · ${alertes.length - depassees} à venir` : ""}</p>
+          <ul className="mt-1 space-y-1">
+            {alertes.slice(0, 5).map((a) => (
+              <li key={a.cle}>
+                <button type="button" onClick={() => onOuvrir(a.cible)} className="text-left text-sm text-[var(--ink)] underline-offset-2 hover:underline min-h-[32px]">
+                  {a.texte} — {a.etat === "depassee" ? <span className="font-semibold" style={{ color: "#C1432D" }}>dépassée depuis {-a.jours} j</span> : <span className="font-semibold text-[var(--gold)]">dans {a.jours} j</span>}
+                </button>
+              </li>
+            ))}
+          </ul>
+          {alertes.length > 5 && <p className="text-xs text-[var(--steel)] mt-1">… et {alertes.length - 5} autre(s).</p>}
+        </div>
+      </div>
+    </Card>
+  );
+}
+
+function PmsAssistant({ reglages, employees, onOuvrirComptes, comptes, onFin }) {
   const [etape, setEtape] = useState(0);
   const pms = reglages && reglages.pms;
   const etapes = ["Établissement", "Personnel", "Prestataires", "Pièces jointes"];
@@ -1785,7 +1827,7 @@ function PmsAssistant({ reglages, employees, onOuvrirComptes, onFin }) {
     <div>
       <SectionHeader title="Assistant de démarrage" subtitle={`Étape ${etape + 1} sur ${etapes.length} — ${etapes[etape]}. Vous pouvez compléter plus tard.`} />
       {etape === 0 && <PmsFicheEtablissement reglages={reglages} />}
-      {etape === 1 && <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} />}
+      {etape === 1 && <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} comptes={comptes} />}
       {etape === 2 && <PmsPrestataires pms={pms} editable />}
       {etape === 3 && <PmsDocuments pms={pms} reglages={reglages} />}
       <div className="flex gap-2 mt-4">
@@ -1798,7 +1840,7 @@ function PmsAssistant({ reglages, employees, onOuvrirComptes, onFin }) {
   );
 }
 
-function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, onImprimer }) {
+function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, comptes, onImprimer }) {
   const pms = reglages && reglages.pms;
   const [assistant, setAssistant] = useState(false);
   if (reglages && !pms) {
@@ -1814,7 +1856,7 @@ function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, onImprimer 
     );
   }
   if (reglages && pms && (!pms.demarrageTermine || assistant)) {
-    return <PmsAssistant reglages={reglages} employees={employees} onOuvrirComptes={onOuvrirComptes} onFin={() => { setAssistant(false); if (!pms.demarrageTermine) pms.terminerDemarrage(true); }} />;
+    return <PmsAssistant reglages={reglages} employees={employees} onOuvrirComptes={onOuvrirComptes} comptes={comptes} onFin={() => { setAssistant(false); if (!pms.demarrageTermine) pms.terminerDemarrage(true); }} />;
   }
   return (
     <div>
@@ -1826,7 +1868,7 @@ function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, onImprimer 
       <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">1 — Établissement</h3>
       <PmsFicheEtablissement reglages={reglages} />
       <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">2 — Personnel et formations</h3>
-      <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} />
+      <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} comptes={comptes} />
       <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">3 — Prestataires</h3>
       <PmsPrestataires pms={pms} editable />
       <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">4 — Pièces jointes</h3>
@@ -3522,6 +3564,8 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       <SectionHeader title="Contrôle & Gestion" subtitle="Vue d'ensemble du chef — qui a fait quoi aujourd'hui"
         action={<button onClick={() => setTab("equipe")} className="text-xs text-[var(--accent)] font-medium">Journal d'activité complet →</button>} />
 
+      <BandeauEcheancesPms alertes={alertesEcheancesPms(reglagesEtablissement && reglagesEtablissement.pms, todayISO(), compteDirection)} onOuvrir={(cible) => { setSectionActive("hygiene"); setSousEcran(cible); }} />
+
       {emailsIaPrets.length > 0 && (
         <Card className="mb-6 border-2" style={{ borderColor: "#C1432D", backgroundColor: "#fff5f5" }}>
           <div className="flex items-start gap-3">
@@ -4029,7 +4073,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
 
       {sousEcran === "pmsDossier" && compteDirection && (
         <div className="mb-6">
-          <PmsDossier reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onOuvrirComptes={() => setSousEcran("comptes")} onImprimer={() => setPmsImpression(true)} />
+          <PmsDossier reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onOuvrirComptes={() => setSousEcran("comptes")} comptes={gestionComptes ? <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} /> : null} onImprimer={() => setPmsImpression(true)} />
         </div>
       )}
 
