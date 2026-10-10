@@ -3843,95 +3843,19 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       )}
 
       {sousEcran === "allergenes" && (
-        <div className="mb-6 space-y-6">
-          <Card>
-            <h3 className="font-semibold text-[var(--ink)] mb-2">Rechercher — plats</h3>
-            <p className="text-xs text-[var(--steel)] mb-2">Tapez ou dictez, par ex. "sans gluten" pour lister les plats sans cet allergène (une fois les tableaux renseignés ci-dessous).</p>
-            <ChampTexteOuVocal value={rechAllergenePlat} onChange={setRechAllergenePlat} placeholder="Rechercher un plat ou « sans gluten »..." />
-          </Card>
-          <Card>
-            <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes — plats ({(fiches || []).length})</h3>
-            <BoutonsExport titre="Allergènes — plats" colonnes={["Plat", "Catégorie", "Allergènes"]} lignes={(fiches || []).map((f) => [f.nom, f.categorie || "", allergenesPlats[f.nom] || ""])} />
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Plat</th><th className="py-1.5 pr-3">Catégorie</th><th className="py-1.5">Allergènes (à renseigner)</th></tr></thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {(fiches || [])
-                    .filter((f) => {
-                      const q = rechAllergenePlat.trim().toLowerCase();
-                      if (!q) return true;
-                      const sansMatch = q.match(/^sans\s+(.+)/);
-                      if (sansMatch) {
-                        const allerg = sansMatch[1].trim();
-                        const val = (allergenesPlats[f.nom] || "").toLowerCase();
-                        return val && !val.includes(allerg);
-                      }
-                      return (f.nom || "").toLowerCase().includes(q);
-                    })
-                    .map((f) => (
-                      <tr key={f.id || f.nom}>
-                        <td className="py-1.5 pr-3 text-[var(--ink)]">{f.nom}</td>
-                        <td className="py-1.5 pr-3 text-xs text-[var(--steel)]">{f.categorie}</td>
-                        <td className="py-1.5">
-                          <input className={`${inputCls} text-xs`} placeholder="ex : gluten, lait, œuf..."
-                            value={allergenesPlats[f.nom] || ""}
-                            onChange={(e) => setAllergenesPlats({ ...allergenesPlats, [f.nom]: e.target.value })} />
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
-
-          <Card>
-            <h3 className="font-semibold text-[var(--ink)] mb-2">Rechercher — produits</h3>
-            <ChampTexteOuVocal value={rechAllergeneProduit} onChange={setRechAllergeneProduit} placeholder="Rechercher un produit ou « sans gluten »..." />
-          </Card>
-          <Card>
-            <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes — produits ({stock.length})</h3>
-            <BoutonsExport titre="Allergènes — produits" colonnes={["Produit", "Catégorie", "Allergènes"]} lignes={stock.map((x) => [x.nom, x.categorie || "", allergenesProduits[x.nom] || ""])} />
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Produit</th><th className="py-1.5 pr-3">Catégorie</th><th className="py-1.5">Allergènes (à renseigner)</th></tr></thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {stock
-                    .filter((s) => {
-                      const q = rechAllergeneProduit.trim().toLowerCase();
-                      if (!q) return true;
-                      const sansMatch = q.match(/^sans\s+(.+)/);
-                      if (sansMatch) {
-                        const allerg = sansMatch[1].trim();
-                        const val = (allergenesProduits[s.nom] || "").toLowerCase();
-                        return val && !val.includes(allerg);
-                      }
-                      return (s.nom || "").toLowerCase().includes(q);
-                    })
-                    .map((s) => (
-                      <tr key={s.id}>
-                        <td className="py-1.5 pr-3 text-[var(--ink)]">{s.nom}</td>
-                        <td className="py-1.5 pr-3 text-xs text-[var(--steel)]">{s.categorie}</td>
-                        <td className="py-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <input className={`${inputCls} text-xs`} placeholder="ex : gluten, lait, œuf..."
-                              value={allergenesProduits[s.nom] || ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setAllergenesProduits({ ...allergenesProduits, [s.nom]: v });
-                                // Une correction manuelle par le chef devient la nouvelle norme de l'établissement
-                                // (ce n'est plus une exception de lot temporaire).
-                                setAllergenesStandard({ ...allergenesStandard, [s.nom]: v });
-                                if (produitsLotException[s.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[s.nom]; return n; });
-                              }} />
-                            {produitsLotException[s.nom] && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">allergènes variables selon le lot en cours</span>}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                </tbody>
-              </table>
-            </div>
-          </Card>
+        <div className="mb-6">
+          <TableauAllergenes
+            plats={(fiches || []).map((f) => ({ nom: f.nom, categorie: f.categorie, texte: allergenesPlats[f.nom] || "", ingredients: (f.ingredients || []).map((i) => i.nom || "") }))}
+            produits={stock.map((x) => ({ nom: x.nom, categorie: x.categorie, texte: allergenesProduits[x.nom] || "", ingredients: [] }))}
+            lotException={produitsLotException}
+            ecrirePlat={(x, texte) => setAllergenesPlats({ ...allergenesPlats, [x.nom]: texte })}
+            ecrireProduit={(x, texte) => {
+              setAllergenesProduits({ ...allergenesProduits, [x.nom]: texte });
+              // Une correction manuelle par le chef devient la nouvelle norme de l'établissement (plus une exception de lot).
+              setAllergenesStandard({ ...allergenesStandard, [x.nom]: texte });
+              if (produitsLotException[x.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[x.nom]; return n; });
+            }}
+          />
         </div>
       )}
 
@@ -8839,6 +8763,266 @@ function ChangerCarte({ carte, majCarte, plats, categories, nomDe, aujourdhui })
 
 // Aperçu de la carte : ce que verra le client, à imprimer ou à télécharger (PDF via l'impression, Word, Excel).
 /* Boutons Imprimer / PDF / Word / Excel pour un tableau (colonnes + lignes). */
+/* ---------- Allergènes : tableau unique plats / produits (14 allergènes, 4 états) ---------- */
+
+const normAllg = (t) => String(t || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+const ICONES_ALLERGENES = { Gluten: "🌾", "Crustacés": "🦀", "Œufs": "🥚", Poissons: "🐟", Arachides: "🥜", Soja: "🫘", Lait: "🥛", "Fruits à coque": "🌰", "Céleri": "🥬", Moutarde: "🟡", "Sésame": "⚪", Sulfites: "🍷", Lupin: "🌼", Mollusques: "🐚" };
+
+function allergeneDeMot(mot) {
+  const n = normAllg(mot).trim();
+  if (!n) return -1;
+  const parNom = ALLERGENES_14.findIndex((a) => {
+    const na = normAllg(a);
+    return n === na || n.includes(na.split(" ")[0]) || (na === "oeufs" && n.includes("oeuf"));
+  });
+  if (parNom >= 0) return parNom;
+  // Sinon : mots usuels (pâtes, mozzarella, noix de cajou…) rattachés à leur allergène.
+  return ALLERGENES_14.findIndex((a) => ((ALLERGENES_MOTS_CLES.find((k) => k[0] === a) || [a, []])[1]).some((m) => n.includes(normAllg(m).trim())));
+}
+
+// Lit le texte enregistré (ex. « Gluten, Lait ; traces : Œufs ») : contient / traces / autres mots conservés tels quels.
+function lireAllergenes(texte) {
+  const t = String(texte || "").trim();
+  const etats = ALLERGENES_14.map(() => "q");
+  if (!t) return { etats, autres: [], vide: true, aucun: false };
+  const contient = new Set(); const traces = new Set(); const autres = [];
+  let aucun = false;
+  t.split(";").forEach((partie) => {
+    let enTraces = /^\s*(traces?|peut contenir)/i.test(partie);
+    partie.replace(/^\s*(traces?|peut contenir)\s*(de |d'|:)?\s*/i, "").split(/[,/+]/).forEach((mot) => {
+      const m = mot.trim();
+      if (!m) return;
+      if (/^(aucun|rien|sans allerg)/i.test(normAllg(m))) { aucun = true; return; }
+      const mEnTraces = enTraces || /^(traces?|peut contenir)/i.test(normAllg(m));
+      const propre = m.replace(/^(traces?|peut contenir)\s*(de |d'|:)?\s*/i, "");
+      const i = allergeneDeMot(propre);
+      if (i < 0) { autres.push(m); return; }
+      (mEnTraces ? traces : contient).add(i);
+    });
+  });
+  ALLERGENES_14.forEach((_, i) => { etats[i] = contient.has(i) ? "c" : traces.has(i) ? "t" : "n"; });
+  return { etats, autres, vide: false, aucun };
+}
+
+function ecrireAllergenes(etats, autres, aucun) {
+  const c = ALLERGENES_14.filter((_, i) => etats[i] === "c");
+  const t = ALLERGENES_14.filter((_, i) => etats[i] === "t");
+  const p0 = [...c, ...autres].join(", ");
+  const p1 = t.length ? `traces : ${t.join(", ")}` : "";
+  const texte = [p0, p1].filter(Boolean).join(" ; ");
+  if (texte) return texte;
+  return aucun ? "Aucun" : "";
+}
+
+const COULEURS_ETAT_ALLERGENE = {
+  c: { fond: "#FDEAEA", point: "#E23B3B", plein: true, titre: "Contient" },
+  t: { fond: "#FFF3DF", point: "#F6A41D", plein: true, titre: "Peut contenir (traces)" },
+  n: { fond: "#EFFAF3", point: "#3AA56A", plein: false, titre: "Ne contient pas" },
+  q: { fond: "#F6F7F9", point: "#9CA3AF", plein: false, titre: "Non renseigné" },
+};
+
+function PastilleAllergene({ etat, onClick, lecture }) {
+  const s = COULEURS_ETAT_ALLERGENE[etat];
+  const symbole = etat === "c" ? "✓" : etat === "t" ? "−" : etat === "n" ? "" : "?";
+  return (
+    <button type="button" onClick={lecture ? undefined : onClick} disabled={lecture} title={s.titre}
+      aria-label={s.titre}
+      className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[11px] font-bold"
+      style={{ background: s.plein ? s.point : "#fff", border: `2px ${etat === "q" ? "dashed" : "solid"} ${s.point}`, color: s.plein ? "#fff" : s.point }}>
+      {symbole}
+    </button>
+  );
+}
+
+function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrireProduit, lotException }) {
+  const [mode, setMode] = useState("plats");
+  const [recherche, setRecherche] = useState("");
+  const [regrouper, setRegrouper] = useState(true);
+  const [categorie, setCategorie] = useState("");
+  const [statut, setStatut] = useState("");
+  const [filtres, setFiltres] = useState({}); // index -> "sans" | "avec"
+  const [fermes, setFermes] = useState({});
+  const [ouvert, setOuvert] = useState({});
+
+  const jeu = mode === "plats" ? plats : produits;
+  const categories = [...new Set(jeu.map((x) => x.categorie || "Sans catégorie"))].sort((a, b) => a.localeCompare(b, "fr"));
+  const lignes = jeu.map((x) => ({ ...x, categorie: x.categorie || "Sans catégorie", lu: lireAllergenes(x.texte) }));
+
+  const motsRecherche = (q) => {
+    const m = normAllg(q).match(/^(sans|avec)\s+(.+)$/);
+    if (!m) return null;
+    const ids = m[2].split(/\s+(?:ni|et|,)\s+|,/).map((s) => allergeneDeMot(s.trim())).filter((i) => i >= 0);
+    return ids.length ? { type: m[1], ids } : null;
+  };
+
+  const garde = (x) => {
+    const e = x.lu.etats;
+    if (categorie && x.categorie !== categorie) return false;
+    if (statut === "complet" && x.lu.vide) return false;
+    if (statut === "incomplet" && !x.lu.vide) return false;
+    if (statut === "traces" && !e.includes("t")) return false;
+    for (const [i, m] of Object.entries(filtres)) {
+      if (m === "sans" && (e[i] === "c" || e[i] === "q")) return false;
+      if (m === "avec" && e[i] !== "c") return false;
+    }
+    const q = normAllg(recherche).trim();
+    if (!q) return true;
+    const sp = motsRecherche(recherche);
+    if (sp) return sp.type === "sans" ? sp.ids.every((i) => e[i] !== "c" && e[i] !== "q") : sp.ids.every((i) => e[i] === "c");
+    const ingredients = (x.ingredients || []).map((i) => normAllg(i)).join(" ");
+    return normAllg(x.nom).includes(q) || normAllg(x.categorie).includes(q) || ingredients.includes(q) || normAllg(x.texte).includes(q);
+  };
+
+  const visibles = lignes.filter(garde).sort((a, b) => a.categorie.localeCompare(b.categorie, "fr") || a.nom.localeCompare(b.nom, "fr"));
+  const groupes = regrouper ? [...new Set(visibles.map((x) => x.categorie))] : [null];
+  const ecrire = (x, texte) => (mode === "plats" ? ecrirePlat(x, texte) : ecrireProduit(x, texte));
+
+  const cliquerPastille = (x, i) => {
+    if (lectureSeule) return;
+    const etats = [...x.lu.etats];
+    if (x.lu.vide) { // première information : tout le reste devient « ne contient pas »
+      for (let k = 0; k < etats.length; k++) etats[k] = "n";
+      etats[i] = "c";
+    } else {
+      const suite = { c: "t", t: "n", n: "c", q: "c" };
+      etats[i] = suite[etats[i]];
+    }
+    ecrire(x, ecrireAllergenes(etats, x.lu.autres, true));
+  };
+  const effacer = (x) => ecrire(x, "");
+  const confirmerAucun = (x) => ecrire(x, "Aucun");
+
+  const filtresActifs = Object.keys(filtres).length > 0 || recherche || categorie || statut;
+  const nouveauFiltre = (i) => setFiltres((f) => { const n = { ...f }; if (!n[i]) n[i] = "sans"; else if (n[i] === "sans") n[i] = "avec"; else delete n[i]; return n; });
+
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-3 mb-4">
+        <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ backgroundColor: "#E0A31C" }}><AlertTriangle size={26} /></span>
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold text-[var(--ink)]">Tableau complet des plats et allergènes</h3>
+          <p className="text-xs text-[var(--steel)]">Tous les plats (ou produits) avec leurs 14 allergènes dans un seul tableau, sans pages. Cliquez sur le nom d'un plat pour voir d'où vient chaque allergène.</p>
+        </div>
+      </div>
+
+      <Card className="mb-3">
+        <ChampTexteOuVocal value={recherche} onChange={setRecherche} placeholder="Rechercher : un plat, une catégorie, un ingrédient… ou « sans gluten », « avec lait », « sans lait ni œufs »" />
+        <div className="flex flex-wrap items-center gap-2 mt-3">
+          <span className="text-xs font-semibold text-[var(--steel)]">Afficher</span>
+          {[["plats", "Plats"], ["produits", "Produits"]].map(([v, l]) => (
+            <button key={v} type="button" onClick={() => { setMode(v); setCategorie(""); }} className={`px-3 py-2 min-h-[40px] rounded-lg border text-sm font-medium ${mode === v ? "bg-[var(--ink)] text-white border-[var(--ink)]" : "bg-white border-[var(--cadre)] text-[var(--ink)]"}`}>{l}</button>
+          ))}
+          <label className="inline-flex items-center gap-1.5 text-sm text-[var(--ink)] ml-2"><input type="checkbox" checked={regrouper} onChange={(e) => setRegrouper(e.target.checked)} /> Regrouper par catégorie</label>
+          <select className={`${inputCls} !min-h-[40px] !py-1.5`} value={categorie} onChange={(e) => setCategorie(e.target.value)}>
+            <option value="">Toutes les catégories</option>
+            {categories.map((c) => <option key={c} value={c}>{c}</option>)}
+          </select>
+          <select className={`${inputCls} !min-h-[40px] !py-1.5`} value={statut} onChange={(e) => setStatut(e.target.value)}>
+            <option value="">Tous les statuts</option>
+            <option value="complet">Renseigné</option>
+            <option value="incomplet">À compléter (non renseigné)</option>
+            <option value="traces">Avec traces</option>
+          </select>
+        </div>
+        <div className="flex flex-wrap items-center gap-1.5 mt-3">
+          <span className="text-xs font-semibold text-[var(--steel)] mr-1">Filtrer par allergène</span>
+          {ALLERGENES_14.map((a, i) => {
+            const f = filtres[i];
+            return (
+              <button key={a} type="button" onClick={() => nouveauFiltre(i)}
+                className="px-2.5 py-1 rounded-full border text-xs"
+                style={f === "sans" ? { background: "#DCF3E4", borderColor: "#8FD0A8", color: "#17663A", fontWeight: 600 } : f === "avec" ? { background: "#FDECEC", borderColor: "#EBA3A3", color: "#A61B1B", fontWeight: 600 } : { background: "#fff", borderColor: "var(--cadre)", color: "var(--ink)" }}>
+                {ICONES_ALLERGENES[a]} {a}{f === "sans" ? " · sans" : f === "avec" ? " · avec" : ""}
+              </button>
+            );
+          })}
+          {filtresActifs && <button type="button" onClick={() => { setFiltres({}); setRecherche(""); setCategorie(""); setStatut(""); }} className="px-3 py-1.5 rounded-lg border border-[var(--cadre)] bg-white text-xs font-medium text-[var(--ink)]">Effacer les filtres</button>}
+        </div>
+        <div className="flex flex-wrap gap-2 mt-3 text-xs text-[var(--steel)]">
+          {Object.entries(COULEURS_ETAT_ALLERGENE).map(([k, s]) => (
+            <span key={k} className="inline-flex items-center gap-1.5 bg-white border border-[var(--cadre)] rounded-lg px-2 py-1">
+              <span className="inline-block w-3.5 h-3.5 rounded-full" style={{ background: s.plein ? s.point : "#fff", border: `2px ${k === "q" ? "dashed" : "solid"} ${s.point}` }} />{s.titre}
+            </span>
+          ))}
+        </div>
+      </Card>
+
+      <div className="mb-2"><BoutonsExport titre={mode === "plats" ? "Allergènes — plats" : "Allergènes — produits"} colonnes={[mode === "plats" ? "Plat" : "Produit", "Catégorie", "Allergènes"]} lignes={visibles.map((x) => [x.nom, x.categorie, x.texte || ""])} /></div>
+
+      <div className="bg-white border border-[var(--cadre)] rounded-xl overflow-auto" style={{ maxHeight: "72vh" }}>
+        <table className="text-sm" style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: 1050, width: "100%" }}>
+          <thead>
+            <tr>
+              <th className="text-left px-3 py-2 text-xs font-semibold bg-white" style={{ position: "sticky", top: 0, left: 0, zIndex: 4, minWidth: 190, borderBottom: "2px solid var(--cadre)", borderRight: "1px solid var(--cadre)" }}>{mode === "plats" ? "Nom du plat" : "Produit"}</th>
+              {ALLERGENES_14.map((a) => (
+                <th key={a} className="px-1 py-2 text-[11px] font-semibold bg-white text-center" style={{ position: "sticky", top: 0, zIndex: 3, borderBottom: "2px solid var(--cadre)", minWidth: 62 }}>
+                  <span className="block text-lg leading-none">{ICONES_ALLERGENES[a]}</span>{a}
+                </th>
+              ))}
+            </tr>
+          </thead>
+          <tbody>
+            {visibles.length === 0 && <tr><td colSpan={15} className="px-3 py-6 text-center text-sm text-[var(--steel)]">Aucun résultat.</td></tr>}
+            {groupes.map((g) => {
+              const liste = visibles.filter((x) => !regrouper || x.categorie === g);
+              return (
+                <React.Fragment key={g || "tous"}>
+                  {regrouper && (
+                    <tr onClick={() => setFermes((f) => ({ ...f, [g]: !f[g] }))} className="cursor-pointer">
+                      <td colSpan={15} className="px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--ink)]" style={{ background: "#F1F3F6" }}>{fermes[g] ? "▸" : "▾"} {g} ({liste.length})</td>
+                    </tr>
+                  )}
+                  {(!regrouper || !fermes[g]) && liste.map((x) => {
+                    const cle = mode + "|" + x.nom;
+                    const derives = ALLERGENES_14.map((a) => {
+                      const mots = (ALLERGENES_MOTS_CLES.find((k) => k[0] === a) || [a, []])[1];
+                      const ing = (x.ingredients || []).filter((nom) => mots.some((m) => normAllg(nom).includes(normAllg(m).trim())));
+                      return ing.length ? `${a} ← ${ing.join(", ")}` : null;
+                    }).filter(Boolean);
+                    return (
+                      <React.Fragment key={cle}>
+                        <tr>
+                          <td className="px-3 py-1.5 bg-white" style={{ position: "sticky", left: 0, zIndex: 2, borderBottom: "1px solid var(--cadre)", borderRight: "1px solid var(--cadre)" }}>
+                            <button type="button" onClick={() => setOuvert((o) => ({ ...o, [cle]: !o[cle] }))} className="text-left font-semibold text-[var(--ink)]">{x.nom}</button>
+                            {x.lu.vide && <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FFF1D6", color: "#B45309" }}>à compléter</span>}
+                            {lotException && lotException[x.nom] && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">variable selon le lot</span>}
+                          </td>
+                          {ALLERGENES_14.map((a, i) => (
+                            <td key={a} className="text-center py-1.5" style={{ background: COULEURS_ETAT_ALLERGENE[x.lu.etats[i]].fond, borderBottom: "1px solid var(--cadre)" }}>
+                              <PastilleAllergene etat={x.lu.etats[i]} lecture={lectureSeule} onClick={() => cliquerPastille(x, i)} />
+                            </td>
+                          ))}
+                        </tr>
+                        {ouvert[cle] && (
+                          <tr>
+                            <td colSpan={15} className="px-4 py-3 text-xs text-[var(--ink)]" style={{ background: "#FFFBEA", borderBottom: "1px solid var(--cadre)" }}>
+                              <p><b>Détail — {x.nom}</b> · {x.categorie}</p>
+                              <p className="mt-1">Texte enregistré : {x.texte ? x.texte : "Aucune information donnée ni confirmée — à renseigner."}</p>
+                              {mode === "plats" && <p className="mt-1">D'après les ingrédients de la fiche : {derives.length ? derives.join(" · ") : "aucun ingrédient ne correspond à un allergène connu (ou aucun ingrédient relié)."}</p>}
+                              {x.lu.autres.length > 0 && <p className="mt-1">Autres mentions conservées : {x.lu.autres.join(", ")}</p>}
+                              {!lectureSeule && (
+                                <div className="flex flex-wrap gap-2 mt-2">
+                                  <Button variant="ghost" onClick={() => confirmerAucun(x)}>Confirmer : aucun allergène</Button>
+                                  <Button variant="ghost" onClick={() => effacer(x)}>Remettre « non renseigné »</Button>
+                                </div>
+                              )}
+                            </td>
+                          </tr>
+                        )}
+                      </React.Fragment>
+                    );
+                  })}
+                </React.Fragment>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[var(--steel)] mt-2">{visibles.length} {mode === "plats" ? "plat(s)" : "produit(s)"} affiché(s) sur {jeu.length}. {lectureSeule ? "" : "Un clic sur une pastille la modifie : contient → traces → ne contient pas."}</p>
+    </div>
+  );
+}
+
 function BoutonsExport({ titre, colonnes, lignes }) {
   const [message, setMessage] = useState("");
   const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
