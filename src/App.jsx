@@ -7945,6 +7945,38 @@ function formaterQteCarte(v, unite) {
 }
 const nbCarte = (x) => parseFloat(String(x == null ? "" : x).replace(",", "."));
 
+// Jours de service d'un plat sur la carte. Au choix du chef ou du directeur : « en continu » (tous les jours) ou des jours précis.
+// Sans réglage : comportement d'origine (les jours où une quantité est indiquée) ; sans aucune quantité, le plat est servi tous les jours.
+// La quantité à avoir est facultative : sans quantité, le plat apparaît quand même dans les préparations, sans nombre de portions.
+function platServiCeJour(carte, id, jourNom) {
+  const cfg = ((carte && carte.joursPlat) || {})[id];
+  if (cfg && cfg.mode === "continu") return true;
+  if (cfg && cfg.mode === "jours") return (cfg.jours || []).includes(jourNom);
+  const q = ((carte && carte.quantites) || {})[id] || {};
+  const aDesQuantites = JOURS.some((j) => nbCarte(q[j]) > 0);
+  return aDesQuantites ? nbCarte(q[jourNom]) > 0 : true;
+}
+
+// Ce que voit un employé selon sa fonction : pizzaiolo → pizzas ; poste chaud → plats ; entrées / desserts → plats correspondants ;
+// sans fonction particulière (cuisinier, apprenti, commis…) → tout, pour tout le monde.
+const normFonction = (x) => String(x || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/^poste\s*/, "").trim();
+const fonctionGenerale = (poste) => { const f = normFonction(poste); return !f || f === "aucun" || f.startsWith("aucun poste") || f === "tous"; };
+function platPourFonction(poste, postePlat, categorie) {
+  if (fonctionGenerale(poste)) return true;
+  const f = normFonction(poste); const pp = normFonction(postePlat); const c = normFonction(categorie);
+  if (!pp || pp === "sans poste") return true;
+  if (pp && (f.includes(pp) || pp.includes(f))) return true;
+  const cats = [];
+  if (/pizza/.test(f)) cats.push("pizza");
+  if (/dessert|patiss/.test(f)) cats.push("dessert");
+  if (/froid|garde|entree/.test(f)) cats.push("entree", "salade", "fromage");
+  if (/entree/.test(f)) cats.push("potage");
+  if (/chaud|saucier|rotisseur|grillardin|friturier|entremetier|tournant|communard/.test(f)) cats.push("plat", "viande", "poisson", "potage", "legume", "burger", "partage");
+  if (/poissonnier/.test(f)) cats.push("poisson");
+  if (/boucher/.test(f)) cats.push("viande");
+  return !!c && cats.some((k) => c.includes(k));
+}
+
 // Calcul des préparations d'un jour : quantité de plats × recette (ingrédients proportionnels aux portions de la fiche),
 // regroupé par poste. Une préparation (sous-recette) est rangée dans le poste de sa propre fiche.
 function calculerPreparationsCarte(carte, fiches, jour, restes) {
@@ -7953,11 +7985,12 @@ function calculerPreparationsCarte(carte, fiches, jour, restes) {
   ((carte && carte.plats) || []).forEach((id) => {
     const f = (fiches || []).find((x) => x.id === id); if (!f) return;
     const cible = nbCarte(((carte.quantites || {})[id] || {})[jour]);
-    if (!(cible > 0)) return;
+    if (!platServiCeJour(carte, id, jour)) return;
+    if (!(cible > 0)) { g(f.poste || "Sans poste").plats.push({ nom: f.nom, n: null, cible: 0, reste: 0, categorie: f.categorie }); return; }
     const reste = Math.max(0, nbCarte((restes || {})[id]) || 0);
     const n = Math.max(0, cible - reste);
     const poste = f.poste || "Sans poste";
-    g(poste).plats.push({ nom: f.nom, n, cible, reste });
+    g(poste).plats.push({ nom: f.nom, n, cible, reste, categorie: f.categorie });
     if (n === 0) return;
     const r = (f.formulaire && f.formulaire.rendement) || {};
     const bp = nbCarte(r.portions);
@@ -8243,6 +8276,22 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                         {estChef && idsCarte.includes(id) && <button type="button" onClick={() => basculer(id)} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer de la carte définitivement"><X size={15} /></button>}
                       </span>
                     </div>
+                    {estChef && (() => {
+                      const cfg = (carte.joursPlat || {})[id] || null;
+                      const setCfg = (c) => majCarte({ joursPlat: { ...(carte.joursPlat || {}), [id]: c } });
+                      const mode = cfg ? cfg.mode : "auto";
+                      const joursSel = cfg && cfg.mode === "jours" ? (cfg.jours || []) : [];
+                      return (
+                        <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+                          <span className="text-[var(--steel)] mr-1">Jours de service :</span>
+                          <button type="button" onClick={() => setCfg({ mode: "continu" })} className={`px-2 py-1 rounded-md text-xs font-medium border ${mode === "continu" ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white border-[var(--cadre)] text-[var(--steel)]"}`}>En continu, tous les jours</button>
+                          {JOURS.map((j) => (
+                            <button key={j} type="button" onClick={() => setCfg({ mode: "jours", jours: joursSel.includes(j) ? joursSel.filter((x) => x !== j) : [...joursSel, j] })} className={`px-2 py-1 rounded-md text-xs font-medium border ${mode === "jours" && joursSel.includes(j) ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white border-[var(--cadre)] text-[var(--steel)]"}`}>{j.slice(0, 3)}</button>
+                          ))}
+                          {mode === "auto" && <span className="text-xs text-[var(--steel)]">(selon les quantités indiquées, sinon tous les jours)</span>}
+                        </div>
+                      );
+                    })()}
                     {(() => {
                       const q = quantites[id] || {}; const resume = JOURS.filter((j) => nbCarte(q[j]) > 0).map((j) => `${j.slice(0, 3)} ${q[j]}`).join(" · ");
                       const ouvert = quantiteOuverte === id;
@@ -8339,7 +8388,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                         <h4 className="font-semibold text-[var(--ink)]">{poste}</h4>
                         <span className="text-xs text-[var(--steel)]">{equipe.length ? `Employé(s) : ${equipe.join(", ")}` : "Aucun employé rattaché à ce poste"}</span>
                       </div>
-                      {gr.plats.length > 0 && <ul className="text-sm text-[var(--ink)] mb-2">{gr.plats.map((p, i) => <li key={i}>• {p.n > 0 ? <b>{p.n} portions à produire</b> : <b>Rien à produire</b>} — {p.nom} <span className="text-[var(--steel)]">({p.cible} à avoir{p.reste > 0 ? ` − ${p.reste} restantes` : ""})</span></li>)}</ul>}
+                      {gr.plats.length > 0 && <ul className="text-sm text-[var(--ink)] mb-2">{gr.plats.map((p, i) => <li key={i}>• {p.n === null ? <b>À préparer (quantité non précisée)</b> : p.n > 0 ? <b>{p.n} portions à produire</b> : <b>Rien à produire</b>} — {p.nom} <span className="text-[var(--steel)]">({p.cible} à avoir{p.reste > 0 ? ` − ${p.reste} restantes` : ""})</span></li>)}</ul>}
                       {lignes.length > 0 && (
                         <table className="w-full text-sm">
                           <thead><tr className="text-left text-xs text-[var(--steel)]"><th className="py-1 pr-2 font-medium">À préparer</th><th className="py-1 pr-2 font-medium">Quantité</th><th className="py-1 font-medium">Pour</th></tr></thead>
@@ -16826,14 +16875,13 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         const restes = Object.fromEntries(Object.entries((carteJ.restes || {})[today] || {}).filter(([id]) => !nouveaux.includes(id)));
         const jourNom = JOURS[(new Date().getDay() + 6) % 7];
         const { groupes } = calculerPreparationsCarte({ ...carteJ, plats: platsJ }, fiches, jourNom, restes);
-        const monPoste = String(moi?.poste || "").toLowerCase().replace(/^poste\s*/, "").trim();
-        const voirTout = !!moi?.estChef || !monPoste;
+        const voirTout = !!moi?.estChef || fonctionGenerale(moi?.poste);
         const res = [];
         Object.keys(groupes).sort((x, y) => x.localeCompare(y, "fr")).forEach((poste) => {
-          const pn = poste.toLowerCase().replace(/^poste\s*/, "").trim();
-          if (!(voirTout || poste === "Sans poste" || (pn && (monPoste.includes(pn) || pn.includes(monPoste))))) return;
-          groupes[poste].plats.filter((x) => x.n > 0).forEach((x) => res.push({ cle: `${poste}|plat|${x.nom}`, nom: `${x.nom} — ${x.n} portion${x.n > 1 ? "s" : ""}` }));
-          Object.values(groupes[poste].lignes).filter((l) => l.prep).forEach((l) => res.push({ cle: `${poste}|prep|${l.nom}`, nom: `${l.nom} — ${Math.round(l.total * 10) / 10} ${l.unite || ""}`.trim() }));
+          const platsVisibles = groupes[poste].plats.filter((x) => (x.n === null || x.n > 0) && (voirTout || platPourFonction(moi?.poste, poste, x.categorie)));
+          platsVisibles.forEach((x) => res.push({ cle: `${poste}|plat|${x.nom}`, nom: x.n === null ? x.nom : `${x.nom} — ${x.n} portion${x.n > 1 ? "s" : ""}` }));
+          const nomsVisibles = platsVisibles.map((x) => x.nom);
+          Object.values(groupes[poste].lignes).filter((l) => l.prep && (voirTout || (l.pour || []).some((n) => nomsVisibles.includes(n)))).forEach((l) => res.push({ cle: `${poste}|prep|${l.nom}`, nom: `${l.nom} — ${Math.round(l.total * 10) / 10} ${l.unite || ""}`.trim() }));
         });
         return res;
       })();
