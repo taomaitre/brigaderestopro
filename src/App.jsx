@@ -587,6 +587,10 @@ const subMonths = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d
 // Durée de conservation de la traçabilité (décision de Loïc, 10/10) : 5 ans, photos comprises (durée minimale générale
 // de la traçabilité des denrées : GBPH Restaurateur, règlement 178/2002).
 const CONSERVATION_DONNEES_TRACABILITE_MOIS = 60;
+// Autres enregistrements (températures, cuissons, refroidissements, maintien au chaud, tests d'huile) : aucune durée
+// officielle (règlement 852/2004 art. 5(4)(c) : « durée appropriée »). Décision de Loïc (10/10) : l'année précédente
+// complète plus l'année en cours. Tout ce qui est daté avant le 1er janvier de l'année précédente est supprimé.
+const debutConservationEnregistrements = (dateStr) => `${Number(dateStr.slice(0, 4)) - 1}-01-01`;
 const startOfWeek = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return toISO(d); };
 const startOfMonth = (dateStr) => dateStr.slice(0, 7) + "-01";
 const daysInMonth = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
@@ -10788,7 +10792,9 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
   const confirmer = () => {
     if (!pretAConfirmer) return;
     const entry = creerEtiquetteDlc({
-      produitNom: nom, lot, dlcDate, photos, quantiteUtilisee, nbEtiquettes,
+      // Décision de Loïc (10/10) : en mode IA, les photos servent seulement à lire l'étiquette puis sont abandonnées —
+      // seul le texte confirmé (nom, lot, DLC, allergènes…) est conservé. Seule la traçabilité sans IA garde ses photos.
+      produitNom: nom, lot, dlcDate, photos: [], quantiteUtilisee, nbEtiquettes,
       allergenes, origine, codeUsine, delaiApresOuvertureJours,
     });
     // Mise à jour en temps réel de la fiche produit (allergènes/origine/délai après ouverture) —
@@ -18728,6 +18734,28 @@ function KitchenApp({ identiteExterne } = {}) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Purge automatique des autres enregistrements (voir debutConservationEnregistrements). Ne déclenche l'écriture
+  // que si au moins une ligne est trop ancienne, et se relance quand les listes finissent de se charger.
+  useEffect(() => {
+    const seuil = debutConservationEnregistrements(todayISO());
+    const trop = (liste) => (liste || []).some((x) => x && x.date && x.date < seuil);
+    const garder = (setter, liste, nom) => {
+      if (!trop(liste)) return;
+      setter((prev) => {
+        const conservees = prev.filter((x) => !(x && x.date && x.date < seuil));
+        if (conservees.length < prev.length) logActivitySafe("HACCP", "Purge automatique des enregistrements", `${nom} : ${prev.length - conservees.length} ligne(s) datée(s) d'avant le ${seuil} supprimée(s)`);
+        return conservees;
+      });
+    };
+    garder(setRelevesFroid, relevesFroid, "relevés de température");
+    garder(setSurveillancesFroid, surveillancesFroid, "surveillances de température");
+    garder(setCuissons, cuissons, "cuissons");
+    garder(setRefroidissements, refroidissements, "refroidissements");
+    garder(setEntriesMaintienChaud, entriesMaintienChaud, "maintiens au chaud");
+    garder(setHuileTests, huileTests, "tests d'huile");
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [relevesFroid, surveillancesFroid, cuissons, refroidissements, entriesMaintienChaud, huileTests]);
 
   useEffect(() => {
     if (!modeExterne) setProduits((prev) => {
