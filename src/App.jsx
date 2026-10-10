@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
+import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
 
@@ -1588,6 +1589,7 @@ function Equipe({ employees, shifts, activityLog, tasks, toggleTask, currentUser
         ))}
       </div>
 
+      <BandeauNormes label="Journal d'activité — preuves des autocontrôles : Règlement (CE) n° 852/2004, art. 5 (documents et enregistrements)" />
       <Card>
         <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <h3 className="font-semibold text-[var(--ink)]">Journal d'activité</h3>
@@ -2187,6 +2189,14 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
 function DeclarationTiac({ employees, activityLog, receptions, preparations, produits, reservations, currentUserId, logActivity, declarationsTiac, setDeclarationsTiac }) {
   const [etablissementNom, setEtablissementNom] = useStored("tiac-etablissement-nom", "");
   const [etablissementAdresse, setEtablissementAdresse] = useStored("tiac-etablissement-adresse", "");
+  // Coordonnées des autorités : saisies une fois par l'établissement (elles dépendent du département).
+  const [arsNom, setArsNom] = useStored("tiac-ars-nom", "ARS (médecin inspecteur)");
+  const [arsTel, setArsTel] = useStored("tiac-ars-tel", "");
+  const [ddNom, setDdNom] = useStored("tiac-dd-nom", "DDPP / DDCSPP (sécurité sanitaire de l'alimentation)");
+  const [ddTel, setDdTel] = useStored("tiac-dd-tel", "");
+  const [joursEnquete, setJoursEnquete] = useStored("tiac-jours-enquete", 5);
+  const [mesures, setMesures] = useState({ isoler: false, temoins: false, suspendre: false, nettoyer: false });
+  const [documents, setDocuments] = useState({ menus: false, tracabilite: false, autocontroles: false, malades: false, personnel: false });
   const [dateDebut, setDateDebut] = useState(todayISO());
   const [malades, setMalades] = useState([{ id: uid(), nom: "", age: "", symptomes: "", dateHeure: "" }]);
   const [arsFait, setArsFait] = useState(false);
@@ -2198,7 +2208,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
   const [texteGenere, setTexteGenere] = useState(null);
   const [consultation, setConsultation] = useState(null);
 
-  const dateDebutPlage = addDays(dateDebut, -5);
+  const dateDebutPlage = addDays(dateDebut, -(Number(joursEnquete) || 5));
 
   const responsableNoms = employees.filter((e) => e.estChef || e.estDirection).map((e) => e.nom).join(", ") || "à compléter";
 
@@ -2231,9 +2241,10 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
 
   const genererTexte = (source) => {
     const s = source || {
-      etablissementNom, etablissementAdresse, dateDebut, dateDebutPlage, responsableNoms,
+      etablissementNom, etablissementAdresse, dateDebut, dateDebutPlage, joursEnquete, responsableNoms,
       personnelNoms, convivesParJour, produitsReceptionnes, produitsPrepares,
       malades, arsFait, arsDateHeure, ddcspFait, ddcspDateHeure, conserve, notes,
+      arsNom, arsTel, ddNom, ddTel, mesures, documents,
     };
     const lignes = [];
     lignes.push("DÉCLARATION D'UNE TOXI-INFECTION ALIMENTAIRE COLLECTIVE (TIAC)");
@@ -2245,13 +2256,26 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
     lignes.push(s.responsableNoms);
     lignes.push("");
     lignes.push("2. ALERTE DES AUTORITÉS");
-    lignes.push(`Médecin Inspecteur de l'ARS PACA — Tél : 04 13 55 80 10 — Fax : 04 13 55 80 40${s.arsFait ? ` — contacté le ${s.arsDateHeure || "date non précisée"}` : " — À CONTACTER"}`);
-    lignes.push(`Service Qualité et Sécurité Sanitaire de l'Alimentation (DDCSPP 06) — Tél : 04 93 72 28 00 — Fax : 04 93 72 28 05${s.ddcspFait ? ` — contacté le ${s.ddcspDateHeure || "date non précisée"}` : " — À CONTACTER"}`);
+    lignes.push(`${s.arsNom}${s.arsTel ? " — Tél : " + s.arsTel : ""}${s.arsFait ? ` — contacté le ${s.arsDateHeure || "date non précisée"}` : " — À CONTACTER"}`);
+    lignes.push(`${s.ddNom}${s.ddTel ? " — Tél : " + s.ddTel : ""}${s.ddcspFait ? ` — contacté le ${s.ddcspDateHeure || "date non précisée"}` : " — À CONTACTER"}`);
+    lignes.push("");
+    lignes.push("MESURES IMMÉDIATES");
+    lignes.push(`  [${s.mesures.isoler ? "x" : " "}] Produits suspects écartés (non jetés)`);
+    lignes.push(`  [${s.mesures.temoins ? "x" : " "}] Plats témoins et restes de matières premières et de plats des 3 derniers jours conservés (réservés aux services de contrôle)`);
+    lignes.push(`  [${s.mesures.suspendre ? "x" : " "}] Service des plats concernés suspendu`);
+    lignes.push(`  [${s.mesures.nettoyer ? "x" : " "}] Nettoyage et désinfection après prélèvement des échantillons`);
+    lignes.push("");
+    lignes.push("DOCUMENTS PRÉPARÉS POUR LES SERVICES DE CONTRÔLE");
+    lignes.push(`  [${s.documents.menus ? "x" : " "}] Menus`);
+    lignes.push(`  [${s.documents.tracabilite ? "x" : " "}] Éléments de traçabilité (étiquettes, factures)`);
+    lignes.push(`  [${s.documents.autocontroles ? "x" : " "}] Autocontrôles`);
+    lignes.push(`  [${s.documents.malades ? "x" : " "}] Liste des malades et non-malades (symptômes, date et heure d'apparition)`);
+    lignes.push(`  [${s.documents.personnel ? "x" : " "}] Liste du personnel malade`);
     lignes.push("");
     lignes.push("3. ÉLÉMENTS CONSERVÉS");
     lignes.push(s.conserve || "à compléter");
     lignes.push("");
-    lignes.push(`4. ÉLÉMENTS D'INFORMATION — période du ${fmtShort(s.dateDebutPlage)} au ${fmtShort(s.dateDebut)} (5 jours précédant les premiers symptômes)`);
+    lignes.push(`4. ÉLÉMENTS D'INFORMATION — période du ${fmtShort(s.dateDebutPlage)} au ${fmtShort(s.dateDebut)} (${s.joursEnquete || 5} jours précédant les premiers symptômes)`);
     lignes.push("");
     lignes.push("Convives par jour (d'après les réservations enregistrées — ne compte pas les clients sans réservation) :");
     if (s.convivesParJour.length) s.convivesParJour.forEach(([d, n]) => lignes.push(`  - ${fmtShort(d)} : ${n} personne(s)`));
@@ -2336,8 +2360,13 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
 
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-2">1. Date des premiers symptômes signalés</h3>
-        <p className="text-xs text-[var(--steel)] mb-2">La procédure officielle demande les informations sur les 5 jours précédant cette date — calculé automatiquement.</p>
-        <input className={inputCls} type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
+        <p className="text-xs text-[var(--steel)] mb-2">Les informations sont reprises automatiquement sur la période qui précède cette date (modifiable ci-dessous).</p>
+        <div className="flex flex-wrap items-center gap-3">
+          <input className={inputCls} type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
+          <label className="text-xs text-[var(--steel)] flex items-center gap-1.5">Jours étudiés avant
+            <input className={`${inputCls} w-16`} type="number" min="1" max="30" value={joursEnquete} onChange={(e) => setJoursEnquete(e.target.value)} />
+          </label>
+        </div>
         <p className="text-xs text-[var(--steel)] mt-2">Période analysée : du {fmtShort(dateDebutPlage)} au {fmtShort(dateDebut)}.</p>
       </Card>
 
@@ -2396,28 +2425,45 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
       </Card>
 
       <Card>
-        <h3 className="font-semibold text-[var(--ink)] mb-3">2. Alerte des autorités</h3>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Mesures immédiates</h3>
+        <p className="text-xs text-[var(--steel)] mb-2">À cocher au fur et à mesure (aide, rien n'est bloquant).</p>
+        <div className="space-y-1.5 text-sm text-[var(--ink)]">
+          {[["isoler", "Écarter les produits suspects (ne pas les jeter)"], ["temoins", "Conserver les plats témoins et les restes de matières premières et de plats des 3 derniers jours (réservés aux services de contrôle)"], ["suspendre", "Suspendre le service des plats concernés"], ["nettoyer", "Nettoyer et désinfecter après prélèvement des échantillons"]].map(([k, t]) => (
+            <label key={k} className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={mesures[k]} onChange={(e) => setMesures({ ...mesures, [k]: e.target.checked })} /> {t}</label>
+          ))}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">2. Alerte des autorités</h3>
+        <p className="text-xs text-[var(--steel)] mb-3">La déclaration d'une suspicion de TIAC est obligatoire et doit se faire le plus rapidement possible. Renseignez une fois les coordonnées de votre ARS et de votre DDPP/DDCSPP : elles sont gardées pour les prochaines fois.</p>
         <div className="space-y-3">
-          <div className="flex items-center justify-between gap-2 border border-[var(--cadre)] rounded-lg p-3">
-            <div>
-              <p className="text-sm font-medium text-[var(--ink)]">Médecin Inspecteur ARS PACA</p>
-              <a href="tel:0413558010" className="text-xs text-[var(--accent)]">04 13 55 80 10</a>
+          <div className="border border-[var(--cadre)] rounded-lg p-3 space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input className={inputCls} placeholder="Nom du service (ARS)" value={arsNom} onChange={(e) => setArsNom(e.target.value)} />
+              <input className={inputCls} placeholder="Téléphone" value={arsTel} onChange={(e) => setArsTel(e.target.value)} />
             </div>
-            <label className="flex items-center gap-2 text-xs text-[var(--steel)]">
-              <input type="checkbox" checked={arsFait} onChange={(e) => setArsFait(e.target.checked)} /> Contacté
-            </label>
+            <label className="flex items-center gap-2 text-xs text-[var(--steel)]"><input type="checkbox" checked={arsFait} onChange={(e) => setArsFait(e.target.checked)} /> Contacté</label>
+            {arsFait && <input className={inputCls} placeholder="Date/heure du contact" value={arsDateHeure} onChange={(e) => setArsDateHeure(e.target.value)} />}
           </div>
-          {arsFait && <input className={inputCls} placeholder="Date/heure du contact ARS" value={arsDateHeure} onChange={(e) => setArsDateHeure(e.target.value)} />}
-          <div className="flex items-center justify-between gap-2 border border-[var(--cadre)] rounded-lg p-3">
-            <div>
-              <p className="text-sm font-medium text-[var(--ink)]">DDCSPP 06 (Sécurité sanitaire de l'alimentation)</p>
-              <a href="tel:0493722800" className="text-xs text-[var(--accent)]">04 93 72 28 00</a>
+          <div className="border border-[var(--cadre)] rounded-lg p-3 space-y-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <input className={inputCls} placeholder="Nom du service (DDPP / DDCSPP)" value={ddNom} onChange={(e) => setDdNom(e.target.value)} />
+              <input className={inputCls} placeholder="Téléphone" value={ddTel} onChange={(e) => setDdTel(e.target.value)} />
             </div>
-            <label className="flex items-center gap-2 text-xs text-[var(--steel)]">
-              <input type="checkbox" checked={ddcspFait} onChange={(e) => setDdcspFait(e.target.checked)} /> Contacté
-            </label>
+            <label className="flex items-center gap-2 text-xs text-[var(--steel)]"><input type="checkbox" checked={ddcspFait} onChange={(e) => setDdcspFait(e.target.checked)} /> Contacté</label>
+            {ddcspFait && <input className={inputCls} placeholder="Date/heure du contact" value={ddcspDateHeure} onChange={(e) => setDdcspDateHeure(e.target.value)} />}
           </div>
-          {ddcspFait && <input className={inputCls} placeholder="Date/heure du contact DDCSPP" value={ddcspDateHeure} onChange={(e) => setDdcspDateHeure(e.target.value)} />}
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Documents à fournir aux services de contrôle</h3>
+        <p className="text-xs text-[var(--steel)] mb-2">À cocher quand ils sont prêts.</p>
+        <div className="space-y-1.5 text-sm text-[var(--ink)]">
+          {[["menus", "Menus"], ["tracabilite", "Éléments de traçabilité (étiquettes, factures)"], ["autocontroles", "Autocontrôles (températures, nettoyage, contrôles du jour)"], ["malades", "Liste des malades et non-malades (symptômes, date et heure d'apparition)"], ["personnel", "Liste du personnel malade"]].map(([k, t]) => (
+            <label key={k} className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={documents[k]} onChange={(e) => setDocuments({ ...documents, [k]: e.target.checked })} /> {t}</label>
+          ))}
         </div>
       </Card>
 
@@ -2761,6 +2807,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   const [rechAllergenePlat, setRechAllergenePlat] = useState("");
   const [rechAllergeneProduit, setRechAllergeneProduit] = useState("");
   const [rechOrigineProduit, setRechOrigineProduit] = useState("");
+  const [especesOrigine, setEspecesOrigine] = useStored("origine-especes", {});
   // true pour le compte "direction" en dur, ou pour tout compte employé créé avec le poste
   // "Directeur" (voir POSTES_COMPTE / ajouterCompte plus bas) — les deux donnent accès aux
   // tuiles réservées à la direction sur l'écran d'accueil de Contrôle & Gestion.
@@ -2840,7 +2887,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
     { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
-    { id: "tiac", label: "Déclaration TIAC", icon: Activity, section: "hygiene" },
+    { id: "tiac", label: "Procédure de TIAC", icon: Activity, section: "hygiene" },
   ];
   const sectionInfo = SECTIONS_CG.find((x) => x.id === sectionActive);
   // "Planning employé" et "Réservation client" sont réservées à la direction : elles ne sont
@@ -3048,6 +3095,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       </>
       ) : (
       <>
+      {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
       <button onClick={() => setSectionActive(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
 
       <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} />
@@ -3301,10 +3349,11 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
             <ChampTexteOuVocal value={rechOrigineProduit} onChange={setRechOrigineProduit} placeholder="Rechercher un produit..." />
           </Card>
           <Card>
-            <h3 className="font-semibold text-[var(--ink)] mb-3">Origine / provenance — produits ({stock.length})</h3>
+            <h3 className="font-semibold text-[var(--ink)] mb-1">Origine / provenance — produits ({stock.length})</h3>
+            <p className="text-xs text-[var(--steel)] mb-3">Pour les viandes, indiquez les pays selon le décret : si naissance, élevage et abattage sont dans le même pays, « Origine : pays » ; sinon bœuf « Né : …, élevé : … et abattu : … », porc, agneau/mouton et volaille « Élevé : … et abattu : … ». La mention se compose toute seule.</p>
             <div className="overflow-x-auto">
               <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Produit</th><th className="py-1.5 pr-3">Catégorie</th><th className="py-1.5">Origine / provenance (à renseigner)</th></tr></thead>
+                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Produit</th><th className="py-1.5 pr-3">Espèce</th><th className="py-1.5 pr-3">Né en</th><th className="py-1.5 pr-3">Élevé en</th><th className="py-1.5 pr-3">Abattu en</th><th className="py-1.5">Mention à afficher</th></tr></thead>
                 <tbody className="divide-y divide-[var(--line)]">
                   {stock
                     .filter((s) => {
@@ -3312,25 +3361,47 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
                       if (!q) return true;
                       return (s.nom || "").toLowerCase().includes(q) || (s.categorie || "").toLowerCase().includes(q);
                     })
-                    .map((s) => (
-                      <tr key={s.id}>
-                        <td className="py-1.5 pr-3 text-[var(--ink)]">{s.nom}</td>
-                        <td className="py-1.5 pr-3 text-xs text-[var(--steel)]">{s.categorie}</td>
-                        <td className="py-1.5">
-                          <div className="flex items-center gap-1.5">
-                            <input className={`${inputCls} text-xs`} placeholder="ex : France, Bretagne, UE..."
-                              value={origineProduits[s.nom] || ""}
-                              onChange={(e) => {
-                                const v = e.target.value;
-                                setOrigineProduits({ ...origineProduits, [s.nom]: v });
-                                setOrigineStandard({ ...origineStandard, [s.nom]: v });
-                                if (produitsLotException[s.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[s.nom]; return n; });
-                              }} />
-                            {produitsLotException[s.nom] && <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">allergènes variables selon le lot en cours</span>}
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
+                    .map((s) => {
+                      const espece = especesOrigine[s.nom] || detecterEspece(s.nom, s.categorie);
+                      const cfg = ESPECES_ORIGINE.find((e) => e.id === espece) || ESPECES_ORIGINE[4];
+                      const texte = origineProduits[s.nom] || "";
+                      const d = lireOrigine(texte);
+                      const enregistrer = (patch) => {
+                        const nouveau = { ...d, ...patch };
+                        const v = composerOrigine(espece, nouveau);
+                        setOrigineProduits({ ...origineProduits, [s.nom]: v });
+                        setOrigineStandard({ ...origineStandard, [s.nom]: v });
+                        if (produitsLotException[s.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[s.nom]; return n; });
+                      };
+                      const champ = (cle, placeholder) => (
+                        <input className={`${inputCls} text-xs w-28`} placeholder={placeholder} value={d[cle]} onChange={(e) => enregistrer({ [cle]: e.target.value })} />
+                      );
+                      return (
+                        <tr key={s.id}>
+                          <td className="py-1.5 pr-3 text-[var(--ink)]">{s.nom}<div className="text-[11px] text-[var(--steel)]">{s.categorie}</div></td>
+                          <td className="py-1.5 pr-3">
+                            <select className={`${inputCls} text-xs`} value={espece} onChange={(e) => setEspecesOrigine({ ...especesOrigine, [s.nom]: e.target.value })}>
+                              {ESPECES_ORIGINE.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+                            </select>
+                          </td>
+                          {cfg.libre ? (
+                            <td className="py-1.5 pr-3" colSpan={3}>
+                              <input className={`${inputCls} text-xs`} placeholder="ex : France, Bretagne, UE..." value={texte} onChange={(e) => { const v = e.target.value; setOrigineProduits({ ...origineProduits, [s.nom]: v }); setOrigineStandard({ ...origineStandard, [s.nom]: v }); }} />
+                            </td>
+                          ) : (
+                            <>
+                              <td className="py-1.5 pr-3">{cfg.ne ? champ("ne", "pays") : <span className="text-xs text-[var(--steel)]">non demandé</span>}</td>
+                              <td className="py-1.5 pr-3">{champ("eleve", "pays")}</td>
+                              <td className="py-1.5 pr-3">{champ("abattu", "pays")}</td>
+                            </>
+                          )}
+                          <td className="py-1.5 text-xs">
+                            {texte ? <span className="text-[var(--ink)]">{texte}</span> : <span className="px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">À compléter</span>}
+                            {produitsLotException[s.nom] && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">variable selon le lot en cours</span>}
+                          </td>
+                        </tr>
+                      );
+                    })}
                 </tbody>
               </table>
             </div>
@@ -3580,6 +3651,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
 
   return (
     <div>
+      <BandeauNormes label="Fournisseurs et produits — traçabilité : Règlement (CE) n° 178/2002, art. 18 · allergènes : Règlement (UE) n° 1169/2011, art. 44" />
       <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
         <ArrowLeft size={15} /> Retour au contrôle
       </button>
@@ -4230,8 +4302,8 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div>
-      <SectionHeader title="Températures frigos et congélateurs" subtitle="Relevés de température et alertes" />
       <BoutonInfosNormes ficheKey="temperatureFrigo" onClick={ouvrirNormes} label="Températures & rangement — Normes HACCP" />
+      <SectionHeader title="Températures frigos et congélateurs" subtitle="Relevés de température et alertes" />
       <HaccpTemperatures tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} logActivity={logActivity} who={who} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -11635,14 +11707,14 @@ const FICHES_NORMES = {
       {
         titre: "2. Alerter",
         contenu: [
-          "Médecin Inspecteur de l'ARS (Agence Régionale de la Santé) PACA\nTél : 04 13 55 80 10 — Fax : 04 13 55 80 40",
-          "Service de la Qualité et de la Sécurité Sanitaire de l'Alimentation (DDCSPP 06)\nTél : 04 93 72 28 00 — Fax : 04 93 72 28 05",
+          "Le médecin inspecteur de l'ARS (Agence régionale de santé) de votre département. La déclaration d'une suspicion de TIAC est obligatoire et doit se faire le plus rapidement possible. Vos coordonnées sont à renseigner dans l'écran Procédure de TIAC.",
+          "Le service de sécurité sanitaire de l'alimentation de votre département (DDPP / DDCSPP).",
         ],
       },
       {
         titre: "3. Conserver",
         contenu: [
-          "Conserver tout aliment ou les restes de repas ayant été servis les heures ou jours précédant le repas suspecté.",
+          "Conserver les plats témoins et les restes de matières premières et de plats servis sur les 3 derniers jours (réservés aux services de contrôle).",
           "Les étiquetages (ou toutes autres informations) des denrées alimentaires utilisées, renseignant l'origine des produits (traçabilité).",
           "Des échantillons de selles (diarrhée) et/ou rejets gastriques (vomissements) sur plusieurs malades — destinés aux analyses de laboratoire.",
         ],
@@ -12108,6 +12180,26 @@ function BoutonInfosNormes({ ficheKey, onClick, label, texte }) {
     </button>
   );
 }
+
+// Rectangle rouge réglementaire (non cliquable) : rappelle la norme ou le texte en vigueur, tout en haut d'une page.
+function BandeauNormes({ label }) {
+  return (
+    <div className="mb-4 w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left shadow-sm text-white" style={{ backgroundColor: "#C1432D" }}>
+      <BookOpen size={20} className="shrink-0" />
+      <span className="block text-xs sm:text-sm font-bold leading-snug">⚠ {label}</span>
+    </div>
+  );
+}
+
+// Textes réglementaires affichés en haut des écrans de Contrôle & Gestion (vérifiés sur les textes officiels).
+const NORMES_SOUS_ECRAN = {
+  origine: "Origine des viandes — décret n° 2025-141 du 13/02/2025 (en vigueur le 19/02/2025) modifiant le décret n° 2002-1465 : bœuf né / élevé / abattu ; porc, ovin, volaille élevé / abattu",
+  tiac: "TIAC — déclaration obligatoire : Code de la santé publique art. L3113-1, R3113-4, D3113-6 · retrait / rappel : Règlement (CE) n° 178/2002, art. 19",
+  allergenes: "Allergènes — Règlement (UE) n° 1169/2011, art. 44 · décret n° 2015-447 : les 14 allergènes à déclaration obligatoire, par écrit",
+  commandes: "Livraisons — traçabilité : Règlement (CE) n° 178/2002, art. 18 (fournisseurs et clients identifiables)",
+  carte: "Ma carte — information du consommateur : allergènes (Règlement (UE) n° 1169/2011) et origine des viandes (décret n° 2025-141)",
+  planning: "Tâches du jour — plan de maîtrise sanitaire : contrôles et enregistrements · Règlement (CE) n° 852/2004, art. 5",
+};
 
 function PhotoInput({ value, onChange, label = "Prendre la photo", small = false, grand = false, rond = false, geant = false }) {
   const inputId = "photo-" + Math.random().toString(36).slice(2, 9);
