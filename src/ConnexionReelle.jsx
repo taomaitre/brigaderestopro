@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import KitchenApp from './App.jsx';
 import { QRCode, NIVEAU_CORRECTION_M } from './qrVendor.js';
 import { POSTES, STATUTS_EQUIPE, estChefOuDirecteur } from './listesEquipe.js';
-import { FICHE_ETAB_CHAMPS } from './ficheEtablissement.js';
+import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois } from './ficheEtablissement.js';
 
 /* =========================================================================================
    PRÉVISUALISATION — Écran de connexion réel (établissement + code employé)
@@ -359,6 +359,7 @@ export default function ConnexionReelle() {
   // Réglages de l'établissement (nom, cellule de refroidissement, congélation décrite au PMS) et listes « Autre » (demandes d'ajout).
   const [reglagesEtab, setReglagesEtab] = useState(null);
   const [ficheEtab, setFicheEtab] = useState(null); // fiche de l'établissement (module 1 du PMS)
+  const [pmsDonnees, setPmsDonnees] = useState({ charge: false, prestataires: [], formations: [], documents: [], demarrageTermine: true }); // dossier PMS
   const [demandesAjoutListe, setDemandesAjoutListe] = useState([]);
 
   const EST_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -681,10 +682,11 @@ export default function ConnexionReelle() {
   async function chargerReglagesEtab() {
     try {
       const [re, rd] = await Promise.all([
-        supabasePublic.from("etablissements").select("nom, congelation_decrite_pms, dispose_cellule_refroidissement, siret, exploitant, responsable_hygiene, raison_sociale, forme_juridique, adresse_siege, adresse_site, telephone, email_general, code_naf, couverts_jour, effectif, date_debut_activite, date_declaration_activite, exploitant_fonction, responsable_hygiene_fonction, convention_collective, type_etablissement, services").eq("id", session.etablissement.id).maybeSingle(),
+        supabasePublic.from("etablissements").select("nom, congelation_decrite_pms, dispose_cellule_refroidissement, siret, exploitant, responsable_hygiene, raison_sociale, forme_juridique, adresse_siege, adresse_site, telephone, email_general, code_naf, couverts_jour, effectif, date_debut_activite, date_declaration_activite, exploitant_fonction, responsable_hygiene_fonction, convention_collective, type_etablissement, services, pms_demarrage_termine").eq("id", session.etablissement.id).maybeSingle(),
         supabasePublic.from("demandes_ajout").select("type, valeur").eq("etablissement_id", session.etablissement.id).order("cree_le", { ascending: true }),
       ]);
       if (re.data) setReglagesEtab({ nom: re.data.nom || "", congelPms: !!re.data.congelation_decrite_pms, cellule: !!re.data.dispose_cellule_refroidissement });
+      if (re.data) setPmsDonnees((d) => ({ ...d, demarrageTermine: !!re.data.pms_demarrage_termine }));
       if (re.data) setFicheEtab(FICHE_ETAB_CHAMPS.reduce((o, c) => ({ ...o, [c.cle]: re.data[c.colonne] == null ? (c.type === "liste" ? [] : "") : (c.type === "liste" ? re.data[c.colonne] : String(re.data[c.colonne])) }), {}));
       if (rd.data) setDemandesAjoutListe(rd.data);
     } catch (e) { console.error("Réglages de l'établissement non chargés :", e); }
@@ -710,6 +712,97 @@ export default function ConnexionReelle() {
     const { error } = await supabasePublic.from("etablissements").update({ [champ.colonne]: v }).eq("id", session.etablissement.id);
     if (error) { console.error("Fiche établissement non enregistrée :", error); chargerReglagesEtab(); return false; }
     return true;
+  }
+
+  // ---- Dossier PMS : prestataires, formations et consignes, pièces jointes ----
+  const aujourdhuiIso = () => new Date().toISOString().slice(0, 10);
+  async function chargerPms() {
+    try {
+      const [rp, rf, rd] = await Promise.all([
+        supabasePublic.from("prestataires").select("*").order("created_at", { ascending: true }),
+        supabasePublic.from("pms_formations").select("*").order("created_at", { ascending: true }),
+        supabasePublic.from("pms_documents").select("*").order("created_at", { ascending: false }),
+      ]);
+      setPmsDonnees((d) => ({ ...d, charge: true, prestataires: rp.data || [], formations: rf.data || [], documents: rd.data || [] }));
+    } catch (e) { console.error("Dossier PMS non chargé :", e); }
+  }
+  const versNull = (v) => (v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim());
+  async function enregistrerPrestataire(p) {
+    const freq = FREQUENCES_RAPPEL.find((f) => f.value === p.frequence);
+    const dernier = versNull(p.dernierPassage);
+    let prochaine = versNull(p.prochaineEcheance);
+    if (!prochaine && dernier && freq) prochaine = ajouterMois(dernier, freq.mois);
+    const ligne = {
+      type: p.type, libelle: versNull(p.libelle), nom: versNull(p.nom), email: versNull(p.email), telephone: versNull(p.telephone),
+      date_dernier_passage: dernier, date_prochaine_echeance: prochaine, frequence_rappel: freq ? freq.value : null, notes: versNull(p.notes),
+    };
+    const rep = p.id
+      ? await supabasePublic.from("prestataires").update(ligne).eq("id", p.id)
+      : await supabasePublic.from("prestataires").insert({ ...ligne, etablissement_id: session.etablissement.id });
+    if (rep.error) { console.error("Prestataire non enregistré :", rep.error); return false; }
+    await chargerPms();
+    return true;
+  }
+  async function supprimerPrestataire(id) {
+    const { error } = await supabasePublic.from("prestataires").delete().eq("id", id);
+    if (error) { console.error("Prestataire non supprimé :", error); return false; }
+    await chargerPms();
+    return true;
+  }
+  async function enregistrerFormation(f) {
+    const ligne = {
+      type: f.type, utilisateur_id: f.utilisateurId && EST_UUID.test(f.utilisateurId) ? f.utilisateurId : null, personne_nom: versNull(f.personneNom),
+      date_formation: versNull(f.dateFormation), organisme: versNull(f.organisme), derogation: versNull(f.derogation), notes: versNull(f.notes),
+    };
+    const rep = f.id
+      ? await supabasePublic.from("pms_formations").update(ligne).eq("id", f.id)
+      : await supabasePublic.from("pms_formations").insert({ ...ligne, etablissement_id: session.etablissement.id });
+    if (rep.error) { console.error("Formation non enregistrée :", rep.error); return false; }
+    await chargerPms();
+    return true;
+  }
+  async function supprimerFormation(id) {
+    const { error } = await supabasePublic.from("pms_formations").delete().eq("id", id);
+    if (error) { console.error("Formation non supprimée :", error); return false; }
+    await chargerPms();
+    return true;
+  }
+  // Pièce jointe : le fichier va dans le stockage privé (dossier = identifiant de l'établissement), la ligne garde son chemin.
+  async function ajouterDocument(fichier, meta) {
+    if (!fichier) return { ok: false, erreur: "Aucun fichier choisi." };
+    if (fichier.size > 10 * 1024 * 1024) return { ok: false, erreur: "Fichier trop volumineux (10 Mo maximum)." };
+    const sain = (fichier.name || "document").normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-zA-Z0-9._-]+/g, "_").slice(-80);
+    const chemin = `${session.etablissement.id}/${crypto.randomUUID()}-${sain}`;
+    const up = await supabasePublic.storage.from("pms-documents").upload(chemin, fichier, { contentType: fichier.type || "application/octet-stream" });
+    if (up.error) { console.error("Fichier non envoyé :", up.error); return { ok: false, erreur: "Le fichier n'a pas pu être envoyé : " + up.error.message }; }
+    const rep = await supabasePublic.from("pms_documents").insert({
+      etablissement_id: session.etablissement.id, categorie: meta.categorie, titre: versNull(meta.titre), date_document: versNull(meta.dateDocument),
+      date_echeance: versNull(meta.dateEcheance), chemin, nom_fichier: fichier.name || null, type_mime: fichier.type || null,
+    });
+    if (rep.error) {
+      console.error("Pièce non enregistrée :", rep.error);
+      await supabasePublic.storage.from("pms-documents").remove([chemin]);
+      return { ok: false, erreur: "La pièce n'a pas pu être enregistrée." };
+    }
+    await chargerPms();
+    return { ok: true };
+  }
+  async function supprimerDocument(doc) {
+    await supabasePublic.storage.from("pms-documents").remove([doc.chemin]);
+    const { error } = await supabasePublic.from("pms_documents").delete().eq("id", doc.id);
+    if (error) { console.error("Pièce non supprimée :", error); return false; }
+    await chargerPms();
+    return true;
+  }
+  async function urlDocument(doc) {
+    const { data, error } = await supabasePublic.storage.from("pms-documents").createSignedUrl(doc.chemin, 120);
+    if (error || !data) { console.error("Lien du document indisponible :", error); return null; }
+    return data.signedUrl;
+  }
+  async function terminerDemarragePms(valeur) {
+    setPmsDonnees((d) => ({ ...d, demarrageTermine: !!valeur }));
+    const { error } = await supabasePublic.from("etablissements").update({ pms_demarrage_termine: !!valeur }).eq("id", session.etablissement.id);
+    if (error) { console.error("Assistant PMS non enregistré :", error); chargerReglagesEtab(); }
   }
 
   // Demande d'ajout à la liste de l'éditeur (ex. appareil de cuisson saisi à la main) : enregistrée pour être traitée lors d'une mise à jour.
@@ -980,6 +1073,7 @@ export default function ConnexionReelle() {
       chargerCatalogue();
       chargerListesFroid();
       chargerReglagesEtab();
+      chargerPms();
     } catch (e2) {
       setErreur("Code incorrect, ou pas encore attribué.");
       setCode("");
@@ -1015,7 +1109,8 @@ export default function ConnexionReelle() {
         const data = await appelerEmployes(session.token, "verifier", { code: codeSaisi });
         return estChefOuDirecteur(data.employe.role) ? { ok: true, nom: data.employe.nom } : { ok: false };
       },
-      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab } : undefined,
+      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
+        pms: pmsDonnees.charge ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,

@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
-import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp } from './ficheEtablissement.js';
+import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
@@ -1456,12 +1456,361 @@ function PmsFicheEtablissement({ reglages }) {
   );
 }
 
-function PmsDossier({ reglages }) {
+/* ---------- PMS — dossier : prestataires, personnel, pièces jointes, synthèse, assistant ---------- */
+
+function ChipEcheance({ date }) {
+  const e = etatEcheance(date, todayISO());
+  if (e.etat === "aucune") return <span className="text-xs text-[var(--steel)]">Échéance non renseignée</span>;
+  const dateFr = new Date(date + "T00:00:00").toLocaleDateString("fr-FR");
+  if (e.etat === "depassee") return <span className="text-xs font-semibold text-[var(--warn)]">Échéance dépassée depuis {-e.jours} j ({dateFr})</span>;
+  if (e.etat === "bientot") return <span className="text-xs font-semibold text-[var(--gold)]">À prévoir dans {e.jours} j ({dateFr})</span>;
+  return <span className="text-xs text-[var(--steel)]">Prochaine échéance : {dateFr}</span>;
+}
+
+function PmsPrestataires({ pms, editable }) {
+  const [edition, setEdition] = useState(null); // objet en cours (id absent = nouveau)
+  const [message, setMessage] = useState("");
+  if (!pms) return <Card><p className="text-sm text-[var(--steel)]">Chargement…</p></Card>;
+  const liste = pms.prestataires || [];
+  const absents = TYPES_PRESTATAIRE_ATTENDUS.filter((t) => !liste.some((p) => p.type === t));
+  const ouvrir = (p) => setEdition(p ? {
+    id: p.id, type: p.type, libelle: p.libelle || "", nom: p.nom || "", email: p.email || "", telephone: p.telephone || "",
+    dernierPassage: p.date_dernier_passage || "", prochaineEcheance: p.date_prochaine_echeance || "", frequence: p.frequence_rappel || "", notes: p.notes || "",
+  } : { type: "antinuisibles", libelle: "", nom: "", email: "", telephone: "", dernierPassage: "", prochaineEcheance: "", frequence: "", notes: "" });
+  const valider = async () => {
+    const ok = await pms.enregistrerPrestataire(edition);
+    setMessage(ok ? "" : "Non enregistré — réessayez.");
+    if (ok) setEdition(null);
+  };
+  const passeAujourdhui = async (p) => {
+    await pms.enregistrerPrestataire({
+      id: p.id, type: p.type, libelle: p.libelle, nom: p.nom, email: p.email, telephone: p.telephone,
+      dernierPassage: todayISO(), prochaineEcheance: "", frequence: p.frequence_rappel, notes: p.notes,
+    });
+  };
+  const maj = (k, v) => setEdition((e) => ({ ...e, [k]: v }));
+  return (
+    <div>
+      {!editable && <p className="text-xs text-[var(--steel)] mb-3">Les coordonnées de vos prestataires, à portée de main. Seule la direction peut les modifier.</p>}
+      {TYPES_PRESTATAIRE.map((t) => {
+        const ceux = liste.filter((p) => p.type === t.value);
+        if (!ceux.length) return null;
+        return (
+          <div key={t.value} className="mb-4">
+            <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{t.label}</h3>
+            {ceux.map((p) => (
+              <Card key={p.id} className="mb-2">
+                <div className="font-semibold text-[var(--ink)]">{p.nom || p.libelle || t.label}</div>
+                {p.libelle && p.nom && <div className="text-xs text-[var(--steel)]">{p.libelle}</div>}
+                <div className="flex flex-wrap gap-3 mt-2 text-sm">
+                  {p.telephone && <a href={`tel:${p.telephone}`} className="flex items-center gap-1.5 text-[var(--accent)] font-medium min-h-[44px]"><PhoneCall size={15} />{p.telephone}</a>}
+                  {p.email && <a href={`mailto:${p.email}`} className="flex items-center gap-1.5 text-[var(--accent)] font-medium min-h-[44px]"><Mail size={15} />{p.email}</a>}
+                </div>
+                {p.date_dernier_passage && <div className="text-xs text-[var(--steel)]">Dernier passage : {new Date(p.date_dernier_passage + "T00:00:00").toLocaleDateString("fr-FR")}</div>}
+                {(p.date_prochaine_echeance || p.frequence_rappel) && <div><ChipEcheance date={p.date_prochaine_echeance} /></div>}
+                {p.notes && <p className="text-xs text-[var(--steel)] mt-1">{p.notes}</p>}
+                {editable && (
+                  <div className="flex flex-wrap gap-2 mt-2">
+                    <Button variant="ghost" onClick={() => passeAujourdhui(p)}><CheckCircle2 size={16} /> Passé aujourd'hui</Button>
+                    <Button variant="ghost" onClick={() => ouvrir(p)}>Modifier</Button>
+                    <Button variant="ghost" onClick={() => { if (window.confirm("Supprimer ce prestataire ?")) pms.supprimerPrestataire(p.id); }}><Trash2 size={16} /> Supprimer</Button>
+                  </div>
+                )}
+              </Card>
+            ))}
+          </div>
+        );
+      })}
+      {liste.length === 0 && <Card className="mb-3"><p className="text-sm text-[var(--steel)]">Aucun prestataire renseigné pour l'instant.</p></Card>}
+      {editable && absents.length > 0 && (
+        <Card className="mb-3">
+          <p className="text-sm font-medium text-[var(--ink)] mb-2">À renseigner</p>
+          <div className="flex flex-wrap gap-2">
+            {absents.map((t) => (
+              <button key={t} type="button" onClick={() => { ouvrir(null); setEdition((e) => ({ ...e, type: t })); }} className="px-3 py-2 min-h-[44px] rounded-lg border border-[var(--cadre)] bg-white text-sm text-[var(--ink)]">+ {libelleDe(TYPES_PRESTATAIRE, t)}</button>
+            ))}
+          </div>
+        </Card>
+      )}
+      {editable && !edition && <Button onClick={() => ouvrir(null)}><Plus size={16} /> Ajouter un prestataire</Button>}
+      {editable && edition && (
+        <Card>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Type"><select className={inputCls} value={edition.type} onChange={(e) => maj("type", e.target.value)}>{TYPES_PRESTATAIRE.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
+            <Field label="Nom de la société"><input className={inputCls} value={edition.nom} onChange={(e) => maj("nom", e.target.value)} /></Field>
+            <Field label="Précision (facultatif)"><input className={inputCls} value={edition.libelle} onChange={(e) => maj("libelle", e.target.value)} placeholder="ex. hotte, extincteurs…" /></Field>
+            <Field label="Téléphone"><input type="tel" className={inputCls} value={edition.telephone} onChange={(e) => maj("telephone", e.target.value)} /></Field>
+            <Field label="E-mail"><input type="email" className={inputCls} value={edition.email} onChange={(e) => maj("email", e.target.value)} /></Field>
+            <Field label="Dernier passage"><input type="date" className={inputCls} value={edition.dernierPassage} onChange={(e) => maj("dernierPassage", e.target.value)} /></Field>
+            <Field label="Rappel"><select className={inputCls} value={edition.frequence} onChange={(e) => maj("frequence", e.target.value)}><option value="">Aucun rappel</option>{FREQUENCES_RAPPEL.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}</select></Field>
+            <Field label="Prochaine échéance (calculée si vide)"><input type="date" className={inputCls} value={edition.prochaineEcheance} onChange={(e) => maj("prochaineEcheance", e.target.value)} /></Field>
+            <div className="sm:col-span-2"><Field label="Notes"><input className={inputCls} value={edition.notes} onChange={(e) => maj("notes", e.target.value)} /></Field></div>
+          </div>
+          {message && <p className="text-xs text-[var(--warn)] mt-2">{message}</p>}
+          <div className="flex gap-2 mt-3"><Button onClick={valider}>Enregistrer</Button><Button variant="ghost" onClick={() => setEdition(null)}>Annuler</Button></div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function PmsPersonnel({ employees, pms, editable, onOuvrirComptes }) {
+  const [edition, setEdition] = useState(null);
+  if (!pms) return <Card><p className="text-sm text-[var(--steel)]">Chargement…</p></Card>;
+  const formations = pms.formations || [];
+  const equipe = employees || [];
+  const nomDe = (f) => (f.utilisateur_id && (equipe.find((e) => e.id === f.utilisateur_id) || {}).nom) || f.personne_nom || "—";
+  const maj = (k, v) => setEdition((e) => ({ ...e, [k]: v }));
+  const valider = async () => {
+    const ok = await pms.enregistrerFormation(edition);
+    if (ok) setEdition(null);
+  };
+  const ouvrir = (f, type) => setEdition(f ? {
+    id: f.id, type: f.type, utilisateurId: f.utilisateur_id || "", personneNom: f.personne_nom || "", dateFormation: f.date_formation || "",
+    organisme: f.organisme || "", derogation: f.derogation || "", notes: f.notes || "",
+  } : { type: type || "hygiene_14h", utilisateurId: "", personneNom: "", dateFormation: "", organisme: "", derogation: "", notes: "" });
+  return (
+    <div>
+      <Card className="mb-3">
+        <h3 className="font-semibold text-[var(--ink)] mb-2">Équipe ({equipe.length})</h3>
+        {equipe.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun membre pour l'instant.</p>}
+        {equipe.map((e) => (
+          <div key={e.id} className="flex items-center justify-between gap-2 py-1.5 border-b border-[var(--cadre)] last:border-0 text-sm">
+            <span className="text-[var(--ink)]">{e.nom}{e.poste ? ` — ${e.poste}` : ""}</span>
+            <span className="text-xs text-[var(--steel)] truncate">{e.email || ""}</span>
+          </div>
+        ))}
+        {editable && onOuvrirComptes && <div className="mt-3"><Button variant="ghost" onClick={onOuvrirComptes}>Ajouter ou modifier les comptes</Button></div>}
+      </Card>
+      {TYPES_FORMATION.map((t) => {
+        const lignes = formations.filter((f) => f.type === t.value);
+        return (
+          <Card key={t.value} className="mb-3">
+            <h3 className="font-semibold text-[var(--ink)]">{t.label}</h3>
+            {t.value === "hygiene_14h" && <p className="text-xs text-[var(--steel)] mb-1">Si un membre n'a pas cette formation, précisez le motif (dérogation) dans la ligne.</p>}
+            {lignes.length === 0 && <p className="text-sm text-[var(--steel)] mt-1">Aucune ligne.</p>}
+            {lignes.map((f) => (
+              <div key={f.id} className="py-1.5 border-b border-[var(--cadre)] last:border-0 text-sm">
+                <div className="text-[var(--ink)]">{nomDe(f)}{f.date_formation ? ` · ${new Date(f.date_formation + "T00:00:00").toLocaleDateString("fr-FR")}` : ""}{f.organisme ? ` · ${f.organisme}` : ""}</div>
+                {f.derogation && <div className="text-xs text-[var(--steel)]">Dérogation : {f.derogation}</div>}
+                {f.notes && <div className="text-xs text-[var(--steel)]">{f.notes}</div>}
+                {editable && (
+                  <div className="flex gap-2"><Button variant="ghost" onClick={() => ouvrir(f)}>Modifier</Button><Button variant="ghost" onClick={() => { if (window.confirm("Supprimer cette ligne ?")) pms.supprimerFormation(f.id); }}><Trash2 size={16} /></Button></div>
+                )}
+              </div>
+            ))}
+            {editable && !edition && <div className="mt-2"><Button variant="ghost" onClick={() => ouvrir(null, t.value)}><Plus size={16} /> Ajouter</Button></div>}
+          </Card>
+        );
+      })}
+      {editable && edition && (
+        <Card>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{libelleDe(TYPES_FORMATION, edition.type)}</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Membre de l'équipe">
+              <select className={inputCls} value={edition.utilisateurId} onChange={(e) => maj("utilisateurId", e.target.value)}>
+                <option value="">Autre personne (saisir le nom)</option>
+                {equipe.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}
+              </select>
+            </Field>
+            {!edition.utilisateurId && <Field label="Nom"><input className={inputCls} value={edition.personneNom} onChange={(e) => maj("personneNom", e.target.value)} /></Field>}
+            <Field label="Date"><input type="date" className={inputCls} value={edition.dateFormation} onChange={(e) => maj("dateFormation", e.target.value)} /></Field>
+            <Field label="Organisme"><input className={inputCls} value={edition.organisme} onChange={(e) => maj("organisme", e.target.value)} /></Field>
+            {edition.type === "hygiene_14h" && <div className="sm:col-span-2"><Field label="Dérogation (motif, si pas de formation)"><input className={inputCls} value={edition.derogation} onChange={(e) => maj("derogation", e.target.value)} /></Field></div>}
+            <div className="sm:col-span-2"><Field label="Notes"><input className={inputCls} value={edition.notes} onChange={(e) => maj("notes", e.target.value)} /></Field></div>
+          </div>
+          <div className="flex gap-2 mt-3"><Button onClick={valider}>Enregistrer</Button><Button variant="ghost" onClick={() => setEdition(null)}>Annuler</Button></div>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function PmsDocuments({ pms }) {
+  const [meta, setMeta] = useState({ categorie: "declaration_activite", titre: "", dateDocument: "", dateEcheance: "" });
+  const [fichier, setFichier] = useState(null);
+  const [message, setMessage] = useState("");
+  const [envoi, setEnvoi] = useState(false);
+  if (!pms) return <Card><p className="text-sm text-[var(--steel)]">Chargement…</p></Card>;
+  const docs = pms.documents || [];
+  const envoyer = async () => {
+    if (!fichier) { setMessage("Choisissez d'abord un fichier."); return; }
+    setEnvoi(true); setMessage("");
+    let f = fichier;
+    try {
+      if (f.type && f.type.startsWith("image/")) {
+        const url = await fileToDataURL(f);
+        const blob = await (await fetch(url)).blob();
+        f = new File([blob], (f.name || "photo").replace(/\.[^.]+$/, "") + ".jpg", { type: blob.type });
+      }
+    } catch (e) { f = fichier; }
+    const r = await pms.ajouterDocument(f, meta);
+    setEnvoi(false);
+    if (r.ok) { setFichier(null); setMeta({ categorie: meta.categorie, titre: "", dateDocument: "", dateEcheance: "" }); setMessage("Pièce ajoutée ✓"); }
+    else setMessage(r.erreur || "Échec de l'envoi.");
+  };
+  const ouvrir = async (d) => {
+    const fen = window.open("", "_blank");
+    const url = await pms.urlDocument(d);
+    if (url && fen) fen.location.href = url; else { if (fen) fen.close(); setMessage("Lien du document indisponible."); }
+  };
+  return (
+    <div>
+      {CATEGORIES_DOCUMENT.map((c) => {
+        const ceux = docs.filter((d) => d.categorie === c.value);
+        if (!ceux.length) return null;
+        return (
+          <div key={c.value} className="mb-4">
+            <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{c.label}</h3>
+            {ceux.map((d) => (
+              <Card key={d.id} className="mb-2">
+                <div className="font-medium text-[var(--ink)]">{d.titre || d.nom_fichier || "Document"}</div>
+                {d.date_document && <div className="text-xs text-[var(--steel)]">Daté du {new Date(d.date_document + "T00:00:00").toLocaleDateString("fr-FR")}</div>}
+                {d.date_echeance && <div><ChipEcheance date={d.date_echeance} /></div>}
+                <div className="flex gap-2 mt-1">
+                  <Button variant="ghost" onClick={() => ouvrir(d)}>Ouvrir</Button>
+                  <Button variant="ghost" onClick={() => { if (window.confirm("Supprimer cette pièce ?")) pms.supprimerDocument(d); }}><Trash2 size={16} /> Supprimer</Button>
+                </div>
+              </Card>
+            ))}
+          </div>
+        );
+      })}
+      {docs.length === 0 && <Card className="mb-3"><p className="text-sm text-[var(--steel)]">Aucune pièce jointe pour l'instant.</p></Card>}
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Ajouter une pièce</h3>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <Field label="Catégorie"><select className={inputCls} value={meta.categorie} onChange={(e) => setMeta({ ...meta, categorie: e.target.value })}>{CATEGORIES_DOCUMENT.map((c) => <option key={c.value} value={c.value}>{c.label}</option>)}</select></Field>
+          <Field label="Titre (facultatif)"><input className={inputCls} value={meta.titre} onChange={(e) => setMeta({ ...meta, titre: e.target.value })} /></Field>
+          <Field label="Date du document"><input type="date" className={inputCls} value={meta.dateDocument} onChange={(e) => setMeta({ ...meta, dateDocument: e.target.value })} /></Field>
+          <Field label="Date d'échéance (rappel)"><input type="date" className={inputCls} value={meta.dateEcheance} onChange={(e) => setMeta({ ...meta, dateEcheance: e.target.value })} /></Field>
+          <div className="sm:col-span-2"><Field label="Fichier (PDF ou photo, 10 Mo max)"><input type="file" accept="application/pdf,image/*" className="text-sm" onChange={(e) => setFichier(e.target.files && e.target.files[0] ? e.target.files[0] : null)} /></Field></div>
+        </div>
+        {message && <p className={`text-xs mt-2 ${message.includes("✓") ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{message}</p>}
+        <div className="mt-3"><Button onClick={envoyer} disabled={envoi}>{envoi ? "Envoi…" : "Ajouter"}</Button></div>
+      </Card>
+    </div>
+  );
+}
+
+// Synthèse des 30 derniers jours, calculée à partir de ce que le logiciel a enregistré (jamais saisie à la main).
+function syntheseLogiciel(d, aujourdhui) {
+  const debut = new Date(Date.parse(aujourdhui + "T00:00:00Z") - 30 * 86400000).toISOString().slice(0, 10);
+  const nb = (liste) => (Array.isArray(liste) ? liste.filter((x) => x && typeof x.date === "string" && x.date >= debut && x.date <= aujourdhui).length : 0);
+  return [
+    { label: "Relevés de température (froid)", n: nb(d.relevesFroid) },
+    { label: "Cuissons enregistrées", n: nb(d.cuissons) },
+    { label: "Refroidissements enregistrés", n: nb(d.refroidissements) },
+    { label: "Contrôles d'huile de friture", n: nb(d.huileTests) },
+    { label: "Réceptions de marchandises", n: nb(d.receptions) },
+    { label: "Étiquettes / traçabilités", n: nb(d.preparations) },
+  ];
+}
+
+function PmsSyntheseLogiciel({ donnees }) {
+  const lignes = syntheseLogiciel(donnees, todayISO());
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Ce que le logiciel a enregistré (30 derniers jours)</h3>
+      <p className="text-xs text-[var(--steel)] mb-2">Chiffres calculés automatiquement à partir des enregistrements de l'équipe.</p>
+      {lignes.map((l) => (
+        <div key={l.label} className="flex justify-between py-1 text-sm border-b border-[var(--cadre)] last:border-0"><span className="text-[var(--ink)]">{l.label}</span><span className="font-semibold text-[var(--ink)]">{l.n}</span></div>
+      ))}
+    </Card>
+  );
+}
+
+function PmsDossierImprimable({ reglages, employees, donnees, onBack }) {
+  const fiche = (reglages && reglages.fiche) || {};
+  const pms = (reglages && reglages.pms) || { prestataires: [], formations: [], documents: [] };
+  const fr = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("fr-FR") : "—");
+  const valeurChamp = (c) => { const v = fiche[c.cle]; return Array.isArray(v) ? (v.length ? v.join(", ") : "—") : (v === undefined || v === null || v === "" ? "—" : String(v)); };
+  const nomDe = (f) => (f.utilisateur_id && ((employees || []).find((e) => e.id === f.utilisateur_id) || {}).nom) || f.personne_nom || "—";
+  return (
+    <div className="max-w-3xl mx-auto p-4 print:p-0">
+      <div className="print:hidden flex gap-2 mb-4">
+        <Button variant="ghost" onClick={onBack}><ArrowLeft size={16} /> Retour</Button>
+        <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
+      </div>
+      <h1 className="text-xl font-bold text-[var(--ink)]">Dossier PMS — {(reglages && reglages.nom) || "Établissement"}</h1>
+      <p className="text-xs text-[var(--steel)] mb-4">Édité le {new Date().toLocaleDateString("fr-FR")}</p>
+      <h2 className="font-semibold mt-4 mb-1">1 — Établissement</h2>
+      {FICHE_ETAB_GROUPES.map((g) => (
+        <div key={g.id} className="mb-2">
+          <div className="text-sm font-medium">{g.titre}</div>
+          {FICHE_ETAB_CHAMPS.filter((c) => c.groupe === g.id).map((c) => <div key={c.cle} className="text-sm"><span className="text-[var(--steel)]">{c.label} : </span>{valeurChamp(c)}</div>)}
+        </div>
+      ))}
+      <h2 className="font-semibold mt-4 mb-1">2 — Personnel et formations</h2>
+      {(employees || []).map((e) => <div key={e.id} className="text-sm">{e.nom}{e.poste ? ` — ${e.poste}` : ""}</div>)}
+      {TYPES_FORMATION.map((t) => (
+        <div key={t.value} className="mt-2">
+          <div className="text-sm font-medium">{t.label}</div>
+          {(pms.formations || []).filter((f) => f.type === t.value).map((f) => <div key={f.id} className="text-sm">{nomDe(f)} · {fr(f.date_formation)}{f.organisme ? ` · ${f.organisme}` : ""}{f.derogation ? ` · dérogation : ${f.derogation}` : ""}</div>)}
+          {!(pms.formations || []).some((f) => f.type === t.value) && <div className="text-sm text-[var(--steel)]">Aucune ligne</div>}
+        </div>
+      ))}
+      <h2 className="font-semibold mt-4 mb-1">3 — Prestataires</h2>
+      {(pms.prestataires || []).length === 0 && <div className="text-sm text-[var(--steel)]">Aucun prestataire renseigné</div>}
+      {(pms.prestataires || []).map((p) => (
+        <div key={p.id} className="text-sm mb-1">
+          <span className="font-medium">{libelleDe(TYPES_PRESTATAIRE, p.type)}</span> — {p.nom || "—"}{p.telephone ? ` · ${p.telephone}` : ""}{p.email ? ` · ${p.email}` : ""}
+          {p.date_dernier_passage ? ` · dernier passage ${fr(p.date_dernier_passage)}` : ""}{p.date_prochaine_echeance ? ` · prochaine échéance ${fr(p.date_prochaine_echeance)}` : ""}
+        </div>
+      ))}
+      <h2 className="font-semibold mt-4 mb-1">4 — Pièces jointes</h2>
+      {(pms.documents || []).length === 0 && <div className="text-sm text-[var(--steel)]">Aucune pièce</div>}
+      {(pms.documents || []).map((d) => <div key={d.id} className="text-sm">{libelleDe(CATEGORIES_DOCUMENT, d.categorie)} — {d.titre || d.nom_fichier || "Document"}{d.date_document ? ` · ${fr(d.date_document)}` : ""}{d.date_echeance ? ` · échéance ${fr(d.date_echeance)}` : ""}</div>)}
+      <h2 className="font-semibold mt-4 mb-2">5 — Enregistrements du logiciel (30 derniers jours)</h2>
+      {syntheseLogiciel(donnees, todayISO()).map((l) => <div key={l.label} className="text-sm">{l.label} : <b>{l.n}</b></div>)}
+    </div>
+  );
+}
+
+function PmsAssistant({ reglages, employees, onOuvrirComptes, onFin }) {
+  const [etape, setEtape] = useState(0);
+  const pms = reglages && reglages.pms;
+  const etapes = ["Établissement", "Personnel", "Prestataires", "Pièces jointes"];
+  return (
+    <div>
+      <SectionHeader title="Assistant de démarrage" subtitle={`Étape ${etape + 1} sur ${etapes.length} — ${etapes[etape]}. Vous pouvez compléter plus tard.`} />
+      {etape === 0 && <PmsFicheEtablissement reglages={reglages} />}
+      {etape === 1 && <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} />}
+      {etape === 2 && <PmsPrestataires pms={pms} editable />}
+      {etape === 3 && <PmsDocuments pms={pms} />}
+      <div className="flex gap-2 mt-4">
+        {etape > 0 && <Button variant="ghost" onClick={() => setEtape(etape - 1)}><ArrowLeft size={16} /> Précédent</Button>}
+        {etape < etapes.length - 1 && <Button onClick={() => setEtape(etape + 1)}>Suivant</Button>}
+        {etape === etapes.length - 1 && <Button onClick={() => pms && pms.terminerDemarrage(true) && onFin()}>Terminer</Button>}
+        <Button variant="ghost" onClick={onFin}>Passer</Button>
+      </div>
+    </div>
+  );
+}
+
+function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, onImprimer }) {
+  const pms = reglages && reglages.pms;
+  const [assistant, setAssistant] = useState(false);
+  if (reglages && pms && (!pms.demarrageTermine || assistant)) {
+    return <PmsAssistant reglages={reglages} employees={employees} onOuvrirComptes={onOuvrirComptes} onFin={() => { setAssistant(false); if (!pms.demarrageTermine) pms.terminerDemarrage(true); }} />;
+  }
   return (
     <div>
       <SectionHeader title="PMS — dossier" subtitle="Les informations de votre établissement, réunies pour un contrôle et pour faire fonctionner le logiciel" />
+      <div className="flex flex-wrap gap-2 mb-4">
+        <Button onClick={onImprimer}><Printer size={16} /> Dossier imprimable</Button>
+        <Button variant="ghost" onClick={() => setAssistant(true)}>Relancer l'assistant</Button>
+      </div>
       <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">1 — Établissement</h3>
       <PmsFicheEtablissement reglages={reglages} />
+      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">2 — Personnel et formations</h3>
+      <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} />
+      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">3 — Prestataires</h3>
+      <PmsPrestataires pms={pms} editable />
+      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">4 — Pièces jointes</h3>
+      <PmsDocuments pms={pms} />
+      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">5 — Enregistrements du logiciel</h3>
+      <PmsSyntheseLogiciel donnees={donnees} />
     </div>
   );
 }
@@ -2965,6 +3314,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
   const [releve, setReleve] = useState(false);
+  const [pmsImpression, setPmsImpression] = useState(false);
   const [releveMensuel, setReleveMensuel] = useState(false);
   const [moisReleve, setMoisReleve] = useState(todayISO().slice(0, 7));
   const [referentielActif, setReferentielActif] = useState(false);
@@ -3056,6 +3406,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
     { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "cuisine" },
     { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
     { id: "pmsDossier", label: "PMS — dossier", icon: Building2, section: "hygiene" },
+    { id: "pmsPrestataires", label: "Prestataires", icon: PhoneCall, section: "hygiene" },
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
     { id: "tiac", label: "Procédure de TIAC", icon: Activity, section: "hygiene" },
@@ -3066,7 +3417,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)));
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!reglagesEtablissement)));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
     if (tuile && tuile.tab) return setTab(tuile.tab);
@@ -3117,6 +3468,10 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   const huileDuJour = huileTests.filter((h) => h.date === today);
   const relevesFroidDuJour = relevesFroid.filter((r) => r.date === today);
   const surveillancesDuJour = surveillancesFroid.filter((s) => s.date === today);
+
+  if (pmsImpression) {
+    return <PmsDossierImprimable reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onBack={() => setPmsImpression(false)} />;
+  }
 
   if (releve) {
     return <ReleveControle employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} today={today} onBack={() => setReleve(false)} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} />;
@@ -3213,7 +3568,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         {SECTIONS_CG.map((x) => {
           const Icon = x.icon;
-          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement))).length;
+          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!reglagesEtablissement))).length;
           return (
             <button key={x.id} onClick={() => setSectionActive(x.id)}
               style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
@@ -3652,7 +4007,14 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
 
       {sousEcran === "pmsDossier" && compteDirection && (
         <div className="mb-6">
-          <PmsDossier reglages={reglagesEtablissement} />
+          <PmsDossier reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onOuvrirComptes={() => setSousEcran("comptes")} onImprimer={() => setPmsImpression(true)} />
+        </div>
+      )}
+
+      {sousEcran === "pmsPrestataires" && accesPlanningReservations && (
+        <div className="mb-6">
+          <SectionHeader title="Prestataires" subtitle="Antinuisibles, maintenance, laboratoire… les contacts utiles" />
+          <PmsPrestataires pms={reglagesEtablissement && reglagesEtablissement.pms} editable={compteDirection} />
         </div>
       )}
 

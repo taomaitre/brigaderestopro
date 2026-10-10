@@ -44,3 +44,62 @@ export function remarqueChamp(cle, valeur) {
   if (cle === "emailGeneral" && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v)) return "Cette adresse e-mail semble incomplète.";
   return "";
 }
+
+/* ---------- Dossier PMS : prestataires, formations, pièces jointes ---------- */
+
+export const TYPES_PRESTATAIRE = [
+  { value: "antinuisibles", label: "Lutte antinuisibles" },
+  { value: "maintenance_froid_sondes", label: "Maintenance du froid et des sondes" },
+  { value: "entretien_materiel", label: "Entretien du matériel" },
+  { value: "laboratoire", label: "Laboratoire d'analyses" },
+  { value: "huiles_usagees", label: "Collecte des huiles usagées" },
+  { value: "dechets", label: "Déchets et biodéchets" },
+  { value: "autre", label: "Autre prestataire" },
+];
+// Types que le PMS attend en priorité (proposés « à renseigner » tant qu'ils sont absents).
+export const TYPES_PRESTATAIRE_ATTENDUS = ["antinuisibles", "maintenance_froid_sondes", "entretien_materiel", "laboratoire", "huiles_usagees", "dechets"];
+export const FREQUENCES_RAPPEL = [
+  { value: "mensuelle", label: "Chaque mois", mois: 1 },
+  { value: "trimestrielle", label: "Chaque trimestre", mois: 3 },
+  { value: "semestrielle", label: "Chaque semestre", mois: 6 },
+  { value: "annuelle", label: "Chaque année", mois: 12 },
+];
+export const CATEGORIES_DOCUMENT = [
+  { value: "declaration_activite", label: "Déclaration d'activité (récépissé)" },
+  { value: "attestation_formation", label: "Attestation de formation" },
+  { value: "contrat_nuisibles", label: "Contrat ou rapport antinuisibles" },
+  { value: "attestation_eau", label: "Attestation d'eau potable" },
+  { value: "rapport_laboratoire", label: "Rapport de laboratoire" },
+  { value: "contrat_maintenance", label: "Contrat ou rapport de maintenance" },
+  { value: "fds", label: "Fiche de données de sécurité" },
+  { value: "autre", label: "Autre document" },
+];
+export const TYPES_FORMATION = [
+  { value: "hygiene_14h", label: "Formation hygiène alimentaire de 14 h" },
+  { value: "haccp", label: "Formation HACCP (personne qui établit le PMS)" },
+  { value: "instructions", label: "Consignes d'hygiène remises" },
+  { value: "consigne_sante", label: "Consigne maladie / plaie remise" },
+];
+
+export function libelleDe(liste, valeur) {
+  const t = liste.find((x) => x.value === valeur);
+  return t ? t.label : valeur || "";
+}
+
+// Ajoute n mois à une date AAAA-MM-JJ (fin de mois respectée : 31 janvier + 1 mois = 28/29 février).
+export function ajouterMois(dateStr, n) {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-").map(Number);
+  const dt = new Date(Date.UTC(y, m - 1 + n, d));
+  if (dt.getUTCDate() !== d) dt.setUTCDate(0);
+  return dt.toISOString().slice(0, 10);
+}
+
+// État d'une échéance : 'aucune' | 'depassee' | 'bientot' (30 jours ou moins) | 'ok'.
+export function etatEcheance(dateStr, aujourdhui) {
+  if (!dateStr) return { etat: "aucune", jours: null };
+  const jours = Math.round((Date.parse(dateStr + "T00:00:00Z") - Date.parse(aujourdhui + "T00:00:00Z")) / 86400000);
+  if (jours < 0) return { etat: "depassee", jours };
+  if (jours <= 30) return { etat: "bientot", jours };
+  return { etat: "ok", jours };
+}
