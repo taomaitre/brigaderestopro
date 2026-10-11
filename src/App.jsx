@@ -4267,6 +4267,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
 
       {sousEcran === "planning" && (
         <div className="mb-6">
+          <HistoriqueJournee integre employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
           <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
         </div>
       )}
@@ -6923,6 +6924,10 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         const lignesRend = fiche.rendement || [];
         let nbPortions = rend.portions || "", gramPortion = rend.grammage || "";
         lignesRend.forEach((l) => { const b = /^(\d+)\s*portions?(?:\s+de\s+(.*))?$/.exec(l); if (b) { nbPortions = nbPortions || b[1]; gramPortion = gramPortion || b[2] || ""; } });
+        if (!gramPortion && rend.total && Number(String(nbPortions).replace(",", ".")) > 0) {
+          const tot = parseFloat(String(rend.total).replace(",", ".")); const u = String(rend.unite || "kg").toLowerCase();
+          if (tot > 0) { const facteurU = u === "kg" || u === "l" ? 1000 : 1; gramPortion = `${Math.round((tot * facteurU) / Number(String(nbPortions).replace(",", ".")))} ${u === "l" || u === "ml" ? "ml" : "g"}`; }
+        }
         const dureeCuisson = proc.cuisson && proc.cuisson.on ? (proc.cuisson.dureeMin || proc.cuisson.duree) : "";
         const refroidOn = !!(proc.refroid && proc.refroid.on);
         const nAllg = fiche.allergenes ? fiche.allergenes.length : 0;
@@ -15756,7 +15761,7 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
 // ---- Historique de la journée (chef et direction) : vue d'ensemble de tous les autocontrôles d'un jour ----
 // Lecture seule. Les pourcentages sont de simples informations (jamais bloquants). Chaque fonction
 // garde sa couleur et son logo (couleurSousTuile). Le texte « à utiliser aujourd'hui » est en rouge : c'est une alerte.
-function HistoriqueJournee({ employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
+function HistoriqueJournee({ integre, employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
   const aujourdhui = todayISO();
   const [jour, setJour] = useState(aujourdhui);
   const [ouvert, setOuvert] = useState(null);
@@ -15817,7 +15822,7 @@ function HistoriqueJournee({ employees, relevesFroid, equipementsFroid, refroidi
 
   return (
     <div className="mb-6">
-      <SectionHeader title="Historique de la journée" subtitle="Vue d'ensemble de toutes les actions et contrôles réalisés ce jour-là. Lecture seule." />
+      {!integre && <SectionHeader title="Historique de la journée" subtitle="Vue d'ensemble de toutes les actions et contrôles réalisés ce jour-là. Lecture seule." />}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <button type="button" onClick={() => decaler(-1)} className="px-3 py-1.5 rounded-lg border border-[var(--line)] text-sm" aria-label="Jour précédent">‹</button>
         <input type="date" value={jour} max={aujourdhui} onChange={(e) => e.target.value && setJour(e.target.value)} className={inputCls} style={{ width: "auto" }} />
@@ -17865,13 +17870,13 @@ function ModalControleObligatoire({ moment, onClose }) {
   );
 }
 
-function ModalControleChef({ tasks, employees, preparations, produits, stock, equipementsFroid, relevesFroid, huileTests, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
+function ModalControleChef({ refroidissements, cuissons, entriesMaintienChaud, tasks, employees, preparations, produits, stock, equipementsFroid, relevesFroid, huileTests, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
   const today = todayISO();
   // Même checklist, mêmes données, que "Gestion et contrôle" → tuile Planning côté chef — voir
   // ControlePlanningJour. Ici on ne fait qu'ajouter l'habillage modal (fermer / PDF / signer).
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50 print:static print:bg-white print:block print:p-0">
-      <div className="bg-white rounded-xl max-w-2xl w-full p-5 overflow-y-auto overscroll-contain print:!max-h-none print:!overflow-visible print:shadow-none print:rounded-none print:max-w-full print:w-full" style={{ maxHeight: "88vh", WebkitOverflowScrolling: "touch" }}>
+      <div className="bg-white rounded-xl max-w-4xl w-full p-5 overflow-y-auto overscroll-contain print:!max-h-none print:!overflow-visible print:shadow-none print:rounded-none print:max-w-full print:w-full" style={{ maxHeight: "88vh", WebkitOverflowScrolling: "touch" }}>
         <div className="flex items-center justify-between mb-3 print:hidden">
           <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
             <ArrowLeft size={15} /> Fermer
@@ -17882,6 +17887,8 @@ function ModalControleChef({ tasks, employees, preparations, produits, stock, eq
           </button>
         </div>
         <h2 className="font-bold text-[var(--ink)] mb-3 hidden print:block">Contrôle de fin de service — {fmtLong(today)}</h2>
+
+        <HistoriqueJournee integre employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements || []} cuissons={cuissons || []} entriesMaintienChaud={entriesMaintienChaud || []} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
 
         <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
 
@@ -18325,7 +18332,7 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
 
 const ONGLETS_PLANNING = [["planning", "Mon planning", ClipboardList], ["reservations", "Réservations", Users]];
 
-function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires, cartes, fournisseursPlanning }) {
+function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires, cartes, fournisseursPlanning, cuissons }) {
   // Planning et réservations : seuls le chef et le directeur créent ou modifient ; les employés consultent.
   const peutGererPlanning = currentUserId === "direction" || !!employees.find((e) => e.id === currentUserId)?.estChef;
   const today = todayISO();
@@ -18734,7 +18741,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       })()}
 
       {modalOuvert === "controle-chef" && (
-        <ModalControleChef tasks={tasks} employees={employees} preparations={preparations} produits={produits} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} currentUserId={currentUserId} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} logActivity={logActivity} cleaning={cleaning}
+        <ModalControleChef refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} tasks={tasks} employees={employees} preparations={preparations} produits={produits} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} currentUserId={currentUserId} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} logActivity={logActivity} cleaning={cleaning}
           onSigner={() => logActivity("Contrôle", "Contrôle de fin de service signé", `Par ${employees.find((e) => e.id === currentUserId)?.nom || ""}`)}
           onClose={() => { setModalOuvert(null); setModalCollegue(null); }} />
       )}
@@ -20810,7 +20817,7 @@ function KitchenApp({ identiteExterne } = {}) {
         {tab === "taches" && (
           <>
           <SectionHeader title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
-          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} />
+          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null}  cuissons={cuissons} />
           </>
         )}
         {tab === "stock" && (
