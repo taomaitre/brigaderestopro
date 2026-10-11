@@ -15165,13 +15165,15 @@ function typeSuggere(nom) {
   const t = String(nom || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   if (t.trim().length < 3) return "";
   if (/surgel|congel/.test(t)) return "surgele";
-  if (/hach|bolognaise|kefta|boulette/.test(t)) return "hache";
+  if (/hach|bolognaise|kefta|boulette|tartare/.test(t)) return "hache";
   if (/\babats?\b|foie|rognon|tripe|cervelle|ris de veau/.test(t)) return "abats";
   if (/poisson|saumon|thon|cabillaud|colin|dorade|truite|merlu|crevette|gambas|moule|huitre|calamar|crabe|langoustine|anchois|maquereau|sardine|bar |lieu /.test(t)) return "poisson";
   if (/poulet|volaille|dinde|canard|boeuf|porc|veau|agneau|jambon|lard|steak|escalope|cote|magret|saucisse|merguez|lapin|viande/.test(t)) return "viande";
   if (/fromage|camembert|brie\b|comte|emmental|gruyere|roquefort|cantal|reblochon|munster|parmesan|\blait\b/.test(t)) return "laitier";
-  if (/creme|beurre|yaourt|oeuf|mozzarella/.test(t)) return "frais";
-  if (/salade|tomate|carotte|oignon|pomme de terre|courgette|poivron|champignon|legume|fruit|basilic|persil|citron|pomme|banane/.test(t)) return "legume";
+  if (/creme|beurre|yaourt|oeuf|mozzarella|saucisson|rillette|terrine|\bpate\b|chorizo|bacon|lardon|mortadelle|charcuterie|pancetta|coppa|jambon/.test(t)) return "frais";
+  if (/salade|tomate|carotte|oignon|pomme de terre|courgette|poivron|champignon|legume|fruit|basilic|persil|citron|pomme|banane|haricot vert|concombre|\bchou|poireau|aubergine|epinard|radis|\bail\b|echalote|ciboulette|menthe|coriandre|aneth|thym|romarin|avocat|orange|fraise|poire|raisin|mangue|ananas/.test(t)) return "legume";
+  if (/\bpates?\b|\briz\b|farine|sucre|\bsel\b|huile|vinaigre|conserve|semoule|lentille|chocolat|epice|moutarde|ketchup|mayonnaise|biscuit|cafe|\bthe\b/.test(t)) return "sec";
+  if (/\beau\b|\bjus\b|soda|\bbiere|\bvin\b|cola|limonade|sirop|champagne|cidre|whisky|rhum|vodka/.test(t)) return "boisson";
   return "";
 }
 
@@ -15251,7 +15253,15 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   // ── Aides de saisie du brouillon ──
   const suggestions = brouillon && brouillon.nom.trim().length >= 1 && !stock.some((s) => norm(s.nom) === norm(brouillon.nom))
     ? stock.filter((s) => norm(s.nom).includes(norm(brouillon.nom))).slice(0, 6) : [];
-  const choisirDuStock = (s) => maj({ nom: s.nom, reference: s.reference || "", conservation: s.conservation || "", typeChoisi: !!s.conservation, typeAuto: false });
+  // Si le nom du produit indique un type PLUS STRICT que celui enregistré dans le stock (ex. « steak haché » rangé en
+  // « viande »), on garde le plus strict : mieux vaut refuser à tort que laisser passer un produit hors norme.
+  const strictementPlusSur = (a, b) => { const sa = SEUILS_RECEPTION_NOUVEAU[a], sb = SEUILS_RECEPTION_NOUVEAU[b]; return !!(sa && sb && a !== "surgele" && b !== "surgele" && a !== "laitier" && b !== "laitier" && sa.max < sb.max); };
+  const choisirDuStock = (s) => {
+    const ts = typeSuggere(s.nom);
+    if (s.conservation && ts && ts !== s.conservation && strictementPlusSur(ts, s.conservation)) {
+      maj({ nom: s.nom, reference: s.reference || "", conservation: ts, typeChoisi: false, typeAuto: true, typeCorrigeDe: s.conservation });
+    } else maj({ nom: s.nom, reference: s.reference || "", conservation: s.conservation || "", typeChoisi: !!s.conservation, typeAuto: false, typeCorrigeDe: "" });
+  };
   const sitStock = (p) => {
     if (!p.conservation || !norm(p.nom)) return null;
     if (p.reference && stock.some((x) => norm(x.reference) === norm(p.reference))) return null;
@@ -15540,10 +15550,21 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             </div>
             <div>
               <label className={lab}>Type de produit</label>
-              <select className={`${inputCls} w-full`} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value, typeChoisi: true, typeAuto: false })}>
+              <select className={`${inputCls} w-full`} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value, typeChoisi: true, typeAuto: false, typeCorrigeDe: "" })}>
                 <option value="">Choisir…</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
+              {b.typeCorrigeDe && <p className="text-xs mt-1.5 text-[var(--warn)]"><b>Type corrigé automatiquement :</b> le stock indiquait « {LIBELLE_CONSERVATION[b.typeCorrigeDe] || b.typeCorrigeDe} », mais le nom du produit correspond à « {LIBELLE_CONSERVATION[b.conservation]} » (norme plus stricte). Modifiable si c'est une erreur.</p>}
+              {b.nom.trim().length >= 3 && !b.conservation && (
+                <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ backgroundColor: "#FDF0D5", color: "#8A5A00" }}>
+                  <b>Je ne reconnais pas ce produit.</b> De quel type est-il ? (cela décide de la norme de température)
+                  <div className="flex flex-wrap gap-1.5 mt-1.5">
+                    {["hache", "viande", "poisson", "abats", "plat", "frais", "laitier", "legume", "surgele", "sec", "boisson"].map((v) => (
+                      <button key={v} type="button" onClick={() => maj({ conservation: v, typeChoisi: true, typeAuto: false, typeCorrigeDe: "" })} className="px-2.5 py-1 rounded-full border-2 bg-white font-semibold" style={{ borderColor: "#E0B45A" }}>{LIBELLE_CONSERVATION[v]}</button>
+                    ))}
+                  </div>
+                </div>
+              )}
               {b.conservation && SEUILS_RECEPTION_NOUVEAU[b.conservation] && <p className="text-xs mt-1.5 text-[var(--steel)]">{b.typeAuto ? "Type proposé d'après le nom (modifiable). " : ""}Norme à la réception : <b>{SEUILS_RECEPTION_NOUVEAU[b.conservation].label}</b></p>}
               {(() => { const ts = typeSuggere(b.nom); return ts && b.conservation && ts !== b.conservation ? <p className="text-xs mt-1.5 text-[var(--warn)]">⚠ Le nom fait penser à « {LIBELLE_CONSERVATION[ts]} » : vérifiez le type (norme {SEUILS_RECEPTION_NOUVEAU[ts] ? SEUILS_RECEPTION_NOUVEAU[ts].label : "différente"}).</p> : null; })()}
             </div>
