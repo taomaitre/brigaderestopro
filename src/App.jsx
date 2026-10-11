@@ -18479,9 +18479,6 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
               );
             })}
           </div>
-          {vueAccueil === "reservations" && peutGererPlanning && (
-            <button type="button" onClick={() => setFormResa(true)} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ACTION_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
-          )}
         </div>
 
         {currentUserId !== "direction" && vueAccueil === "planning" && (
@@ -20765,11 +20762,9 @@ function KitchenApp({ identiteExterne } = {}) {
           <>
           {vueTaches === "reservations" ? (
             <ZoneContext.Provider value={zoneDepuisFonction("reservationsClient")}>
-              <BoutonRetour onClick={() => setVueTaches("planning")} className="mb-4">Retour aux Tâches du jour</BoutonRetour>
               <SectionHeader title="Réservations" subtitle="Gestion des réservations et des services" />
             </ZoneContext.Provider>
           ) : (<>
-          <BoutonRetour onClick={() => setTab("accueil")} className="mb-4 hidden md:inline-flex">Retour à l'accueil</BoutonRetour>
           <SectionHeader title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
           </>)}
           <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null}  cuissons={cuissons} vueExt={vueTaches} setVueExt={setVueTaches} />
