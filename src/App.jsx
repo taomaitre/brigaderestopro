@@ -6892,7 +6892,7 @@ function TuileInfoFiche({ icone: Ic, valeur, libelle, fond, couleur }) {
   return (
     <div className="rounded-lg px-2.5 py-1.5 flex items-center gap-2" style={{ background: fond, border: "1px solid rgba(0,0,0,.05)" }}>
       <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={16} /></span>
-      <div className="min-w-0"><div className="text-xl font-bold leading-tight text-[var(--ink)]">{valeur}</div><div className="text-[10px] leading-tight text-[var(--steel)]">{libelle}</div></div>
+      <div className="min-w-0"><div className="text-lg font-bold leading-tight text-[var(--ink)] truncate">{valeur}</div><div className="text-[10px] leading-tight text-[var(--steel)] truncate">{libelle}</div></div>
     </div>
   );
 }
@@ -7018,8 +7018,8 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           nAllg > 0 ? [AlertTriangle, nAllg, `allergène${nAllg > 1 ? "s" : ""} (${fiche.allergenes.join(", ").toLowerCase()})`, "#fff6cc", "#7a5f00"] : null,
         ].filter(Boolean);
         return tuiles.length ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">
-            {tuiles.map(([Ic, v, l, fond, coul], k) => <TuileInfoFiche key={k} icone={Ic} valeur={v} libelle={l} fond={fond} couleur={coul} />)}
+          <div className="flex flex-wrap sm:flex-nowrap gap-2 mb-3">
+            {tuiles.map(([Ic, v, l, fond, coul], k) => <div key={k} className="min-w-[44%] sm:min-w-0 flex-1"><TuileInfoFiche icone={Ic} valeur={v} libelle={l} fond={fond} couleur={coul} /></div>)}
           </div>
         ) : null;
       })()}
@@ -7048,8 +7048,8 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 
       {/* Mise en page : tout sur un seul écran large — gauche : quantité, ingrédients, allergènes ;
           centre : préparation et contrôles ; droite : production, matériel, à retenir. */}
-      <div className="grid grid-cols-1 xl:grid-cols-12 gap-x-5 items-start">
-        <div className="xl:col-span-4 min-w-0">
+      <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-5 items-start">
+        <div className="lg:col-span-5 xl:col-span-4 min-w-0">
           <div className="mb-5 rounded-xl overflow-hidden border border-[var(--line)] bg-white" style={{ borderTop: "3px solid #e0658f" }}>
             {fiche.photoPlat
               ? <img src={fiche.photoPlat} alt={fiche.nom} className="w-full h-48 object-cover" />
@@ -7110,7 +7110,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </ZoneFiche>
       )}
         </div>
-        <div className="xl:col-span-5 min-w-0">
+        <div className="lg:col-span-7 xl:col-span-5 min-w-0">
       {fiche.preparation.length > 0 && (
         <ZoneFiche icone={ChefHat} bord="#6a7de0" fond="#e8ebfb" texte="#2c3a8c" titre={<>{t[5] || "5. Préparation — étape par étape"}</>} className="mb-5">
           <ol className="space-y-3">
@@ -7157,7 +7157,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </ZoneFiche>
       )}
         </div>
-        <div className="xl:col-span-3 min-w-0">
+        <div className="lg:col-span-12 xl:col-span-3 min-w-0">
       {(onDemarrerRefroidissement || onDemarrerCuisson || onDemarrerMaintienChaud || onEditerDlc || onTracabiliteIngredients) && (
         <Card className="mb-5 border-[var(--accent)]/30">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{avecModes ? "Produire cette fiche" : "Actions à partir de cette fiche"}</h3>
