@@ -3602,7 +3602,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
   );
 }
 
-function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -3616,6 +3616,8 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   const [rechercheTracabilite, setRechercheTracabilite] = useState("");
   const [remarqueEnCours, setRemarqueEnCours] = useState(null);
   const [sousEcran, setSousEcran] = useState(null);
+  const [suppRefroidId, setSuppRefroidId] = useState(null);
+  const [nouveauMaintien, setNouveauMaintien] = useState("");
   // Doit rester avec les autres hooks, AVANT les retours anticipés plus bas (sinon React plante : « Rendered fewer hooks »).
   const [infosTiac, setInfosTiac] = useState(null);
   const [rechAllergenePlat, setRechAllergenePlat] = useState("");
@@ -3695,6 +3697,9 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
     { id: "tracabilite", label: "Traçabilité", icon: Camera, section: "controle" },
     { id: "historiqueJour", label: "Historique de la journée", icon: ClipboardList, section: "controle" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
+    { id: "modifierFiche", label: "Modifier ou dupliquer une fiche technique", icon: BookOpen, section: "cuisine" },
+    { id: "appareilsFroid", label: "Appareils de froid (ajout, modification)", icon: Thermometer, section: "controle" },
+    { id: "catalogueDlc", label: "Produits des étiquettes DLC", icon: Printer, section: "cuisine" },
     { id: "carte", label: "Ma carte", icon: UtensilsCrossed, section: "cuisine" },
     { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "cuisine" },
     { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "cuisine" },
@@ -3711,7 +3716,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms))));
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "modifierFiche" || !!stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms))));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
     if (tuile && tuile.tab) return setTab(tuile.tab);
@@ -3866,7 +3871,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
         {SECTIONS_CG.map((x) => {
           const Icon = x.icon;
-          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)))).length;
+          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (t.id !== "modifierFiche" || !!stockCatalogue) && (t.id !== "catalogueDlc" || !stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)))).length;
           return (
             <button key={x.id} onClick={() => { setSousEcran(null); setSectionActive(x.id); }}
               style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
@@ -3953,6 +3958,14 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
         <div>
           <SectionHeader title="Livraisons reçues" subtitle="Toutes les livraisons reçues, avec vérification par le chef, produits manquants ou en trop — à partager, envoyer par e-mail ou imprimer (par exemple pour la comptabilité)" />
           <CommandesRecues receptions={receptions} setReceptions={setReceptions} memoireSeule={!!stockCatalogue} employees={employees} nomMoi={(employees.find((e) => e.id === currentUserId) || {}).nom} />
+          {(commandesHistorique || []).length > 0 && (
+            <Card className="mt-6">
+              <h3 className="font-semibold text-[var(--ink)] mb-3">Historique des bons de commande</h3>
+              <div className="divide-y divide-[var(--line)]">
+                {commandesHistorique.slice(0, 10).map((b) => (<div key={b.id} className="py-2 text-sm text-[var(--ink)]">{b.date} — {b.lignes.length} article(s)</div>))}
+              </div>
+            </Card>
+          )}
         </div>
       )}
 
@@ -3988,6 +4001,17 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
 
       {sousEcran === "cellule" && (
         <>
+        {suppRefroidId && (
+          <ModalConfirmerSuppression
+            libelle={refroidissements.find((x) => x.id === suppRefroidId)?.produit || ""}
+            onAnnuler={() => setSuppRefroidId(null)}
+            onConfirmer={() => {
+              const r = refroidissements.find((x) => x.id === suppRefroidId);
+              if (r) { setRefroidissements(refroidissements.filter((x) => x.id !== suppRefroidId)); logActivity("HACCP", r.type === "negatif" ? "Congélation supprimée" : "Refroidissement supprimé", r.produit); }
+              setSuppRefroidId(null);
+            }}
+          />
+        )}
         <Card className="mb-6">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Refroidissements du jour & cellule</h3>
           {refroidissementsDuJour.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun aujourd'hui.</p> : (
@@ -4004,6 +4028,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
                   {r.statut === "termine" && r.cellNettoyee === false && (
                     <Button variant="danger" className="mt-1.5" onClick={() => nettoyerCelluleChef(r.id)}>Confirmer que la cellule est nettoyée</Button>
                   )}
+                  <Button variant="ghost" className="mt-1.5" onClick={() => setSuppRefroidId(r.id)}><Trash2 size={16} /> Supprimer cette entrée</Button>
                 </div>
               ))}
             </div>
@@ -4011,6 +4036,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
         </Card>
         {etiquetteOuverte ? (
           <EditeurEtiquette
+            avecHistorique
             nom={etiquetteOuverte}
             historique={(preparations || []).filter((p) => (p.nomLibre || "").trim().toLowerCase() === etiquetteOuverte.trim().toLowerCase()).sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure))}
             creerEtiquetteDlc={creerEtiquetteDlc}
@@ -4069,12 +4095,40 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
             </div>
           )}
         </Card>
+        <Card className="mb-6">
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Liste des produits proposés au maintien au chaud</h3>
+          <p className="text-xs text-[var(--steel)] mb-3">Cette liste est celle que voient les employés. Seuls le chef et le directeur peuvent la modifier.</p>
+          <div className="flex flex-wrap gap-2 mb-3">
+            {(catalogueMaintienChaud || []).map((nom) => (
+              <span key={nom} className="inline-flex items-center gap-2 text-sm px-3 py-1.5 rounded-lg border border-[var(--line)] text-[var(--ink)]">
+                {nom}
+                <button type="button" onClick={() => { setCatalogueMaintienChaud((catalogueMaintienChaud || []).filter((n) => n !== nom)); logActivity("HACCP", "Produit retiré de la liste du maintien au chaud", nom); }} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer de la liste"><X size={13} /></button>
+              </span>
+            ))}
+            {(catalogueMaintienChaud || []).length === 0 && <span className="text-sm text-[var(--steel)]">Aucun produit dans la liste.</span>}
+          </div>
+          <div className="flex flex-wrap items-end gap-2">
+            <Field label="Ajouter un produit à la liste"><input className={inputCls} value={nouveauMaintien} onChange={(ev) => setNouveauMaintien(ev.target.value)} /></Field>
+            <Button variant="ghost" onClick={() => { const nom = nouveauMaintien.trim(); if (!nom || (catalogueMaintienChaud || []).includes(nom)) return; setCatalogueMaintienChaud([...(catalogueMaintienChaud || []), nom]); logActivity("HACCP", "Produit ajouté à la liste du maintien au chaud", nom); setNouveauMaintien(""); }}><Plus size={14} /> Ajouter</Button>
+          </div>
+        </Card>
         <HistoriqueMaintienChaud entries={entriesMaintienChaud} who={who} />
         </>
       )}
 
+      {sousEcran === "appareilsFroid" && (
+        <GestionAppareilsFroid equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} logActivity={logActivity} />
+      )}
+
+      {sousEcran === "catalogueDlc" && (
+        <GestionCatalogueDlc produits={produits} setProduits={setProduits} logActivity={logActivity} />
+      )}
+
       {sousEcran === "huile" && (
+        <>
         <div className="mb-6"><CarteHuileDuJour huileTests={huileTests} who={who} /></div>
+        <HaccpHuile huileTests={huileTests} who={who} manuelPossible={false} historiqueComplet />
+        </>
       )}
 
       {sousEcran === "historiqueJour" && (
@@ -4251,6 +4305,13 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       {sousEcran === "carte" && (
         <div className="mb-6">
           <MaCarte cartes={cartes || []} setCartes={setCartes || (() => {})} fiches={fiches} employees={employees} reservations={reservations} estChef={accesPlanningReservations} logActivity={logActivity} />
+        </div>
+      )}
+
+      {sousEcran === "modifierFiche" && !!stockCatalogue && (
+        <div className="mb-6">
+          <FichesTechniques fiches={fiches} who={who} estChef avecModes
+            editionProps={{ stock, employees, currentUserId, logActivity, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement, demandesAjout, signalerAjout, gestionCatalogue, fournisseursCatalogue }} />
         </div>
       )}
 
@@ -9989,68 +10050,13 @@ function HistoriqueEtCourbesTemperature({ relevesFroid, equipementsFroid, who })
   );
 }
 
-function HaccpTemperatures({
-  equipementsFroid, setEquipementsFroid, relevesFroid, setRelevesFroid, surveillancesFroid, setSurveillancesFroid,
-  tempLogs, setTempLogs, currentUserId, logActivity, who, ajouterAlerteControle, ouvrirNormes,
-}) {
-  const { estResponsable } = useAcces();
-  const [saisieManuelle, setSaisieManuelle] = useState({}); // { [equipementId]: { valeur, note } }
-  const [recontrole, setRecontrole] = useState({}); // { [surveillanceId]: valeur }
-  const [anomalieForm, setAnomalieForm] = useState({}); // { [surveillanceId]: { motif, note } }
-  const [editionId, setEditionId] = useState(null); // id de l'appareil en cours de modification
+// Gestion des appareils de froid : réservée au chef / directeur (Contrôle & Gestion). Rien de tout cela n'apparaît sur l'écran des employés.
+function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActivity }) {
+  const [editionId, setEditionId] = useState(null);
   const [editionForm, setEditionForm] = useState({});
-  const [suppressionDemandee, setSuppressionDemandee] = useState(null); // équipement à confirmer avant suppression
+  const [suppressionDemandee, setSuppressionDemandee] = useState(null);
   const [formAjout, setFormAjout] = useState({ famille: "positif", sousType: "", nom: "", sonde: "", min: "", max: "" });
-
   const eqById = (id) => equipementsFroid.find((e) => e.id === id);
-
-  const majSaisie = (eqId, champ, val) => setSaisieManuelle((prev) => ({ ...prev, [eqId]: { ...(prev[eqId] || {}), [champ]: val } }));
-
-  const enregistrerSaisieManuelle = (eq) => {
-    const s = saisieManuelle[eq.id];
-    if (!s || s.valeur === undefined || s.valeur === "") return;
-    const conforme = equipementConforme(eq, s.valeur);
-    const entry = { id: uid(), equipementId: eq.id, valeur: s.valeur, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme, manuel: true, note: s.note || "" };
-    setRelevesFroid((prev) => [entry, ...prev]);
-    logActivity("HACCP", "Contrôle température — saisie manuelle (thermomètre laser)", `${eq.nom} : ${s.valeur}°C — ${conforme ? "conforme" : "hors seuil"}${s.note ? ` — ${s.note}` : ""}`);
-
-    if (equipementEcartAnomalie(eq, s.valeur)) {
-      const surveillance = { id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: entry.heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false };
-      setSurveillancesFroid((prev) => [surveillance, ...prev]);
-      logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${s.valeur}°C — à recontrôler dans 30 min`);
-    }
-    setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
-  };
-
-  const recontroler = (surv) => {
-    const val = recontrole[surv.id];
-    if (val === undefined || val === "") return;
-    const eq = eqById(surv.equipementId);
-    const conforme = equipementConforme(eq, val);
-    setRelevesFroid((prev) => [{ id: uid(), equipementId: surv.equipementId, valeur: val, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme }, ...prev]);
-    if (conforme) {
-      setSurveillancesFroid((prev) => prev.map((s) => (s.id === surv.id ? { ...s, statut: "resolu" } : s)));
-      logActivity("HACCP", "Recontrôle conforme", `${eq.nom} : ${val}°C — retour à la normale`);
-      setRecontrole((prev) => { const n = { ...prev }; delete n[surv.id]; return n; });
-    } else {
-      setAnomalieForm((prev) => ({ ...prev, [surv.id]: { motif: "", note: "" } }));
-    }
-  };
-
-  const confirmerAnomalie = (surv) => {
-    const { motif, note } = anomalieForm[surv.id] || {};
-    if (!motif) return;
-    const eq = eqById(surv.equipementId);
-    setSurveillancesFroid((prev) => prev.map((s) => (s.id === surv.id ? { ...s, statut: "anomalie", motif, note } : s)));
-    logActivity("HACCP", "Anomalie température confirmée", `${eq.nom} — ${motif}`);
-    ajouterAlerteControle({
-      id: uid(), date: todayISO(), heure: new Date().toTimeString().slice(0, 5), type: "Température", employeeId: currentUserId,
-      titre: `${eq.nom} — anomalie de température`,
-      detail: `Motif : ${motif}${note ? ` — ${note}` : ""}. Relevé initial ${surv.valeurInitiale}°C, toujours hors seuil au recontrôle.`,
-      conforme: false,
-    });
-  };
-
   const updateEquipement = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val === "" ? null : Number(val) } : e)));
   const updateEquipementTexte = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val } : e)));
 
@@ -10107,27 +10113,10 @@ function HaccpTemperatures({
     logActivity("HACCP", "Sonde connectée", `${eq.nom} — sonde n° ${eq.sonde}`);
   };
 
-  const [jourReleve, setJourReleve] = useState(todayISO());
-  const dernierReleve = (eqId) => {
-    const releves = relevesFroid.filter((r) => r.equipementId === eqId && r.date <= jourReleve);
-    if (releves.length === 0) return null;
-    return releves.reduce((plusRecent, r) => (`${r.date} ${r.heure || ""}` > `${plusRecent.date} ${plusRecent.heure || ""}` ? r : plusRecent));
-  };
-
-  const enAttente = surveillancesFroid.filter((s) => s.statut === "attente");
-
   return (
     <div>
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Relevés — frigos &amp; congélateurs</h3>
-        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-[var(--steel)]">
-          <span>Relevés au</span>
-          <input type="date" value={jourReleve} max={todayISO()} onChange={(e) => e.target.value && setJourReleve(e.target.value)} className={`${inputCls} !w-auto`} />
-          {jourReleve !== todayISO() && <button type="button" className="underline" onClick={() => setJourReleve(todayISO())}>Revenir à aujourd'hui</button>}
-          <span className="ml-auto">Dernière mise à jour : {(() => { const t = relevesFroid.filter((r) => r.date <= jourReleve).sort((x, y) => `${y.date} ${y.heure || ""}`.localeCompare(`${x.date} ${x.heure || ""}`))[0]; return t ? `${t.date === todayISO() ? "aujourd'hui" : t.date} à ${t.heure || "—"}` : "aucun relevé"; })()}</span>
-        </div>
-        <p className="text-xs text-[var(--steel)] mb-2">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
-        <p className="text-xs text-[var(--steel)] mb-4">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Appareils de froid</h3>
         <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -10135,20 +10124,15 @@ function HaccpTemperatures({
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Matériel</th>
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Type</th>
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Norme</th>
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Dernier relevé</th>
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Statut</th>
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Contrôle manuel (thermomètre laser)</th>
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]"></th>
               </tr>
             </thead>
             <tbody>
               {equipementsFroid.map((eq, i) => {
-                const dr = dernierReleve(eq.id);
-                const s = saisieManuelle[eq.id] || {};
                 if (editionId === eq.id) {
                   return (
                     <tr key={eq.id} className={i % 2 === 0 ? "bg-white" : "bg-[var(--bg)]/50"}>
-                      <td colSpan={7} className="px-3 py-3">
+                      <td colSpan={4} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-2">
                           <Field label="Nom de l'appareil"><input className={`${inputCls} w-48`} value={editionForm.nom} onChange={(e) => setEditionForm({ ...editionForm, nom: e.target.value })} /></Field>
                           <Field label="N° du capteur connecté (vide si pas de capteur)"><input className={`${inputCls} w-28`} value={editionForm.sonde} onChange={(e) => setEditionForm({ ...editionForm, sonde: e.target.value })} /></Field>
@@ -10181,6 +10165,164 @@ function HaccpTemperatures({
                     <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#15803D" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
                     <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
                     <td className="px-3 py-2 align-top whitespace-nowrap">
+                      <button className="text-xs text-[var(--steel)] underline mr-2" onClick={() => commencerEdition(eq)}>Modifier</button>
+                      <button className="text-[var(--warn)]" onClick={() => setSuppressionDemandee(eq)} title="Retirer cet appareil"><Trash2 size={15} /></button>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+      </Card>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer les appareils</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — la norme de température est pré-remplie automatiquement, modifiable ensuite si besoin.</p>
+        <div className="flex flex-wrap items-end gap-2 mb-2">
+          <Field label="Famille">
+            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ famille: e.target.value, sousType: "", nom: "", sonde: "", min: "", max: "" })}>
+              <option value="positif">Réfrigéré (0 à +4 °C)</option>
+              <option value="negatif">Congelé (−18 °C)</option>
+            </select>
+          </Field>
+          <Field label="Type d'appareil">
+            <select className={inputCls} value={formAjout.sousType} onChange={(e) => choisirSousTypeAjout(e.target.value)}>
+              <option value="">— Choisir —</option>
+              {PRESETS_EQUIPEMENT_FROID[formAjout.famille].map((p) => <option key={p.label} value={p.label}>{p.label}</option>)}
+            </select>
+          </Field>
+          <Field label="Nom de cet appareil"><input className={`${inputCls} w-48`} placeholder="ex. Frigo viande 2" value={formAjout.nom} onChange={(e) => setFormAjout({ ...formAjout, nom: e.target.value })} /></Field>
+          <Field label="N° du capteur connecté (vide si pas de capteur)"><input className={`${inputCls} w-32`} value={formAjout.sonde} onChange={(e) => setFormAjout({ ...formAjout, sonde: e.target.value })} /></Field>
+        </div>
+        <div className="flex flex-wrap items-end gap-2 mb-4">
+          {formAjout.famille === "positif" && (
+            <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.min} onChange={(e) => setFormAjout({ ...formAjout, min: e.target.value })} /></Field>
+          )}
+          <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.max} onChange={(e) => setFormAjout({ ...formAjout, max: e.target.value })} /></Field>
+          <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === ""}><Plus size={14} /> Ajouter cet appareil</Button>
+        </div>
+        <p className="text-xs text-[var(--steel)]">Le numéro de sonde peut être renseigné tout de suite ou ajouté plus tard (bouton "Modifier" sur la ligne de l'appareil). Une fois les sondes connectées réellement installées, le bouton "Connecter cette sonde" sur chaque ligne permettra de l'activer en un geste à sa mise en service.</p>
+      </Card>
+
+      {suppressionDemandee && (
+        <ModalConfirmerSuppression
+          libelle={suppressionDemandee.nom}
+          onConfirmer={() => supprimerEquipement(suppressionDemandee)}
+          onAnnuler={() => setSuppressionDemandee(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+function HaccpTemperatures({
+  equipementsFroid, setEquipementsFroid, relevesFroid, setRelevesFroid, surveillancesFroid, setSurveillancesFroid,
+  tempLogs, setTempLogs, currentUserId, logActivity, who, ajouterAlerteControle, ouvrirNormes,
+}) {
+  const [saisieManuelle, setSaisieManuelle] = useState({}); // { [equipementId]: { valeur, note } }
+  const [recontrole, setRecontrole] = useState({}); // { [surveillanceId]: valeur }
+  const [anomalieForm, setAnomalieForm] = useState({}); // { [surveillanceId]: { motif, note } }
+
+  const eqById = (id) => equipementsFroid.find((e) => e.id === id);
+
+  const majSaisie = (eqId, champ, val) => setSaisieManuelle((prev) => ({ ...prev, [eqId]: { ...(prev[eqId] || {}), [champ]: val } }));
+
+  const enregistrerSaisieManuelle = (eq) => {
+    const s = saisieManuelle[eq.id];
+    if (!s || s.valeur === undefined || s.valeur === "") return;
+    const conforme = equipementConforme(eq, s.valeur);
+    const entry = { id: uid(), equipementId: eq.id, valeur: s.valeur, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme, manuel: true, note: s.note || "" };
+    setRelevesFroid((prev) => [entry, ...prev]);
+    logActivity("HACCP", "Contrôle température — saisie manuelle (thermomètre laser)", `${eq.nom} : ${s.valeur}°C — ${conforme ? "conforme" : "hors seuil"}${s.note ? ` — ${s.note}` : ""}`);
+
+    if (equipementEcartAnomalie(eq, s.valeur)) {
+      const surveillance = { id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: entry.heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false };
+      setSurveillancesFroid((prev) => [surveillance, ...prev]);
+      logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${s.valeur}°C — à recontrôler dans 30 min`);
+    }
+    setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
+  };
+
+  const recontroler = (surv) => {
+    const val = recontrole[surv.id];
+    if (val === undefined || val === "") return;
+    const eq = eqById(surv.equipementId);
+    const conforme = equipementConforme(eq, val);
+    setRelevesFroid((prev) => [{ id: uid(), equipementId: surv.equipementId, valeur: val, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme }, ...prev]);
+    if (conforme) {
+      setSurveillancesFroid((prev) => prev.map((s) => (s.id === surv.id ? { ...s, statut: "resolu" } : s)));
+      logActivity("HACCP", "Recontrôle conforme", `${eq.nom} : ${val}°C — retour à la normale`);
+      setRecontrole((prev) => { const n = { ...prev }; delete n[surv.id]; return n; });
+    } else {
+      setAnomalieForm((prev) => ({ ...prev, [surv.id]: { motif: "", note: "" } }));
+    }
+  };
+
+  const confirmerAnomalie = (surv) => {
+    const { motif, note } = anomalieForm[surv.id] || {};
+    if (!motif) return;
+    const eq = eqById(surv.equipementId);
+    setSurveillancesFroid((prev) => prev.map((s) => (s.id === surv.id ? { ...s, statut: "anomalie", motif, note } : s)));
+    logActivity("HACCP", "Anomalie température confirmée", `${eq.nom} — ${motif}`);
+    ajouterAlerteControle({
+      id: uid(), date: todayISO(), heure: new Date().toTimeString().slice(0, 5), type: "Température", employeeId: currentUserId,
+      titre: `${eq.nom} — anomalie de température`,
+      detail: `Motif : ${motif}${note ? ` — ${note}` : ""}. Relevé initial ${surv.valeurInitiale}°C, toujours hors seuil au recontrôle.`,
+      conforme: false,
+    });
+  };
+
+  const jourReleve = todayISO(); // pas d'historique sur l'écran employé : il est dans Contrôle & Gestion
+  const dernierReleve = (eqId) => {
+    const releves = relevesFroid.filter((r) => r.equipementId === eqId && r.date <= jourReleve);
+    if (releves.length === 0) return null;
+    return releves.reduce((plusRecent, r) => (`${r.date} ${r.heure || ""}` > `${plusRecent.date} ${plusRecent.heure || ""}` ? r : plusRecent));
+  };
+
+  const enAttente = surveillancesFroid.filter((s) => s.statut === "attente");
+
+  return (
+    <div>
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Relevés — frigos &amp; congélateurs</h3>
+        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-[var(--steel)]">
+          <span className="ml-auto">Dernière mise à jour : {(() => { const t = relevesFroid.filter((r) => r.date <= jourReleve).sort((x, y) => `${y.date} ${y.heure || ""}`.localeCompare(`${x.date} ${x.heure || ""}`))[0]; return t ? `${t.date === todayISO() ? "aujourd'hui" : t.date} à ${t.heure || "—"}` : "aucun relevé"; })()}</span>
+        </div>
+        <p className="text-xs text-[var(--steel)] mb-2">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
+        <p className="text-xs text-[var(--steel)] mb-4">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
+        <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
+          <table className="w-full text-sm border-collapse">
+            <thead>
+              <tr className="bg-[var(--bg)]">
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Matériel</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Type</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Norme</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Dernier relevé</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Statut</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Contrôle manuel (thermomètre laser)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {equipementsFroid.map((eq, i) => {
+                const dr = dernierReleve(eq.id);
+                const s = saisieManuelle[eq.id] || {};
+                return (
+                  <tr key={eq.id} className={i % 2 === 0 ? "bg-white" : "bg-[var(--bg)]/50"}>
+                    <td className="px-3 py-2 align-top">
+                      <div className="text-[var(--ink)] font-medium">{eq.nom}</div>
+                      {eq.sonde ? (
+                        <div className="text-xs text-[var(--steel)] flex items-center gap-1.5">
+                          Sonde n° {eq.sonde}
+                          {eq.sondeConnectee ? (
+                            <span className="text-[var(--accent)] font-medium">· connectée</span>
+                          ) : null}
+                        </div>
+                      ) : <div className="text-xs text-[var(--steel)]">Sonde non renseignée</div>}
+                    </td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#15803D" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
+                    <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap">
                       {dr ? (
                         <>
                           <span className={`font-semibold ${dr.conforme === false ? "text-[var(--warn)]" : "text-[var(--ink)]"}`}>{dr.valeur}°C</span>
@@ -10195,10 +10337,6 @@ function HaccpTemperatures({
                         <Button variant="ghost" onClick={() => enregistrerSaisieManuelle(eq)} disabled={s.valeur === undefined || s.valeur === ""}>Enregistrer</Button>
                       </div>
                       <input className={`${inputCls} w-full max-w-[220px]`} placeholder="Note (optionnel)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
-                    </td>
-                    <td className="px-3 py-2 align-top whitespace-nowrap">
-                      {estResponsable && <button className="text-xs text-[var(--steel)] underline mr-2" onClick={() => commencerEdition(eq)}>Modifier</button>}
-                      {estResponsable && <button className="text-[var(--warn)]" onClick={() => setSuppressionDemandee(eq)} title="Retirer cet appareil"><Trash2 size={15} /></button>}
                     </td>
                   </tr>
                 );
@@ -10248,42 +10386,7 @@ function HaccpTemperatures({
         </Card>
       )}
 
-      {estResponsable && <Card>
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer les appareils</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — la norme de température est pré-remplie automatiquement, modifiable ensuite si besoin.</p>
-        <div className="flex flex-wrap items-end gap-2 mb-2">
-          <Field label="Famille">
-            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ famille: e.target.value, sousType: "", nom: "", sonde: "", min: "", max: "" })}>
-              <option value="positif">Réfrigéré (0 à +4 °C)</option>
-              <option value="negatif">Congelé (−18 °C)</option>
-            </select>
-          </Field>
-          <Field label="Type d'appareil">
-            <select className={inputCls} value={formAjout.sousType} onChange={(e) => choisirSousTypeAjout(e.target.value)}>
-              <option value="">— Choisir —</option>
-              {PRESETS_EQUIPEMENT_FROID[formAjout.famille].map((p) => <option key={p.label} value={p.label}>{p.label}</option>)}
-            </select>
-          </Field>
-          <Field label="Nom de cet appareil"><input className={`${inputCls} w-48`} placeholder="ex. Frigo viande 2" value={formAjout.nom} onChange={(e) => setFormAjout({ ...formAjout, nom: e.target.value })} /></Field>
-          <Field label="N° du capteur connecté (vide si pas de capteur)"><input className={`${inputCls} w-32`} value={formAjout.sonde} onChange={(e) => setFormAjout({ ...formAjout, sonde: e.target.value })} /></Field>
-        </div>
-        <div className="flex flex-wrap items-end gap-2 mb-4">
-          {formAjout.famille === "positif" && (
-            <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.min} onChange={(e) => setFormAjout({ ...formAjout, min: e.target.value })} /></Field>
-          )}
-          <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.max} onChange={(e) => setFormAjout({ ...formAjout, max: e.target.value })} /></Field>
-          <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === ""}><Plus size={14} /> Ajouter cet appareil</Button>
-        </div>
-        <p className="text-xs text-[var(--steel)]">Le numéro de sonde peut être renseigné tout de suite ou ajouté plus tard (bouton "Modifier" sur la ligne de l'appareil). Une fois les sondes connectées réellement installées, le bouton "Connecter cette sonde" sur chaque ligne permettra de l'activer en un geste à sa mise en service.</p>
-      </Card>}
 
-      {suppressionDemandee && (
-        <ModalConfirmerSuppression
-          libelle={suppressionDemandee.nom}
-          onConfirmer={() => supprimerEquipement(suppressionDemandee)}
-          onAnnuler={() => setSuppressionDemandee(null)}
-        />
-      )}
 
     </div>
   );
@@ -10297,14 +10400,12 @@ const DEFAULT_PRODUITS_MAINTIEN_CHAUD = ["Sauce champignons & parmesan", "Sauce 
 // refroidissement rapide, où l'alarme de durée s'applique (normes propres à ce module).
 
 function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, ajouterAlerteControle, produitSuggere, setProduitSuggere, onLancerRefroidissement }) {
-  const { estResponsable } = useAcces();
   const [selection, setSelection] = useState([]);
   const [appareil, setAppareil] = useState("Bain-marie");
   const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
   const [quantite, setQuantite] = useState("");
   const [unite, setUnite] = useState("kg");
   const [notes, setNotes] = useState("");
-  const [nouveauProduit, setNouveauProduit] = useState("");
   const [tempFin, setTempFin] = useState({});
   const today = todayISO();
 
@@ -10321,15 +10422,6 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
   }, [produitSuggere, setProduitSuggere, catalogue, setCatalogue, setEntries, currentUserId, logActivity, today]);
 
   const toggleSelection = (nom) => setSelection((s) => (s.includes(nom) ? s.filter((n) => n !== nom) : [...s, nom]));
-  const ajouterProduit = () => {
-    const nom = nouveauProduit.trim();
-    if (!nom || catalogue.includes(nom)) return;
-    setCatalogue([...catalogue, nom]);
-    setSelection((s) => [...s, nom]);
-    setNouveauProduit("");
-  };
-  const retirerProduit = (nom) => { setCatalogue(catalogue.filter((n) => n !== nom)); setSelection((s) => s.filter((n) => n !== nom)); };
-
   const demarrerMaintien = () => {
     if (selection.length === 0) return;
     const nouvelles = selection.map((nom) => ({
@@ -10384,14 +10476,9 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
             <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[#1E7B4B] bg-[#EAF6EF] text-[#14653A] font-medium" : "border-[var(--line)] text-[var(--ink)]"}`}>
               <input type="checkbox" checked={selection.includes(nom)} onChange={() => toggleSelection(nom)} />
               <span className="min-w-0">{nom}</span>
-              {estResponsable && <button onClick={(ev) => { ev.preventDefault(); retirerProduit(nom); }} className="ml-auto text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title="Retirer de la liste"><X size={13} /></button>}
             </label>
           ))}
         </div>
-        {estResponsable && <div className="flex flex-wrap items-end gap-2 mb-4">
-          <Field label="Ajouter un produit à la liste"><input className={inputCls} value={nouveauProduit} onChange={(ev) => setNouveauProduit(ev.target.value)} /></Field>
-          <Button variant="ghost" onClick={ajouterProduit}><Plus size={14} /> Ajouter</Button>
-        </div>}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
           <Field label="Appareil *">
             <select className={inputCls} value={appareil} onChange={(ev) => setAppareil(ev.target.value)}>
@@ -10527,7 +10614,6 @@ function EtiquetteRefroidissement({ r, who }) {
 const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme", "Autre motif"];
 
 function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
-  const { estResponsable } = useAcces();
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
   const [produit, setProduit] = useState("");
   const [tempDebut, setTempDebut] = useState("");
@@ -10538,7 +10624,6 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
   const [quantite, setQuantite] = useState("");
   const [unite, setUnite] = useState("kg");
   const [notes, setNotes] = useState("");
-  const [suppId, setSuppId] = useState(null);
   const [cuissonRetourId, setCuissonRetourId] = useState(null); // cuisson d'où vient ce refroidissement
   const [maintienId, setMaintienId] = useState(null); // maintien au chaud d'où vient ce refroidissement
   const [verdict, setVerdict] = useState(null); // résultat affiché après validation : { produit, conforme, detail }
@@ -10581,17 +10666,6 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
     setCuissonChoisieId(null); setMaintienId(null); setCuissonRetourId(null);
     logActivity("HACCP", modeDemarrage === "negatif" ? "Congélation / surgélation démarrée" : "Refroidissement démarré", `${produit} — ${tempDebut}°C à ${heureDepart}`);
     setProduit(""); setTempDebut(""); setQuantite(""); setNotes(""); setHeureDepart(new Date().toTimeString().slice(0, 5));
-  };
-
-  const supprimerEntree = (id) => {
-    const r = refroidissements.find((x) => x.id === id);
-    if (!r) return;
-    setRefroidissements(refroidissements.filter((x) => x.id !== id));
-    if (r.origineCuissonId && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === r.origineCuissonId ? { ...c, refroidissementLance: false } : c)));
-    if (r.origineMaintienId && onMaintienRefroidi) onMaintienRefroidi(r.origineMaintienId, null);
-    if (r.origineRetourCuisson && onCuissonRefroidie) onCuissonRefroidie(r.origineRetourCuisson, null);
-    logActivity("HACCP", r.type === "negatif" ? "Congélation supprimée" : "Refroidissement supprimé", r.produit);
-    setSuppId(null);
   };
 
   const majFin = (id, champ, valeur) => setFinForm({ ...finForm, [id]: { ...finForm[id], [champ]: valeur } });
@@ -10769,7 +10843,6 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
                     <input className={`${inputCls} w-36`} type="number" inputMode="decimal" placeholder={r.type === "negatif" ? "Ex. : -20" : "Ex. : 8"} value={saisie.tempFin ?? ""} onChange={(e) => majFin(r.id, "tempFin", e.target.value)} />
                   </label>
                   <Button onClick={() => terminer(r.id)} disabled={(depasse && !saisie.motif) || saisie.tempFin === undefined || saisie.tempFin === ""}>Valider</Button>
-                  {estResponsable && <Button variant="ghost" onClick={() => setSuppId(r.id)}><Trash2 size={16} /> Supprimer</Button>}
                 </div>
               </div>
             );
@@ -10777,13 +10850,6 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
         </div>
       </Card>
 
-      {suppId && (
-        <ModalConfirmerSuppression
-          libelle={refroidissements.find((x) => x.id === suppId)?.produit || ""}
-          onAnnuler={() => setSuppId(null)}
-          onConfirmer={() => supprimerEntree(suppId)}
-        />
-      )}
     </div>
   );
 }
@@ -11240,8 +11306,8 @@ function HistoriqueCuissons({ cuissons, who }) {
   );
 }
 
-function HaccpHuile({ huileTests, who, manuelPossible }) {
-  const { estResponsable } = useAcces();
+function HaccpHuile({ huileTests, who, manuelPossible, historiqueComplet = false }) {
+  const estResponsable = historiqueComplet; // l'historique complet n'est montré que dans Contrôle & Gestion
   const [photoVue, setPhotoVue] = useState(null);
   const bon = (r) => ["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(r);
   const limiteR = (r) => /Limite/.test(r || "");
@@ -11594,8 +11660,8 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
   );
 }
 
-function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDlc, currentUserId, who, onBack, produits }) {
-  const { estResponsable } = useAcces();
+function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDlc, currentUserId, who, onBack, produits, avecHistorique = false }) {
+  const estResponsable = avecHistorique; // historique complet réservé à Contrôle & Gestion
   const historique = estResponsable ? historiqueComplet : historiqueComplet.slice(0, 1);
   const [quantiteUtilisee, setQuantiteUtilisee] = useState("");
   const [nbEtiquettes, setNbEtiquettes] = useState(1);
@@ -12026,22 +12092,9 @@ function ChampRechercheVocale({ value, onChange, placeholder, label }) {
 }
 
 function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabilitePhotoSimple, employees, allergenesStandard, setAllergenesStandard, setAllergenesProduits, origineStandard, setOrigineStandard, setOrigineProduits, dlcJoursStandard, setDlcJoursStandard, catalogueProduits, setCatalogueProduits, setProduitsLotException, sansIA }) {
-  const { estResponsable } = useAcces();
-  const [recherche, setRecherche] = useState("");
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
-
-  // Recherche par nom, numéro de lot, OU date (ISO "2026-10-01" aussi bien que "1 oct" / "01/10") —
-  // pour retrouver une traçabilité aussi bien en tapant/disant un produit qu'un jour précis.
-  const recherchePropre = normaliserTexte(recherche.trim());
-  const resultats = recherchePropre.length > 1
-    ? preparations.filter((p) => p.lot !== undefined).filter((p) => {
-        const dateFormatee = p.date ? normaliserTexte(fmtShort(p.date)) : "";
-        const haystack = normaliserTexte(`${p.nomLibre || ""} ${p.lot || ""} ${p.date || ""} ${dateFormatee}`);
-        return haystack.includes(recherchePropre);
-      }).sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure)).slice(0, 30)
-    : [];
 
   return (
     <div>
@@ -12053,26 +12106,6 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
         ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} />
         : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} who={who} dernieres={preparations.filter((p) => p.typeEntree === "photo-simple").sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure)).slice(0, 8)} />}
 
-      {!sansIA && estResponsable && <Card>
-        <h3 className="font-semibold text-[var(--ink)] mb-3">Rechercher une traçabilité</h3>
-        <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Nom du produit, numéro de lot ou date" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
-        {resultats.length > 0 && (
-          <div className="divide-y divide-[var(--line)] mt-3">
-            {resultats.map((r) => (
-              <div key={r.id} className="flex items-center gap-3 py-2.5 text-sm">
-                {r.photo && <img src={r.photo} alt="" className="w-10 h-10 object-cover rounded-lg border border-[var(--cadre)]" />}
-                <div>
-                  <div className="text-[var(--ink)] font-medium">{r.nomLibre || "Traçabilité par photo"}</div>
-                  <div className="text-xs text-[var(--steel)]">{r.lot ? `Lot ${r.lot} · ` : ""}{r.dlcDate ? `DLC/DDM ${r.dlcDate} · ` : ""}{r.date}{who(r.employeeId) ? " · " + who(r.employeeId) : ""}</div>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-        {recherchePropre.length > 1 && resultats.length === 0 && (
-          <p className="text-xs text-[var(--steel)] mt-2">Aucune traçabilité trouvée pour cette recherche.</p>
-        )}
-      </Card>}
     </div>
   );
 }
@@ -12151,8 +12184,104 @@ function repereDlcOuverture(nom, surgele) {
   return r || null;
 }
 
+// Ancienne base uniquement : ajout / retrait des produits du catalogue d'étiquettes DLC. Réservé au chef / directeur (Contrôle & Gestion).
+function GestionCatalogueDlc({ produits, setProduits, logActivity }) {
+  const [ongletAjoutRetrait, setOngletAjoutRetrait] = useState(null);
+  const [nouveauProduit, setNouveauProduit] = useState({ nom: "", categorie: ORDRE_CATEGORIES_DLC[0], typeDate: "DLC", delaiJours: "", ddmPremierLot: false, ddmLot: "", ddmDate: "" });
+  const [rechercheRetrait, setRechercheRetrait] = useState("");
+  const produitsTries = [...produits].sort((a, b) => a.nom.localeCompare(b.nom));
+  const majNouveauProduit = (champ, val) => setNouveauProduit((prev) => {
+    const next = { ...prev, [champ]: val };
+    if (champ === "categorie" && val === "Surgelés" && !prev.delaiJours) next.delaiJours = 15;
+    return next;
+  });
+  const ajouterProduit = () => {
+    if (!nouveauProduit.nom) return;
+    const entry = {
+      id: uid(), nom: nouveauProduit.nom, poste: "Poste Chaud", categorieManuelle: nouveauProduit.categorie,
+      typeDate: nouveauProduit.typeDate,
+      dlcJours: nouveauProduit.typeDate === "DLC" ? (Number(nouveauProduit.delaiJours) || 0) : null,
+      ddmLotActuel: nouveauProduit.typeDate === "DDM" ? nouveauProduit.ddmLot || null : null,
+      ddmDateActuelle: nouveauProduit.typeDate === "DDM" ? nouveauProduit.ddmDate || null : null,
+    };
+    setProduits([...produits, entry]);
+    logActivity("HACCP", "Produit ajouté au catalogue DLC", `${entry.nom} — ${libelleDelaiDlc(entry)}`);
+    setNouveauProduit({ nom: "", categorie: ORDRE_CATEGORIES_DLC[0], typeDate: "DLC", delaiJours: "", ddmPremierLot: false, ddmLot: "", ddmDate: "" });
+  };
+  const retirerProduitsResultats = rechercheRetrait.trim().length > 0
+    ? produitsTries.filter((p) => p.nom.toLowerCase().includes(rechercheRetrait.trim().toLowerCase())) : [];
+  const retirerProduit = (id) => {
+    const p = produits.find((x) => x.id === id);
+    setProduits(produits.filter((x) => x.id !== id));
+    if (p) logActivity("HACCP", "Produit retiré du catalogue DLC", p.nom);
+  };
+  return (
+      <Card className="mb-6">
+        <h3 className="font-semibold text-[var(--ink)] mb-3">Ajouter ou retirer un produit</h3>
+        <div className="flex gap-2 mb-4">
+          <Button variant={ongletAjoutRetrait === "ajouter" ? "primary" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "ajouter" ? null : "ajouter"))}><Plus size={16} /> Ajouter un produit</Button>
+          <Button variant={ongletAjoutRetrait === "retirer" ? "danger" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "retirer" ? null : "retirer"))}><Trash2 size={16} /> Supprimer du catalogue</Button>
+        </div>
+
+        {ongletAjoutRetrait === "ajouter" && (
+          <div className="p-3 rounded-lg border border-[var(--cadre)] bg-[var(--bg)]">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+              <Field label="Nom du produit"><input className={inputCls} value={nouveauProduit.nom} onChange={(e) => majNouveauProduit("nom", e.target.value)} /></Field>
+              <Field label="Catégorie">
+                <select className={inputCls} value={nouveauProduit.categorie} onChange={(e) => majNouveauProduit("categorie", e.target.value)}>
+                  {ORDRE_CATEGORIES_DLC.map((c) => <option key={c} value={c}>{c}</option>)}
+                </select>
+              </Field>
+              <Field label="Date limite : DLC ou DDM ?">
+                <select className={inputCls} value={nouveauProduit.typeDate} onChange={(e) => majNouveauProduit("typeDate", e.target.value)}>
+                  <option value="DLC">DLC — produit fait maison (délai après préparation)</option>
+                  <option value="DDM">DDM — date lue sur l'emballage, suivie par lot</option>
+                </select>
+              </Field>
+            </div>
+
+            {nouveauProduit.typeDate === "DLC" ? (
+              <div className="mb-3">
+                <div className="flex flex-wrap gap-2 mb-2">
+                  {DELAIS_RAPIDES_DLC.map((d) => (
+                    <button key={d.label} onClick={() => majNouveauProduit("delaiJours", d.jours)}
+                      className={`text-xs px-2.5 py-1.5 rounded-lg border ${Number(nouveauProduit.delaiJours) === d.jours ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+                      {d.label}
+                    </button>
+                  ))}
+                </div>
+                <Field label="Délai personnalisé (jours)"><input className={`${inputCls} w-32`} type="number" min="0" value={nouveauProduit.delaiJours} onChange={(e) => majNouveauProduit("delaiJours", e.target.value)} /></Field>
+              </div>
+            ) : (
+              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
+                <Field label="Lot le plus ancien, à utiliser d'abord"><input className={inputCls} value={nouveauProduit.ddmLot} onChange={(e) => majNouveauProduit("ddmLot", e.target.value)} placeholder="D'après la traçabilité de réception" /></Field>
+                <Field label="Date limite (DDM) de ce lot"><input className={inputCls} type="date" value={nouveauProduit.ddmDate} onChange={(e) => majNouveauProduit("ddmDate", e.target.value)} /></Field>
+              </div>
+            )}
+            <Button onClick={ajouterProduit} disabled={!nouveauProduit.nom}><Plus size={16} /> Ajouter au catalogue</Button>
+          </div>
+        )}
+
+        {ongletAjoutRetrait === "retirer" && (
+          <div className="p-3 rounded-lg border border-[var(--cadre)] bg-[var(--bg)]">
+            <Field label="Rechercher un produit à retirer"><input className={inputCls} value={rechercheRetrait} onChange={(e) => setRechercheRetrait(e.target.value)} /></Field>
+            {retirerProduitsResultats.length > 0 && (
+              <div className="divide-y divide-[var(--line)] mt-2">
+                {retirerProduitsResultats.map((p) => (
+                  <div key={p.id} className="flex items-center justify-between py-2 text-sm">
+                    <span className="text-[var(--ink)]">{p.nom}</span>
+                    <Button variant="danger" onClick={() => { retirerProduit(p.id); setRechercheRetrait(""); }}>Retirer</Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </Card>
+  );
+}
+
 function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits, modeMigre }) {
-  const { estResponsable } = useAcces();
   const who = (id) => employees.find((e) => e.id === id)?.nom;
 
   // Ce que porte l'étiquette (nouvelle base) : jamais la DLC du produit enregistrée au stock. Soit la DDM du lot
@@ -12176,9 +12305,6 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   const [selection, setSelection] = useState([]);
   const [catChoisie, setCatChoisie] = useState("__tous__");
   const [nbParProduit, setNbParProduit] = useState({});
-  const [ongletAjoutRetrait, setOngletAjoutRetrait] = useState(null); // "ajouter" | "retirer" | null
-  const [nouveauProduit, setNouveauProduit] = useState({ nom: "", categorie: ORDRE_CATEGORIES_DLC[0], typeDate: "DLC", delaiJours: "", ddmPremierLot: false, ddmLot: "", ddmDate: "" });
-  const [rechercheRetrait, setRechercheRetrait] = useState("");
   const [qteParProduit, setQteParProduit] = useState({}); // quantité utilisée par produit sélectionné
   const [decongParProduit, setDecongParProduit] = useState({}); // {id: {oui, date, heure}} pour les surgelés
   const [etiquettesAImprimer, setEtiquettesAImprimer] = useState(null);
@@ -12215,35 +12341,6 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   };
 
   const toggleSelection = (id) => setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
-
-  const majNouveauProduit = (champ, val) => setNouveauProduit((prev) => {
-    const next = { ...prev, [champ]: val };
-    if (champ === "categorie" && val === "Surgelés" && !prev.delaiJours) next.delaiJours = 15;
-    return next;
-  });
-
-  const ajouterProduit = () => {
-    if (!nouveauProduit.nom) return;
-    const entry = {
-      id: uid(), nom: nouveauProduit.nom, poste: "Poste Chaud", categorieManuelle: nouveauProduit.categorie,
-      typeDate: nouveauProduit.typeDate,
-      dlcJours: nouveauProduit.typeDate === "DLC" ? (Number(nouveauProduit.delaiJours) || 0) : null,
-      ddmLotActuel: nouveauProduit.typeDate === "DDM" ? nouveauProduit.ddmLot || null : null,
-      ddmDateActuelle: nouveauProduit.typeDate === "DDM" ? nouveauProduit.ddmDate || null : null,
-    };
-    setProduits([...produits, entry]);
-    logActivity("HACCP", "Produit ajouté au catalogue DLC", `${entry.nom} — ${libelleDelaiDlc(entry)}`);
-    setNouveauProduit({ nom: "", categorie: ORDRE_CATEGORIES_DLC[0], typeDate: "DLC", delaiJours: "", ddmPremierLot: false, ddmLot: "", ddmDate: "" });
-  };
-
-  const retirerProduitsResultats = rechercheRetrait.trim().length > 0
-    ? produitsTries.filter((p) => p.nom.toLowerCase().includes(rechercheRetrait.trim().toLowerCase())) : [];
-  const retirerProduit = (id) => {
-    const p = produits.find((x) => x.id === id);
-    setProduits(produits.filter((x) => x.id !== id));
-    setSelection((s) => s.filter((x) => x !== id));
-    if (p) logActivity("HACCP", "Produit retiré du catalogue DLC", p.nom);
-  };
 
   const confirmerAssistant = (lignes) => {
     const entries = lignes
@@ -12440,68 +12537,6 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         </div>
       </div>
 
-      {!modeMigre && estResponsable && <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-3">Ajouter ou retirer un produit</h3>
-        <div className="flex gap-2 mb-4">
-          <Button variant={ongletAjoutRetrait === "ajouter" ? "primary" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "ajouter" ? null : "ajouter"))}><Plus size={16} /> Ajouter un produit</Button>
-          <Button variant={ongletAjoutRetrait === "retirer" ? "danger" : "ghost"} onClick={() => setOngletAjoutRetrait((v) => (v === "retirer" ? null : "retirer"))}><Trash2 size={16} /> Supprimer du catalogue</Button>
-        </div>
-
-        {ongletAjoutRetrait === "ajouter" && (
-          <div className="p-3 rounded-lg border border-[var(--cadre)] bg-[var(--bg)]">
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-              <Field label="Nom du produit"><input className={inputCls} value={nouveauProduit.nom} onChange={(e) => majNouveauProduit("nom", e.target.value)} /></Field>
-              <Field label="Catégorie">
-                <select className={inputCls} value={nouveauProduit.categorie} onChange={(e) => majNouveauProduit("categorie", e.target.value)}>
-                  {ORDRE_CATEGORIES_DLC.map((c) => <option key={c} value={c}>{c}</option>)}
-                </select>
-              </Field>
-              <Field label="Date limite : DLC ou DDM ?">
-                <select className={inputCls} value={nouveauProduit.typeDate} onChange={(e) => majNouveauProduit("typeDate", e.target.value)}>
-                  <option value="DLC">DLC — produit fait maison (délai après préparation)</option>
-                  <option value="DDM">DDM — date lue sur l'emballage, suivie par lot</option>
-                </select>
-              </Field>
-            </div>
-
-            {nouveauProduit.typeDate === "DLC" ? (
-              <div className="mb-3">
-                <div className="flex flex-wrap gap-2 mb-2">
-                  {DELAIS_RAPIDES_DLC.map((d) => (
-                    <button key={d.label} onClick={() => majNouveauProduit("delaiJours", d.jours)}
-                      className={`text-xs px-2.5 py-1.5 rounded-lg border ${Number(nouveauProduit.delaiJours) === d.jours ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
-                      {d.label}
-                    </button>
-                  ))}
-                </div>
-                <Field label="Délai personnalisé (jours)"><input className={`${inputCls} w-32`} type="number" min="0" value={nouveauProduit.delaiJours} onChange={(e) => majNouveauProduit("delaiJours", e.target.value)} /></Field>
-              </div>
-            ) : (
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-3">
-                <Field label="Lot le plus ancien, à utiliser d'abord"><input className={inputCls} value={nouveauProduit.ddmLot} onChange={(e) => majNouveauProduit("ddmLot", e.target.value)} placeholder="D'après la traçabilité de réception" /></Field>
-                <Field label="Date limite (DDM) de ce lot"><input className={inputCls} type="date" value={nouveauProduit.ddmDate} onChange={(e) => majNouveauProduit("ddmDate", e.target.value)} /></Field>
-              </div>
-            )}
-            <Button onClick={ajouterProduit} disabled={!nouveauProduit.nom}><Plus size={16} /> Ajouter au catalogue</Button>
-          </div>
-        )}
-
-        {ongletAjoutRetrait === "retirer" && (
-          <div className="p-3 rounded-lg border border-[var(--cadre)] bg-[var(--bg)]">
-            <Field label="Rechercher un produit à retirer"><input className={inputCls} value={rechercheRetrait} onChange={(e) => setRechercheRetrait(e.target.value)} /></Field>
-            {retirerProduitsResultats.length > 0 && (
-              <div className="divide-y divide-[var(--line)] mt-2">
-                {retirerProduitsResultats.map((p) => (
-                  <div key={p.id} className="flex items-center justify-between py-2 text-sm">
-                    <span className="text-[var(--ink)]">{p.nom}</span>
-                    <Button variant="danger" onClick={() => { retirerProduit(p.id); setRechercheRetrait(""); }}>Retirer</Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
-      </Card>}
     </div>
   );
 }
@@ -12609,8 +12644,6 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [vueEnvoyerCommande, setVueEnvoyerCommande] = useState(false);
   const [inventaireActif, setInventaireActif] = useState(false);
   const today = todayISO();
-  const estResponsable = !!employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction";
-
   const addItem = () => {
     if (!item.nom) return;
     setStock([...stock, { id: uid(), ...item, quantite: Number(item.quantite) || 0, cible: Number(item.cible) || 0, lot: "", dlc: "" }]);
@@ -12697,19 +12730,11 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             </div>
           </>
         )}
-        {(dernierBon || (estResponsable && commandesHistorique.length > 0)) && <Card>
+        {dernierBon && <Card>
           {dernierBon && (
             <div className="mt-5 pt-4 border-t border-[var(--line)]">
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Dernier bon généré — {dernierBon.date}</div>
               <pre className="text-xs text-[var(--ink)] bg-[var(--bg)] rounded-lg p-3 whitespace-pre-wrap">{dernierBon.texte}</pre>
-            </div>
-          )}
-          {estResponsable && commandesHistorique.length > 0 && (
-            <div className="mt-5 pt-4 border-t border-[var(--line)]">
-              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Historique des bons de commande</div>
-              <div className="divide-y divide-[var(--line)]">
-                {commandesHistorique.slice(0, 10).map((b) => (<div key={b.id} className="py-2 text-sm text-[var(--ink)]">{b.date} — {b.lignes.length} article(s)</div>))}
-              </div>
             </div>
           )}
         </Card>}
@@ -20909,7 +20934,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            fichesProps={{ fiches, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, editionProps: modeExterne ? { stock, employees, currentUserId, logActivity: logActivitySafe, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement: identiteExterne.reglagesEtablissement, demandesAjout: identiteExterne.demandesAjout, signalerAjout: identiteExterne.signalerAjout, gestionCatalogue: identiteExterne.gestionCatalogue, fournisseursCatalogue: identiteExterne.fournisseurs } : undefined }}
+            fichesProps={{ fiches, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
             ouvrirIdAuto={ficheAutoOuvrirId}
@@ -20918,7 +20943,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {tab === "controle" && !bloqueChef && (
-          <Controle gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
