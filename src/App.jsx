@@ -428,7 +428,7 @@ const ACCUEIL_TUILES = [
   { id: "stock", label: "Stock", desc: "Gérez vos produits, vos quantités et vos inventaires", icon: Package, fond: "linear-gradient(120deg, #F59E0B 0%, #C26A00 100%)", ombre: "rgba(194,106,0,0.35)" },
   { id: "reception", label: "Réception des marchandises", desc: "Enregistrez vos livraisons et vos fournisseurs", icon: Truck, fond: "linear-gradient(120deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" },
   { id: "tracabilite", label: "Traçabilité", desc: "Photographiez les étiquettes, suivez les lots", icon: Camera, fond: "linear-gradient(120deg, #14A5B8 0%, #0B7285 100%)", ombre: "rgba(11,114,133,0.35)" },
-  { id: "haccp", label: "HACCP", desc: "Températures, refroidissement, huile, cuissons", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
+  { id: "haccp", label: "HACCP", desc: "Températures, refroidissement, huile, maintien au chaud, cuissons", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
   { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
 ];
@@ -20790,7 +20790,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <div>
             <div className="flex items-center gap-3 mb-5">
               <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.haccp.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.haccp.ombre}` }}><Thermometer size={30} /></span>
-              <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">HACCP</h2><p className="text-sm text-[var(--steel)]">Les contrôles de sécurité alimentaire de la cuisine</p></div>
+              <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">HACCP</h2><p className="text-sm text-[var(--steel)]">Les cinq contrôles de la cuisine : températures, refroidissement, huile, maintien au chaud et cuissons</p></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               {NAV_HACCP.map((n) => {
