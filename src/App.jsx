@@ -390,8 +390,8 @@ const NAV_HACCP = [
   { id: "haccpTemp", label: "Températures frigos et congélateurs", icon: Thermometer },
   { id: "haccpRefroid", label: "Refroidissement rapide (cellule)", icon: Snowflake },
   { id: "haccpHuile", label: "Huile de friture", icon: Droplets },
-  { id: "haccpChaud", label: "Gestion du maintien au chaud", icon: Soup },
-  { id: "haccpCuisson", label: "Cuissons", icon: Flame },
+  { id: "haccpChaud", label: "Maintien au chaud", icon: Soup },
+  { id: "haccpCuisson", label: "Cuisson", icon: Flame },
 ];
 const TUILE_COULEURS = {
   haccp: { fond: "linear-gradient(160deg, #2E86D6 0%, #1B5FA8 100%)", ombre: "rgba(27,95,168,0.35)" },
@@ -1099,7 +1099,7 @@ function Card({ children, className = "", id, style }) {
   if (!zonee) {
     const filet = zone && !style && !/warn|danger|border-l-4|sans-zone/.test(className) ? { borderTop: `3px solid ${zone.bord}` } : style;
     return (
-      <div id={id} style={filet} className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
+      <div id={id} style={filet} className={`bg-white border border-[var(--cadre)] rounded-xl p-4 ${className}`}>
         {children}
       </div>
     );
@@ -1353,8 +1353,12 @@ const LOGOS_TITRE = [
   ["Prestataires", "pmsPrestataires", () => PhoneCall], ["Ma carte", "carte", () => UtensilsCrossed], ["Fiches techniques", "creationFiche", () => Sparkles],
   ["Préparation culinaire", "creationFiche", () => Sparkles], ["Référentiel produits", "fournisseur", () => ShoppingCart], ["Livraisons reçues", "commandes", () => ClipboardList],
   ["Vérification des réceptions", "commandes", () => ClipboardList], ["Traçabilité", "tracabilite", () => Camera], ["Historique de la journée", "historiqueJour", () => ClipboardList],
-  ["Réception", "reception", () => Truck], ["Équipe", "comptes", () => Users], ["Inventaire", "stock", () => ClipboardCheck], ["Réservations", "reservationsClient", () => Users], ["Gestion des comptes", "comptes", () => Users], ["Tâches du jour", "taches", () => ListChecks],
+  ["Réception", "reception", () => Truck], ["Équipe", "comptes", () => Users], ["Gestion des comptes", "comptes", () => Users], ["Tâches du jour", "taches", () => ListChecks],
   ["Commande", "fournisseur", () => ShoppingCart], ["Envoyer la commande", "fournisseur", () => ShoppingCart],
+  ["Planning employé", "planningEmploye", () => Clock], ["Horaires", "planningEmploye", () => Clock], ["Réservations", "reservationsClient", () => CalendarDays],
+  ["Création de fiche", "creationFiche", () => Sparkles], ["Fournisseurs et produits", "fournisseur", () => ShoppingCart], ["Allergènes", "allergenes", () => AlertTriangle],
+  ["Origine des viandes", "origine", () => MapPin], ["Procédure de TIAC", "tiac", () => Activity], ["Stock", "stock", () => Package], ["Étiquettes", "etiquettes", () => Printer],
+  ["Contrôles en cuisine", "haccp", () => Thermometer], ["Contrôle & Gestion", "controle", () => ClipboardCheck], ["Tableau de bord", "controle", () => ClipboardCheck], ["Inventaire", "stock", () => ClipboardCheck],
 ];
 function BoutonRetour({ onClick, children, className = "" }) {
   const z = React.useContext(ZoneContext) || { bord: "#475569", fond: "#47556922", texte: "#1E293B" };
@@ -1366,17 +1370,21 @@ function BoutonRetour({ onClick, children, className = "" }) {
   );
 }
 
-function SectionHeader({ title, subtitle, action, compact }) {
+function SectionHeader({ title, subtitle, action, fonction, icone }) {
+  const zone = React.useContext(ZoneContext);
   const logo = typeof title === "string" ? LOGOS_TITRE.find(([debut]) => title.startsWith(debut)) : null;
-  const Ic = logo ? logo[2]() : null;
-  const coul = logo ? couleurSousTuile(logo[1], { fond: "linear-gradient(160deg,#64748B,#334155)", ombre: "rgba(51,65,85,0.3)" }) : null;
+  const Ic = icone || (logo ? logo[2]() : ClipboardList);
+  const cle = fonction || (logo ? logo[1] : null);
+  const tableau = cle ? COULEURS_FONCTION[cle] : null;
+  const coul = tableau || (zone ? { fond: `linear-gradient(160deg, ${zone.bord}, ${zone.texte})`, ombre: `${zone.bord}55` } : { fond: "linear-gradient(160deg,#64748B,#334155)", ombre: "rgba(51,65,85,0.3)" });
+  const zoneTitre = (cle && zoneDepuisFonction(cle)) || zone;
   return (
-    <div className={`flex items-start justify-between ${compact ? "mb-3" : "mb-6"} gap-4 flex-wrap`}>
-      <div className="flex items-start gap-3">
-        {Ic && <span className={`shrink-0 ${compact ? "w-9 h-9" : "w-11 h-11"} rounded-xl flex items-center justify-center text-white`} style={{ background: coul.fond, boxShadow: `0 4px 12px ${coul.ombre}` }}><Ic size={22} /></span>}
+    <div className="flex items-start justify-between mb-3 gap-3 flex-wrap">
+      <div className="flex items-center gap-3">
+        <span className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ background: coul.fond, boxShadow: `0 4px 10px ${coul.ombre}` }}><Ic size={22} /></span>
         <div>
-          <h2 className={`${compact ? "text-xl" : "text-2xl"} font-semibold text-[var(--ink)] tracking-tight`}>{title}</h2>
-          {subtitle && <p className={`text-sm text-[var(--steel)] ${compact ? "" : "mt-1"}`}>{subtitle}</p>}
+          <h2 className="text-xl font-bold tracking-tight leading-tight" style={{ color: zoneTitre ? zoneTitre.texte : "var(--ink)" }}>{title}</h2>
+          {subtitle && <p className="text-sm text-[var(--steel)] leading-tight">{subtitle}</p>}
         </div>
       </div>
       {action}
@@ -2123,13 +2131,7 @@ function EmployeeDetail({ employee, employees, shifts, activityLog, tasks, toggl
     <div>
       <BoutonRetour onClick={onBack} className="mb-4">Retour à l'équipe</BoutonRetour>
 
-      <div className="flex items-center gap-4 mb-6">
-        <Avatar nom={employee.nom} size={56} />
-        <div>
-          <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">{employee.nom}</h2>
-          <p className="text-sm text-[var(--steel)]">{employee.poste}</p>
-        </div>
-      </div>
+      <SectionHeader title={employee.nom} subtitle={employee.poste} fonction="comptes" icone={Users} />
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card><div className="text-2xl font-semibold text-[var(--ink)]">{heuresSemaine.toFixed(1)}h</div><div className="text-xs text-[var(--steel)] mt-1">Cette semaine</div></Card>
@@ -3684,8 +3686,8 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
     { id: "reservationsClient", label: "Réservations client", icon: CalendarDays, section: "equipe", tab: "reservations" },
     { id: "comptes", label: "Gestion des comptes", icon: Users, section: "equipe" },
     { id: "planning", label: "Tâches du jour", icon: ListChecks, section: "controle" },
-    { id: "temperatures", label: "Températures", icon: Thermometer, section: "controle" },
-    { id: "huile", label: "Huile", icon: Droplets, section: "controle" },
+    { id: "temperatures", label: "Températures frigos et congélateurs", icon: Thermometer, section: "controle" },
+    { id: "huile", label: "Huile de friture", icon: Droplets, section: "controle" },
     { id: "cuisson", label: "Cuisson", icon: Flame, section: "controle" },
     { id: "cellule", label: "Refroidissement rapide (cellule)", icon: Snowflake, section: "controle" },
     { id: "maintien", label: "Maintien au chaud", icon: Soup, section: "controle" },
@@ -3860,19 +3862,19 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
           Sur le compte direction, deux tuiles supplémentaires (Planning employé, Réservation
           client) arrivent en premier et ouvrent directement leur écran, sans passer par
           une section — avec un bouton de retour en haut de chaque écran. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
         {SECTIONS_CG.map((x) => {
           const Icon = x.icon;
           const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)))).length;
           return (
             <button key={x.id} onClick={() => { setSousEcran(null); setSectionActive(x.id); }}
               style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
-              className="rounded-2xl flex items-center gap-4 min-h-[110px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
-              <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
+              className="rounded-2xl flex items-center gap-3 min-h-[84px] px-4 py-3 text-left active:scale-[0.98] transition-transform">
+              <span className="shrink-0 w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center"><Icon size={26} color="#ffffff" strokeWidth={2} /></span>
               <span className="min-w-0">
                 <span className="block text-lg font-bold text-white leading-tight">{x.label}</span>
-                <span className="block text-sm text-white/90 mt-1 leading-snug">{x.desc}</span>
-                <span className="block text-xs text-white/80 mt-1">{nb} rubrique{nb > 1 ? "s" : ""}</span>
+                <span className="block text-sm text-white/90 leading-snug">{x.desc}</span>
+                <span className="block text-xs text-white/80">{nb} rubrique{nb > 1 ? "s" : ""}</span>
               </span>
             </button>
           );
@@ -3917,23 +3919,26 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       ) : (
       <>
       {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
-      <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
+      {sousEcran
+        ? <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3">Retour à {sectionInfo.label}</BoutonRetour>
+        : <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>}
 
-      <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} />
-
-      {sousEcran && (
-        <BoutonRetour onClick={() => setSousEcran(null)} className="mb-4">Retour à {sectionInfo.label}</BoutonRetour>
-      )}
+      {!sousEcran && <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} fonction={sectionActive === "equipe" ? "comptes" : sectionActive === "controle" ? "taches" : sectionActive === "cuisine" ? "carte" : "pms"} icone={sectionInfo.icon} />}
+      {sousEcran && ["temperatures", "cellule", "cuisson", "maintien", "huile", "allergenes", "origine", "tiac", "comptes", "planning"].includes(sousEcran) && (() => {
+        const t = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === sousEcran);
+        const sous = { temperatures: "Relevés de température et alertes", cellule: "Suivi des refroidissements et de la cellule", cuisson: "Suivi des cuissons", maintien: "Suivi des produits maintenus au chaud", huile: "Tests et suivi des bains d'huile", allergenes: "Les 14 allergènes à déclarer, plat par plat et produit par produit", origine: "Origine des viandes servies — à renseigner et à conserver", tiac: "Que faire et que déclarer en cas de suspicion d'intoxication alimentaire collective", comptes: "Créez et gérez les comptes de l'équipe", planning: "Vue d'ensemble de la journée : qui a fait quoi" }[sousEcran];
+        return t ? <SectionHeader title={t.label} subtitle={sous} fonction={sousEcran} icone={t.icon} /> : null;
+      })()}
 
       {!sousEcran && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 mb-3">
           {SOUS_TUILES_CONTROLE.map((t) => {
             const Icon = t.icon;
             return (
               <button key={t.id} onClick={() => ouvrirSousTuile(t.id)}
                 style={{ background: couleurSousTuile(t.id, sectionInfo.couleur).fond, boxShadow: `0 8px 20px ${couleurSousTuile(t.id, sectionInfo.couleur).ombre}` }}
-                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[88px] px-2 text-center active:scale-95 transition-transform">
-                <Icon size={28} color="#ffffff" strokeWidth={2} />
+                className="rounded-2xl flex flex-col items-center justify-center gap-1 h-[72px] px-2 text-center active:scale-95 transition-transform">
+                <Icon size={24} color="#ffffff" strokeWidth={2} />
                 <span className="text-xs font-bold text-white leading-tight line-clamp-2">{t.label}</span>
               </button>
             );
@@ -4336,7 +4341,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
       </div>
       <div className="hidden print:block mb-3 text-lg font-semibold">Ma Cuisine — Inventaire mensuel — {fmtLong(today)}</div>
       <div className="print:hidden">
-        <SectionHeader compact title="Inventaire mensuel" subtitle={`${fmtLong(today)} — comptez chaque produit et saisissez la quantité réelle ; les écarts corrigent le stock à la validation.`} />
+        <SectionHeader title="Inventaire mensuel" subtitle={`${fmtLong(today)} — comptez chaque produit et saisissez la quantité réelle ; les écarts corrigent le stock à la validation.`} />
       </div>
 
       {valide ? (
@@ -4496,7 +4501,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
     <div>
       <BandeauNormes label="Fournisseurs et produits — traçabilité : Règlement (CE) n° 178/2002, art. 18 · allergènes : Règlement (UE) n° 1169/2011, art. 44" />
       <BoutonRetour onClick={onBack} className="mb-4">Retour au contrôle</BoutonRetour>
-      <SectionHeader title="Référentiel produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
+      <SectionHeader title="Fournisseurs et produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
 
       {gestion && edition && (
         <FormulaireCatalogue
@@ -6574,14 +6579,14 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
       <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
       <SectionHeader title="PMS — plan de nettoyage" subtitle="Deux étapes simples : d'abord définir comment nettoyer, ensuite planifier qui nettoie quoi et quand" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <button onClick={() => setVue("protocoles")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-4 min-h-[120px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
+        <button onClick={() => setVue("protocoles")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-3 min-h-[88px] px-4 py-3 text-left active:scale-[0.98] transition-transform">
           <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><SprayCan size={32} color="#ffffff" /></span>
           <span className="min-w-0">
             <span className="block text-lg font-bold text-white leading-tight">1. Protocoles de nettoyage</span>
             <span className="block text-sm text-white/90 mt-1 leading-snug">Par surface ou matériel : les produits à utiliser et les étapes à suivre</span>
           </span>
         </button>
-        <button onClick={() => setVue("planning")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-4 min-h-[120px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
+        <button onClick={() => setVue("planning")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-3 min-h-[88px] px-4 py-3 text-left active:scale-[0.98] transition-transform">
           <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><CalendarDays size={32} color="#ffffff" /></span>
           <span className="min-w-0">
             <span className="block text-lg font-bold text-white leading-tight">2. Planning de nettoyage</span>
@@ -6598,10 +6603,7 @@ function ProtocoleDetail({ protocole, onBack, onRemove }) {
   return (
     <div>
       <BoutonRetour onClick={onBack} className="mb-4">Retour aux protocoles</BoutonRetour>
-      <div className="flex items-start justify-between mb-6 gap-4">
-        <h2 className="text-xl font-semibold text-[var(--ink)] tracking-tight">{protocole.nom}</h2>
-        <BoutonSupprimer onConfirm={() => onRemove(protocole.id)} size={16} libelle={protocole.nom} />
-      </div>
+      <SectionHeader title={protocole.nom} subtitle="Protocole de nettoyage" fonction="pms" icone={SprayCan} action={<BoutonSupprimer onConfirm={() => onRemove(protocole.id)} size={16} libelle={protocole.nom} />} />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <Card>
           <h3 className="font-semibold text-[var(--ink)] mb-3">Produits à utiliser</h3>
@@ -9545,16 +9547,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const parCategorie = categories.map((c) => ({ c, ids: idsAujourdhui.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
   return (
     <div>
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-5">
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.carte.fond }}><UtensilsCrossed size={24} /></div>
-          <div>
-            <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">Ma carte</h2>
-            <p className="text-sm text-[var(--steel)]">{`Créez et gérez votre carte à partir des fiches techniques — et sachez ce que chaque employé doit préparer. ${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`}</p>
-          </div>
-        </div>
-        {carte && <Button variant="ghost" onClick={() => setApercuOuvert(true)}><BookOpen size={16} /> Aperçu de la carte</Button>}
-      </div>
+      <SectionHeader title="Ma carte" fonction="carte" icone={UtensilsCrossed} subtitle={`Créez et gérez votre carte à partir des fiches techniques — et sachez ce que chaque employé doit préparer. ${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`}
+        action={carte ? <Button variant="ghost" onClick={() => setApercuOuvert(true)}><BookOpen size={16} /> Aperçu de la carte</Button> : null} />
       {apercuOuvert && carte && <ApercuCarte carte={carte} plats={plats} categories={categories} onClose={() => setApercuOuvert(false)} />}
       {periodique && (
         <PanneauStyle titre="Période de la carte" aide="Choisissez la carte à afficher ou créez la période suivante" couleur="#2E86D6" teinte="#E6F0FB">
@@ -11644,7 +11638,7 @@ function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDl
   return (
     <div>
       <BoutonRetour onClick={onBack} className="mb-4">Retour aux étiquettes</BoutonRetour>
-      <h2 className="text-xl font-semibold text-[var(--ink)] mb-4">{nom}</h2>
+      <SectionHeader title={nom} subtitle="Étiquette DLC" fonction="etiquettes" icone={Printer} />
 
       <Card className="mb-6">
         {produitCatalogue ? (
@@ -12038,10 +12032,7 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
   return (
     <div>
       <BoutonInfosNormes ficheKey="tracabilite" onClick={ouvrirNormes} label="Qu'est-ce qu'une traçabilité et comment bien la faire" texte="Cliquez pour lire les règles officielles : informations à conserver, durée de conservation, rappel de produits." />
-      <div className="flex items-center gap-3 mb-4">
-        <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.tracabilite.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.tracabilite.ombre}` }}><Camera size={28} /></span>
-        <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Traçabilité</h2><p className="text-sm text-[var(--steel)]">{sansIA ? "Photographiez l'étiquette du produit : la photo est conservée et classée par jour" : "Enregistrez la traçabilité d'un produit par photo, ou recherchez une traçabilité déjà enregistrée"}</p></div>
-      </div>
+      <SectionHeader title="Traçabilité" fonction="tracabilite" icone={Camera} subtitle={sansIA ? "Photographiez l'étiquette du produit : la photo est conservée et classée par jour" : "Enregistrez la traçabilité d'un produit par photo, ou recherchez une traçabilité déjà enregistrée"} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
 
       {IA_ACTIVEE && !sansIA
@@ -12281,17 +12272,12 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
       <BoutonInfosNormes ficheKey="dlc" onClick={setFicheNormesOuverte} label="Étiquetage DLC — normes HACCP" texte="Une étiquette doit porter : nom du produit, DLC ou DDM, n° de lot et date de fabrication. Cliquez pour lire les repères officiels de conservation." />
       {ficheNormesOuverte && <ModalInfosNormes fiche={FICHES_NORMES[ficheNormesOuverte]} onClose={() => setFicheNormesOuverte(null)} />}
 
-      <div className="flex items-center gap-3 flex-wrap mb-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.etiquettes.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.etiquettes.ombre}` }}><Printer size={28} /></span>
-          <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Étiquettes (DLC)</h2><p className="text-sm text-[var(--steel)]">Sélectionnez un ou plusieurs produits pour imprimer vos étiquettes DLC</p></div>
-        </div>
-      </div>
+      <SectionHeader title="Étiquettes (DLC)" fonction="etiquettes" icone={Printer} subtitle="Sélectionnez un ou plusieurs produits pour imprimer vos étiquettes DLC" />
 
       <div className="grid grid-cols-1 xl:grid-cols-[14rem_minmax(0,1fr)_18rem] gap-4 mb-6">
         {/* Catégories */}
-        <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 self-start">
-          <h3 className="text-lg font-bold text-[var(--ink)] mb-2 px-1">Catégories</h3>
+        <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 self-start" style={{ borderTop: `3px solid ${zoneDepuisFonction("etiquettes").bord}` }}>
+          <h3 className="text-sm font-bold mb-2 px-2 py-1.5 rounded-md" style={{ background: zoneDepuisFonction("etiquettes").fond, color: zoneDepuisFonction("etiquettes").texte }}>Catégories</h3>
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
             <button type="button" onClick={() => setCatChoisie("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: catChoisie === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
@@ -12763,12 +12749,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           <span className="block text-xs font-normal mt-0.5">Cliquez pour lire les règles officielles : stockage, températures, DLC/DDM, rotation des produits (FIFO).</span>
         </span>
       </button>
-      <div className="flex items-center gap-3 flex-wrap mb-3">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.stock.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.stock.ombre}` }}><Package size={30} /></span>
-          <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Stock</h2><p className="text-sm text-[var(--steel)]">Gérez vos produits, vos quantités et vos inventaires</p></div>
-        </div>
-      </div>
+      <SectionHeader title="Stock" fonction="stock" icone={Package} subtitle="Gérez vos produits, vos quantités et vos inventaires" />
       <div className="relative mb-3">
         <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
         <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
@@ -15559,7 +15540,7 @@ function Reception({ optionsExterne, stock, setStock, receptions, setReceptions,
     <div>
       <BoutonInfosNormes ficheKey="reception" onClick={(k) => setFicheReception(FICHES_NORMES[k])} label="Réception des marchandises — Normes HACCP" texte="Cliquez pour lire les règles officielles : contrôle à la livraison, températures, étiquetage, produits non conformes." />
       <SectionHeader
-        title="Réception"
+        title="Réception des marchandises"
         subtitle="Réception des marchandises, contrôle HACCP et suivi des lots"
       />
 
@@ -15888,7 +15869,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
         <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <span className="text-xs text-[var(--steel)]">{tracabiliteFiltree.length} entrée(s)</span>
       </div>
-      <SectionHeader title="Traçabilité — historique complet" subtitle="Toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) photos comprises, puis supprimées automatiquement après 5 ans." />
+      <SectionHeader title="Traçabilité" subtitle="Historique complet — toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) photos comprises, puis supprimées automatiquement après 5 ans." />
       <Card>
         <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Rechercher (produit, lot ou date)" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
         <div className="divide-y divide-[var(--line)] mt-3">
@@ -16580,7 +16561,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
       {onBack && (
         <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
       )}
-      {!integre && <SectionHeader title="Réservations" subtitle="Gestion des réservations et des services" />}
+      {!integre && <SectionHeader title="Réservations client" subtitle="Gestion des réservations et des services" />}
 
       <div className="flex items-center gap-3 flex-wrap justify-between mb-2">
         <div className="flex items-center gap-2 min-w-0">
@@ -19026,7 +19007,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
         <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
       )}
       <SectionHeader
-        title="Horaires"
+        title="Planning employé et heures de service"
         subtitle={nouvelleBase ? "Semaine type de l'établissement : cliquez sur un créneau pour programmer les horaires de chaque employé" : "Semaine type : 9h30–14h30 et 18h–20h30 en semaine, jusqu'à 23h30 vendredi et samedi, repos le lundi"}
         action={nouvelleBase ? null : <Button variant="ghost" onClick={applyStandardAll}>Appliquer à toute l'équipe</Button>}
       />
@@ -20689,7 +20670,7 @@ function KitchenApp({ identiteExterne } = {}) {
         </div>
       )}
 
-      <main className={`flex-1 p-4 sm:p-6 lg:p-8 pb-8 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
+      <main className={`flex-1 p-3 sm:p-4 lg:p-5 pb-6 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
         <IndicateurHorsLigne />
         {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin) && (
           <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement} continu>Un refroidissement ou une congélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
@@ -20730,11 +20711,11 @@ function KitchenApp({ identiteExterne } = {}) {
                     key={t.id}
                     onClick={() => { setTab(t.cible || t.id); setSelectedEmployeeId(null); }}
                     style={{ background: t.fond, boxShadow: `0 8px 20px ${t.ombre}` }}
-                    className={`rounded-2xl flex items-center gap-4 min-h-[112px] px-5 py-4 text-left active:scale-[0.98] transition-transform ${t.large ? "lg:col-span-2" : ""}`}
+                    className={`rounded-2xl flex items-center gap-3 min-h-[84px] px-4 py-3 text-left active:scale-[0.98] transition-transform ${t.large ? "lg:col-span-2" : ""}`}
                   >
-                    <span className="shrink-0 w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center"><Icon size={36} color="#ffffff" strokeWidth={2} /></span>
+                    <span className="shrink-0 w-12 h-12 rounded-xl bg-white/20 flex items-center justify-center"><Icon size={28} color="#ffffff" strokeWidth={2} /></span>
                     <span className="min-w-0 flex-1">
-                      <span className="block text-xl font-bold text-white leading-tight">{t.label}</span>
+                      <span className="block text-lg font-bold text-white leading-tight">{t.label}</span>
                       <span className="block text-sm text-white/90 mt-1 leading-snug">{t.desc}</span>
                     </span>
                     {badges[t.id] > 0 && <span className="shrink-0 text-xs font-bold rounded-full px-2 py-1" style={{ backgroundColor: "#ffffff", color: "#1D2321" }}>{badges[t.id]}</span>}
@@ -20746,22 +20727,19 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "haccp" && (
           <div>
-            <div className="flex items-center gap-3 mb-5">
-              <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.haccp.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.haccp.ombre}` }}><Thermometer size={30} /></span>
-              <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Contrôles en cuisine</h2><p className="text-sm text-[var(--steel)]">Les cinq contrôles de la cuisine : températures, refroidissement, huile, maintien au chaud et cuissons</p></div>
-            </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+            <SectionHeader title="Contrôles en cuisine" fonction="haccp" icone={Thermometer} subtitle="Les cinq contrôles de la cuisine : températures, refroidissement, huile, maintien au chaud et cuissons" />
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-4">
               {NAV_HACCP.map((n) => {
                 const couleur = TUILE_COULEURS[n.id] || TUILE_COULEURS.default; const Icon = n.icon;
                 const desc = { haccpTemp: "Suivez et enregistrez les températures de vos équipements", haccpRefroid: "Contrôlez vos cycles de refroidissement et vos enregistrements", haccpHuile: "Suivez la qualité et la durée d'utilisation de vos huiles", haccpChaud: "Vérifiez et enregistrez les températures de maintien", haccpCuisson: "Contrôlez et enregistrez les températures de cuisson" }[n.id] || "";
                 return (
                   <button key={n.id} onClick={() => setTab(n.id)} style={{ background: couleur.fond, boxShadow: `0 8px 20px ${couleur.ombre}` }}
-                    className="relative overflow-hidden rounded-2xl text-left min-h-[150px] md:min-h-[180px] px-5 py-5 flex items-center gap-4 active:scale-[0.98] transition-transform">
-                    <Icon size={150} color="#ffffff" strokeWidth={1.4} className="absolute -right-4 top-1/2 -translate-y-1/2 opacity-25 pointer-events-none" />
-                    <span className="relative w-14 h-14 rounded-xl bg-white/25 flex items-center justify-center shrink-0"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
-                    <span className="relative min-w-0 pr-16 md:pr-28">
-                      <span className="block text-xl md:text-2xl font-bold text-white leading-tight">{n.label}</span>
-                      <span className="block text-sm md:text-base text-white/90 mt-1.5">{desc}</span>
+                    className="relative overflow-hidden rounded-2xl text-left min-h-[96px] px-4 py-3 flex items-center gap-3 active:scale-[0.98] transition-transform">
+                    <Icon size={110} color="#ffffff" strokeWidth={1.4} className="absolute -right-3 top-1/2 -translate-y-1/2 opacity-25 pointer-events-none" />
+                    <span className="relative w-12 h-12 rounded-xl bg-white/25 flex items-center justify-center shrink-0"><Icon size={26} color="#ffffff" strokeWidth={2} /></span>
+                    <span className="relative min-w-0 pr-12 md:pr-20">
+                      <span className="block text-lg font-bold text-white leading-tight">{n.label}</span>
+                      <span className="block text-sm text-white/90 mt-0.5 leading-snug">{desc}</span>
                     </span>
                   </button>
                 );
@@ -20776,10 +20754,10 @@ function KitchenApp({ identiteExterne } = {}) {
           <>
           {vueTaches === "reservations" ? (
             <ZoneContext.Provider value={zoneDepuisFonction("reservationsClient")}>
-              <SectionHeader compact title="Réservations" subtitle="Gestion des réservations et des services" />
+              <SectionHeader title="Réservations client" subtitle="Gestion des réservations et des services" />
             </ZoneContext.Provider>
           ) : (<>
-          <SectionHeader compact title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
+          <SectionHeader title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
           </>)}
           <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null}  cuissons={cuissons} vueExt={vueTaches} setVueExt={setVueTaches} />
           </>
