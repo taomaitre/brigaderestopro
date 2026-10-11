@@ -12907,6 +12907,10 @@ const SEUILS_RECEPTION = {
   surgele: { max: -18, label: "≤ -18°C" },
   frais: { max: 4, label: "≤ 4°C" },
   viande: { max: 4, label: "≤ 4°C" },
+  hache: { max: 2, label: "≤ 2°C" },
+  poisson: { max: 2, label: "≤ 2°C" },
+  abats: { max: 3, label: "≤ 3°C" },
+  plat: { max: 3, label: "≤ 3°C" },
 };
 // Normes de réception de la version migrée (aperçu) : tolérance de transport pour le surgelé,
 // limite basse pour le frais (un produit frais ne doit pas arriver gelé), seuil plus strict pour poisson/haché/plats cuisinés.
@@ -12914,8 +12918,14 @@ const SEUILS_RECEPTION_NOUVEAU = {
   surgele: { min: null, max: -15, ideal: -18, label: "≤ -18°C (tolérance transport jusqu'à -15°C)" },
   frais: { min: -1, max: 4, label: "de -1°C à +4°C" },
   viande: { min: -1, max: 4, label: "de -1°C à +4°C" },
-  poisson: { min: -1, max: 3, label: "de -1°C à +3°C (poisson sur glace fondante : 0 à +2°C)" },
+  // Arrêté du 21/12/2009, annexe I (valeurs maximales) : viande hachée +2°C, produits de la pêche frais +2°C
+  // (glace fondante 0 à +2°C), abats +3°C, préparations culinaires élaborées à l'avance +3°C.
+  hache: { min: -1, max: 2, label: "de -1°C à +2°C" },
+  poisson: { min: -1, max: 2, label: "de -1°C à +2°C (glace fondante : 0 à +2°C)" },
+  abats: { min: -1, max: 3, label: "de -1°C à +3°C" },
+  plat: { min: -1, max: 3, label: "de -1°C à +3°C" },
 };
+const NOM_TYPE_TEMP = { viande: "viande fraîche / volaille", hache: "viande hachée", poisson: "poisson frais", abats: "abats", plat: "plat cuisiné" };
 const RAISONS_NON_CONFORMITE = ["Produit abîmé à la livraison", "DLC trop courte", "Température non conforme", "Produit non commandé", "Produit substitué / facturé plus cher que commandé"];
 
 // Redimensionne et compresse automatiquement toute photo prise dans le logiciel avant de la
@@ -13819,8 +13829,11 @@ function ImportPhotoIAInterne({ titre, description, consigne, onResultats, bouto
 // Conservation d'un produit à la réception : détermine la température à relever et la "case" du stock.
 const CONSERVATIONS = [
   { v: "frais", l: "Frais / laitier" },
-  { v: "viande", l: "Viande fraîche" },
-  { v: "poisson", l: "Poisson / viande hachée / plat cuisiné" },
+  { v: "viande", l: "Viande fraîche / volaille / préparation de viande" },
+  { v: "hache", l: "Viande hachée" },
+  { v: "abats", l: "Abats" },
+  { v: "poisson", l: "Poisson / produits de la pêche frais" },
+  { v: "plat", l: "Plat cuisiné / préparation à l'avance" },
   { v: "legume", l: "Fruits et légumes frais / herbes" },
   { v: "surgele", l: "Surgelé" },
   { v: "sec", l: "Sec / épicerie" },
@@ -13829,7 +13842,7 @@ const CONSERVATIONS = [
   { v: "entretien", l: "Produits d'entretien / ménagers" },
   { v: "autre", l: "Autre (non alimentaire)" },
 ];
-const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", poisson: "Poisson / haché", legume: "Fruits & légumes", surgele: "Surgelé", sec: "Sec", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autre" };
+const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", hache: "Viande hachée", abats: "Abats", plat: "Plat cuisiné", poisson: "Poisson", legume: "Fruits & légumes", surgele: "Surgelé", sec: "Sec", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autre" };
 
 // Date saisie à la main (JJ/MM/AAAA, JJMMAAAA ou MM/AAAA — pour une DDM lointaine) OU choisie dans le calendrier.
 // La valeur échangée est toujours au format AAAA-MM-JJ ("" si vide). Pour MM/AAAA, on prend le dernier jour du mois.
@@ -14111,7 +14124,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   };
   const seuilsAffiches = modeManuel ? SEUILS_RECEPTION_NOUVEAU : SEUILS_RECEPTION;
   // Prévisualisation : on ne demande que les températures des types de produits présents sur le bon (frais, viande, surgelé).
-  const typesATemperature = [...new Set(lignesBon.map((l) => l.conservation).filter((c) => c === "frais" || c === "viande" || c === "poisson" || c === "surgele"))];
+  const typesATemperature = [...new Set(lignesBon.map((l) => l.conservation).filter((c) => c === "frais" || c === "viande" || c === "hache" || c === "abats" || c === "plat" || c === "poisson" || c === "surgele"))];
   const tempsPretes = typesATemperature.every((t) => !Number.isNaN(parseFloat(temps[t])));
   const tempsNonConformes = typesATemperature.some((t) => conformeTemp(t) === false);
 
@@ -14574,11 +14587,11 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         <StepShell titre="Contrôle températures HACCP" onPrev={() => setStep(2)} hideNext>
           <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/20 mb-4">
             <p className="text-xs text-[var(--ink)]">
-              <strong>Rappel des normes de réception :</strong> un produit surgelé doit être à {seuilsAffiches.surgele.label}, un produit frais/laitier à {seuilsAffiches.frais.label}, une viande fraîche à {seuilsAffiches.viande.label}{modeManuel ? `, un poisson / une viande hachée / un plat cuisiné à ${seuilsAffiches.poisson.label}` : ""}. Un produit surgelé ne doit jamais être recongelé s'il a décongelé. Prenez la température à cœur avec la sonde, pas la température de l'air.
+              <strong>Rappel des normes de réception :</strong> un produit surgelé doit être à {seuilsAffiches.surgele.label}, un produit frais/laitier à {seuilsAffiches.frais.label}, une viande fraîche à {seuilsAffiches.viande.label}{modeManuel ? `, une viande hachée à ${seuilsAffiches.hache.label}, un poisson frais à ${seuilsAffiches.poisson.label}, des abats ou un plat cuisiné à ${seuilsAffiches.abats.label}` : ""}. Un produit surgelé ne doit jamais être recongelé s'il a décongelé. Prenez la température à cœur avec la sonde, pas la température de l'air.
             </p>
           </Card>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande"], ["poisson", "Poisson / haché / plat cuisiné"]].filter(([type]) => !modeManuel || typesATemperature.includes(type)).map(([type, label]) => {
+            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande fraîche / volaille"], ["hache", "Viande hachée"], ["abats", "Abats"], ["poisson", "Poisson frais"], ["plat", "Plat cuisiné"]].filter(([type]) => !modeManuel || typesATemperature.includes(type)).map(([type, label]) => {
               const ok = conformeTemp(type);
               return (
                 <Field key={type} label={`${label} (${seuilsAffiches[type].label})`}>
@@ -14962,8 +14975,8 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
 // Pour revenir à l'ancien parcours : mettre PARCOURS_RECEPTION_SIMPLE à false.
 // ─────────────────────────────────────────────────────────────────────────────
 const PARCOURS_RECEPTION_SIMPLE = true;
-const TYPES_ALIMENTAIRES = ["frais", "viande", "poisson", "surgele", "sec", "boisson"];
-const TYPES_A_TEMPERATURE = ["frais", "viande", "poisson", "surgele"];
+const TYPES_ALIMENTAIRES = ["frais", "viande", "hache", "abats", "plat", "poisson", "surgele", "sec", "boisson"];
+const TYPES_A_TEMPERATURE = ["frais", "viande", "hache", "abats", "plat", "poisson", "surgele"];
 
 function etatTemperatureReception(type, texte) {
   const v = parseFloat(String(texte).replace(",", "."));
@@ -14974,10 +14987,21 @@ function etatTemperatureReception(type, texte) {
   return "ok";
 }
 
+// Une température relevée pour une famille est jugée type par type (ex. 3°C : conforme pour une viande fraîche,
+// hors norme pour une viande hachée). Renvoie l'état global et les types hors norme / conformes.
+function evalFamilleTemp(f, texte) {
+  const etats = f.types.map((ty) => [ty, etatTemperatureReception(ty, texte)]).filter(([, e]) => e);
+  if (etats.length === 0) return { etat: null, ncTypes: [], okTypes: [] };
+  const nc = etats.filter(([, e]) => e === "hors" || e === "gele");
+  const ok = etats.filter(([, e]) => e !== "hors" && e !== "gele");
+  const etat = nc.length ? (nc.some(([, e]) => e === "hors") ? "hors" : "gele") : (etats.some(([, e]) => e === "tolerance") ? "tolerance" : "ok");
+  return { etat, ncTypes: nc.map(([t]) => t), okTypes: ok.map(([t]) => t) };
+}
+
 // Les 3 relevés de température pris dès le départ : un par famille de produits (le logiciel en déduit seul
 // si chaque produit saisi ensuite est conforme ou non).
 const FAMILLES_TEMP = [
-  { id: "viande", titre: "Viande et poisson", sous: "viande fraîche, poisson, haché, plats cuisinés", norme: "de -1°C à +4°C (poisson : +3°C maximum)", types: ["viande", "poisson"], typeRef: "viande", fond: "#FDE4E8", bord: "#F6B8C2", couleur: "#B4233A", Ic: ChefHat },
+  { id: "viande", titre: "Viande et poisson", sous: "viande, volaille, haché, abats, poisson, plats cuisinés", norme: "viande/volaille +4°C · abats et plats cuisinés +3°C · viande hachée et poisson frais +2°C", types: ["viande", "hache", "abats", "plat", "poisson"], typeRef: "viande", fond: "#FDE4E8", bord: "#F6B8C2", couleur: "#B4233A", Ic: ChefHat },
   { id: "frais", titre: "Produits frais", sous: "laitiers, œufs, charcuterie, produits réfrigérés", norme: "de -1°C à +4°C", types: ["frais"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
   { id: "surgele", titre: "Surgelés", sous: "tous les produits congelés", norme: "-18°C ou moins (tolérance transport jusqu'à -15°C)", types: ["surgele"], typeRef: "surgele", fond: "#E6F0FA", bord: "#BCD3F2", couleur: "#14527F", Ic: Snowflake },
 ];
@@ -15237,7 +15261,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
           <p className="text-sm text-[var(--steel)] mb-4">Une température à cœur par famille de produits. Le logiciel sait ensuite, pour chaque produit saisi, s'il est conforme ou non. Si une famille n'est pas dans cette livraison, cochez « Pas de produit ».</p>
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             {FAMILLES_TEMP.map((f) => {
-              const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? etatTemperatureReception(f.typeRef, t.valeur) : null;
+              const t = temps[f.id]; const ev = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur) : { etat: null, ncTypes: [], okTypes: [] }; const etat = ev.etat;
               const nc = etat === "hors" || etat === "gele";
               return (
                 <div key={f.id} className="rounded-xl border-2 p-4 flex flex-col" style={{ borderColor: nc ? "#C1432D" : (etat ? "#2F6B4F" : f.bord), backgroundColor: nc ? "#FFF5F6" : (etat ? "#F3FAF6" : "#fff") }}>
@@ -15251,7 +15275,8 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                   <div className="min-h-[2.75rem] mt-2 text-sm">
                     {etat === "ok" && <p style={{ color: "#2F6B4F" }}>✓ Température conforme</p>}
                     {etat === "tolerance" && <p style={{ color: "#2F6B4F" }}>✓ Accepté (tolérance transport) — au congélateur immédiatement</p>}
-                    {nc && <p className="font-semibold text-[var(--warn)]">⚠ Hors norme{etat === "gele" ? " : produit gelé (un produit frais ne doit pas arriver gelé)" : ""} — les produits de cette famille seront refusés.</p>}
+                    {nc && f.types.length > 1 && <p className="font-semibold text-[var(--warn)]">⚠ Hors norme{etat === "gele" ? " (produit gelé)" : ""} pour : {ev.ncTypes.map((x) => NOM_TYPE_TEMP[x]).join(", ")} — ces produits seront refusés.{ev.okTypes.length > 0 && <span className="block font-normal" style={{ color: "#2F6B4F" }}>Conforme pour : {ev.okTypes.map((x) => NOM_TYPE_TEMP[x]).join(", ")}.</span>}</p>}
+                    {nc && f.types.length === 1 && <p className="font-semibold text-[var(--warn)]">⚠ Hors norme{etat === "gele" ? " : produit gelé (un produit frais ne doit pas arriver gelé)" : ""} — les produits de cette famille seront refusés.</p>}
                   </div>
                   {nc && (
                     <div className="flex flex-col items-center text-center mb-3">
@@ -15477,7 +15502,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {FAMILLES_TEMP.map((f) => {
-            const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? etatTemperatureReception(f.typeRef, t.valeur) : null; const nc = etat === "hors" || etat === "gele";
+            const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur).etat : null; const nc = etat === "hors" || etat === "gele";
             return (
               <div key={f.id} className="rounded-xl border p-3 flex items-center gap-3" style={t.aucun ? { borderColor: "#D5DAE0", backgroundColor: "#F4F6F8" } : nc ? { borderColor: "#F6B8C2", backgroundColor: "#FDE4E8" } : { borderColor: "#B3E0C5", backgroundColor: "#EAF6EF" }}>
                 <f.Ic size={24} style={{ color: t.aucun ? "#5B6670" : nc ? "#B4233A" : "#14653A" }} />
