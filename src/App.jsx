@@ -10099,8 +10099,9 @@ function HaccpTemperatures({
     logActivity("HACCP", "Sonde connectée", `${eq.nom} — sonde n° ${eq.sonde}`);
   };
 
+  const [jourReleve, setJourReleve] = useState(todayISO());
   const dernierReleve = (eqId) => {
-    const releves = relevesFroid.filter((r) => r.equipementId === eqId);
+    const releves = relevesFroid.filter((r) => r.equipementId === eqId && r.date <= jourReleve);
     if (releves.length === 0) return null;
     return releves.reduce((plusRecent, r) => (`${r.date} ${r.heure || ""}` > `${plusRecent.date} ${plusRecent.heure || ""}` ? r : plusRecent));
   };
@@ -10111,6 +10112,12 @@ function HaccpTemperatures({
     <div>
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Relevés — frigos &amp; congélateurs</h3>
+        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-[var(--steel)]">
+          <span>Relevés au</span>
+          <input type="date" value={jourReleve} max={todayISO()} onChange={(e) => e.target.value && setJourReleve(e.target.value)} className={`${inputCls} !w-auto`} />
+          {jourReleve !== todayISO() && <button type="button" className="underline" onClick={() => setJourReleve(todayISO())}>Revenir à aujourd'hui</button>}
+          <span className="ml-auto">Dernière mise à jour : {(() => { const t = relevesFroid.filter((r) => r.date <= jourReleve).sort((x, y) => `${y.date} ${y.heure || ""}`.localeCompare(`${x.date} ${x.heure || ""}`))[0]; return t ? `${t.date === todayISO() ? "aujourd'hui" : t.date} à ${t.heure || "—"}` : "aucun relevé"; })()}</span>
+        </div>
         <p className="text-xs text-[var(--steel)] mb-2">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
         <p className="text-xs text-[var(--steel)] mb-4">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
@@ -10118,8 +10125,10 @@ function HaccpTemperatures({
             <thead>
               <tr className="bg-[var(--bg)]">
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Matériel</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Type</th>
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Norme</th>
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Dernier relevé</th>
+                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Statut</th>
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Contrôle manuel (thermomètre laser)</th>
                 <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]"></th>
               </tr>
@@ -10131,7 +10140,7 @@ function HaccpTemperatures({
                 if (editionId === eq.id) {
                   return (
                     <tr key={eq.id} className={i % 2 === 0 ? "bg-white" : "bg-[var(--bg)]/50"}>
-                      <td colSpan={5} className="px-3 py-3">
+                      <td colSpan={7} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-2">
                           <Field label="Nom de l'appareil"><input className={`${inputCls} w-48`} value={editionForm.nom} onChange={(e) => setEditionForm({ ...editionForm, nom: e.target.value })} /></Field>
                           <Field label="N° du capteur connecté (vide si pas de capteur)"><input className={`${inputCls} w-28`} value={editionForm.sonde} onChange={(e) => setEditionForm({ ...editionForm, sonde: e.target.value })} /></Field>
@@ -10161,6 +10170,7 @@ function HaccpTemperatures({
                         </div>
                       ) : <div className="text-xs text-[var(--steel)]">Sonde non renseignée</div>}
                     </td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#15803D" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
                     <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
                     <td className="px-3 py-2 align-top whitespace-nowrap">
                       {dr ? (
@@ -10170,6 +10180,7 @@ function HaccpTemperatures({
                         </>
                       ) : <span className="text-xs text-[var(--steel)]">Aucun relevé</span>}
                     </td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap">{!dr ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#EEF1F5", color: "#475569" }}>Non relevé</span> : dr.conforme === false ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FDECEC", color: "#B3261E" }}>Hors norme</span> : <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#E4F4EA", color: "#15803D" }}>Conforme</span>}</td>
                     <td className="px-3 py-2 align-top">
                       <div className="flex items-center gap-1.5 mb-1.5">
                         <input className={`${inputCls} w-20`} type="number" step="0.1" placeholder="°C" value={s.valeur ?? ""} onChange={(e) => majSaisie(eq.id, "valeur", e.target.value)} />
@@ -15149,7 +15160,20 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
         <button onClick={onCancel} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Annuler la réception</button>
         <span className="text-sm font-semibold text-[var(--ink)]">Étape {etape} / 5 — {libelleEtapes[etape - 1]}</span>
       </div>
-      <div className="flex gap-1.5">{libelleEtapes.map((_, i) => <span key={i} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: i < etape ? "#E5243B" : "#E3E6EA" }} />)}</div>
+      <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
+        {libelleEtapes.map((lib, i) => {
+          const fait = i + 1 < etape, courant = i + 1 === etape;
+          return (
+            <React.Fragment key={i}>
+              <span className="flex items-center gap-2 px-2.5 py-1.5 rounded-full text-xs font-semibold" style={courant ? { background: COULEURS_FONCTION.reception.fond, color: "#fff", boxShadow: `0 4px 10px ${COULEURS_FONCTION.reception.ombre}` } : fait ? { background: "#E4F4EA", color: "#15803D" } : { background: "#EEF1F5", color: "#64748B" }}>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold" style={courant ? { background: "rgba(255,255,255,.25)" } : fait ? { background: "#15803D", color: "#fff" } : { background: "#fff" }}>{fait ? "✓" : i + 1}</span>
+                <span className="hidden sm:inline">{lib}</span>
+              </span>
+              {i < libelleEtapes.length - 1 && <ChevronRight size={14} className="text-[var(--steel)] shrink-0" />}
+            </React.Fragment>
+          );
+        })}
+      </div>
     </div>
   );
   const pied = (gauche, centre, droite) => (
