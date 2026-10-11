@@ -4774,6 +4774,17 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
               </select>
             </label>
             {champTexte("delai_apres_ouverture_jours", "DLC après ouverture (en jours) — celle indiquée sur l'emballage du fabricant, sinon celle du tableau des DLC")}
+            {(() => {
+              const rep = repereDlcOuverture(v.nom, v.conservation === "surgele");
+              const saisi = v.delai_apres_ouverture_jours == null || v.delai_apres_ouverture_jours === "" ? null : Number(v.delai_apres_ouverture_jours);
+              return (
+                <div className="sm:col-span-2 rounded-lg px-3 py-2 text-xs leading-relaxed" style={{ backgroundColor: "#FDF0D5", color: "#6B4A00", border: "1px solid #F0D590" }}>
+                  <p><b>À savoir avant de modifier une DLC.</b> Les durées proposées par le logiciel reprennent le tableau « Durées de conservation (DLC) — Normes HACCP » : ce sont des repères issus de la formation HACCP et de sources professionnelles, pas un texte de loi. Aucun organisme officiel ne fixe une DLC pour chaque produit ; la réglementation demande à chaque établissement de fixer et de justifier lui-même ses durées (guides de bonnes pratiques d'hygiène).</p>
+                  <p className="mt-1">⚠ Toute modification peut être dangereuse pour la santé des clients. Il est conseillé de la faire valider par un laboratoire agréé. Cela ne vous empêche pas de la modifier : vous en restez responsable.</p>
+                  {rep && saisi != null && saisi !== rep.jours && <p className="mt-1 font-semibold">Cette durée ({saisi} j) diffère du repère du tableau pour ce produit : {rep.repere}.</p>}
+                </div>
+              );
+            })()}
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
               <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
@@ -12269,6 +12280,11 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
 
   const dernierePourNom = (nom) => preparations.filter((p) => p.nomLibre === nom).sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure))[0] || null;
 
+  // Dernière étiquette créée (tous produits) : pour en refaire une si elle a été perdue. Le nombre d'étiquettes repart à 1.
+  const derniereEtiquette = [...preparations].filter((x) => x.dlcDate && x.nomLibre).sort((a, b) => ((b.date || "") + (b.heure || "")).localeCompare((a.date || "") + (a.heure || "")))[0] || null;
+  const reediterDerniere = () => { if (derniereEtiquette) setEtiquettesAImprimer([{ ...derniereEtiquette, produitNom: derniereEtiquette.nomLibre, nbEtiquettes: 1 }]); };
+  const fmtJour = (d) => (d ? d.split("-").reverse().join("/") : "");
+
   const reediterEtiquettes = () => {
     const trouvees = produitsUniques.filter((p) => selection.includes(p.id))
       .map((p) => { const h = dernierePourNom(p.nom); return h ? { ...h, produitNom: p.nom } : null; })
@@ -12404,6 +12420,12 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             <button type="button" onClick={validerSelection} disabled={produitsSel.length === 0} className="w-full h-12 rounded-lg text-white text-base font-bold disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
               Valider{totalEtiq > 0 ? ` (${totalEtiq} étiquette${totalEtiq > 1 ? "s" : ""})` : ""}
             </button>
+            {derniereEtiquette && (
+              <button type="button" onClick={reediterDerniere} className="w-full mt-3 h-11 rounded-lg border-2 text-sm font-bold flex items-center justify-center gap-2" style={{ borderColor: "#6027C9", color: "#6027C9", backgroundColor: "#fff" }}>
+                <Printer size={16} /> Réimprimer la dernière étiquette faite
+              </button>
+            )}
+            {derniereEtiquette && <p className="text-xs text-[var(--steel)] text-center mt-1">{derniereEtiquette.nomLibre} — {fmtJour(derniereEtiquette.date)} à {derniereEtiquette.heure}</p>}
             <button type="button" onClick={reediterEtiquettes} disabled={selection.length === 0} className="w-full mt-2 text-xs text-[var(--steel)] underline disabled:opacity-40">Réimprimer la dernière étiquette des produits sélectionnés</button>
           </div>
         </div>
@@ -19697,9 +19719,9 @@ function KitchenApp({ identiteExterne } = {}) {
   const catalogueExterne = modeExterne && identiteExterne ? identiteExterne.catalogue : null;
   const produitsCatalogueExterne = React.useMemo(() => {
     const cat = catalogueExterne || [];
-    const CAT_PAR_TYPE = { surgele: "Surgelés", viande: "Viandes", poisson: "Poissons", legume: "Fruits et légumes" };
+    const CAT_PAR_TYPE = { surgele: "Surgelés", viande: "Viandes", hache: "Viandes", abats: "Viandes", poisson: "Poissons", legume: "Fruits et légumes" };
     return cat.filter((c) => !["entretien", "emballage", "autre"].includes(c.conservation)).map((c) => {
-      const jours = c.dlcJours == null ? null : Number(c.dlcJours);
+      const jours = c.delaiOuverture != null ? Number(c.delaiOuverture) : (c.dlcJours == null ? null : Number(c.dlcJours));
       return {
         id: c.id, nom: c.nom, poste: "", reference: c.reference || "", conservation: c.conservation || "", categorieCatalogue: c.categorie || "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
         typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), ddmExplicite: c.typeDate === "DDM", dlcJours: jours,
