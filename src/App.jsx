@@ -15505,12 +15505,6 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
                   <p className="text-xs text-[var(--ink)] mb-3 rounded-md px-2.5 py-1.5" style={{ backgroundColor: f.fond }}>Norme : <b>{f.norme}</b></p>
                   <label className={lab}>Température à cœur (°C)</label>
                   <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" step="0.1" inputMode="decimal" disabled={t.aucun} placeholder="0.0" value={t.valeur} onChange={(e) => majTemp(f.id, { valeur: e.target.value })} />
-                  {String(t.valeur).trim() !== "" && (
-                    <div className="flex flex-col items-center text-center mt-3">
-                      <p className="text-xs text-[var(--ink)] mb-1.5">Photo du thermomètre (facultative)</p>
-                      <PhotoInput rond value={t.photo} onChange={(v) => majTemp(f.id, { photo: v })} label="Photographier le thermomètre" />
-                    </div>
-                  )}
                 </div>
               );
             })}
