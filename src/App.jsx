@@ -15412,9 +15412,12 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             <div className="mt-4 rounded-xl border px-4 py-3 flex items-center gap-3 flex-wrap" style={ev.temperature === "" ? { borderColor: "#D5DAE0", backgroundColor: "#F4F6F8" } : ev.tempNC ? { borderColor: "#F6B8C2", backgroundColor: "#FDE4E8" } : { borderColor: "#B3E0C5", backgroundColor: "#EAF6EF" }}>
               <fam.Ic size={22} style={{ color: ev.temperature === "" ? "#5B6670" : ev.tempNC ? "#B4233A" : "#14653A" }} />
               <div className="flex-1 min-w-0 text-sm text-[var(--ink)]">
-                {temps[fam.id].aucun || ev.temperature === ""
-                  ? <>Aucune température relevée pour « {fam.titre} » (type non coché ou vide). <button type="button" className="underline font-semibold" onClick={() => setEtape(2)}>Retourner aux températures</button></>
-                  : <>Température relevée pour « {fam.titre} » : <b>{ev.temperature} °C</b></>}
+                <div className="mb-1">Température à cœur — <b>{fam.titre}</b> <span className="text-xs text-[var(--steel)]">(norme : {fam.norme})</span></div>
+                <div className="flex items-center gap-2">
+                  <input className={`${inputCls} !w-28 !h-11 text-lg font-bold text-center`} type="number" step="0.1" inputMode="decimal" placeholder="0.0" value={temps[fam.id].aucun ? "" : temps[fam.id].valeur} onChange={(e) => majTemp(fam.id, { aucun: false, valeur: e.target.value })} />
+                  <span className="text-sm">°C</span>
+                  {ev.temperature === "" && <span className="text-xs text-[var(--steel)]">Relevez la température de ce produit ici.</span>}
+                </div>
               </div>
               {ev.temperature !== "" && badge(!ev.tempNC, ev.tempNC ? "Non conforme — refusé" : "Conforme")}
             </div>
