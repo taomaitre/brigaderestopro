@@ -1096,8 +1096,9 @@ function Card({ children, className = "", id, style }) {
   // Les cartes d'alerte (rouge), sans marge ou déjà stylées à la main restent telles quelles.
   const zonee = zone && !style && premier && premier.type === "h3" && !/warn|danger|border-l-4|sans-zone|(^|\s)!?p[xytblr]?-\d/.test(className);
   if (!zonee) {
+    const filet = zone && !style && !/warn|danger|border-l-4|sans-zone/.test(className) ? { borderTop: `3px solid ${zone.bord}` } : style;
     return (
-      <div id={id} style={style} className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
+      <div id={id} style={filet} className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
         {children}
       </div>
     );
@@ -12769,8 +12770,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
       {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4 mb-6">
-        <div className="rounded-xl border border-[var(--cadre)] bg-white p-3">
-          <h3 className="text-lg font-bold text-[var(--ink)] mb-2 px-1">Catégories</h3>
+        <CarteZone icone={Package} titre="Catégories" sous="Choisissez une catégorie">
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
             <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
@@ -12788,15 +12788,15 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               );
             })}
           </div>
-        </div>
+        </CarteZone>
 
-        <div id="stock-tableau" className="rounded-xl border border-[var(--cadre)] bg-white min-w-0 scroll-mt-4">
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--line)] flex-wrap">
+        <div id="stock-tableau" className="rounded-xl border border-[var(--cadre)] bg-white min-w-0 scroll-mt-4 overflow-hidden" style={{ borderTop: `3px solid ${zoneDepuisFonction("stock").bord}` }}>
+          <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--line)] flex-wrap" style={{ background: zoneDepuisFonction("stock").fond }}>
             <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: q ? "#1D2321" : infoCat.fond, color: q ? "#fff" : infoCat.texte }}><Package size={20} /></span>
             <h3 className="text-xl font-bold text-[var(--ink)]">{q ? "Résultats de la recherche" : infoCat.nom} ({liste.length})</h3>
             {filtreEtat !== "tous" && <span className="text-xs font-semibold px-2 py-1 rounded-md bg-[var(--bg)] text-[var(--ink)]">Filtre : {filtreEtat === "alerte" ? "en alerte" : "dans le panier"} <button type="button" className="underline ml-1" onClick={() => setFiltreEtat("tous")}>retirer</button></span>}
           </div>
-          <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
+          <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-2 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)]" style={{ borderBottom: `2px solid ${zoneDepuisFonction("stock").bord}55` }}>
             <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span>Unité / pas</span><span className="text-center">Panier</span>
           </div>
           {liste.length === 0 ? (
@@ -18472,7 +18472,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                 <button key={id} type="button" onClick={() => setVueAccueil(id)}
                   style={actif ? { backgroundColor: ACTION_PLANNING, color: "#ffffff", borderColor: ACTION_PLANNING } : undefined}
                   className={`h-10 sm:min-w-[11rem] px-4 rounded-lg border-2 flex items-center justify-center gap-2 text-sm font-semibold ${actif ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>
-                  <Ic size={18} /> {lib}
+                  <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white" style={{ backgroundColor: actif ? "rgba(255,255,255,0.25)" : (zoneDepuisFonction(id === "reservations" ? "reservationsClient" : "taches") || { texte: "#334155" }).texte }}><Ic size={16} /></span> {lib}
                 </button>
               );
             })}
