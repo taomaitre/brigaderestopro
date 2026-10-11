@@ -100,6 +100,7 @@ const Home = makeIcon([P("m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"), P("M
 const ShoppingCart = makeIcon([C(8, 21, 1), C(19, 21, 1), P("M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12")]);
 const Truck = makeIcon([RC(1, 3, 15, 13), P("M16 8h4l3 3v5h-7V8Z"), C(5.5, 18.5, 2.5), C(18.5, 18.5, 2.5)]);
 const ClipboardCheck = makeIcon([RC(8, 2, 8, 4, 1), P("M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"), P("m9 14 2 2 4-4")]);
+const Download = makeIcon([P("M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"), P("m7 10 5 5 5-5"), P("M12 15V3")]);
 const Printer = makeIcon([P("M6 9V2h12v7"), P("M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"), RC(6, 14, 12, 8)]);
 const BookOpen = makeIcon([P("M12 7v14"), P("M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z")]);
 const Camera = makeIcon([P("M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"), C(12, 13, 3)]);
@@ -4315,11 +4316,23 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
   const nbComptes = Object.values(comptage).filter((v) => v !== "" && v !== undefined).length;
   const nbEcarts = stock.filter((x) => comptage[x.id] !== undefined && comptage[x.id] !== "" && Number(comptage[x.id]) !== Number(x.quantite)).length;
   const grille = "grid-cols-[7rem_minmax(0,1fr)_7rem_11rem_6rem]";
+  const [messageExport, setMessageExport] = useState("");
+  const exporterExcel = async () => {
+    try {
+      const XLSX = await import("xlsx");
+      const lignes = [["Catégorie", "Référence", "Nom", "Qté système", "Unité", "Qté comptée", "Écart"]];
+      Object.entries(parCategorie).forEach(([categorie, items]) => items.forEach((x) => {
+        const saisi = comptage[x.id]; const a = saisi !== undefined && saisi !== "";
+        lignes.push([categorie, x.reference || "", x.nom, Number(x.quantite), x.unite || "", a ? Number(saisi) : "", a ? Math.round((Number(saisi) - Number(x.quantite)) * 1000) / 1000 : ""]);
+      }));
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lignes), "Inventaire");
+      XLSX.writeFile(wb, `inventaire-${today}.xlsx`); setMessageExport("Fichier Excel téléchargé.");
+    } catch (e) { setMessageExport("L'export Excel n'a pas pu être créé."); }
+  };
   return (
     <div>
       <div className="flex items-center justify-between mb-3 print:hidden gap-2 flex-wrap">
         <BoutonRetour onClick={onBack}>Retour au stock</BoutonRetour>
-        <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
       </div>
       <div className="hidden print:block mb-3 text-lg font-semibold">Ma Cuisine — Inventaire mensuel — {fmtLong(today)}</div>
       <div className="print:hidden">
@@ -4358,6 +4371,12 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
             </CarteZone>
           ))}
           <button type="button" onClick={validerInventaire} className="print:hidden w-full h-14 rounded-xl text-white text-base font-bold flex items-center justify-center gap-2 shadow-md mb-4" style={{ backgroundColor: "#1F8F5F" }}><CheckCircle2 size={22} /> Valider l'inventaire et corriger le stock</button>
+          <div className="print:hidden flex flex-wrap items-center gap-2 mb-4">
+            <Button variant="ghost" onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
+            <Button variant="ghost" onClick={() => { setMessageExport("Dans la fenêtre d'impression, choisissez « Enregistrer au format PDF »."); window.print(); }}><Download size={16} /> Télécharger en PDF</Button>
+            <Button variant="ghost" onClick={exporterExcel}><Download size={16} /> Télécharger en Excel</Button>
+            {messageExport && <span className="text-xs text-[var(--steel)]">{messageExport}</span>}
+          </div>
         </>
       )}
     </div>
