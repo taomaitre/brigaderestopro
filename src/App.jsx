@@ -15250,7 +15250,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
   const commandeLignes = commandeInfo.lignes;
 
   const nouveauBrouillon = (kind) => ({ id: uid(), kind: kind || "normal", nom: "", reference: "", conservation: "", quantite: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", plusRenvoi: false, autrePb: false, raisonPb: "", quantitePb: "", photoPb: null });
-  const commencer = (kind) => { setBrouillon(nouveauBrouillon(kind)); setDetailsOuverts(false); setScanMsg(""); };
+  const commencer = (kind) => { setBrouillon(nouveauBrouillon(kind || (commandeLignes.length > 0 ? "plus" : "normal"))); setDetailsOuverts(false); setScanMsg(""); };
   const maj = (patch) => setBrouillon((b) => ({ ...b, ...patch }));
 
   // ── Température et conformité : tout est déduit des 3 relevés de l'étape 2 ──
@@ -15300,7 +15300,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
   };
   const existeDansStock = (p) => stock.some((x) => norm(x.nom) === norm(p.nom));
   const alimentaire = brouillon && TYPES_ALIMENTAIRES.includes(brouillon.conservation);
-  const brouillonVide = !brouillon || (!brouillon.nom.trim() && !String(brouillon.quantite).trim() && !brouillon.lot.trim() && !brouillon.dlc);
+  const brouillonVide = !brouillon || (!String(brouillon.quantite).trim() && !brouillon.lot.trim() && !brouillon.dlc && !brouillon.autrePb && (brouillon.ligneId || !brouillon.nom.trim()));
   const manque = [];
   if (brouillon && !brouillonVide) {
     if (!brouillon.nom.trim()) manque.push("le nom du produit");
@@ -15313,7 +15313,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
     if (brouillon.autrePb && !brouillon.raisonPb.trim()) manque.push("la cause du problème");
   }
   const enregistrerBrouillon = () => setProduits((prev) => (prev.some((x) => x.id === brouillon.id) ? prev.map((x) => (x.id === brouillon.id ? brouillon : x)) : [...prev, brouillon]));
-  const produitSuivant = () => { enregistrerBrouillon(); setBrouillon(nouveauBrouillon()); setDetailsOuverts(false); setScanMsg(""); };
+  const produitSuivant = () => { if (!brouillonVide) enregistrerBrouillon(); setBrouillon(nouveauBrouillon(commandeLignes.length > 0 ? "plus" : "normal")); setDetailsOuverts(false); setScanMsg(""); };
   const choisirLigneCommande = (l) => {
     if (!brouillonVide && manque.length > 0) { setScanMsg(`Terminez d'abord le produit en cours (il manque : ${manque.join(", ")}).`); return; }
     if (!brouillonVide) enregistrerBrouillon();
@@ -15662,7 +15662,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
             <button type="button" onClick={() => maj({ autrePb: !b.autrePb })} className="min-h-[48px] px-4 py-2 rounded-xl border-2 text-sm font-bold text-left shadow-sm" style={{ borderColor: "#C1432D", backgroundColor: b.autrePb ? "#C1432D" : "#FDE4E8", color: b.autrePb ? "#fff" : "#B4233A" }}>{b.autrePb ? "− Aucun autre problème sur ce produit" : "+ Autre problème sur ce produit (abîmé, DLC trop courte…)"}</button>
           </div>
           <div className="mt-3 flex justify-center">
-            <button type="button" onClick={produitSuivant} disabled={brouillonVide || manque.length > 0}
+            <button type="button" onClick={produitSuivant} disabled={manque.length > 0}
               className="min-h-[56px] px-8 py-2 rounded-xl border-2 text-base font-bold shadow-md flex items-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform"
               style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63", color: "#fff" }}>
               <Plus size={22} strokeWidth={3} /> Ajouter un produit
