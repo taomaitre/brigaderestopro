@@ -12728,10 +12728,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).map((x) => x.s).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
   const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
   const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
-    <button type="button" onClick={onClick} className="text-left rounded-xl border px-3 py-2 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
+    <button type="button" onClick={onClick} className="text-left rounded-lg border px-2.5 py-1.5 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
       <div className="flex items-center gap-3">
         <span className="w-12 h-12 rounded-lg bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={28} /></span>
-        <div className="min-w-0 flex-1"><div className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-[11px] leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
+        <div className="min-w-0 flex-1"><div className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-[10px] leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
       </div>
     </button>
   );
@@ -16370,11 +16370,11 @@ function CarteZone({ icone: Ic, titre, sous, action, className = "", id, childre
 function CarteInfo({ titre, grand, unite, sous, Ic, fond, bord, couleur, onClick }) {
   return (
     <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
-      <div className="flex items-center gap-2.5">
-        <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={20} /></span>
+      <div className="flex items-center gap-2">
+        <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={16} /></span>
         <div className="min-w-0 flex-1">
-          <div className="text-xs font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
-          <div className="flex items-baseline gap-1.5"><span className="text-2xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
+          <div className="text-[11px] font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
+          <div className="flex items-baseline gap-1"><span className="text-xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
           <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>
         </div>
       </div>
