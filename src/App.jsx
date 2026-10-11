@@ -474,6 +474,7 @@ const COULEURS_FONCTION = {
   allergenes: degrade("#EAB308", "#A16207"),
   origine: degrade("#0EA5E9", "#075985"),
   tiac: degrade("#DC2626", "#7F1D1D"),
+  dlc: degrade("#EF4444", "#B91C1C"),
   rappelconso: degrade("#DC2626", "#7F1D1D"),
   notifications: degrade("#3B82F6", "#1D4ED8"),
   alertes: degrade("#D4A017", "#9A7000"),
@@ -4453,7 +4454,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
       )}
 
       {sousEcran === "historiqueJour" && (
-        <HistoriqueJournee employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
+        <HistoriqueJournee receptions={receptions} employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
       )}
 
       {sousEcran === "allergenes" && (
@@ -4663,7 +4664,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
 
       {sousEcran === "planning" && (
         <div className="mb-6">
-          <HistoriqueJournee integre employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
+          <HistoriqueJournee integre receptions={receptions} employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
           <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
         </div>
       )}
@@ -16388,10 +16389,10 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
 // ---- Historique de la journée (chef et direction) : vue d'ensemble de tous les autocontrôles d'un jour ----
 // Lecture seule. Les pourcentages sont de simples informations (jamais bloquants). Chaque fonction
 // garde sa couleur et son logo (couleurSousTuile). Le texte « à utiliser aujourd'hui » est en rouge : c'est une alerte.
-function HistoriqueJournee({ integre, employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
+function HistoriqueJournee({ integre, receptions = [], employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
   const aujourdhui = todayISO();
   const [jour, setJour] = useState(aujourdhui);
-  const [ouvert, setOuvert] = useState(null);
+  const [etendus, setEtendus] = useState({});
   const who = (id) => (employees.find((e) => e.id === id) || {}).nom || "—";
   const decaler = (n) => { const d = new Date(jour + "T00:00:00"); d.setDate(d.getDate() + n); setJour(d.toISOString().slice(0, 10)); };
   const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)} %` : "—");
@@ -16414,6 +16415,8 @@ function HistoriqueJournee({ integre, employees, relevesFroid, equipementsFroid,
     ...stock.filter((s) => s.dlc === jour && Number(s.quantite) > 0).map((s) => ({ nom: s.nom, lot: s.lot || "—", qte: `${s.quantite}` })),
   ];
 
+  const recepJour = (receptions || []).filter((r) => r.date === jour && r.produit && r.produit !== "(aucun produit détaillé)");
+  const recepOk = recepJour.filter((r) => r.conforme !== false).length;
   const tempsOk = releves.filter((r) => r.conforme !== false).length;
   const refrFinis = refr.filter((r) => r.statut === "termine").length;
   const cuisFinies = cuis.filter((c) => c.statut === "termine" || c.finie).length;
@@ -16438,60 +16441,88 @@ function HistoriqueJournee({ integre, employees, relevesFroid, equipementsFroid,
       colonnes: ["Produit", "Début", "Fin", "Statut"], lignes: maint.map((m) => [m.nom, H(m.heureDebut), H(m.heureFin), m.statut === "termine" ? "Terminé" : "En cours"]) },
     { id: "huiles", cle: "huile", icone: Droplets, titre: "Huiles de friture", n: huiles.length, texte: huiles.length ? `${pct(huilesOk, huiles.length)} conforme` : "Aucun test",
       colonnes: ["Bain", "Heure", "Résultat"], lignes: huiles.map((h) => [h.bain || "—", H(h.heure), h.resultat || "—"]) },
+    { id: "receptions", cle: "reception", icone: Truck, titre: "Réceptions", n: recepJour.length, texte: recepJour.length ? `${pct(recepOk, recepJour.length)} conforme` : "Aucune livraison",
+      colonnes: ["Produit", "Fournisseur", "Quantité", "Heure", "Statut"], lignes: recepJour.map((r) => [r.produit, r.fournisseur || "—", r.quantite != null ? String(r.quantite) : "—", H(r.heure), r.conforme === false ? (r.raison || "Non conforme") : "Conforme"]) },
     { id: "preparations", cle: "preparations", icone: UtensilsCrossed, titre: "Préparations", n: preps.length, texte: `${preps.length} préparée(s)`,
       colonnes: ["Préparation", "Quantité", "Heure", "Responsable"], lignes: preps.map((p) => [nomProduit(p), p.quantite != null ? String(p.quantite) : "—", H(p.heure), who(p.employeeId)]) },
     { id: "taches", cle: "planning", icone: ListChecks, titre: "Autres tâches", n: tachesFaites.length, texte: `${tachesFaites.length} faite(s)`,
       colonnes: ["Tâche", "Fait par"], lignes: tachesFaites.map((t) => [t.titre || t.nom || t.label || "Tâche", Object.keys(t.completions[jour]).map(who).join(", ")]) },
   ];
   const exportLignes = blocs.flatMap((b) => b.lignes.map((l) => [b.titre, ...l.map(String)]));
-  const detail = blocs.find((b) => b.id === ouvert);
   const libelleJour = new Date(jour + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
+  const zoneDe = (b) => zoneDepuisFonction(b.cle) || { bord: "#64748B", fond: "#64748B22", texte: "#334155" };
+  const MAX_LIGNES = 5;
+  const aller = (id) => { const el = document.getElementById(`hj-${id}`); if (el && el.scrollIntoView) el.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  // Pastille de statut : rouge = à regarder, vert = bon, bleu = en cours
+  const pastille = (v) => {
+    const t = String(v);
+    if (/non conforme|à utiliser|refus|manquant|inférieure|résolu|remplac/i.test(t)) return { fond: "#FDE2E0", texte: "#B42318" };
+    if (/^(conforme|fait|terminé|accepté|enregistré)$/i.test(t)) return { fond: "#DDF5E7", texte: "#157347" };
+    if (/en cours/i.test(t)) return { fond: "#DCEBFB", texte: "#1D5FA8" };
+    return null;
+  };
+  const estStatut = (b, j) => (b.colonnes[j] || "") === "Statut" || b.colonnes[j] === "Résultat";
 
   return (
     <div className="mb-6">
-      {!integre && <SectionHeader title="Historique de la journée" subtitle="Vue d'ensemble de toutes les actions et contrôles réalisés ce jour-là. Lecture seule." />}
+      {!integre && <SectionHeader title="Historique de la journée" subtitle="Vue d'ensemble de toutes les actions et contrôles réalisés ce jour-là. Lecture seule." fonction="historiqueJour" icone={ClipboardList} />}
       <div className="flex flex-wrap items-center gap-2 mb-4">
-        <button type="button" onClick={() => decaler(-1)} className="px-3 py-1.5 rounded-lg border border-[var(--line)] text-sm" aria-label="Jour précédent">‹</button>
+        <button type="button" onClick={() => decaler(-1)} className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-white text-sm" aria-label="Jour précédent">‹</button>
         <input type="date" value={jour} max={aujourdhui} onChange={(e) => e.target.value && setJour(e.target.value)} className={inputCls} style={{ width: "auto" }} />
-        <button type="button" onClick={() => decaler(1)} disabled={jour >= aujourdhui} className="px-3 py-1.5 rounded-lg border border-[var(--line)] text-sm disabled:opacity-40" aria-label="Jour suivant">›</button>
+        <button type="button" onClick={() => decaler(1)} disabled={jour >= aujourdhui} className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-white text-sm disabled:opacity-40" aria-label="Jour suivant">›</button>
         <span className="text-sm text-[var(--steel)] capitalize">{libelleJour}</span>
       </div>
       <BoutonsExport titre={`Historique de la journée ${jour}`} colonnes={["Fonction", "Élément", "Détail 1", "Détail 2", "Détail 3", "Détail 4"]} lignes={exportLignes} />
-      <div className="grid grid-cols-2 md:grid-cols-5 gap-3 mb-5">
+
+      {/* Rangée de résumé : un carré par fonction, cliquer fait défiler jusqu'au cadre correspondant */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-6 gap-2.5 mb-5">
         {blocs.map((b) => {
-          const Ic = b.icone; const c = couleurSousTuile(b.cle, { fond: "linear-gradient(160deg,#64748B,#334155)", ombre: "rgba(51,65,85,0.3)" });
+          const Ic = b.icone; const z = zoneDe(b);
           return (
-            <button key={b.id} type="button" onClick={() => setOuvert(ouvert === b.id ? null : b.id)} className="text-left rounded-2xl p-3 text-white" style={{ background: c.fond, boxShadow: `0 6px 16px ${c.ombre}`, outline: ouvert === b.id ? "3px solid var(--accent)" : "none" }}>
-              <div className="flex items-center gap-2"><Ic size={18} /><span className="text-xs font-semibold">{b.titre}</span></div>
-              <div className="text-2xl font-bold mt-1">{b.n}</div>
-              <div className="text-[11px] opacity-90">{b.texte}</div>
-              <div className="text-[11px] mt-1 underline">Voir le détail →</div>
+            <button key={b.id} type="button" onClick={() => aller(b.id)} className="text-left rounded-xl p-2.5 active:scale-95 transition-transform" style={{ background: z.fond, border: `1.5px solid ${z.bord}` }}>
+              <div className="flex items-center gap-1.5" style={{ color: z.texte }}>
+                <span className="w-6 h-6 rounded-md flex items-center justify-center shrink-0" style={{ background: z.bord }}><Ic size={14} color="#fff" /></span>
+                <span className="text-[11px] font-bold leading-tight">{b.titre}</span>
+              </div>
+              <div className="text-2xl font-bold mt-1" style={{ color: b.rouge ? "#B42318" : z.texte }}>{b.n}</div>
+              <div className="text-[11px] text-[var(--steel)] leading-tight">{b.texte}</div>
             </button>
           );
         })}
       </div>
-      {dlcJour.length > 0 && (
-        <Card className="mb-4 border-[var(--warn)]">
-          <div className="flex items-center gap-2 text-[var(--warn)] font-semibold text-sm mb-2"><AlertTriangle size={16} /> Produits en fin de DLC aujourd'hui ({dlcJour.length})</div>
-          {dlcJour.map((d, i) => <div key={i} className="text-sm flex justify-between py-1 border-t border-[var(--line)]"><span>{d.nom} · lot {d.lot} · {d.qte}</span><span className="text-[var(--warn)] font-medium">À utiliser aujourd'hui</span></div>)}
-        </Card>
-      )}
-      {detail && (
-        <Card>
-          <h3 className="font-semibold text-[var(--ink)] mb-2">{detail.titre} ({detail.n})</h3>
-          {detail.lignes.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien d'enregistré ce jour-là.</p> : (
-            <div className="overflow-x-auto"><table className="w-full text-sm">
-              <thead><tr className="text-left text-xs text-[var(--steel)]">{detail.colonnes.map((c) => <th key={c} className="py-1 pr-3 font-medium">{c}</th>)}</tr></thead>
-              <tbody>{detail.lignes.map((l, i) => <tr key={i} className="border-t border-[var(--line)]">{l.map((v, j) => {
-                const mauvais = /non conforme|resté allumé/i.test(String(v)) || (detail.id === "dlc" && j === l.length - 1);
-                const bon = /^(conforme|fait|terminé)$/i.test(String(v));
-                return <td key={j} className={`py-1.5 pr-3 ${mauvais ? "text-[var(--warn)] font-medium" : bon ? "text-emerald-700 font-medium" : ""}`}>{v}</td>;
-              })}</tr>)}</tbody>
-            </table></div>
-          )}
-        </Card>
-      )}
-      {!detail && <p className="text-xs text-[var(--steel)]">Touchez une tuile pour voir le détail du jour.</p>}
+
+      {/* Tous les cadres sur une seule page, chacun dans sa couleur */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 items-start">
+        {blocs.map((b) => {
+          const Ic = b.icone; const z = zoneDe(b);
+          const tout = !!etendus[b.id]; const lignes = tout ? b.lignes : b.lignes.slice(0, MAX_LIGNES);
+          return (
+            <section key={b.id} id={`hj-${b.id}`} className="rounded-2xl overflow-hidden scroll-mt-4" style={{ background: z.fond, border: `1.5px solid ${z.bord}` }}>
+              <div className="flex items-center gap-2 px-3 py-2.5" style={{ borderBottom: `1.5px solid ${z.bord}` }}>
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: z.bord }}><Ic size={18} color="#fff" /></span>
+                <h3 className="font-bold text-sm sm:text-base" style={{ color: b.rouge ? "#B42318" : z.texte }}>{b.titre} ({b.n})</h3>
+                <span className="ml-auto text-xs text-[var(--steel)] text-right">{b.texte}</span>
+              </div>
+              <div className="bg-white/80 px-3 py-2">
+                {b.lignes.length === 0 ? <p className="text-sm text-[var(--steel)] py-2">Rien d'enregistré ce jour-là.</p> : (
+                  <div className="overflow-x-auto"><table className="w-full text-xs sm:text-sm">
+                    <thead><tr className="text-left text-[11px] text-[var(--steel)]">{b.colonnes.map((c) => <th key={c} className="py-1 pr-2 font-semibold">{c}</th>)}</tr></thead>
+                    <tbody>{lignes.map((l, i) => <tr key={i} className="border-t border-[var(--line)]">{l.map((v, j) => {
+                      const ch = (estStatut(b, j) || (b.id === "dlc" && j === l.length - 1)) ? pastille(v) : null;
+                      return <td key={j} className="py-1.5 pr-2 align-middle">{ch ? <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: ch.fond, color: ch.texte }}>{v}</span> : v}</td>;
+                    })}</tr>)}</tbody>
+                  </table></div>
+                )}
+                {b.lignes.length > MAX_LIGNES && (
+                  <button type="button" onClick={() => setEtendus({ ...etendus, [b.id]: !tout })} className="text-xs font-semibold mt-1.5" style={{ color: z.texte }}>
+                    {tout ? "Réduire ↑" : `Voir les ${b.lignes.length - MAX_LIGNES} autres →`}
+                  </button>
+                )}
+              </div>
+            </section>
+          );
+        })}
+      </div>
     </div>
   );
 }
