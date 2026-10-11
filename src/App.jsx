@@ -3810,7 +3810,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
           const Icon = x.icon;
           const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)))).length;
           return (
-            <button key={x.id} onClick={() => setSectionActive(x.id)}
+            <button key={x.id} onClick={() => { setSousEcran(null); setSectionActive(x.id); }}
               style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
               className="rounded-2xl flex items-center gap-4 min-h-[110px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
               <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
@@ -3862,7 +3862,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       ) : (
       <>
       {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
-      <button onClick={() => setSectionActive(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
+      <button onClick={() => { setSousEcran(null); setSectionActive(null); }} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
 
       <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} />
 
