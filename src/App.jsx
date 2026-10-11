@@ -15191,7 +15191,22 @@ const FAMILLES_TEMP = [
 ];
 const CONSIGNE_ETIQUETTE_RECEPTION = "Tu regardes la photo d'un produit alimentaire reçu en cuisine professionnelle (étiquette ou emballage). Identifie si visible : le nom du produit, la référence/le code article, le numéro de lot, la date limite de consommation (DLC/DDM), les allergènes déclarés, l'origine/provenance indiquée et le numéro d'agrément sanitaire CE s'il est visible. Réponds UNIQUEMENT en JSON strict, sans texte autour, format exact : {\"nom\": \"...\" ou null, \"reference\": \"...\" ou null, \"lot\": \"...\" ou null, \"dlc\": \"AAAA-MM-JJ\" ou null, \"allergenes\": \"...\" ou null, \"origine\": \"...\" ou null, \"agrementSanitaire\": \"...\" ou null}. Mets null si l'information n'est pas visible, n'invente jamais.";
 
-function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logActivity, onDone, onCancel }) {
+// Commande de démonstration (version de test) : passée « hier » chez France Frais, avec de quoi essayer la réception
+// (steak haché à contrôler en température, gorgonzola abîmé, quantité différente, produit manquant…).
+function commandeDemoFranceFrais() {
+  const hier = addDays(todayISO(), -1);
+  const lignes = [
+    { nom: "Steak haché", quantite: 10, unite: "kg", conservation: "hache" },
+    { nom: "Gorgonzola", quantite: 3, unite: "pièce", conservation: "laitier" },
+    { nom: "Jambon blanc", quantite: 5, unite: "kg", conservation: "viande" },
+    { nom: "Crème liquide", quantite: 12, unite: "L", conservation: "frais" },
+    { nom: "Lardons", quantite: 4, unite: "kg", conservation: "frais" },
+    { nom: "Poulet fermier", quantite: 8, unite: "kg", conservation: "viande" },
+  ].map((l) => ({ ...l, fournisseur: "France Frais" }));
+  return { id: "demo-commande-france-frais", demo: true, date: hier, employeeId: null, texte: `France Frais (commande de démonstration) :\n${lignes.map((l) => `  - ${l.nom} — ${l.quantite} ${l.unite}`).join("\n")}`, lignes };
+}
+
+function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, employees, logActivity, onDone, onCancel }) {
   const moi = employees.find((e) => e.id === currentUserId);
   const nomMoi = (moi && moi.nom) || optionsExterne.moiNom || "";
   const receptionId = React.useMemo(() => uid(), []);
@@ -15218,6 +15233,21 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   const fournisseursConnus = [...new Set([...stock.map((s) => s.fournisseur), ...((optionsExterne && optionsExterne.fournisseurs) || [])].filter(Boolean))];
   const norm = (t) => String(t || "").trim().toLowerCase();
   const majTemp = (id, patch) => setTemps((t) => ({ ...t, [id]: { ...t[id], ...patch } }));
+
+  // Commande la plus récente passée à ce fournisseur : ses lignes servent de liste de produits à réceptionner.
+  const commandeInfo = (() => {
+    const f = norm(fournisseur);
+    if (!f) return { lignes: [], date: "" };
+    const bons = (commandes || []).filter((b) => (b.lignes || []).some((l) => norm(l.fournisseur) === f)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const bon = bons[0];
+    if (!bon) return { lignes: [], date: "" };
+    const lignes = bon.lignes.map((l, i) => ({ ...l, id: `${bon.id}-${i}` })).filter((l) => norm(l.fournisseur) === f).map((l) => {
+      const st = stock.find((x) => norm(x.nom) === norm(l.nom));
+      return { ...l, conservation: l.conservation || (st && st.conservation) || typeSuggere(l.nom) || "" };
+    });
+    return { lignes, date: bon.date };
+  })();
+  const commandeLignes = commandeInfo.lignes;
 
   const nouveauBrouillon = (kind) => ({ id: uid(), kind: kind || "normal", nom: "", reference: "", conservation: "", quantite: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", plusRenvoi: false, autrePb: false, raisonPb: "", quantitePb: "", photoPb: null });
   const commencer = (kind) => { setBrouillon(nouveauBrouillon(kind)); setDetailsOuverts(false); setScanMsg(""); };
@@ -15284,6 +15314,13 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   }
   const enregistrerBrouillon = () => setProduits((prev) => (prev.some((x) => x.id === brouillon.id) ? prev.map((x) => (x.id === brouillon.id ? brouillon : x)) : [...prev, brouillon]));
   const produitSuivant = () => { enregistrerBrouillon(); setBrouillon(nouveauBrouillon()); setDetailsOuverts(false); setScanMsg(""); };
+  const choisirLigneCommande = (l) => {
+    if (!brouillonVide && manque.length > 0) { setScanMsg(`Terminez d'abord le produit en cours (il manque : ${manque.join(", ")}).`); return; }
+    if (!brouillonVide) enregistrerBrouillon();
+    const dejaSaisi = produits.find((p) => p.ligneId === l.id && !p.manquant);
+    setBrouillon(dejaSaisi || { ...nouveauBrouillon(), nom: l.nom, conservation: l.conservation, typeChoisi: !!l.conservation, ligneId: l.id, commandeQte: l.quantite, commandeUnite: l.unite });
+    setDetailsOuverts(false); setScanMsg("");
+  };
   const validerEtapeProduits = () => { if (!brouillonVide) enregistrerBrouillon(); setBrouillon(null); setEtape(4); };
   const retirer = (id) => setProduits((prev) => prev.filter((p) => p.id !== id));
 
@@ -15517,6 +15554,26 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             )}
           </div>
 
+          {commandeLignes.length > 0 && (
+            <div className="mt-4 rounded-xl border-2 p-3" style={{ borderColor: "#B5CDF0", backgroundColor: "#F2F7FE" }}>
+              <div className="text-sm font-bold" style={{ color: "#1B4F9C" }}>Commande du {commandeInfo.date} — cliquez sur le produit que vous êtes en train de recevoir</div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                {commandeLignes.map((l) => {
+                  const recu = produitsF.find((p) => p.ligneId === l.id && !p.manquant);
+                  const actif = b.ligneId === l.id;
+                  return (
+                    <button key={l.id} type="button" onClick={() => choisirLigneCommande(l)} className="rounded-xl border-2 px-3 py-2.5 text-left flex items-center justify-between gap-2 bg-white"
+                      style={{ borderColor: actif ? "#1B5FA8" : recu ? (recu.conforme ? "#B3E0C5" : "#F6B8C2") : "#D5DAE0", boxShadow: actif ? "0 0 0 3px #B5CDF0" : undefined }}>
+                      <span className="min-w-0"><span className="block text-sm font-bold text-[var(--ink)] truncate">{l.nom}</span><span className="block text-xs text-[var(--steel)]">Commandé : {l.quantite} {l.unite}</span></span>
+                      <span className="text-xs font-bold px-2 py-1 rounded-full shrink-0" style={recu ? (recu.conforme ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }) : { backgroundColor: "#EEF1F5", color: "#64748B" }}>{recu ? `${recu.conforme ? "✓" : "✗"} reçu ${recu.quantite}` : "à saisir"}</span>
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs text-[var(--steel)] mt-2">Un produit livré qui n'est pas dans cette liste : utilisez « Ajouter un produit » plus bas.</p>
+            </div>
+          )}
+
           {scanMsg && <p className="text-sm rounded-lg px-3 py-2 mt-3" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{scanMsg}</p>}
           {scanEnCours && <p className="text-sm mt-3 text-[var(--steel)]">Lecture de l'étiquette en cours…</p>}
 
@@ -15534,6 +15591,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             <div>
               <label className={lab}>Quantité reçue</label>
               <input className={`${inputCls} w-full`} type="number" inputMode="decimal" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
+              {b.commandeQte != null && <p className="text-xs mt-1.5 text-[var(--steel)]">Commandé : <b>{b.commandeQte} {b.commandeUnite}</b></p>}
             </div>
             <div>
               <label className={lab}>Type de produit</label>
@@ -15653,12 +15711,56 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   // ── ÉTAPE 4 : problèmes en plus ──
   if (etape === 4) {
     const extras = produitsF.filter((p) => p.manquant || p.kind === "plus");
+    const ecarts = commandeLignes.map((l) => {
+      const recus = produitsF.filter((p) => p.ligneId === l.id && !p.manquant);
+      const q = recus.reduce((somme, p) => somme + (Number(p.quantite) || 0), 0);
+      const cmd = Number(l.quantite) || 0;
+      const manqueSignale = produits.some((p) => p.manquant && p.ligneId === l.id);
+      if (recus.length === 0) return { l, type: "absent", cmd, q: 0, diff: cmd, manqueSignale };
+      if (q < cmd) return { l, type: "moins", cmd, q, diff: cmd - q, manqueSignale };
+      if (q > cmd) return { l, type: "plus", cmd, q, diff: q - cmd, produit: recus[0] };
+      return null;
+    }).filter(Boolean);
+    const signalerManque = (e) => setProduits((prev) => [...prev.filter((p) => !(p.manquant && p.ligneId === e.l.id)), { id: uid(), kind: "manquant", manquant: true, ligneId: e.l.id, nom: e.l.nom, reference: "", conservation: "", quantite: String(e.diff), lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", conforme: false, raison: e.type === "absent" ? "Produit manquant (non livré)" : "Quantité livrée inférieure à la commande", quantiteNC: String(e.diff), photoNC: null, ecartPrix: 0 }]);
+    const ignorerManque = (e) => setProduits((prev) => prev.filter((p) => !(p.manquant && p.ligneId === e.l.id)));
+    const renvoyerExces = (e) => setProduits((prev) => prev.map((p) => (p.id === e.produit.id ? { ...p, autrePb: true, raisonPb: "Quantité livrée supérieure à la commande (excédent renvoyé)", quantitePb: String(e.diff), excesRenvoye: true } : p)));
+    const garderExces = (e) => setProduits((prev) => prev.map((p) => (p.id === e.produit.id && p.excesRenvoye ? { ...p, autrePb: false, raisonPb: "", quantitePb: "", excesRenvoye: false } : p)));
     return (
       <div>
         {entete}
         <Card>
           <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Y a-t-il un autre problème avec cette livraison ?</h3>
           <p className="text-sm text-[var(--steel)] mb-4">Un produit manquant, ou un produit livré en plus. S'il n'y a rien à signaler, passez au récapitulatif.</p>
+          {ecarts.length > 0 && (
+            <div className="rounded-xl border-2 p-4 mb-4" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
+              <div className="text-sm font-bold mb-2" style={{ color: "#8A5300" }}>Écarts avec la commande du {commandeInfo.date} — que voulez-vous faire ?</div>
+              <div className="space-y-2">
+                {ecarts.map((e) => (
+                  <div key={e.l.id} className="rounded-lg bg-white border border-[var(--cadre)] px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm text-[var(--ink)]">
+                      <strong>{e.l.nom}</strong> —{" "}
+                      {e.type === "absent" && <>commandé {e.cmd} {e.l.unite}, <b>rien reçu</b></>}
+                      {e.type === "moins" && <>commandé {e.cmd}, reçu {e.q} {e.l.unite} : <b>{e.diff} {e.l.unite} manquant(s)</b></>}
+                      {e.type === "plus" && <>commandé {e.cmd}, reçu {e.q} {e.l.unite} : <b>{e.diff} {e.l.unite} en trop</b></>}
+                    </div>
+                    {e.type !== "plus" ? (
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => signalerManque(e)} className="min-h-[40px] px-3 rounded-lg border-2 text-sm font-bold" style={e.manqueSignale ? { borderColor: "#C1432D", backgroundColor: "#C1432D", color: "#fff" } : { borderColor: "#C1432D", backgroundColor: "#FDE4E8", color: "#B4233A" }}>{e.manqueSignale ? "✓ Signalé au chef" : "Signaler le manque au chef"}</button>
+                        <button type="button" onClick={() => ignorerManque(e)} className="min-h-[40px] px-3 rounded-lg border-2 text-sm font-bold" style={!e.manqueSignale ? { borderColor: "#64748B", backgroundColor: "#64748B", color: "#fff" } : { borderColor: "#D5DAE0", color: "#64748B" }}>Ne pas signaler</button>
+                      </div>
+                    ) : e.produit.autrePb && !e.produit.excesRenvoye ? (
+                      <span className="text-xs text-[var(--steel)]">Problème déjà signalé sur ce produit</span>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button type="button" onClick={() => garderExces(e)} className="min-h-[40px] px-3 rounded-lg border-2 text-sm font-bold" style={!e.produit.excesRenvoye ? { borderColor: "#2F6B4F", backgroundColor: "#2F6B4F", color: "#fff" } : { borderColor: "#D5DAE0", color: "#64748B" }}>Garder l'excédent</button>
+                        <button type="button" onClick={() => renvoyerExces(e)} className="min-h-[40px] px-3 rounded-lg border-2 text-sm font-bold" style={e.produit.excesRenvoye ? { borderColor: "#C1432D", backgroundColor: "#C1432D", color: "#fff" } : { borderColor: "#C1432D", backgroundColor: "#FDE4E8", color: "#B4233A" }}>Renvoyer l'excédent</button>
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
           {extras.length > 0 && (
             <div className="space-y-2 mb-4">
               {extras.map((p) => (
@@ -15766,13 +15868,13 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   );
 }
 
-function Reception({ optionsExterne, stock, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, enCours, setEnCours, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
+function Reception({ optionsExterne, stock, commandesHistorique, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, enCours, setEnCours, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const [infosOuvertes, setInfosOuvertes] = useState(false);
   const [ficheReception, setFicheReception] = useState(null);
 
   if (enCours && optionsExterne && PARCOURS_RECEPTION_SIMPLE) {
-    return <ReceptionSimple optionsExterne={optionsExterne} stock={stock} currentUserId={currentUserId} employees={employees} logActivity={logActivity} onDone={() => setEnCours(false)} onCancel={() => setEnCours(false)} />;
+    return <ReceptionSimple optionsExterne={optionsExterne} stock={stock} commandes={commandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivity} onDone={() => setEnCours(false)} onCancel={() => setEnCours(false)} />;
   }
   if (enCours) {
     return <ReceptionWizard optionsExterne={optionsExterne} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivity} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} onDone={() => setEnCours(false)} onCancel={() => setEnCours(false)} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />;
@@ -19743,8 +19845,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const receptions = modeExterne ? receptionsExternes : receptionsStockees;
   const setReceptions = modeExterne ? setReceptionsExternes : setReceptionsStockees;
   const [commandesHistoriqueStockee, setCommandesHistoriqueStockee] = useStored("commandes-historique", []);
-  // En prévisualisation : historique de commandes vide et NON conservé (jamais l'ancien stockage réel).
-  const [commandesHistoriqueExterne, setCommandesHistoriqueExterne] = useState([]);
+  // En prévisualisation : historique de commandes NON conservé (jamais l'ancien stockage réel), avec une commande de démonstration.
+  const [commandesHistoriqueExterne, setCommandesHistoriqueExterne] = useState(() => [commandeDemoFranceFrais()]);
   const commandesHistorique = modeExterne ? commandesHistoriqueExterne : commandesHistoriqueStockee;
   const setCommandesHistorique = modeExterne ? setCommandesHistoriqueExterne : setCommandesHistoriqueStockee;
   const [notificationsMemoire, setNotificationsMemoire] = useStoredOuMemoire("notifications-fournisseur", [], modeExterne);
@@ -21031,7 +21133,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "reception" && (
           consentementAccorde()
-            ? <Reception optionsExterne={modeExterne && identiteExterne.gestionReceptions ? { enregistrer: identiteExterne.gestionReceptions.enregistrer, fournisseurs: (identiteExterne.fournisseurs || []).map((f) => f.nom), moiNom: identiteExterne.employeNom } : undefined} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
+            ? <Reception commandesHistorique={commandesHistorique} optionsExterne={modeExterne && identiteExterne.gestionReceptions ? { enregistrer: identiteExterne.gestionReceptions.enregistrer, fournisseurs: (identiteExterne.fournisseurs || []).map((f) => f.nom), moiNom: identiteExterne.employeNom } : undefined} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
             : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
         )}
         {tab === "etiquettes" && (
