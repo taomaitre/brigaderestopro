@@ -7046,6 +7046,10 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </div>
       )}
 
+      {/* Mise en page : tout sur un seul écran large — gauche : quantité, ingrédients, allergènes ;
+          centre : préparation et contrôles ; droite : production, matériel, à retenir. */}
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-x-5 items-start">
+        <div className="xl:col-span-4 min-w-0">
       {avecModes && fiche.ingredients.length > 0 && (
         <Card className="mb-5 border-[var(--accent)]/30">
           <h3 className="font-semibold text-[var(--ink)] mb-2">Quantité à produire</h3>
@@ -7067,29 +7071,88 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           </p>
         </Card>
       )}
-      {avecModes && confirmationProd && (
-        <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
-          <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl mt-10">
-            <div className="font-semibold text-[var(--ink)] mb-1">Confirmer la production — {quantiteDlc}</div>
-            <p className="text-sm text-[var(--steel)] mb-3">Voulez-vous déduire ces quantités du stock ? Vous pouvez décocher un ingrédient ou corriger sa quantité avant de valider.</p>
-            <div className="space-y-1.5 mb-4">
-              {ingredientsDestockage.map((ing, i) => (
-                <label key={i} className="flex items-center gap-2 text-sm">
-                  <input type="checkbox" checked={ing.coche} onChange={() => toggleIngredientDestockage(i)} />
-                  <span className={`flex-1 ${ing.coche ? "text-[var(--ink)]" : "text-[var(--steel)] line-through"}`}>{ing.nom}</span>
-                  <input className={`${inputCls} w-24`} value={ing.quantite} disabled={!ing.coche} onChange={(e) => changerQuantiteDestockage(i, e.target.value)} />
-                  <span className="text-xs text-[var(--steel)] w-10">{ing.unite}</span>
-                </label>
-              ))}
-            </div>
-            <div className="flex flex-wrap gap-2 justify-end">
-              <Button variant="ghost" onClick={() => setConfirmationProd(false)}>Annuler</Button>
-              <Button variant="ghost" onClick={() => validerDlc(false)}>Produire sans toucher au stock</Button>
-              <Button onClick={() => validerDlc(true)}>Oui, déduire du stock</Button>
-            </div>
-          </div>
-        </div>
+      {fiche.ingredients.length > 0 && (
+        <ZoneFiche icone={ChefHat} bord="#4caf7a" fond="#e3f4e8" texte="#1b5e3a" titre={<>{t[1] || "1. Ingrédients"}{avecModes && facteur !== 1 ? <span className="ml-2 text-xs font-semibold text-[var(--accent)]">× {formaterNb(facteur)}</span> : null}</>} className="mb-5">
+          <table className="w-full text-sm">
+            <tbody>
+              {fiche.ingredients.map((ing, i) => { const e = avecModes ? quantiteEchelle(ing) : ing; return (
+                <tr key={i} className="border-b border-[var(--line)] last:border-0">
+                  <td className="py-1.5 text-[var(--ink)]">{ing.nom}</td>
+                  <td className={`py-1.5 text-right whitespace-nowrap pl-3 ${avecModes && facteur !== 1 ? "text-[var(--ink)] font-semibold" : "text-[var(--steel)]"}`}>{e.quantite} {e.unite}</td>
+                </tr>
+              ); })}
+            </tbody>
+          </table>
+          {fiche.rendementAttendu && (
+            <p className="text-xs text-[var(--steel)] mt-3 pt-3 border-t border-[var(--line)] whitespace-pre-line">{fiche.rendementAttendu}</p>
+          )}
+        </ZoneFiche>
       )}
+      {avecModes && !(fiche.allergenes && fiche.allergenes.length > 0) && (
+        <ZoneFiche icone={AlertTriangle} bord="#e6c229" fond="#fff6cc" texte="#7a5f00" titre={<>Allergènes</>} className="mb-5">
+          <p className="text-sm text-[var(--steel)]">{fiche.allergenesConfirmes ? "Aucun allergène déclaré (confirmé par le chef)." : "Aucune information donnée ni confirmée."}</p>
+        </ZoneFiche>
+      )}
+      {fiche.allergenes && fiche.allergenes.length > 0 && (
+        <ZoneFiche icone={AlertTriangle} bord="#e6c229" fond="#fff6cc" texte="#7a5f00" titre={<>Allergènes</>} className="mb-5">
+          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
+            {ALLERGENES_14.map((a) => (
+              <span key={a} className={`text-xs font-medium ${fiche.allergenes.includes(a) ? "text-[var(--accent)] font-semibold" : "text-[var(--steel)]"}`}>
+                {fiche.allergenes.includes(a) ? "■" : "□"} {a}
+              </span>
+            ))}
+          </div>
+        </ZoneFiche>
+      )}
+        </div>
+        <div className="xl:col-span-5 min-w-0">
+      {fiche.preparation.length > 0 && (
+        <ZoneFiche icone={ChefHat} bord="#6a7de0" fond="#e8ebfb" texte="#2c3a8c" titre={<>{t[5] || "5. Préparation — étape par étape"}</>} className="mb-5">
+          <ol className="space-y-3">
+            {fiche.preparation.map((p, i) => (
+              <li key={i} className="flex gap-3">
+                <span className="w-6 h-6 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">{p.numero}</span>
+                <div>
+                  {p.titre && <div className="text-sm font-semibold text-[var(--ink)] mb-0.5">{p.titre}</div>}
+                  <p className="text-sm text-[var(--ink)] whitespace-pre-line leading-snug">{p.description}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+          {fiche.consignesImportantes.length > 0 && (
+            <div className="mt-4 pt-3 border-t border-[var(--line)]">
+              <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Consignes importantes</p>
+              {ligneBloc(fiche.consignesImportantes)}
+            </div>
+          )}
+        </ZoneFiche>
+      )}
+      {fiche.haccp.length > 0 && (
+        <ZoneFiche icone={ClipboardCheck} bord="#f0a030" fond="#fdf0dc" texte="#8a5200" titre={<>{t[4] || "4. Points de contrôle — HACCP"}</>} className="mb-5">
+          <div className="overflow-x-auto">
+            <table className="w-full text-sm border-collapse">
+              <thead>
+                <tr className="text-left text-[var(--steel)] text-xs uppercase tracking-wide">
+                  <th className="pb-2 pr-3 font-semibold">Étape</th>
+                  {expert && <th className="pb-2 pr-3 font-semibold">Point critique</th>}
+                  <th className="pb-2 font-semibold">À contrôler</th>
+                </tr>
+              </thead>
+              <tbody>
+                {fiche.haccp.map((h, i) => (
+                  <tr key={i} className="border-t border-[var(--line)] align-top">
+                    <td className="py-2 pr-3 font-medium text-[var(--ink)] whitespace-nowrap">{h.etape}</td>
+                    {expert && <td className="py-2 pr-3 text-[var(--ink)] whitespace-pre-line">{h.pointCritique}</td>}
+                    <td className="py-2 text-[var(--steel)] whitespace-pre-line">{h.aControler}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </ZoneFiche>
+      )}
+        </div>
+        <div className="xl:col-span-3 min-w-0">
       {(onDemarrerRefroidissement || onDemarrerCuisson || onDemarrerMaintienChaud || onEditerDlc || onTracabiliteIngredients) && (
         <Card className="mb-5 border-[var(--accent)]/30">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{avecModes ? "Produire cette fiche" : "Actions à partir de cette fiche"}</h3>
@@ -7177,32 +7240,16 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           )}
         </Card>
       )}
-
-      {(fiche.rendementCourt || fiche.categorie) && (
-        <div className="flex flex-wrap gap-2 mb-5">
-          {fiche.categorie && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded" style={{ backgroundColor: "#1D2321", color: "#fff" }}>{fiche.sousCategorie || fiche.categorie}</span>}
-          {fiche.rendementCourt && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded bg-[var(--accent-soft)] text-[var(--accent)]">{fiche.rendementCourt}</span>}
-        </div>
-      )}
-
-      {fiche.ingredients.length > 0 && (
-        <ZoneFiche icone={ChefHat} bord="#4caf7a" fond="#e3f4e8" texte="#1b5e3a" titre={<>{t[1] || "1. Ingrédients"}{avecModes && facteur !== 1 ? <span className="ml-2 text-xs font-semibold text-[var(--accent)]">× {formaterNb(facteur)}</span> : null}</>} className="mb-5">
-          <table className="w-full text-sm">
-            <tbody>
-              {fiche.ingredients.map((ing, i) => { const e = avecModes ? quantiteEchelle(ing) : ing; return (
-                <tr key={i} className="border-b border-[var(--line)] last:border-0">
-                  <td className="py-1.5 text-[var(--ink)]">{ing.nom}</td>
-                  <td className={`py-1.5 text-right whitespace-nowrap pl-3 ${avecModes && facteur !== 1 ? "text-[var(--ink)] font-semibold" : "text-[var(--steel)]"}`}>{e.quantite} {e.unite}</td>
-                </tr>
-              ); })}
-            </tbody>
-          </table>
-          {fiche.rendementAttendu && (
-            <p className="text-xs text-[var(--steel)] mt-3 pt-3 border-t border-[var(--line)] whitespace-pre-line">{fiche.rendementAttendu}</p>
-          )}
+      {expert && fiche.materiel.length > 0 && (
+        <ZoneFiche icone={ClipboardList} bord="#5b9bd5" fond="#e3eefb" texte="#1d4a7a" titre={<>{t[2] || "2. Matériel nécessaire"}</>} className="mb-5">
+          {ligneBloc(fiche.materiel)}
         </ZoneFiche>
       )}
-
+      {fiche.aRetenir.length > 0 && (
+        <ZoneFiche icone={IcInfo} bord="#b0824a" fond="#f6ede0" texte="#6b4a1c" titre={<>À retenir</>} className="mb-5">
+          {ligneBloc(fiche.aRetenir)}
+        </ZoneFiche>
+      )}
       {expert && fiche.groupesPortions.length > 0 && (
         <Card className="mb-5">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Portions</h3>
@@ -7225,122 +7272,73 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           </div>
         </Card>
       )}
-
-      {expert && fiche.materiel.length > 0 && (
-        <ZoneFiche icone={ClipboardList} bord="#5b9bd5" fond="#e3eefb" texte="#1d4a7a" titre={<>{t[2] || "2. Matériel nécessaire"}</>} className="mb-5">
-          {ligneBloc(fiche.materiel)}
-        </ZoneFiche>
-      )}
-
-      {fiche.haccp.length > 0 && (
-        <ZoneFiche icone={ClipboardCheck} bord="#f0a030" fond="#fdf0dc" texte="#8a5200" titre={<>{t[4] || "4. Points de contrôle — HACCP"}</>} className="mb-5">
-          <div className="overflow-x-auto">
-            <table className="w-full text-sm border-collapse">
-              <thead>
-                <tr className="text-left text-[var(--steel)] text-xs uppercase tracking-wide">
-                  <th className="pb-2 pr-3 font-semibold">Étape</th>
-                  {expert && <th className="pb-2 pr-3 font-semibold">Point critique</th>}
-                  <th className="pb-2 font-semibold">À contrôler</th>
-                </tr>
-              </thead>
-              <tbody>
-                {fiche.haccp.map((h, i) => (
-                  <tr key={i} className="border-t border-[var(--line)] align-top">
-                    <td className="py-2 pr-3 font-medium text-[var(--ink)] whitespace-nowrap">{h.etape}</td>
-                    {expert && <td className="py-2 pr-3 text-[var(--ink)] whitespace-pre-line">{h.pointCritique}</td>}
-                    <td className="py-2 text-[var(--steel)] whitespace-pre-line">{h.aControler}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </ZoneFiche>
-      )}
-
-      {fiche.preparation.length > 0 && (
-        <ZoneFiche icone={ChefHat} bord="#8a94a3" fond="#eceff3" texte="#374151" titre={<>{t[5] || "5. Préparation — étape par étape"}</>} className="mb-5">
-          <ol className="space-y-3">
-            {fiche.preparation.map((p, i) => (
-              <li key={i} className="flex gap-3">
-                <span className="w-6 h-6 rounded-full bg-[var(--accent-soft)] text-[var(--accent)] text-xs font-semibold flex items-center justify-center shrink-0 mt-0.5">{p.numero}</span>
-                <div>
-                  {p.titre && <div className="text-sm font-semibold text-[var(--ink)] mb-0.5">{p.titre}</div>}
-                  <p className="text-sm text-[var(--ink)] whitespace-pre-line leading-snug">{p.description}</p>
-                </div>
-              </li>
-            ))}
-          </ol>
-          {fiche.consignesImportantes.length > 0 && (
-            <div className="mt-4 pt-3 border-t border-[var(--line)]">
-              <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Consignes importantes</p>
-              {ligneBloc(fiche.consignesImportantes)}
+        </div>
+      </div>
+      {avecModes && confirmationProd && (
+        <div className="fixed inset-0 z-[9000] bg-black/40 overflow-y-auto p-4 flex items-start justify-center">
+          <div className="bg-white rounded-2xl p-5 w-full max-w-lg shadow-xl mt-10">
+            <div className="font-semibold text-[var(--ink)] mb-1">Confirmer la production — {quantiteDlc}</div>
+            <p className="text-sm text-[var(--steel)] mb-3">Voulez-vous déduire ces quantités du stock ? Vous pouvez décocher un ingrédient ou corriger sa quantité avant de valider.</p>
+            <div className="space-y-1.5 mb-4">
+              {ingredientsDestockage.map((ing, i) => (
+                <label key={i} className="flex items-center gap-2 text-sm">
+                  <input type="checkbox" checked={ing.coche} onChange={() => toggleIngredientDestockage(i)} />
+                  <span className={`flex-1 ${ing.coche ? "text-[var(--ink)]" : "text-[var(--steel)] line-through"}`}>{ing.nom}</span>
+                  <input className={`${inputCls} w-24`} value={ing.quantite} disabled={!ing.coche} onChange={(e) => changerQuantiteDestockage(i, e.target.value)} />
+                  <span className="text-xs text-[var(--steel)] w-10">{ing.unite}</span>
+                </label>
+              ))}
             </div>
-          )}
-        </ZoneFiche>
+            <div className="flex flex-wrap gap-2 justify-end">
+              <Button variant="ghost" onClick={() => setConfirmationProd(false)}>Annuler</Button>
+              <Button variant="ghost" onClick={() => validerDlc(false)}>Produire sans toucher au stock</Button>
+              <Button onClick={() => validerDlc(true)}>Oui, déduire du stock</Button>
+            </div>
+          </div>
+        </div>
+      )}
+      {(fiche.rendementCourt || fiche.categorie) && (
+        <div className="flex flex-wrap gap-2 mb-5">
+          {fiche.categorie && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded" style={{ backgroundColor: "#1D2321", color: "#fff" }}>{fiche.sousCategorie || fiche.categorie}</span>}
+          {fiche.rendementCourt && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded bg-[var(--accent-soft)] text-[var(--accent)]">{fiche.rendementCourt}</span>}
+        </div>
       )}
 
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-5 items-start">
       {expert && fiche.refroidissementStockage.length > 0 && (
         <ZoneFiche icone={Snowflake} bord="#3ab5c9" fond="#e0f5f8" texte="#14606e" titre={<>{t[6] || "6. Refroidissement — stockage — utilisation"}</>} className="mb-5">
           {ligneBloc(fiche.refroidissementStockage)}
         </ZoneFiche>
       )}
-
       {expert && (fiche.rendement.length > 0 || fiche.dureeConservation.length > 0) && (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
+        <>
           {fiche.rendement.length > 0 && (
-            <ZoneFiche icone={Package} bord="#8a94a3" fond="#eceff3" texte="#374151" titre={<>{t[7] || "7. Rendement"}</>} className="mb-5">
+            <ZoneFiche icone={Package} bord="#e0658f" fond="#fbe5ee" texte="#8a2a4e" titre={<>{t[7] || "7. Rendement"}</>} className="mb-5">
               {ligneBloc(fiche.rendement)}
             </ZoneFiche>
           )}
           {fiche.dureeConservation.length > 0 && (
-            <ZoneFiche icone={CalendarDays} bord="#3ab5c9" fond="#e0f5f8" texte="#14606e" titre={<>{t[8] || "8. Durée de conservation"}</>} className="mb-5">
+            <ZoneFiche icone={CalendarDays} bord="#2fa38a" fond="#dff5ef" texte="#12604d" titre={<>{t[8] || "8. Durée de conservation"}</>} className="mb-5">
               {ligneBloc(fiche.dureeConservation)}
             </ZoneFiche>
           )}
-        </div>
+        </>
       )}
-
       {expert && fiche.nonConformite.length > 0 && (
-        <ZoneFiche icone={AlertTriangle} bord="#f0a030" fond="#fdf0dc" texte="#8a5200" titre={<>{t[9] || "9. Conduite en cas de non-conformité"}</>} className="mb-5">
+        <ZoneFiche icone={AlertTriangle} bord="#e0524a" fond="#fdeaea" texte="#8a1f1a" titre={<>{t[9] || "9. Conduite en cas de non-conformité"}</>} className="mb-5">
           {ligneBloc(fiche.nonConformite)}
         </ZoneFiche>
       )}
-
       {expert && fiche.tracabilite.length > 0 && (
         <ZoneFiche icone={Camera} bord="#8e6bd1" fond="#efe8fa" texte="#4d2d84" titre={<>{t[10] || "10. Traçabilité obligatoire"}</>} className="mb-5">
           {ligneBloc(fiche.tracabilite)}
         </ZoneFiche>
       )}
-
       {expert && fiche.etiquetage.length > 0 && (
-        <ZoneFiche icone={Printer} bord="#8e6bd1" fond="#efe8fa" texte="#4d2d84" titre={<>{t[11] || "11. Étiquetage — exemple d'étiquette"}</>} className="mb-5">
+        <ZoneFiche icone={Printer} bord="#c06bd1" fond="#f6e5f9" texte="#6b2b7a" titre={<>{t[11] || "11. Étiquetage — exemple d'étiquette"}</>} className="mb-5">
           {ligneBloc(fiche.etiquetage)}
         </ZoneFiche>
       )}
-
-      {avecModes && !(fiche.allergenes && fiche.allergenes.length > 0) && (
-        <ZoneFiche icone={AlertTriangle} bord="#e6c229" fond="#fff6cc" texte="#7a5f00" titre={<>Allergènes</>} className="mb-5">
-          <p className="text-sm text-[var(--steel)]">{fiche.allergenesConfirmes ? "Aucun allergène déclaré (confirmé par le chef)." : "Aucune information donnée ni confirmée."}</p>
-        </ZoneFiche>
-      )}
-      {fiche.allergenes && fiche.allergenes.length > 0 && (
-        <ZoneFiche icone={AlertTriangle} bord="#e6c229" fond="#fff6cc" texte="#7a5f00" titre={<>Allergènes</>} className="mb-5">
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
-            {ALLERGENES_14.map((a) => (
-              <span key={a} className={`text-xs font-medium ${fiche.allergenes.includes(a) ? "text-[var(--accent)] font-semibold" : "text-[var(--steel)]"}`}>
-                {fiche.allergenes.includes(a) ? "■" : "□"} {a}
-              </span>
-            ))}
-          </div>
-        </ZoneFiche>
-      )}
-
-      {fiche.aRetenir.length > 0 && (
-        <ZoneFiche icone={IcInfo} bord="#8a94a3" fond="#eceff3" texte="#374151" titre={<>À retenir</>} className="mb-5">
-          {ligneBloc(fiche.aRetenir)}
-        </ZoneFiche>
-      )}
-
       {estChef && fiche.cout && (fiche.cout.coutRecette || fiche.cout.prixVente) && (
         <ZoneFiche icone={Package} bord="#9ca3af" fond="#eef0f2" texte="#4b5563" className="mb-5" titre={<>Coût matière <span className="ml-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--ink)] text-white">Chef / Directeur</span></>}>
           <p className="text-xs text-[var(--steel)] mb-3">Jamais affiché ni imprimé pour les employés.</p>
@@ -7354,7 +7352,6 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           </ul>
         </ZoneFiche>
       )}
-
       {expert && fiche.autresSections.map((s, i) => (
         <Card className="mb-5" key={i}>
           <h3 className="font-semibold text-[var(--ink)] mb-3">{s.titre}</h3>
@@ -7368,6 +7365,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           {ligneBloc(fiche.nonCategorise.map((c) => c.texte))}
         </Card>
       )}
+      </div>
     </div>
   );
 }
