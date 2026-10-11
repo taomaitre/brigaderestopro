@@ -7050,6 +7050,11 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           centre : préparation et contrôles ; droite : production, matériel, à retenir. */}
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-x-5 items-start">
         <div className="xl:col-span-4 min-w-0">
+          <div className="mb-5 rounded-xl overflow-hidden border border-[var(--line)] bg-white" style={{ borderTop: "3px solid #e0658f" }}>
+            {fiche.photoPlat
+              ? <img src={fiche.photoPlat} alt={fiche.nom} className="w-full h-48 object-cover" />
+              : <div className="w-full h-32 flex flex-col items-center justify-center gap-1 text-[#b4306b]" style={{ background: "#fdeaf3" }}><Camera size={30} /><span className="text-xs font-semibold">Pas encore de photo du plat</span></div>}
+          </div>
       {avecModes && fiche.ingredients.length > 0 && (
         <Card className="mb-5 border-[var(--accent)]/30">
           <h3 className="font-semibold text-[var(--ink)] mb-2">Quantité à produire</h3>
@@ -7547,7 +7552,7 @@ function ficheVersFormulaire(f, mode) {
     n.procedes = { ...base.procedes, ...(n.procedes || {}) };
   } else {
     n = base;
-    n.nom = f.nom || ""; n.sousTitre = f.sousTitre || ""; n.categorie = f.categorie || "";
+    n.nom = f.nom || ""; n.sousTitre = f.sousTitre || ""; n.categorie = f.categorie || ""; n.photoPlat = f.photoPlat || "";
     if (n.categorie && !CATEGORIES_FICHE_TECHNIQUE.some((c) => c[0] === n.categorie) && !CATEGORIES_FICHE_GENERALES.some((c) => c[0] === n.categorie)) { n.catAutre = n.categorie; n.categorie = "__autre"; }
     n.poste = f.poste || ""; n.type = f.type || "recette"; n.badge = f.rendementCourt || "";
     if ((f.ingredients || []).length) n.ingredients = f.ingredients.map((i) => ({ nom: i.nom || "", qte: String(i.quantite ?? ""), unite: i.unite || "g", lienType: i.lienType || null, lienId: i.lienId || null }));
@@ -7582,7 +7587,7 @@ function ficheVersFormulaire(f, mode) {
 
 function ficheVideInit() {
   return {
-    nom: "", sousTitre: "", categorie: "", catAutre: "", poste: "", type: "recette", badge: "",
+    nom: "", sousTitre: "", categorie: "", catAutre: "", poste: "", type: "recette", badge: "", photoPlat: "",
     ingredients: [{ nom: "", qte: "", unite: "g", lienType: null, lienId: null }],
     allergenes: [], allgConfirm: false,
     procedes: {
@@ -8236,7 +8241,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     const coutPortionFinal = coutFinal.coutRecette && Number(S.rendement.portions) > 0 ? (Number(coutFinal.coutRecette) / Number(S.rendement.portions)).toFixed(2) : "";
 
     const nouvelleFiche = {
-      id: modifier ? ficheInitiale.id : uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(),
+      id: modifier ? ficheInitiale.id : uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(), photoPlat: S.photoPlat || "",
       categorie: categorieLabelActuelle, sousCategorie: null,
       rendementCourt: S.badge.trim() || (S.rendement.portions ? `${S.rendement.portions} PORTIONS` : ""),
       rendementAttendu: S.rendement.total ? `RENDEMENT ATTENDU : ${totalAvecUnite}${S.rendement.portions ? ` – ${S.rendement.portions} portions` : ""}${S.rendement.grammage ? ` de ${S.rendement.grammage}` : ""}` : "",
@@ -8356,6 +8361,19 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 </select>
               </Field>
               <Field label="Mention affichée sur la fiche (rendement / contenant)"><input className={inputCls} value={S.badge} onChange={(e) => champ("badge", e.target.value)} placeholder="ex. bac 1/1, 12 parts" /></Field>
+            </div>
+            <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: "#fdeaf3", border: "1px solid #f3c4da" }}>
+              {S.photoPlat
+                ? <img src={S.photoPlat} alt="" className="w-24 h-24 object-cover rounded-lg border border-[var(--cadre)]" />
+                : <div className="w-24 h-24 rounded-lg border-2 border-dashed border-[#e58cb5] flex items-center justify-center text-[#b4306b]"><Camera size={28} /></div>}
+              <div>
+                <div className="text-sm font-semibold text-[var(--ink)]">Photo du plat (facultatif)</div>
+                <p className="text-xs text-[var(--steel)] mb-1.5">Elle s'affiche sur la fiche, pour que tout le monde sache à quoi doit ressembler le plat.</p>
+                <div className="flex items-center gap-3">
+                  <PhotoInput value={null} onChange={(v) => champ("photoPlat", v)} label={S.photoPlat ? "Changer la photo" : "Ajouter une photo"} />
+                  {S.photoPlat && <button type="button" onClick={() => champ("photoPlat", "")} className="text-xs text-[var(--steel)] underline">Retirer</button>}
+                </div>
+              </div>
             </div>
             <div className="rounded-lg px-3 py-2.5 text-xs" style={{ backgroundColor: "var(--bg)", color: "var(--steel)" }}>Le poste relie la fiche au planning : la production apparaîtra dans la liste de tâches des employés de ce poste.</div>
           </div>
@@ -8835,6 +8853,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             <div className="text-right text-[10px] text-[var(--steel)]">Fiche générée par<br /><strong>BrigadeRestoPro</strong></div>
           </div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
+            {S.photoPlat && <img src={S.photoPlat} alt="" className="w-20 h-20 object-cover rounded-lg border border-[var(--cadre)] shrink-0" />}
             <div className="text-white font-bold text-center px-3 py-1.5 rounded shrink-0" style={{ backgroundColor: "#C1432D" }}>
               <div className="text-[10px] leading-none">{codeCatActuel ? `FT ${codeCatActuel}` : "FT CATÉGORIE"}</div>
               <div className="text-lg leading-none mt-0.5">{codeFTActuel ? codeFTActuel.split(" ").pop() : "—"}</div>
@@ -8929,11 +8948,18 @@ function ProcedeCard({ titre, regle, actif, onToggle, locked, lockMsg, children 
   );
 }
 
+const COULEURS_APERCU_SECTION = {
+  1: ["#4caf7a", "#e3f4e8", "#1b5e3a"], 2: ["#5b9bd5", "#e3eefb", "#1d4a7a"], 3: ["#e6c229", "#fff6cc", "#7a5f00"],
+  4: ["#f0a030", "#fdf0dc", "#8a5200"], 5: ["#6a7de0", "#e8ebfb", "#2c3a8c"], 8: ["#2fa38a", "#dff5ef", "#12604d"],
+  9: ["#e0524a", "#fdeaea", "#8a1f1a"], 11: ["#c06bd1", "#f6e5f9", "#6b2b7a"], 12: ["#9ca3af", "#eef0f2", "#4b5563"],
+};
 function ApercuSection({ titre, children }) {
+  const num = parseInt(String(titre), 10);
+  const [bord, fond, texte] = COULEURS_APERCU_SECTION[num] || ["#C1432D", "#fdeaea", "#8a1f1a"];
   return (
-    <div className="border border-[var(--cadre)] rounded-lg p-2.5">
-      <div className="text-[11px] font-bold uppercase tracking-wide mb-1.5" style={{ color: "#C1432D" }}>{titre}</div>
-      {children}
+    <div className="border border-[var(--cadre)] rounded-lg overflow-hidden bg-white" style={{ borderTop: `3px solid ${bord}` }}>
+      <div className="text-[11px] font-bold uppercase tracking-wide px-2.5 py-1.5" style={{ background: fond, color: texte }}>{titre}</div>
+      <div className="p-2.5">{children}</div>
     </div>
   );
 }
