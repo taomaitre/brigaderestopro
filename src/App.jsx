@@ -1468,7 +1468,7 @@ function BoutonSupprimer({ onConfirm, size = 15, titre = "Supprimer", className 
 
 function Field({ label, children }) {
   return (
-    <label className="flex flex-col gap-1 text-sm">
+    <label className="flex flex-col gap-1 text-sm min-w-0">
       <span className="text-[var(--steel)] font-medium">{label}</span>
       {children}
     </label>
@@ -8335,16 +8335,20 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         {step === 0 && (
           <div className="space-y-4">
             <p className="text-xs text-[var(--steel)]">Le code de la fiche (FT + catégorie + numéro) est attribué automatiquement selon le rangement alphabétique dans la catégorie. Code prévu actuellement : <strong>{codeFTActuel || "— à compléter"}</strong>.</p>
+            <ZoneEtape couleur="bleu" titre="Nom de la recette">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Nom de la recette *"><input className={inputCls} value={S.nom} onChange={(e) => champ("nom", e.target.value)} placeholder="ex. Sauce au poivre" /></Field>
               <Field label="Sous-titre / description courte"><input className={inputCls} value={S.sousTitre} onChange={(e) => champ("sousTitre", e.target.value)} placeholder="ex. Sauce d'envoi – montée au beurre minute" /></Field>
             </div>
+            </ZoneEtape>
+            <ZoneEtape couleur="orange" titre="Catégorie *">
             <div>
-              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Catégorie *</div>
               <ChipsCategorie options={listeCategories} customOptions={customCategories} value={S.categorie}
                 onChange={(v) => champ("categorie", v)}
                 onAjouterAutre={(v) => { const code = normaliserCode(v).slice(0, 8) || "AUTRE"; setCustomCategories([...customCategories, [v, code]]); champ("categorie", v); }} />
             </div>
+            </ZoneEtape>
+            <ZoneEtape couleur="indigo" titre="Poste et type de fiche">
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Poste *">
                 <select className={inputCls} value={S.poste} onChange={(e) => champ("poste", e.target.value)}>
@@ -8360,6 +8364,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               </Field>
               <div className="sm:col-span-2"><Field label="Mention affichée sur la fiche (rendement / contenant)"><input className={inputCls} value={S.badge} onChange={(e) => champ("badge", e.target.value)} placeholder="ex. bac 1/1, 12 parts" /></Field></div>
             </div>
+            </ZoneEtape>
             <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: "#fdeaf3", border: "1px solid #f3c4da" }}>
               {S.photoPlat
                 ? <img src={S.photoPlat} alt="" className="w-24 h-24 object-cover rounded-lg border border-[var(--cadre)]" />
@@ -8383,6 +8388,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             <datalist id="dlist-ingredients-fiche">
               {nomsStockEtFiches.map((n, i) => <option key={i} value={n} />)}
             </datalist>
+            <ZoneEtape couleur="vert" titre="Ingrédients de la recette">
             <div className="space-y-2">
               {S.ingredients.map((ing, i) => (
                 <div key={i} className="flex items-center gap-2">
@@ -8407,10 +8413,11 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 </div>
               </div>
             )}
-            <Button variant="ghost" onClick={ajouterIngredient}><Plus size={14} /> Ajouter un ingrédient</Button>
+            <div className="mt-3"><Button variant="ghost" onClick={ajouterIngredient}><Plus size={14} /> Ajouter un ingrédient</Button></div>
+            </ZoneEtape>
 
             {avecModes && ingOk.length > 0 && (
-              <div className="rounded-lg border border-[var(--cadre)] p-3 space-y-2">
+              <ZoneEtape couleur="brun"><div className="space-y-2">
                 <div className="flex flex-wrap items-end gap-3">
                   <div>
                     <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide">Coût matière (prix d'achat du catalogue)</div>
@@ -8433,11 +8440,11 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                     {infoCatalogue.sansInfo.length > 0 && <>Allergènes à renseigner dans la fiche produit du catalogue : {infoCatalogue.sansInfo.join(", ")}.</>}
                   </p>
                 )}
-              </div>
+              </div></ZoneEtape>
             )}
 
-            <div className="pt-3 border-t border-[var(--line)]">
-              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Allergènes (14 réglementaires)</div>
+            <ZoneEtape couleur="jaune" titre="Allergènes (14 réglementaires)">
+            <div>
               {avecModes && <p className="text-xs text-[var(--steel)] mb-2">Les allergènes se cochent tout seuls à partir des fiches produits du catalogue (et de la photo si l'IA les lit). Si une fiche produit est incomplète, il est signalé ci-dessous : complétez-la dans le catalogue pour que ce soit automatique la prochaine fois.</p>}
               <div className="flex flex-wrap gap-2 mb-2">
                 {ALLERGENES_14.map((a) => {
@@ -8462,6 +8469,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 <span><strong>Cliquez ici si vous souhaitez enregistrer ces informations dans le tableau des allergènes.</strong> <span className="text-[var(--steel)]">Sans cette coche, les allergènes cochés s'affichent quand même sur la fiche technique ; s'il n'y en a aucun, la fiche indique « aucune information donnée ni confirmée ». Rien ne bloque l'enregistrement.</span></span>
               </label>
             </div>
+            </ZoneEtape>
           </div>
         )}
 
@@ -8680,9 +8688,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         {step === 3 && (
           <div className="space-y-5">
             <p className="text-xs text-[var(--steel)]">Un « Autre » ajouté ici est enregistré dans vos choix et reproposé pour les prochaines fiches de cet établissement.</p>
-            <ChipsMulti avecRecherche={avecModes} label="Appareils de cuisson" baseOptions={listeAppareils} customOptions={customAppareils} setCustomOptions={setCustomAppareils} selected={S.appareils} onToggle={(v) => toggleListe("appareils", v)} />
-            <ChipsMulti avecRecherche={avecModes} label="Matériel" baseOptions={listeMateriel} customOptions={customMateriel} setCustomOptions={setCustomMateriel} selected={S.materiel} onToggle={(v) => toggleListe("materiel", v)} />
-            <ChipsMulti avecRecherche={avecModes} label="Ustensiles" baseOptions={listeUstensiles} customOptions={customUstensiles} setCustomOptions={setCustomUstensiles} selected={S.ustensiles} onToggle={(v) => toggleListe("ustensiles", v)} />
+            <ZoneEtape couleur="orange"><ChipsMulti avecRecherche={avecModes} label="Appareils de cuisson" baseOptions={listeAppareils} customOptions={customAppareils} setCustomOptions={setCustomAppareils} selected={S.appareils} onToggle={(v) => toggleListe("appareils", v)} /></ZoneEtape>
+            <ZoneEtape couleur="bleu"><ChipsMulti avecRecherche={avecModes} label="Matériel" baseOptions={listeMateriel} customOptions={customMateriel} setCustomOptions={setCustomMateriel} selected={S.materiel} onToggle={(v) => toggleListe("materiel", v)} /></ZoneEtape>
+            <ZoneEtape couleur="vert"><ChipsMulti avecRecherche={avecModes} label="Ustensiles" baseOptions={listeUstensiles} customOptions={customUstensiles} setCustomOptions={setCustomUstensiles} selected={S.ustensiles} onToggle={(v) => toggleListe("ustensiles", v)} /></ZoneEtape>
           </div>
         )}
 
@@ -8691,9 +8699,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             <p className="text-xs text-[var(--steel)]">Décrivez les étapes dans l'ordre. Une étape marquée « point critique » rappellera à l'employé de faire le relevé correspondant pendant la fabrication.</p>
             <div className="space-y-3">
               {S.etapes.map((e, i) => (
-                <div key={i} className="border border-[var(--cadre)] rounded-lg p-3">
+                <div key={i} className="rounded-lg p-3" style={{ background: "#eceefc", border: "1px solid #6a7de066", borderLeft: "5px solid #6a7de0" }}>
                   <div className="flex items-center justify-between mb-2">
-                    <span className="text-xs font-bold text-[var(--accent)]">Étape {i + 1}</span>
+                    <span className="text-xs font-bold" style={{ color: "#2c3a8c" }}>Étape {i + 1}</span>
                     <div className="flex items-center gap-1">
                       <button type="button" onClick={() => monterEtape(i)} disabled={i === 0} className="text-[var(--steel)] disabled:opacity-30 px-1">↑</button>
                       <button type="button" onClick={() => retirerEtape(i)} className="text-[var(--steel)] hover:text-[var(--warn)] px-1"><X size={16} /></button>
@@ -8712,29 +8720,31 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               ))}
             </div>
             <Button variant="ghost" onClick={ajouterEtape}><Plus size={14} /> Ajouter une étape</Button>
-            <Field label="Consignes importantes (une par ligne)">
+            <ZoneEtape couleur="jaune" titre="Consignes importantes">
+            <Field label="Une consigne par ligne">
               <textarea className={`${inputCls} w-full`} rows={3} value={S.consignes} onChange={(e) => champ("consignes", e.target.value)} placeholder="ex. Réduction à feu très doux : la crème ne doit pas attacher." />
             </Field>
+            </ZoneEtape>
           </div>
         )}
 
         {step === 5 && (
           <div className="space-y-4">
+            <ZoneEtape couleur="teal" titre="Durée de conservation">
             <div>
-              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Durée de conservation</div>
-              <div className="flex gap-2 mb-3">
+              <div className="flex flex-wrap gap-2 mb-3">
                 {[["DLC", "DLC — produit périssable, préparation maison"], ["DDM", "DDM — produit stable (épicerie, flacon fermé)"]].map(([v, lbl]) => (
-                  <button key={v} type="button" onClick={() => majConservation({ type: v })} className={`flex-1 text-xs font-medium px-3 py-2 rounded-lg border text-left ${S.conservation.type === v ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>{lbl}</button>
+                  <button key={v} type="button" onClick={() => majConservation({ type: v })} className={`flex-1 min-w-[180px] text-xs font-medium px-3 py-2 rounded-lg border text-left ${S.conservation.type === v ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>{lbl}</button>
                 ))}
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                <Field label={`Durée de conservation (jours, jour de fabrication compris) · max ${dlcMaxFiche(S)}${S.conservation.etude ? "" : " sans étude de laboratoire"}`}><input className={inputCls} type="number" min="0" value={S.conservation.jours} onChange={(e) => majConservation({ jours: e.target.value })} /></Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Field label={`Durée de conservation (jours, jour de fabrication compris) · max ${dlcMaxFiche(S)}${S.conservation.etude ? "" : " sans étude de laboratoire"}`}><input className={`${inputCls} w-full`} type="number" min="0" value={S.conservation.jours} onChange={(e) => majConservation({ jours: e.target.value })} /></Field>
                 <Field label="Température de stockage">
                   <select className={inputCls} value={S.conservation.temp} onChange={(e) => majConservation({ temp: e.target.value })}>
                     {["0 / +3 °C", "0 / +2 °C", "≤ +4 °C", "≤ −18 °C", "Température ambiante (produit stable)"].map((o) => <option key={o} value={o}>{o}</option>)}
                   </select>
                 </Field>
-                <Field label="Contenant"><input className={inputCls} value={S.conservation.contenant} onChange={(e) => majConservation({ contenant: e.target.value })} placeholder="ex. bac GN 1/6 filmé" /></Field>
+                <Field label="Contenant"><input className={`${inputCls} w-full`} value={S.conservation.contenant} onChange={(e) => majConservation({ contenant: e.target.value })} placeholder="ex. bac GN 1/6 filmé" /></Field>
               </div>
               <label className="flex items-start gap-2 text-sm mt-2">
                 <input type="checkbox" checked={S.conservation.etude} onChange={(e) => majConservation({ etude: e.target.checked })} className="mt-0.5" />
@@ -8744,29 +8754,31 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — sans étude de vieillissement, une préparation maison est limitée à J+3 (jour de fabrication compris).</p>
               )}
             </div>
-            <div className="pt-3 border-t border-[var(--line)]">
-              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Rendement</div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            </ZoneEtape>
+            <ZoneEtape couleur="rose" titre="Rendement">
+            <div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Quantité totale produite">
                   <div className="flex gap-2">
-                    <input className={`${inputCls} flex-1`} value={S.rendement.total} onChange={(e) => majRendement({ total: e.target.value })} placeholder="ex. 0,95" />
+                    <input className={`${inputCls} flex-1 min-w-0`} value={S.rendement.total} onChange={(e) => majRendement({ total: e.target.value })} placeholder="ex. 0,95" />
                     <select className={`${inputCls} w-24`} value={S.rendement.unite} onChange={(e) => majRendement({ unite: e.target.value })}>
                       {["kg", "g", "L", "ml", "pièce(s)"].map((u) => <option key={u} value={u}>{u}</option>)}
                     </select>
                   </div>
                 </Field>
-                <Field label="Nombre de portions"><input className={inputCls} value={S.rendement.portions} onChange={(e) => majRendement({ portions: e.target.value })} placeholder="ex. 12" /></Field>
-                <Field label="Grammage par portion"><input className={inputCls} value={S.rendement.grammage} onChange={(e) => majRendement({ grammage: e.target.value })} placeholder="ex. 75 ml" /></Field>
+                <Field label="Nombre de portions"><input className={`${inputCls} w-full`} value={S.rendement.portions} onChange={(e) => majRendement({ portions: e.target.value })} placeholder="ex. 12" /></Field>
+                <Field label="Grammage par portion"><input className={`${inputCls} w-full`} value={S.rendement.grammage} onChange={(e) => majRendement({ grammage: e.target.value })} placeholder="ex. 75 ml" /></Field>
               </div>
             </div>
+            </ZoneEtape>
           </div>
         )}
 
         {step === 6 && (
           <div className="space-y-4">
             <p className="text-xs text-[var(--steel)]">Facultatif. Le coût matière n'est visible que par le chef et le directeur ; il n'est jamais affiché ni imprimé pour les employés.</p>
+            <ZoneEtape couleur="brun" titre="Coût matière et prix de vente">
             <div>
-              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Coût matière et prix de vente</div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Prix de vente TTC d'une portion (€)"><input className={inputCls} value={S.prixVente} onChange={(e) => champ("prixVente", e.target.value)} placeholder="ex. 3,50" /></Field>
                 <div className="rounded-lg px-3 py-2.5 text-xs" style={{ backgroundColor: "var(--bg)", color: "var(--steel)" }}>
@@ -8789,14 +8801,16 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 );
               })()}
             </div>
-            <div className="pt-3 border-t border-[var(--line)]">
-              <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Dressage et envoi</div>
+            </ZoneEtape>
+            <ZoneEtape couleur="violet" titre="Dressage et envoi">
+            <div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                 <Field label="Assiette / contenant de service"><input className={inputCls} value={S.dressage.assiette} onChange={(e) => majDressage({ assiette: e.target.value })} placeholder="ex. saucière inox 10 cl" /></Field>
                 <Field label="Délai d'envoi maximum"><input className={inputCls} value={S.dressage.envoi} onChange={(e) => majDressage({ envoi: e.target.value })} placeholder="ex. envoi immédiat" /></Field>
               </div>
               <Field label="Consignes de dressage"><textarea className={`${inputCls} w-full`} rows={2} value={S.dressage.notes} onChange={(e) => majDressage({ notes: e.target.value })} placeholder="ex. Napper la viande, jamais de sauce sur l'accompagnement." /></Field>
             </div>
+            </ZoneEtape>
           </div>
         )}
 
@@ -8929,11 +8943,31 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
   );
 }
 
-function ProcedeCard({ titre, regle, actif, onToggle, locked, lockMsg, children }) {
+const COULEURS_ZONE_ETAPE = {
+  vert: ["#4caf7a", "#e8f6ed", "#1b5e3a"], bleu: ["#5b9bd5", "#e8f1fb", "#1d4a7a"], jaune: ["#e6c229", "#fff8d6", "#7a5f00"],
+  orange: ["#f0a030", "#fdf1df", "#8a5200"], indigo: ["#6a7de0", "#eceefc", "#2c3a8c"], cyan: ["#3ab5c9", "#e5f6f9", "#14606e"],
+  rose: ["#e0658f", "#fdebf2", "#8a2a4e"], rouge: ["#e0524a", "#fdecea", "#8a1f1a"], violet: ["#8e6bd1", "#f1ebfa", "#4d2d84"],
+  teal: ["#2fa38a", "#e3f6f1", "#12604d"], gris: ["#9ca3af", "#f1f3f5", "#4b5563"], brun: ["#b0824a", "#f8f0e4", "#6b4a1c"],
+};
+function ZoneEtape({ couleur = "gris", titre, children, className = "" }) {
+  const [bord, fond, texte] = COULEURS_ZONE_ETAPE[couleur] || COULEURS_ZONE_ETAPE.gris;
   return (
-    <div className={`border rounded-lg p-3 ${actif ? "border-[var(--accent)]" : "border-[var(--line)]"} ${locked ? "bg-[var(--bg)]" : "bg-white"}`}>
+    <div className={`rounded-xl border min-w-0 ${className}`} style={{ borderColor: `${bord}66`, borderTop: `3px solid ${bord}`, background: fond }}>
+      {titre && <div className="px-3 pt-2 text-xs font-bold uppercase tracking-wide" style={{ color: texte }}>{titre}</div>}
+      <div className="px-3 pb-3 pt-2">{children}</div>
+    </div>
+  );
+}
+const COULEUR_PROCEDE = {
+  "Préparation froide (sans cuisson)": "cyan", "Cuisson": "orange", "Refroidissement rapide": "bleu", "Maintien au chaud": "rouge",
+  "Remise en température": "jaune", "Congélation": "indigo", "Décongélation": "teal",
+};
+function ProcedeCard({ titre, regle, actif, onToggle, locked, lockMsg, children }) {
+  const [bord, fond, texte] = COULEURS_ZONE_ETAPE[COULEUR_PROCEDE[titre] || "gris"];
+  return (
+    <div className={`border rounded-lg p-3 ${actif ? "" : "border-[var(--line)]"}`} style={{ borderLeft: `5px solid ${bord}`, borderColor: actif ? bord : undefined, background: locked ? "var(--bg)" : actif ? fond : "#ffffff" }}>
       <div className="flex items-center justify-between gap-3 flex-wrap">
-        <label className={`flex items-center gap-2 font-semibold text-sm ${locked ? "text-[var(--steel)]" : "text-[var(--ink)] cursor-pointer"}`}>
+        <label className={`flex items-center gap-2 font-semibold text-sm ${locked ? "text-[var(--steel)] " : "cursor-pointer"}`} style={locked ? undefined : { color: texte }}>
           <input type="checkbox" disabled={locked} checked={actif && !locked} onChange={onToggle} className="w-4 h-4" />
           {titre}
         </label>
