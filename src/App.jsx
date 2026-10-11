@@ -15805,6 +15805,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
             )}
           </div>
         )}
+        {erreur && <p className="text-sm font-semibold rounded-lg px-3 py-2 mt-3" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>{erreur}</p>}
         {pied(<BoutonRetour onClick={() => { commencer(); setEtape(3); }}>Retour aux produits</BoutonRetour>, null,
           <Button onClick={valider} disabled={enCours || produits.length === 0}>{enCours ? "Enregistrement…" : "Terminer et enregistrer la réception"}</Button>)}
       </Card>
