@@ -7682,6 +7682,29 @@ const MENTION_NORME_PERSO = " — norme personnalisée sous la responsabilité d
 // Normes personnalisées (« Autre ») choisies dans les fiches techniques, par nom de produit (prévisualisation nouvelle base).
 // Renseigné à chaque rendu par le composant principal ; lu par les écrans Refroidissement / Maintien au chaud.
 let NORMES_PERSO_FICHES = {};
+// Quantité produite prévue par chaque fiche technique (« Total : 12 kg »), indexée par nom de produit :
+// elle est reprise automatiquement (modifiable) dans les modules cuisson, refroidissement et maintien au chaud.
+let QUANTITES_FICHES = {};
+const UNITES_QUANTITE = ["kg", "g", "L", "portions", "bacs"];
+function construireQuantitesFiches(fiches) {
+  const m = {};
+  (fiches || []).forEach((f) => {
+    if (!f || !f.nom) return;
+    let total = null, portions = null;
+    (Array.isArray(f.rendement) ? f.rendement : []).forEach((l) => {
+      const a = /^Total\s*:\s*([\d.,]+)\s*(.*)$/.exec(String(l)); if (a) total = { quantite: a[1].replace(",", "."), unite: a[2].trim() };
+      const b = /^(\d+)\s*portions?/.exec(String(l)); if (b) portions = b[1];
+    });
+    let q = null;
+    if (total && Number(total.quantite) > 0) {
+      const u = total.unite.toLowerCase();
+      q = { quantite: total.quantite, unite: u === "l" ? "L" : (UNITES_QUANTITE.includes(u) ? u : (/port/.test(u) ? "portions" : "kg")) };
+    } else if (portions) q = { quantite: portions, unite: "portions" };
+    if (q) m[String(f.nom).trim().toLowerCase()] = q;
+  });
+  return m;
+}
+const quantiteFiche = (nom) => QUANTITES_FICHES[String(nom || "").trim().toLowerCase()] || null;
 function construireNormesPersoFiches(fichesListe) {
   const m = {};
   (fichesListe || []).forEach((f) => {
@@ -10463,19 +10486,27 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
     if (!produitSuggere) return;
     if (!catalogue.includes(produitSuggere)) setCatalogue((c) => [...c, produitSuggere]);
     const heure = new Date().toTimeString().slice(0, 5);
-    const nouvelle = { id: uid(), nom: produitSuggere, appareil: "Bain-marie", date: today, heureDebut: heure, debutTs: Date.now(), employeeId: currentUserId, statut: "en-cours" };
+    const qf = quantiteFiche(produitSuggere);
+    const nouvelle = { id: uid(), nom: produitSuggere, appareil: "Bain-marie", date: today, heureDebut: heure, debutTs: Date.now(), employeeId: currentUserId, statut: "en-cours", ...(qf ? { quantite: qf.quantite, unite: qf.unite } : {}) };
     setEntries((prev) => [nouvelle, ...prev]);
     logActivity("HACCP", "Maintien au chaud démarré", `${produitSuggere} — Bain-marie à ${heure}`);
     setProduitSuggere(null);
   }, [produitSuggere, setProduitSuggere, catalogue, setCatalogue, setEntries, currentUserId, logActivity, today]);
 
-  const toggleSelection = (nom) => setSelection((s) => (s.includes(nom) ? s.filter((n) => n !== nom) : [...s, nom]));
+  const toggleSelection = (nom) => {
+    const nouvelle = selection.includes(nom) ? selection.filter((n) => n !== nom) : [...selection, nom];
+    setSelection(nouvelle);
+    // Un seul produit coché : sa quantité vient de la fiche technique (modifiable). Plusieurs : chacun garde la sienne.
+    if (nouvelle.length === 1) { const qf = quantiteFiche(nouvelle[0]); if (qf) { setQuantite(qf.quantite); setUnite(qf.unite); } else setQuantite(""); }
+    else if (nouvelle.length === 0) setQuantite("");
+    else setQuantite("");
+  };
   const nomsAdemarrer = selection.length > 0 ? selection : (mNom.trim() ? [mNom.trim()] : []);
   const demarrerMaintien = () => {
     if (nomsAdemarrer.length === 0) return;
     const nouvelles = nomsAdemarrer.map((nom) => ({
       id: uid(), nom, appareil, date: today, heureDebut, debutTs: Date.now(), employeeId: currentUserId, statut: "en-cours",
-      quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null,
+      ...(quantite !== "" ? { quantite, unite } : (() => { const qf = quantiteFiche(nom); return qf ? { quantite: qf.quantite, unite: qf.unite } : { quantite: null, unite: null }; })()), notes: notes.trim() || null,
     }));
     setEntries([...nouvelles, ...entries]);
     logActivity("HACCP", "Maintien au chaud démarré", `${nomsAdemarrer.join(", ")} — ${appareil} à ${heureDebut}`);
@@ -10556,7 +10587,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                 </select>
               </Field>
               <Field label="Heure de début *"><input className={inputCls} type="time" value={heureDebut} onChange={(ev) => setHeureDebut(ev.target.value)} /></Field>
-              <Field label="Quantité (optionnel)">
+              <Field label={selection.length > 1 ? "Quantité (celle de chaque fiche si vide)" : "Quantité (reprise de la fiche, modifiable)"}>
                 <div className="flex gap-2">
                   <input className={inputCls} type="number" inputMode="decimal" value={quantite} onChange={(ev) => setQuantite(ev.target.value)} />
                   <select className={`${inputCls} w-28`} value={unite} onChange={(ev) => setUnite(ev.target.value)}>
@@ -10709,10 +10740,11 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
         setProduit(produitSuggere.nom); setModeDemarrage(produitSuggere.mode || "positif");
         if (produitSuggere.tempDebut != null) setTempDebut(String(produitSuggere.tempDebut));
         if (produitSuggere.quantite != null && produitSuggere.quantite !== "") { setQuantite(String(produitSuggere.quantite)); if (produitSuggere.unite) setUnite(produitSuggere.unite); }
+        else { const qf = quantiteFiche(produitSuggere.nom); if (qf) { setQuantite(qf.quantite); setUnite(qf.unite); } }
         if (produitSuggere.maintienId) setMaintienId(produitSuggere.maintienId);
         if (produitSuggere.cuissonId) setCuissonRetourId(produitSuggere.cuissonId);
       }
-      else { setProduit(produitSuggere); setModeDemarrage("positif"); }
+      else { setProduit(produitSuggere); setModeDemarrage("positif"); const qf = quantiteFiche(produitSuggere); if (qf) { setQuantite(qf.quantite); setUnite(qf.unite); } }
       setProduitSuggere(null);
     }
   }, [produitSuggere, setProduitSuggere]);
@@ -10725,6 +10757,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
   const cuissonsPretes = cuissons.filter((c) => c.statut === "termine" && c.pretPourRefroidissement && !c.refroidissementLance);
   const choisirCuisson = (c) => {
     setProduit(c.produit); setModeDemarrage("positif");
+    { const qf = c.quantite != null && c.quantite !== "" ? { quantite: String(c.quantite), unite: c.unite || "kg" } : quantiteFiche(c.produit); if (qf) { setQuantite(qf.quantite); setUnite(qf.unite); } }
     setTempDebut(c.temperature != null && c.temperature !== "" ? String(c.temperature) : "");
     setCuissonChoisieId(c.id);
   };
@@ -10835,7 +10868,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
               {produitsFiches.filter((n) => n.toLowerCase().includes(rechercheFiche.trim().toLowerCase())).map((n) => {
                 const coche = produit.trim().toLowerCase() === n.trim().toLowerCase();
                 return (
-                  <button key={n} type="button" onClick={() => setProduit(coche ? "" : n)} className={`w-full text-left flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold text-[var(--ink)] ${coche ? "border-[#1E7B4B] bg-[#EAF6EF]" : "border-[var(--line)] bg-white"}`}>
+                  <button key={n} type="button" onClick={() => { setProduit(coche ? "" : n); if (coche) setQuantite(""); else { const qf = quantiteFiche(n); if (qf) { setQuantite(qf.quantite); setUnite(qf.unite); } else setQuantite(""); } }} className={`w-full text-left flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold text-[var(--ink)] ${coche ? "border-[#1E7B4B] bg-[#EAF6EF]" : "border-[var(--line)] bg-white"}`}>
                     <span className="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0" style={coche ? { backgroundColor: "#1E7B4B", borderColor: "#1E7B4B", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{coche && <span className="text-[10px] leading-none">✓</span>}</span>
                     <span className="min-w-0 break-words">{n}</span>
                   </button>
@@ -10859,7 +10892,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
             <Field label={neg ? "Produit (saisie manuelle)" : "Produit (saisie manuelle)"}><input className={inputCls} value={produit} onChange={(e) => setProduit(e.target.value)} placeholder="Ex. : Sauce bolognaise" /></Field>
-            <Field label="Quantité">
+            <Field label="Quantité (reprise de la fiche, modifiable)">
               <div className="flex gap-2">
                 <input className={inputCls} type="number" inputMode="decimal" value={quantite} onChange={(e) => setQuantite(e.target.value)} placeholder="Ex. : 5" />
                 <select className={`${inputCls} w-28`} value={unite} onChange={(e) => setUnite(e.target.value)}>
@@ -11064,7 +11097,8 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
     if (produitSuggere) {
       const dureeMin = produitSuggere.dureeMin || 20;
       const famille = produitSuggere.famille || "general";
-      const entry = { id: uid(), produit: produitSuggere.nom, famille, date: todayISO(), employeeId: currentUserId, statut: "en-cours", heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), dureeAttendueMin: dureeMin, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
+      const qf = quantiteFiche(produitSuggere.nom);
+      const entry = { id: uid(), produit: produitSuggere.nom, famille, ...(qf ? { quantite: qf.quantite, unite: qf.unite } : {}), date: todayISO(), employeeId: currentUserId, statut: "en-cours", heureDebut: new Date().toTimeString().slice(0, 5), debutTs: Date.now(), dureeAttendueMin: dureeMin, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
       setCuissons((prev) => [entry, ...prev]);
       logActivity("HACCP", "Cuisson démarrée", `${produitSuggere.nom} — durée attendue ~${dureeMin} min`);
       setProduitSuggere(null);
@@ -11080,7 +11114,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   const demarrerSelection = () => {
     if (selectionnes.length === 0) return;
     const nouvelles = selectionnes.map((p) => ({
-      id: uid(), produit: p.nom, famille: p.famille || "general", appareil: p.appareil || undefined, mode: modeCuissonDepuisAppareil(p.appareil) || undefined, reglage: p.reglage || undefined,
+      id: uid(), produit: p.nom, famille: p.famille || "general", ...(quantiteFiche(p.nom) ? { quantite: quantiteFiche(p.nom).quantite, unite: quantiteFiche(p.nom).unite } : {}), appareil: p.appareil || undefined, mode: modeCuissonDepuisAppareil(p.appareil) || undefined, reglage: p.reglage || undefined,
       seuilPerso: p.seuilPerso || undefined, controleVisuelSeul: !!(p.controles && p.controles.temp === false && p.controles.visuel),
       date: today, employeeId: currentUserId, statut: "en-cours", heureDebut, debutTs: Date.now(), dureeAttendueMin: p.dureeMin || 20,
       notes: notes.trim() || undefined, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false,
@@ -11119,7 +11153,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
     if (!c.finie && (temp === undefined || temp === "") && !c.controleVisuelSeul) return;
     if (!onLancerRefroidissement) return;
     maj(c.id, { refroidissementLance: true, refroidissementFait: false });
-    onLancerRefroidissement({ nom: c.produit, tempDebut: temp, cuissonId: c.id });
+    onLancerRefroidissement({ nom: c.produit, tempDebut: temp, cuissonId: c.id, quantite: c.quantite, unite: c.unite });
   };
   const valider = (c) => {
     maj(c.id, { statut: "termine", heureFin: c.heureFin || new Date().toTimeString().slice(0, 5), ...(c.refroidissementLance ? { pretPourRefroidissement: false } : {}) });
@@ -11266,8 +11300,10 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                     <span className="ml-auto"><BoutonSupprimer onConfirm={() => supprimerCuisson(c)} size={18} titre="Supprimer cette cuisson (erreur de saisie)" libelle={`Cuisson : ${c.produit}`} /></span>
                   </div>
                   <MentionNormePersoFiche nom={c.produit} etape="cuisson" />
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2 text-sm text-[var(--ink)]">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 my-2 text-sm text-[var(--ink)]">
                     <div><span className="text-xs text-[var(--steel)] block">Départ</span>{c.heureDebut} · {who(c.employeeId) || "—"}</div>
+                    <div><span className="text-xs text-[var(--steel)] block">Quantité (fiche, modifiable)</span>
+                      <span className="inline-flex items-center gap-1.5"><input className={`${inputCls} !w-24 !h-9`} type="number" inputMode="decimal" placeholder="—" value={c.quantite ?? ""} onChange={(e) => maj(c.id, { quantite: e.target.value, unite: c.unite || "kg" })} /><span>{c.unite || "kg"}</span></span></div>
                     <div><span className="text-xs text-[var(--steel)] block">Durée prévue</span>{c.dureeAttendueMin} min</div>
                     <div><span className="text-xs text-[var(--steel)] block">À cœur</span>{c.controleVisuelSeul ? "Contrôle visuel" : `${familleLabel.split(" (")[0]} : ≥ ${seuil} °C`}</div>
                   </div>
@@ -19849,6 +19885,7 @@ function KitchenApp({ identiteExterne } = {}) {
     .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
     .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "", reglage: f.procedes.cuisson.reglage || "", controles: f.procedes.cuisson.controles || null, seuilPerso: f.procedes.cuisson.coeurAutre ? seuilCuissonPerso(f.procedes.cuisson) : undefined })), [fichesExternes]);
   NORMES_PERSO_FICHES = React.useMemo(() => (modeExterne ? construireNormesPersoFiches(fichesExternes) : {}), [modeExterne, fichesExternes]);
+  QUANTITES_FICHES = React.useMemo(() => construireQuantitesFiches(fiches), [fiches]);
   const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
   const catalogueCuisson = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
   const setCatalogueCuisson = modeExterne ? (() => {}) : setCatalogueCuissonBase;
