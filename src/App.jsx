@@ -12179,7 +12179,8 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   const [ongletAjoutRetrait, setOngletAjoutRetrait] = useState(null); // "ajouter" | "retirer" | null
   const [nouveauProduit, setNouveauProduit] = useState({ nom: "", categorie: ORDRE_CATEGORIES_DLC[0], typeDate: "DLC", delaiJours: "", ddmPremierLot: false, ddmLot: "", ddmDate: "" });
   const [rechercheRetrait, setRechercheRetrait] = useState("");
-  const [assistantLignes, setAssistantLignes] = useState(null); // édition d'étiquette(s)
+  const [qteParProduit, setQteParProduit] = useState({}); // quantité utilisée par produit sélectionné
+  const [decongParProduit, setDecongParProduit] = useState({}); // {id: {oui, date, heure}} pour les surgelés
   const [etiquettesAImprimer, setEtiquettesAImprimer] = useState(null);
 
   useEffect(() => {
@@ -12244,27 +12245,8 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
     if (p) logActivity("HACCP", "Produit retiré du catalogue DLC", p.nom);
   };
 
-  const ouvrirAssistantEdition = () => {
-    const lignes = produitsUniques.filter((p) => selection.includes(p.id)).map((p) => ({
-      produitId: p.id, nom: p.nom,
-      lot: lotDe(p), dlcDate: infoEtiq(p).dlcDate, typeDlc: infoEtiq(p).typeDlc, repereHaccp: infoEtiq(p).repere, sourceDlc: infoEtiq(p).source, quantiteUtilisee: "", nbEtiquettes: 1,
-      // "Ce produit sort-il de congélation ?" n'est posé que pour les articles de la catégorie
-      // Surgelés — si oui, l'étiquette porte "décongelé le ..." et la DLC est recalculée en J+3 à
-      // partir de cette date/heure de sortie (jour de sortie compris), qui prime sur la DLC du
-      // catalogue produits.
-      estSurgele: categorieDeProduitDlc(p) === "Surgelés",
-      decongele: false,
-      decongelDate: todayISO(),
-      decongelHeure: new Date().toTimeString().slice(0, 5),
-    }));
-    if (lignes.length === 0) return;
-    setAssistantLignes(lignes);
-  };
-
-  const majLigne = (produitId, champ, val) => setAssistantLignes((prev) => prev.map((l) => (l.produitId === produitId ? { ...l, [champ]: val } : l)));
-
-  const confirmerAssistant = (lignesDirectes) => {
-    const entries = (Array.isArray(lignesDirectes) ? lignesDirectes : assistantLignes)
+  const confirmerAssistant = (lignes) => {
+    const entries = lignes
       .filter((l) => l.dlcDate)
       .map((l) => {
         const dlcFinale = l.decongele ? addDays(l.decongelDate, 2) : l.dlcDate;
@@ -12273,25 +12255,19 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
       })
       .filter(Boolean)
       .map((e) => ({ ...e, produitNom: e.nomLibre }));
-    setAssistantLignes(null);
     setSelection([]);
+    setNbParProduit({});
+    setQteParProduit({});
+    setDecongParProduit({});
     if (entries.length > 0) setEtiquettesAImprimer(entries);
   };
 
-  const dernierePourNom = (nom) => preparations.filter((p) => p.nomLibre === nom).sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure))[0] || null;
 
   // Dernière étiquette créée (tous produits) : pour en refaire une si elle a été perdue. Le nombre d'étiquettes repart à 1.
   const derniereEtiquette = [...preparations].filter((x) => x.dlcDate && x.nomLibre).sort((a, b) => ((b.date || "") + (b.heure || "")).localeCompare((a.date || "") + (a.heure || "")))[0] || null;
   const reediterDerniere = () => { if (derniereEtiquette) setEtiquettesAImprimer([{ ...derniereEtiquette, produitNom: derniereEtiquette.nomLibre, nbEtiquettes: 1 }]); };
   const fmtJour = (d) => (d ? d.split("-").reverse().join("/") : "");
 
-  const reediterEtiquettes = () => {
-    const trouvees = produitsUniques.filter((p) => selection.includes(p.id))
-      .map((p) => { const h = dernierePourNom(p.nom); return h ? { ...h, produitNom: p.nom } : null; })
-      .filter(Boolean);
-    if (trouvees.length === 0) return;
-    setEtiquettesAImprimer(trouvees);
-  };
 
   if (etiquettesAImprimer) {
     return (
@@ -12321,18 +12297,19 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   const totalEtiq = produitsSel.reduce((t, p) => t + nbDe(p.id), 0);
   const infoCat = (c) => { if (modeMigre) { const x = CATEGORIES_STOCK.find((k) => k.nom === c); return x ? [x.fond, x.texte] : ["#7C8794", "#fff"]; } return COULEURS_CAT_DLC[c] || ["#7C8794", "#fff"]; };
   const boutonPm = "w-9 h-9 rounded-lg border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
+  const decongDe = (id) => ({ oui: false, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), ...(decongParProduit[id] || {}) });
+  const majDecong = (id, patch) => setDecongParProduit((m) => ({ ...m, [id]: { ...decongDe(id), ...patch } }));
   const lignesDepuisSelection = () => produitsSel.map((p) => ({
     produitId: p.id, nom: p.nom,
-    reference: p.reference || "", lot: lotDe(p), dlcDate: infoEtiq(p).dlcDate, typeDlc: infoEtiq(p).typeDlc, repereHaccp: infoEtiq(p).repere, sourceDlc: infoEtiq(p).source, quantiteUtilisee: "", nbEtiquettes: nbDe(p.id),
-    estSurgele: categorieDeProduitDlc(p) === "Surgelés", decongele: false,
-    decongelDate: todayISO(), decongelHeure: new Date().toTimeString().slice(0, 5),
+    reference: p.reference || "", lot: lotDe(p), dlcDate: infoEtiq(p).dlcDate, typeDlc: infoEtiq(p).typeDlc, repereHaccp: infoEtiq(p).repere, sourceDlc: infoEtiq(p).source, quantiteUtilisee: (qteParProduit[p.id] || "").trim(), nbEtiquettes: nbDe(p.id),
+    estSurgele: categorieDeProduitDlc(p) === "Surgelés", decongele: !!decongDe(p.id).oui,
+    decongelDate: decongDe(p.id).date, decongelHeure: decongDe(p.id).heure,
   }));
-  // « Valider » : ouvre l'édition des étiquettes (lot, DLC/DDM calculés, quantité utilisée, nombre, décongélation) avant impression.
+  // « Valider » : crée directement les étiquettes (lot et DLC/DDM calculés, quantité utilisée saisie dans le panneau) puis lance l'impression.
   const validerSelection = () => {
     const lignes = lignesDepuisSelection();
     if (lignes.length === 0) return;
-    setAssistantLignes(lignes);
-    setTimeout(() => { const el = document.getElementById("assistant-etiquettes"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 80);
+    confirmerAssistant(lignes);
   };
 
   return (
@@ -12401,19 +12378,40 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         <div className="rounded-xl border border-[var(--cadre)] bg-white self-start">
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--line)]">
             <h3 className="text-base font-bold text-[var(--ink)]">Produits sélectionnés ({produitsSel.length})</h3>
-            {produitsSel.length > 0 && <button type="button" onClick={() => { setSelection([]); setNbParProduit({}); }} className="text-sm font-semibold" style={{ color: "#6027C9" }}>Tout effacer</button>}
+            {produitsSel.length > 0 && <button type="button" onClick={() => { setSelection([]); setNbParProduit({}); setQteParProduit({}); setDecongParProduit({}); }} className="text-sm font-semibold" style={{ color: "#6027C9" }}>Tout effacer</button>}
           </div>
           {produitsSel.length === 0 && <p className="px-4 py-6 text-sm text-[var(--steel)]">Cochez un ou plusieurs produits dans la liste.</p>}
           {produitsSel.map((p) => (
             <div key={p.id} className="px-4 py-3 border-b border-[var(--line)] last:border-b-0">
               <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
               <div className="text-xs text-[var(--steel)] mb-2">{infoEtiq(p).ddm ? "DDM" : "DLC après ouverture"} : {infoEtiq(p).dlcDate ? infoEtiq(p).dlcDate.split("-").reverse().join("/") : "à renseigner"}</div>
+              {!infoEtiq(p).dlcDate && <p className="text-xs text-[var(--warn)] mb-2">{infoEtiq(p).ddm ? "DDM non renseignée : pas d'étiquette possible. À mettre à jour depuis la réception." : "Pas de DLC après ouverture : pas d'étiquette possible. À renseigner dans la fiche produit."}</p>}
+              <input className={`${inputCls} w-full mb-2`} value={qteParProduit[p.id] || ""} onChange={(e) => setQteParProduit((m) => ({ ...m, [p.id]: e.target.value }))} placeholder="Quantité utilisée (ex : 2 kg)" aria-label={`Quantité utilisée pour ${p.nom}`} />
               <div className="flex items-center gap-2">
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, -1)} aria-label={`Une étiquette de moins pour ${p.nom}`}>−</button>
                 <span className="min-w-[4.5rem] text-center text-sm font-semibold text-[var(--ink)]">{nbDe(p.id)} étiquette{nbDe(p.id) > 1 ? "s" : ""}</span>
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, 1)} aria-label={`Une étiquette de plus pour ${p.nom}`}>+</button>
                 <button type="button" onClick={() => toggleSelection(p.id)} className="ml-auto w-9 h-9 flex items-center justify-center text-[#6027C9]" aria-label={`Retirer ${p.nom}`}><Trash2 size={18} /></button>
               </div>
+              {categorieDeProduitDlc(p) === "Surgelés" && (
+                <div className="mt-3 pt-3 border-t border-[var(--line)]">
+                  <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Ce produit sort-il de congélation ?</p>
+                  <div className="flex gap-2 mb-2">
+                    {[[true, "Oui"], [false, "Non"]].map(([v, lib]) => (
+                      <button key={lib} type="button" onClick={() => majDecong(p.id, { oui: v })} className={`text-xs font-medium px-3 py-1.5 rounded-full border ${decongDe(p.id).oui === v ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>{lib}</button>
+                    ))}
+                  </div>
+                  {decongDe(p.id).oui && (
+                    <>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Field label="Date de sortie"><input className={inputCls} type="date" value={decongDe(p.id).date} onChange={(e) => majDecong(p.id, { date: e.target.value })} /></Field>
+                        <Field label="Heure de sortie"><input className={inputCls} type="time" value={decongDe(p.id).heure} onChange={(e) => majDecong(p.id, { heure: e.target.value })} /></Field>
+                      </div>
+                      <p className="text-xs text-[var(--steel)] mt-2">L'étiquette portera « Décongelé le … » et une DLC en J+3 à partir de cette sortie (jour de sortie compris), jamais recongelé.</p>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
           ))}
           <div className="p-4 border-t border-[var(--line)]">
@@ -12425,61 +12423,17 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                 <Printer size={16} /> Réimprimer la dernière étiquette faite
               </button>
             )}
-            {derniereEtiquette && <p className="text-xs text-[var(--steel)] text-center mt-1">{derniereEtiquette.nomLibre} — {fmtJour(derniereEtiquette.date)} à {derniereEtiquette.heure}</p>}
-            <button type="button" onClick={reediterEtiquettes} disabled={selection.length === 0} className="w-full mt-2 text-xs text-[var(--steel)] underline disabled:opacity-40">Réimprimer la dernière étiquette des produits sélectionnés</button>
+            {derniereEtiquette && (
+              <div className="mt-3">
+                <p className="text-xs text-[var(--steel)] text-center mb-2">Aperçu de la dernière étiquette : {derniereEtiquette.nomLibre} — {fmtJour(derniereEtiquette.date)} à {derniereEtiquette.heure}</p>
+                <div className="overflow-hidden">
+                  <EtiquetteDlcImprimable typeDlc={derniereEtiquette.typeDlc} produitNom={derniereEtiquette.nomLibre} lot={derniereEtiquette.lot} dlcDate={derniereEtiquette.dlcDate} date={derniereEtiquette.date} heure={derniereEtiquette.heure} who={who} employeeId={derniereEtiquette.employeeId} cuissonInfo={derniereEtiquette.cuissonInfo} refroidissementInfo={derniereEtiquette.refroidissementInfo} maintienInfo={derniereEtiquette.maintienInfo} decongelationInfo={derniereEtiquette.decongelationInfo} />
+                </div>
+              </div>
+            )}
           </div>
         </div>
       </div>
-
-      {assistantLignes && (
-        <Card id="assistant-etiquettes" className="mb-6 border-[var(--accent)]/40">
-          <h3 className="font-semibold text-[var(--ink)] mb-1">Édition d'étiquette{assistantLignes.length > 1 ? "s" : ""}</h3>
-          <p className="text-xs text-[var(--steel)] mb-4">Le lot et la date sont calculés automatiquement : DLC après ouverture (délai de la fiche produit, sinon repère du tableau HACCP) ou DDM du lot. Ils ne se saisissent pas à la main. Indiquez juste la quantité utilisée et le nombre d'étiquettes à imprimer.</p>
-          <div className="space-y-4">
-            {assistantLignes.map((l) => (
-              <div key={l.produitId} className="border border-[var(--cadre)] rounded-lg p-3">
-                <div className="font-medium text-[var(--ink)] mb-2">{l.nom}{l.reference ? <span className="text-xs font-normal text-[var(--steel)]"> · réf. {l.reference}</span> : null}</div>
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <div>
-                    <div className="text-xs text-[var(--steel)] mb-1">Numéro de lot (calculé, non modifiable)</div>
-                    <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--cadre)]">{l.lot}</div>
-                  </div>
-                  <div>
-                    <div className="text-xs text-[var(--steel)] mb-1">{l.typeDlc === "ddm" ? "DDM (date du lot, non modifiable)" : l.typeDlc === "ouverture" ? "DLC après ouverture (calculée, non modifiable)" : "Date limite DLC/DDM (calculée, non modifiable)"}</div>
-                    <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--cadre)]">{l.decongele ? (l.decongelDate ? addDays(l.decongelDate, 2) : "—") : (l.dlcDate || "non disponible")}</div>
-                  </div>
-                  <Field label="Quantité utilisée"><input className={inputCls} value={l.quantiteUtilisee} onChange={(e) => majLigne(l.produitId, "quantiteUtilisee", e.target.value)} placeholder="ex : 2 kg" /></Field>
-                  <Field label="Nombre d'étiquettes"><input className={inputCls} type="number" min="1" value={l.nbEtiquettes} onChange={(e) => majLigne(l.produitId, "nbEtiquettes", e.target.value)} /></Field>
-                </div>
-                {l.sourceDlc === "haccp" && !l.decongele && <p className="text-xs text-[var(--steel)] mt-2">Aucun délai après ouverture n'est enregistré pour ce produit : repère du tableau HACCP utilisé — {l.repereHaccp}.</p>}
-                {!l.dlcDate && !l.decongele && (
-                  <p className="text-xs text-[var(--warn)] mt-2">{l.typeDlc === "ddm" ? "DDM non renseignée pour ce produit — à mettre à jour depuis la réception avant de générer l'étiquette." : "DLC après ouverture non renseignée pour ce produit et absente du tableau HACCP — à renseigner dans sa fiche produit (Contrôle & Gestion → Gestion → Fournisseur) avant de générer l'étiquette."}</p>
-                )}
-                {l.estSurgele && (
-                  <div className="mt-3 pt-3 border-t border-[var(--line)]">
-                    <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Ce produit sort-il de congélation ?</p>
-                    <div className="flex gap-2 mb-2">
-                      <button type="button" onClick={() => majLigne(l.produitId, "decongele", true)} className={`text-xs font-medium px-3 py-1.5 rounded-full border ${l.decongele ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Oui</button>
-                      <button type="button" onClick={() => majLigne(l.produitId, "decongele", false)} className={`text-xs font-medium px-3 py-1.5 rounded-full border ${!l.decongele ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>Non</button>
-                    </div>
-                    {l.decongele && (
-                      <div className="grid grid-cols-2 gap-2">
-                        <Field label="Date de sortie du congélateur"><input className={inputCls} type="date" value={l.decongelDate} onChange={(e) => majLigne(l.produitId, "decongelDate", e.target.value)} /></Field>
-                        <Field label="Heure de sortie"><input className={inputCls} type="time" value={l.decongelHeure} onChange={(e) => majLigne(l.produitId, "decongelHeure", e.target.value)} /></Field>
-                      </div>
-                    )}
-                    {l.decongele && <p className="text-xs text-[var(--steel)] mt-2">L'étiquette portera « Décongelé le … » et une DLC recalculée en J+3 à partir de cette sortie (jour de sortie compris), jamais recongelé.</p>}
-                  </div>
-                )}
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2 mt-4">
-            <Button onClick={() => confirmerAssistant()}><Printer size={16} /> Imprimer les étiquettes</Button>
-            <Button variant="ghost" onClick={() => setAssistantLignes(null)}>Annuler</Button>
-          </div>
-        </Card>
-      )}
 
       {modeMigre && (
         <Card className="mb-6">
