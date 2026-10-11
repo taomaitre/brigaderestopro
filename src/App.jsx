@@ -13869,7 +13869,12 @@ function ChampDateSaisie({ value, onChange, placeholder = "JJ/MM/AAAA ou MM/AAAA
         <input
           className={`${inputCls} flex-1 min-w-0`} inputMode="numeric" autoComplete="off" placeholder={placeholder} value={texte}
           style={invalide ? { borderColor: "var(--warn)" } : undefined}
-          onChange={(e) => { setTexte(e.target.value); const iso = analyserDateSaisie(e.target.value); if (iso !== null) onChange(iso); }}
+          onChange={(e) => {
+            let v = e.target.value;
+            // Barres automatiques : après le jour (2 chiffres) et après le mois (2 chiffres), seulement quand on tape (pas quand on efface)
+            if (v.length > texte.length && (/^\d{2}$/.test(v) || /^\d{2}\/\d{2}$/.test(v))) v += "/";
+            setTexte(v); const iso = analyserDateSaisie(v); if (iso !== null) onChange(iso);
+          }}
         />
         <button type="button" title="Choisir dans le calendrier" onClick={() => { try { refDate.current && (refDate.current.showPicker ? refDate.current.showPicker() : refDate.current.click()); } catch (e) { refDate.current && refDate.current.click(); } }}
           className="border border-[var(--cadre)] rounded-lg px-2 text-[var(--steel)] hover:text-[var(--accent)]"><CalendarDays size={16} /></button>
