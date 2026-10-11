@@ -13090,7 +13090,7 @@ const SEUILS_RECEPTION_NOUVEAU = {
   plat: { min: -1, max: 3, label: "de -1°C à +3°C" },
   // Lait pasteurisé et fromages affinés : l'arrêté ne fixe pas de chiffre, la température est définie par le fabricant
   // (à lire sur l'emballage). Elle est saisie à la réception ; sans elle, aucun verdict n'est rendu.
-  laitier: { min: -1, max: 4, label: "limite indiquée par le fabricant" },
+  laitier: { min: -1, max: 4, label: "de -1°C à +4°C" },
 };
 const NOM_TYPE_TEMP = { viande: "viande fraîche / volaille", hache: "viande hachée", poisson: "poisson frais", abats: "abats", plat: "plat cuisiné", laitier: "lait pasteurisé / fromage affiné" };
 const RAISONS_NON_CONFORMITE = ["Produit abîmé à la livraison", "DLC trop courte", "Température non conforme", "Produit non commandé", "Produit substitué / facturé plus cher que commandé"];
@@ -14001,7 +14001,7 @@ const CONSERVATIONS = [
   { v: "abats", l: "Abats" },
   { v: "poisson", l: "Poisson / produits de la pêche frais" },
   { v: "plat", l: "Plat cuisiné / préparation à l'avance" },
-  { v: "laitier", l: "Lait pasteurisé / fromage affiné (température du fabricant)" },
+  { v: "laitier", l: "Lait pasteurisé / fromage affiné" },
   { v: "legume", l: "Fruits et légumes frais / herbes" },
   { v: "surgele", l: "Surgelé" },
   { v: "sec", l: "Sec / épicerie" },
@@ -15150,11 +15150,6 @@ function etatTemperatureReception(type, texte, limite) {
   const v = parseFloat(String(texte).replace(",", "."));
   let sn = SEUILS_RECEPTION_NOUVEAU[type];
   if (Number.isNaN(v) || !sn) return null;
-  if (type === "laitier") {
-    const lim = parseFloat(String(limite == null ? "" : limite).replace(",", "."));
-    if (Number.isNaN(lim)) return null; // limite du fabricant non saisie : pas de verdict
-    sn = { ...sn, max: lim };
-  }
   if (v > sn.max || (sn.min != null && v < sn.min)) return v > sn.max ? "hors" : "gele";
   if (type === "surgele" && v > sn.ideal) return "tolerance";
   return "ok";
@@ -15191,7 +15186,7 @@ function evalFamilleTemp(f, texte, limite) {
 // Les 2 relevés de température obligatoires pris dès le départ : produits frais et surgelés. Le logiciel juge ensuite
 // chaque produit saisi selon la norme de SON type (viande hachée +2°C, abats +3°C, viande +4°C…).
 const FAMILLES_TEMP = [
-  { id: "frais", titre: "Produits frais (réfrigérés)", sous: "viande, volaille, haché, abats, poisson, plats cuisinés, laitiers, œufs, charcuterie", norme: "selon le produit : haché et poisson +2°C · abats et plats cuisinés +3°C · viande et autres frais +4°C · lait pasteurisé / fromage affiné : limite du fabricant", types: ["frais", "viande", "hache", "abats", "plat", "poisson", "laitier"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
+  { id: "frais", titre: "Produits frais (réfrigérés)", sous: "viande, volaille, haché, abats, poisson, plats cuisinés, laitiers, œufs, charcuterie", norme: "selon le produit : haché et poisson +2°C · abats et plats cuisinés +3°C · viande, lait pasteurisé, fromage affiné et autres frais +4°C", types: ["frais", "viande", "hache", "abats", "plat", "poisson", "laitier"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
   { id: "surgele", titre: "Surgelés", sous: "tous les produits congelés", norme: "-18°C ou moins (tolérance : +3°C en surface, brièvement, au déchargement)", types: ["surgele"], typeRef: "surgele", fond: "#E6F0FA", bord: "#BCD3F2", couleur: "#14527F", Ic: Snowflake },
 ];
 const CONSIGNE_ETIQUETTE_RECEPTION = "Tu regardes la photo d'un produit alimentaire reçu en cuisine professionnelle (étiquette ou emballage). Identifie si visible : le nom du produit, la référence/le code article, le numéro de lot, la date limite de consommation (DLC/DDM), les allergènes déclarés, l'origine/provenance indiquée et le numéro d'agrément sanitaire CE s'il est visible. Réponds UNIQUEMENT en JSON strict, sans texte autour, format exact : {\"nom\": \"...\" ou null, \"reference\": \"...\" ou null, \"lot\": \"...\" ou null, \"dlc\": \"AAAA-MM-JJ\" ou null, \"allergenes\": \"...\" ou null, \"origine\": \"...\" ou null, \"agrementSanitaire\": \"...\" ou null}. Mets null si l'information n'est pas visible, n'invente jamais.";
@@ -15235,15 +15230,19 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
     const fam = familleDe(p.conservation);
     const t = fam ? temps[fam.id] : null;
     const val = t && !t.aucun && String(t.valeur).trim() !== "" ? String(t.valeur) : "";
-    const etat = val !== "" ? etatTemperatureReception(p.conservation, val, t && t.limite) : null;
+    const etat = val !== "" ? etatTemperatureReception(p.conservation, val) : null;
     const tNC = etat === "hors" || etat === "gele";
     const renvoiePlus = p.kind === "plus" && p.plusRenvoi;
     let raison = ""; let qNC = 0; let photoNC = null;
-    if (tNC) { raison = etat === "gele" ? "Produit frais reçu gelé (température hors norme)" : "Température non conforme"; qNC = p.quantite; photoNC = (t && t.photo) || null; }
+    if (tNC) {
+      raison = etat === "gele" ? "Produit frais reçu gelé (température hors norme)" : "Température non conforme";
+      if (p.autrePb && p.raisonPb && p.raisonPb.trim()) raison += ` ; ${p.raisonPb.trim()}`;
+      qNC = p.quantite; photoNC = (t && t.photo) || p.photoPb || null;
+    }
     else if (renvoiePlus) { raison = "Produit non commandé (livré en plus) — renvoyé"; qNC = p.quantite; }
     else if (p.autrePb) { raison = p.raisonPb || "Problème signalé sur le produit"; qNC = p.quantitePb === "" ? p.quantite : p.quantitePb; photoNC = p.photoPb || null; }
     else if (p.kind === "plus") raison = "Produit en plus (non commandé) conservé";
-    const tempManquante = TYPES_A_TEMPERATURE.includes(p.conservation) && (val === "" || (p.conservation === "laitier" && String((t && t.limite) || "").trim() === ""));
+    const tempManquante = TYPES_A_TEMPERATURE.includes(p.conservation) && val === "";
     return { temperature: val, tempManquante, etatTemp: etat, tempNC: tNC, conforme: !(tNC || renvoiePlus || p.autrePb), raison, quantiteNC: qNC, photoNC, ecartPrix: 0 };
   };
   const produitsF = produits.map((p) => ({ ...p, ...evalue(p) }));
@@ -15469,7 +15468,6 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                   <p className="text-xs text-[var(--ink)] mb-3 rounded-md px-2.5 py-1.5" style={{ backgroundColor: f.fond }}>Norme : <b>{f.norme}</b></p>
                   <label className={lab}>Température à cœur (°C)</label>
                   <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" step="0.1" inputMode="decimal" disabled={t.aucun} placeholder="0.0" value={t.valeur} onChange={(e) => majTemp(f.id, { valeur: e.target.value })} />
-                  {f.types.includes("laitier") && (<div className="mt-2"><label className={lab}>Lait pasteurisé / fromage affiné : limite indiquée par le fabricant (°C)</label><input className={`${inputCls} w-full`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. 4" value={t.limite || ""} onChange={(e) => majTemp(f.id, { limite: e.target.value })} /></div>)}
                   {String(t.valeur).trim() !== "" && (
                     <div className="flex flex-col items-center text-center mt-3">
                       <p className="text-xs text-[var(--ink)] mb-1.5">Photo du thermomètre (facultative)</p>
@@ -15590,7 +15588,6 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                   <span className="text-sm">°C</span>
                   {ev.temperature === "" && <span className="text-xs text-[var(--steel)]">Relevez la température de ce produit ici.</span>}
                 </div>
-                {b.conservation === "laitier" && (<div className="flex items-center gap-2 mt-2"><span className="text-xs">Limite du fabricant (emballage) :</span><input className={`${inputCls} !w-20 !h-9 text-center`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. 4" value={temps[fam.id].limite || ""} onChange={(e) => majTemp(fam.id, { aucun: false, limite: e.target.value })} /><span className="text-xs">°C</span></div>)}
               </div>
               {ev.temperature !== "" && badge(!ev.tempNC, ev.tempNC ? "Non conforme — refusé" : "Conforme")}
             </div>
