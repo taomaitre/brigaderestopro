@@ -11718,8 +11718,9 @@ function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, dernie
       <Button onClick={nouveau}><Camera size={16} /> Photographier un autre produit</Button>
     </Card>
   ) : (
-    <Card className="flex flex-col items-center text-center">
+    <Card>
       <h3 className="text-xl font-bold text-[var(--ink)] self-start">Ajouter une traçabilité</h3>
+      <div className="flex flex-col items-center text-center">
       <p className="text-sm text-[var(--steel)] self-start text-left mb-5">Photographiez l'étiquette du produit, bien lisible (nom, DLC/DDM, numéro de lot). Plusieurs photos si besoin (devant et dos de l'emballage).</p>
       <PhotoInput rond geant value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"} />
       <p className="text-base font-bold text-[var(--ink)] mt-4">{photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"}</p>
@@ -11734,6 +11735,7 @@ function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, dernie
           <button type="button" onClick={confirmer} className="w-full h-12 rounded-lg text-white text-base font-bold" style={{ backgroundColor: "#1E7B4B" }}>Valider la traçabilité</button>
         </div>
       )}
+      </div>
     </Card>
   );
 
