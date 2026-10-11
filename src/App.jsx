@@ -11424,14 +11424,14 @@ function HaccpDlc({ preparations, produits, who, jeterPreparation, today, stock,
 
 /* ---------- module Étiquettes DLC ---------- */
 
-function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, employeeId, cuissonInfo, refroidissementInfo, maintienInfo, decongelationInfo }) {
+function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, employeeId, cuissonInfo, refroidissementInfo, maintienInfo, decongelationInfo, typeDlc }) {
   return (
     <div className="border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm break-inside-avoid" style={{ pageBreakInside: "avoid" }}>
       <div className="text-xs text-[var(--steel)] uppercase tracking-wide mb-1">Étiquette DLC / DDM</div>
       <div className="text-lg font-semibold text-[var(--ink)] mb-2">{produitNom}</div>
       <div className="text-sm text-[var(--ink)] space-y-0.5">
         <div>Lot : <strong>{lot || "—"}</strong></div>
-        <div>Fabriqué le : {date} à {heure}</div>
+        <div>{typeDlc ? "Date" : "Fabriqué le"} : {date} à {heure}</div>
         <div>Par : {who(employeeId)}</div>
         {cuissonInfo && (
           <div>Cuisson : {cuissonInfo.heureDebut}{cuissonInfo.heureFin ? ` → ${cuissonInfo.heureFin}` : ""}{cuissonInfo.temperature ? ` — ${cuissonInfo.temperature}°C à cœur` : ""}{cuissonInfo.conforme === false ? " (non conforme)" : ""}</div>
@@ -11445,7 +11445,7 @@ function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, em
         {decongelationInfo && (
           <div>Décongelé le : <strong>{decongelationInfo.dateAffichee}</strong> — jamais recongelé</div>
         )}
-        <div className="font-semibold text-base mt-1">DLC/DDM : {dlcDate}</div>
+        <div className="font-semibold text-base mt-1">{typeDlc === "ddm" ? "DDM" : typeDlc === "ouverture" ? "DLC après ouverture" : "DLC/DDM"} : {dlcDate}</div>
       </div>
     </div>
   );
@@ -12106,9 +12106,58 @@ function genererLot(nom) {
   return `${abreviationLot(nom)}${dateLotDuJour()}`;
 }
 
+// DLC après ouverture : repères du tableau « Durées de conservation (DLC) — Normes HACCP » (fiche FICHES_NORMES.dlc).
+// Utilisés UNIQUEMENT quand le produit n'a pas de délai après ouverture enregistré. Quand le tableau donne une
+// fourchette (« 2 à 3 jours »), on retient la valeur la plus prudente (la plus courte). Un produit qui ne correspond
+// à aucune ligne du tableau n'a pas de délai : il faut le renseigner dans sa fiche, on n'invente rien.
+const REPERES_DLC_OUVERTURE = [
+  { re: /hach|abats|foie|rognon|tripe|cervelle/, jours: 1, repere: "Viande hachée, abats crus : 1 jour" },
+  { re: /marin/, jours: 5, repere: "Viande marinée : jusqu'à 5 jours" },
+  { re: /(poulet|volaille|dinde|canard|lapin|pintade).*(cuit|roti)|(cuit|roti).*(poulet|volaille|dinde|canard|lapin|pintade)/, jours: 2, repere: "Préparation à base de viande cuite : 2 jours maximum" },
+  { re: /poulet|volaille|dinde|lapin|pintade|canard/, jours: 3, repere: "Volaille / lapin crus : 3 jours" },
+  { re: /steak|escalope|boeuf|veau|porc|agneau|entrecote|cote de|filet de/, jours: 2, repere: "Viande crue : 2 à 3 jours" },
+  { re: /jambon blanc|jambon cuit|boudin blanc|boudin noir|blanc de poulet/, jours: 2, repere: "Charcuterie cuite tranchée (jambon, boudin) : 2 à 3 jours dès ouverture/tranchage" },
+  { re: /\bpate\b|terrine|rillette/, jours: 3, repere: "Charcuterie crue (pâté, terrine) : jusqu'à 3 jours" },
+  { re: /saucisson|jambon cru|jambon sec|chorizo|rosette|coppa|bresaola|speck/, jours: 10, repere: "Charcuterie sèche (saucisson, jambon cru affiné) : jusqu'à 10 jours" },
+  { re: /(thon|sardine|maquereau|anchois).*(conserve|huile|boite)|(conserve|huile|boite).*(thon|sardine|maquereau|anchois)/, jours: 15, repere: "Conserve de la mer ouverte (à l'huile) : jusqu'à 15 jours au réfrigérateur" },
+  { re: /oeufs? durs?/, jours: 3, repere: "Œufs durs (écalés) : 3 jours" },
+  { re: /oeufs? liquide|ovoproduit/, jours: 1, repere: "Œufs liquides / préparation à base d'œufs crus : 1 jour" },
+  { re: /mozzarella|burrata|burratina|ricotta|mascarpone|fromage frais|camembert|brie\b|reblochon|marcellin|chaource|munster|crottin|chevre/, jours: 3, repere: "Fromage à pâte molle / fraîche (une fois ouvert) : 3 jours" },
+  { re: /comte|emmental|gruyere|parmesan|cheddar|\btomme\b|\btome\b|cantal|mimolette|beaufort/, jours: 7, repere: "Fromage à pâte dure (une fois ouvert) : 7 à 15 jours" },
+  { re: /chantilly/, jours: 1, repere: "Crème chantilly maison : 1 jour" },
+  { re: /creme patissiere/, jours: 2, repere: "Crème pâtissière : 2 jours" },
+  { re: /salade composee|fruits? coupes?/, jours: 1, repere: "Salade composée / fruits coupés : 24 heures" },
+  { re: /conserve|boite/, jours: 2, repere: "Boîte de conserve ouverte : 2 jours (transvasée dans un contenant fermé)" },
+  { re: /lait uht/, jours: 2, repere: "Lait UHT ouvert : 2 jours" },
+  { re: /jus de fruits? frais|jus frais/, jours: 3, repere: "Jus de fruits frais ouvert : 3 jours" },
+  { re: /sirop/, jours: 7, repere: "Sirop : 7 jours" },
+];
+function repereDlcOuverture(nom, surgele) {
+  if (surgele) return null; // produit surgelé : la décongélation (J+3) est gérée à part
+  const t = String(nom || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "");
+  if (/surgel|congel/.test(t)) return null;
+  const r = REPERES_DLC_OUVERTURE.find((x) => x.re.test(t));
+  return r || null;
+}
+
 function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits, modeMigre }) {
   const { estResponsable } = useAcces();
   const who = (id) => employees.find((e) => e.id === id)?.nom;
+
+  // Ce que porte l'étiquette (nouvelle base) : jamais la DLC du produit enregistrée au stock. Soit la DDM du lot
+  // (produit à DDM), soit la DLC APRÈS OUVERTURE : délai du produit s'il est renseigné, sinon repère du tableau HACCP.
+  const infoEtiq = (p) => {
+    if (!modeMigre) return { ddm: estDdm(p), dlcDate: dlcCalculeeProduit(p), jours: estDdm(p) ? null : (p.dlcJours ?? 0), source: "produit", repere: "", typeDlc: undefined };
+    if (p.ddmExplicite) return { ddm: true, dlcDate: p.ddmDateActuelle || "", jours: null, source: "ddm", repere: "", typeDlc: "ddm" };
+    const surgele = categorieDeProduitDlc(p) === "Surgelés";
+    if (p.dlcJours != null && Number.isFinite(Number(p.dlcJours))) {
+      return { ddm: false, dlcDate: addDays(todayISO(), Number(p.dlcJours)), jours: Number(p.dlcJours), source: "produit", repere: "", typeDlc: "ouverture" };
+    }
+    const r = repereDlcOuverture(p.nom, surgele);
+    if (r) return { ddm: false, dlcDate: addDays(todayISO(), r.jours), jours: r.jours, source: "haccp", repere: r.repere, typeDlc: "ouverture" };
+    return { ddm: false, dlcDate: "", jours: null, source: "aucune", repere: "", typeDlc: "ouverture" };
+  };
+  const lotDe = (p) => (modeMigre ? (p.ddmLotActuel || genererLot(p.nom)) : (estDdm(p) && p.ddmLotActuel ? p.ddmLotActuel : genererLot(p.nom)));
 
   const [ficheNormesOuverte, setFicheNormesOuverte] = useState(null);
   const [recherche, setRecherche] = useState("");
@@ -12187,7 +12236,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   const ouvrirAssistantEdition = () => {
     const lignes = produitsUniques.filter((p) => selection.includes(p.id)).map((p) => ({
       produitId: p.id, nom: p.nom,
-      lot: genererLot(p.nom), dlcDate: dlcCalculeeProduit(p), quantiteUtilisee: "", nbEtiquettes: 1,
+      lot: lotDe(p), dlcDate: infoEtiq(p).dlcDate, typeDlc: infoEtiq(p).typeDlc, repereHaccp: infoEtiq(p).repere, sourceDlc: infoEtiq(p).source, quantiteUtilisee: "", nbEtiquettes: 1,
       // "Ce produit sort-il de congélation ?" n'est posé que pour les articles de la catégorie
       // Surgelés — si oui, l'étiquette porte "décongelé le ..." et la DLC est recalculée en J+3 à
       // partir de cette date/heure de sortie (jour de sortie compris), qui prime sur la DLC du
@@ -12209,7 +12258,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
       .map((l) => {
         const dlcFinale = l.decongele ? addDays(l.decongelDate, 2) : l.dlcDate;
         const decongelationInfo = l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null;
-        return creerEtiquetteDlc({ produitNom: l.nom, lot: l.lot, dlcDate: dlcFinale, photo: null, quantiteUtilisee: l.quantiteUtilisee, nbEtiquettes: l.nbEtiquettes, decongelationInfo });
+        return creerEtiquetteDlc({ produitNom: l.nom, lot: l.lot, dlcDate: dlcFinale, photo: null, quantiteUtilisee: l.quantiteUtilisee, nbEtiquettes: l.nbEtiquettes, decongelationInfo, typeDlc: l.decongele ? undefined : l.typeDlc });
       })
       .filter(Boolean)
       .map((e) => ({ ...e, produitNom: e.nomLibre }));
@@ -12234,7 +12283,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         <BoutonRetour onClick={() => setEtiquettesAImprimer(null)} className="mb-4 print:hidden">Retour aux étiquettes</BoutonRetour>
         <div className="space-y-4 print:space-y-2">
           {etiquettesAImprimer.flatMap((e) => Array.from({ length: e.nbEtiquettes || 1 }, (_, i) => (
-            <EtiquetteDlcImprimable key={`${e.id}-${i}`} produitNom={e.produitNom} lot={e.lot} dlcDate={e.dlcDate} date={e.date} heure={e.heure} who={who} employeeId={e.employeeId} cuissonInfo={e.cuissonInfo} refroidissementInfo={e.refroidissementInfo} maintienInfo={e.maintienInfo} decongelationInfo={e.decongelationInfo} />
+            <EtiquetteDlcImprimable key={`${e.id}-${i}`} typeDlc={e.typeDlc} produitNom={e.produitNom} lot={e.lot} dlcDate={e.dlcDate} date={e.date} heure={e.heure} who={who} employeeId={e.employeeId} cuissonInfo={e.cuissonInfo} refroidissementInfo={e.refroidissementInfo} maintienInfo={e.maintienInfo} decongelationInfo={e.decongelationInfo} />
           )))}
         </div>
         <Button className="mt-4 print:hidden" onClick={() => window.print()}><Printer size={16} /> Imprimer {etiquettesAImprimer.reduce((n, e) => n + (e.nbEtiquettes || 1), 0)} étiquette(s)</Button>
@@ -12258,7 +12307,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   const boutonPm = "w-9 h-9 rounded-lg border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
   const lignesDepuisSelection = () => produitsSel.map((p) => ({
     produitId: p.id, nom: p.nom,
-    reference: p.reference || "", lot: estDdm(p) && p.ddmLotActuel ? p.ddmLotActuel : genererLot(p.nom), dlcDate: dlcCalculeeProduit(p), quantiteUtilisee: "", nbEtiquettes: nbDe(p.id),
+    reference: p.reference || "", lot: lotDe(p), dlcDate: infoEtiq(p).dlcDate, typeDlc: infoEtiq(p).typeDlc, repereHaccp: infoEtiq(p).repere, sourceDlc: infoEtiq(p).source, quantiteUtilisee: "", nbEtiquettes: nbDe(p.id),
     estSurgele: categorieDeProduitDlc(p) === "Surgelés", decongele: false,
     decongelDate: todayISO(), decongelHeure: new Date().toTimeString().slice(0, 5),
   }));
@@ -12306,17 +12355,15 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             </div>
             <span className="text-sm font-semibold text-[var(--ink)]">{catChoisie === "__tous__" ? "Tous les produits" : catChoisie} ({visibles.length})</span>
           </div>
-          <div className="hidden md:grid md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_3.5rem] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
-            <span /><span>Produit</span><span>Référence et n° de lot actuel</span><span>DLC / DDM</span><span className="text-center">Jours</span>
+          <div className="hidden md:grid md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1.3fr)] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
+            <span /><span>Produit</span><span>Référence et n° de lot actuel</span><span>DLC après ouverture</span>
           </div>
           {visibles.length === 0 && <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>}
           {visibles.map((p) => {
             const sel = selection.includes(p.id); const cat = catDe(p); const [fond, texte] = infoCat(cat);
-            const ddm = estDdm(p); const dateLim = dlcCalculeeProduit(p);
-            const lotActuel = ddm ? (p.ddmLotActuel || "") : genererLot(p.nom);
-            const jours = ddm ? (dateLim ? Math.max(0, Math.round((new Date(dateLim + "T00:00:00") - new Date(todayISO() + "T00:00:00")) / 86400000)) : null) : (p.dlcJours ?? 0);
+            const ie = infoEtiq(p); const lotActuel = lotDe(p);
             return (
-              <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_3.5rem] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
+              <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1.3fr)] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
                 <span className="w-6 h-6 rounded border-2 flex items-center justify-center" style={sel ? { backgroundColor: "#6027C9", borderColor: "#6027C9", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{sel && <span className="text-xs leading-none">✓</span>}</span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</span>
@@ -12326,8 +12373,9 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                   <span className="block break-all"><span className="text-xs text-[var(--steel)]">Réf. : </span>{p.reference || "—"}</span>
                   <span className="block break-all"><span className="text-xs text-[var(--steel)]">Lot actuel : </span>{lotActuel || "—"}</span>
                 </span>
-                <span className="col-start-2 md:col-start-auto text-sm text-[var(--ink)]"><span className="md:hidden text-xs text-[var(--steel)]">{ddm ? "DDM" : "DLC"} : </span>{dateLim ? `${ddm ? "DDM" : "DLC"} ${dateLim.split("-").reverse().join("/")}` : (ddm ? "DDM à réception" : "—")}</span>
-                <span className="col-start-2 md:col-start-auto text-sm font-semibold text-[var(--ink)] md:text-center"><span className="md:hidden text-xs font-normal text-[var(--steel)]">Durée : </span>{jours == null ? "—" : `${jours} j`}</span>
+                <span className="col-start-2 md:col-start-auto text-sm font-semibold text-[var(--ink)]"><span className="md:hidden text-xs font-normal text-[var(--steel)]">DLC après ouverture : </span>
+                  {ie.ddm ? (ie.dlcDate ? `DDM ${ie.dlcDate.split("-").reverse().join("/")}` : "DDM à réception") : (ie.jours == null ? <span className="font-normal text-[var(--steel)]">à renseigner</span> : <>{`${ie.jours} j`}{ie.source === "haccp" && <span className="block text-[11px] font-normal text-[var(--steel)]">repère HACCP</span>}</>)}
+                </span>
               </button>
             );
           })}
@@ -12343,7 +12391,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
           {produitsSel.map((p) => (
             <div key={p.id} className="px-4 py-3 border-b border-[var(--line)] last:border-b-0">
               <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
-              <div className="text-xs text-[var(--steel)] mb-2">{estDdm(p) ? "DDM" : "DLC"} : {dlcCalculeeProduit(p) || "à renseigner"}</div>
+              <div className="text-xs text-[var(--steel)] mb-2">{infoEtiq(p).ddm ? "DDM" : "DLC après ouverture"} : {infoEtiq(p).dlcDate ? infoEtiq(p).dlcDate.split("-").reverse().join("/") : "à renseigner"}</div>
               <div className="flex items-center gap-2">
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, -1)} aria-label={`Une étiquette de moins pour ${p.nom}`}>−</button>
                 <span className="min-w-[4.5rem] text-center text-sm font-semibold text-[var(--ink)]">{nbDe(p.id)} étiquette{nbDe(p.id) > 1 ? "s" : ""}</span>
@@ -12364,7 +12412,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
       {assistantLignes && (
         <Card id="assistant-etiquettes" className="mb-6 border-[var(--accent)]/40">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Édition d'étiquette{assistantLignes.length > 1 ? "s" : ""}</h3>
-          <p className="text-xs text-[var(--steel)] mb-4">Lot et DLC/DDM sont calculés automatiquement par le logiciel à partir du catalogue produits — ils ne se saisissent pas à la main. Indiquez juste la quantité utilisée et le nombre d'étiquettes à imprimer.</p>
+          <p className="text-xs text-[var(--steel)] mb-4">Le lot et la date sont calculés automatiquement : DLC après ouverture (délai de la fiche produit, sinon repère du tableau HACCP) ou DDM du lot. Ils ne se saisissent pas à la main. Indiquez juste la quantité utilisée et le nombre d'étiquettes à imprimer.</p>
           <div className="space-y-4">
             {assistantLignes.map((l) => (
               <div key={l.produitId} className="border border-[var(--cadre)] rounded-lg p-3">
@@ -12375,14 +12423,15 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                     <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--cadre)]">{l.lot}</div>
                   </div>
                   <div>
-                    <div className="text-xs text-[var(--steel)] mb-1">Date limite DLC/DDM (calculée, non modifiable)</div>
+                    <div className="text-xs text-[var(--steel)] mb-1">{l.typeDlc === "ddm" ? "DDM (date du lot, non modifiable)" : l.typeDlc === "ouverture" ? "DLC après ouverture (calculée, non modifiable)" : "Date limite DLC/DDM (calculée, non modifiable)"}</div>
                     <div className="text-sm font-medium text-[var(--ink)] px-3 py-2 rounded-lg bg-[var(--bg)] border border-[var(--cadre)]">{l.decongele ? (l.decongelDate ? addDays(l.decongelDate, 2) : "—") : (l.dlcDate || "non disponible")}</div>
                   </div>
                   <Field label="Quantité utilisée"><input className={inputCls} value={l.quantiteUtilisee} onChange={(e) => majLigne(l.produitId, "quantiteUtilisee", e.target.value)} placeholder="ex : 2 kg" /></Field>
                   <Field label="Nombre d'étiquettes"><input className={inputCls} type="number" min="1" value={l.nbEtiquettes} onChange={(e) => majLigne(l.produitId, "nbEtiquettes", e.target.value)} /></Field>
                 </div>
+                {l.sourceDlc === "haccp" && !l.decongele && <p className="text-xs text-[var(--steel)] mt-2">Aucun délai après ouverture n'est enregistré pour ce produit : repère du tableau HACCP utilisé — {l.repereHaccp}.</p>}
                 {!l.dlcDate && !l.decongele && (
-                  <p className="text-xs text-[var(--warn)] mt-2">DDM non renseignée pour ce produit — à mettre à jour depuis la réception avant de générer l'étiquette.</p>
+                  <p className="text-xs text-[var(--warn)] mt-2">{l.typeDlc === "ddm" ? "DDM non renseignée pour ce produit — à mettre à jour depuis la réception avant de générer l'étiquette." : "DLC après ouverture non renseignée pour ce produit et absente du tableau HACCP — à renseigner dans sa fiche produit (Contrôle & Gestion → Gestion → Fournisseur) avant de générer l'étiquette."}</p>
                 )}
                 {l.estSurgele && (
                   <div className="mt-3 pt-3 border-t border-[var(--line)]">
@@ -19653,7 +19702,7 @@ function KitchenApp({ identiteExterne } = {}) {
       const jours = c.dlcJours == null ? null : Number(c.dlcJours);
       return {
         id: c.id, nom: c.nom, poste: "", reference: c.reference || "", conservation: c.conservation || "", categorieCatalogue: c.categorie || "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
-        typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), dlcJours: jours,
+        typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), ddmExplicite: c.typeDate === "DDM", dlcJours: jours,
         ddmLotActuel: c.lot || null, ddmDateActuelle: c.dlc || null,
       };
     });
@@ -20223,7 +20272,7 @@ function KitchenApp({ identiteExterne } = {}) {
     }
   }, [fiches, addTaskShared, stock, setStock, logActivitySafe]);
 
-  const creerEtiquetteDlc = useCallback(({ produitNom, lot, dlcDate, photo, photos, quantiteUtilisee, nbEtiquettes, photoEtiquette, allergenes, origine, codeUsine, delaiApresOuvertureJours, decongelationInfo }) => {
+  const creerEtiquetteDlc = useCallback(({ produitNom, lot, dlcDate, photo, photos, quantiteUtilisee, nbEtiquettes, photoEtiquette, allergenes, origine, codeUsine, delaiApresOuvertureJours, decongelationInfo, typeDlc }) => {
     if (!dlcDate) return null;
     // Info cuisson / refroidissement la plus récente pour ce produit, à faire apparaître sur
     // l'étiquette (le produit a-t-il été cuit ou refroidi lors de sa préparation ?).
@@ -20261,6 +20310,7 @@ function KitchenApp({ identiteExterne } = {}) {
       refroidissementInfo: dernierRefroidissement ? { heureDebut: dernierRefroidissement.heureDebut, heureFin: dernierRefroidissement.heureFin, tempDebut: dernierRefroidissement.tempDebut, tempFin: dernierRefroidissement.tempFin, conforme: dernierRefroidissement.conforme } : null,
       maintienInfo: dernierMaintien ? { heureDebut: dernierMaintien.heureDebut, heureFin: dernierMaintien.heureFin, appareil: dernierMaintien.appareil } : null,
       decongelationInfo: decongelationInfo || null,
+      typeDlc: typeDlc || null,
     };
     setPreparations((prev) => [entry, ...prev]);
     // Si une quantité utilisée est renseignée et qu'un article de stock du même nom existe, on la retire du stock.
