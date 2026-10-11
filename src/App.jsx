@@ -12425,7 +12425,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   }
 
   // Nouvelle base : mêmes catégories que l'écran Stock (toutes affichées, même vides).
-  const catDe = (p) => (modeMigre ? categorieStock({ conservation: p.conservation || "", categorie: p.categorieCatalogue || p.nom }) : categorieDeProduitDlc(p));
+  const catDe = (p) => (modeMigre ? categorieStock({ conservation: p.conservation || "", categorie: p.categorieCatalogue || "", nom: p.nom }) : categorieDeProduitDlc(p));
   const listeCats = modeMigre ? CATEGORIES_STOCK.map((c) => c.nom) : categoriesPresentes;
   const nbCat = (c) => produitsUniques.filter((p) => catDe(p) === c).length;
   const visibles = produitsTries.filter((p) => {
@@ -12620,6 +12620,20 @@ const CATEGORIES_STOCK = [
   { nom: "Emballages et jetables", fond: "#4B5D78", texte: "#fff", re: /emballage|jetable|film|barquette|sac/i },
   { nom: "Autres", fond: "#7C8794", texte: "#fff", re: /^$/ },
 ];
+// Rangement automatique : 1) le conditionnement (surgelé / entretien / emballage), 2) la catégorie du catalogue,
+// 3) à défaut, le NOM du produit (mots courants : jambon, steak, tomate…), 4) le type de conservation choisi dans la fiche,
+// 5) seulement si rien ne correspond : « Autres ».
+const MOTS_PAR_CATEGORIE = {
+  "Charcuterie": /bacon|chorizo|p[âa]t[ée]|rillette|mortadelle|salami|merguez|andouille|boudin|lard|pancetta|coppa|jambon|saucisson/i,
+  "Viandes et volailles": /steak|entrec[ôo]te|c[ôo]te |filet|escalope|cuisse|magret|r[ôo]ti|g[ée]sier|poitrine|souris|joue|paleron|b[ae]vette|hach[ée]|supr[êe]me|blanc de|nugget/i,
+  "Poissons et fruits de mer": /thon|cabillaud|crevette|moule|truite|sole|bar |dorade|lieu|merlu|colin|calamar|encornet|gambas|hu[iî]tre|saint-jacques|st jacques|anchois|sardine|maquereau|lotte|langoustine/i,
+  "Produits laitiers et œufs": /mozzarella|parmesan|emmental|cheddar|ch[èe]vre|gruy[èe]re|comt[ée]|ricotta|mascarpone|gorgonzola|raclette|reblochon|cr[èe]me|beurre|lait|yaourt|oeuf|œuf/i,
+  "Fruits et légumes": /tomate|pomme|carotte|oignon|ail\b|courgette|poivron|concombre|citron|banane|orange|patate|persil|basilic|ciboulette|laitue|roquette|aubergine|poireau|chou|[ée]pinard|avocat|fraise|framboise|salade|mangue|ananas|gingembre|menthe|coriandre/i,
+  "Épicerie sèche": /farine|riz|semoule|sucre|sel\b|poivre|huile|vinaigre|moutarde|ketchup|mayonnaise|conserve|bouillon|chapelure|levure|lentille|haricot sec|pois chiche|c[ée]r[ée]ale/i,
+  "Boulangerie et pâtisserie": /pain|baguette|brioche|croissant|p[âa]te [àa] (pizza|tarte)|tarte|g[âa]teau|panna cotta|tiramisu|mousse/i,
+  "Boissons": /eau|vin|bi[èe]re|coca|limonade|jus|sirop|caf[ée]|th[ée]|whisky|rhum|vodka|champagne/i,
+};
+const CATEGORIE_PAR_CONSERVATION = { viande: "Viandes et volailles", hache: "Viandes et volailles", abats: "Viandes et volailles", poisson: "Poissons et fruits de mer", laitier: "Produits laitiers et œufs", frais: "Produits laitiers et œufs", legume: "Fruits et légumes", sec: "Épicerie sèche", boisson: "Boissons" };
 function categorieStock(s) {
   if (s.conservation === "surgele") return "Surgelés";
   if (s.conservation === "entretien") return "Entretien et hygiène";
@@ -12627,6 +12641,10 @@ function categorieStock(s) {
   const txt = `${s.categorie || ""}`;
   const ordre = ["Surgelés", "Entretien et hygiène", "Emballages et jetables", "Charcuterie", "Boulangerie et pâtisserie", "Boissons", "Fruits et légumes", "Poissons et fruits de mer", "Viandes et volailles", "Produits laitiers et œufs", "Épicerie sèche"];
   for (const nom of ordre) { const c = CATEGORIES_STOCK.find((x) => x.nom === nom); if (c.re.test(txt)) return nom; }
+  const nomProduit = `${s.nom || ""}`;
+  if (/surgel|congel/i.test(nomProduit)) return "Surgelés";
+  if (nomProduit) { for (const [cat, re] of Object.entries(MOTS_PAR_CATEGORIE)) { if (re.test(nomProduit)) return cat; } }
+  if (CATEGORIE_PAR_CONSERVATION[s.conservation]) return CATEGORIE_PAR_CONSERVATION[s.conservation];
   return "Autres";
 }
 // Quantité (dans l'unité du produit) qu'ajoute « +1 conditionnement » : « Carton 6 x 1 L » → 6 L, « 1 x 6 litres » → 6 L, « Sac 25 kg » → 25 kg.
