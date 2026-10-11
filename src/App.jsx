@@ -1364,17 +1364,17 @@ function BoutonRetour({ onClick, children, className = "" }) {
   );
 }
 
-function SectionHeader({ title, subtitle, action }) {
+function SectionHeader({ title, subtitle, action, compact }) {
   const logo = typeof title === "string" ? LOGOS_TITRE.find(([debut]) => title.startsWith(debut)) : null;
   const Ic = logo ? logo[2]() : null;
   const coul = logo ? couleurSousTuile(logo[1], { fond: "linear-gradient(160deg,#64748B,#334155)", ombre: "rgba(51,65,85,0.3)" }) : null;
   return (
-    <div className="flex items-start justify-between mb-6 gap-4 flex-wrap">
+    <div className={`flex items-start justify-between ${compact ? "mb-3" : "mb-6"} gap-4 flex-wrap`}>
       <div className="flex items-start gap-3">
-        {Ic && <span className="shrink-0 w-11 h-11 rounded-xl flex items-center justify-center text-white" style={{ background: coul.fond, boxShadow: `0 4px 12px ${coul.ombre}` }}><Ic size={22} /></span>}
+        {Ic && <span className={`shrink-0 ${compact ? "w-9 h-9" : "w-11 h-11"} rounded-xl flex items-center justify-center text-white`} style={{ background: coul.fond, boxShadow: `0 4px 12px ${coul.ombre}` }}><Ic size={22} /></span>}
         <div>
-          <h2 className="text-2xl font-semibold text-[var(--ink)] tracking-tight">{title}</h2>
-          {subtitle && <p className="text-sm text-[var(--steel)] mt-1">{subtitle}</p>}
+          <h2 className={`${compact ? "text-xl" : "text-2xl"} font-semibold text-[var(--ink)] tracking-tight`}>{title}</h2>
+          {subtitle && <p className={`text-sm text-[var(--steel)] ${compact ? "" : "mt-1"}`}>{subtitle}</p>}
         </div>
       </div>
       {action}
@@ -12728,10 +12728,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).map((x) => x.s).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
   const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
   const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
-    <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
+    <button type="button" onClick={onClick} className="text-left rounded-xl border px-3 py-2 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
       <div className="flex items-center gap-3">
         <span className="w-12 h-12 rounded-lg bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={28} /></span>
-        <div className="min-w-0 flex-1"><div className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
+        <div className="min-w-0 flex-1"><div className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-[11px] leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
       </div>
     </button>
   );
@@ -16357,12 +16357,12 @@ function CarteZone({ icone: Ic, titre, sous, action, className = "", id, childre
   const z = React.useContext(ZoneContext) || { bord: "#475569", fond: "#47556922", texte: "#1E293B" };
   return (
     <div id={id} className={`bg-white border border-[var(--cadre)] rounded-xl overflow-hidden ${className}`} style={{ borderTop: `3px solid ${z.bord}` }}>
-      <div className="px-4 py-3 flex items-center gap-3 flex-wrap" style={{ background: z.fond }}>
-        <span className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: `linear-gradient(160deg, ${z.bord}, ${z.texte})` }}><Ic size={24} /></span>
-        <div className="min-w-0 flex-1"><h3 className="text-lg font-bold leading-tight" style={{ color: z.texte }}>{titre}</h3>{sous && <p className="text-xs text-[var(--steel)]">{sous}</p>}</div>
+      <div className="px-3 py-2 flex items-center gap-2.5 flex-wrap" style={{ background: z.fond }}>
+        <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: `linear-gradient(160deg, ${z.bord}, ${z.texte})` }}><Ic size={20} /></span>
+        <div className="min-w-0 flex-1"><h3 className="text-base font-bold leading-tight" style={{ color: z.texte }}>{titre}</h3>{sous && <p className="text-xs text-[var(--steel)]">{sous}</p>}</div>
         {action}
       </div>
-      <div className="p-4">{children}</div>
+      <div className="p-3">{children}</div>
     </div>
   );
 }
@@ -16370,11 +16370,11 @@ function CarteZone({ icone: Ic, titre, sous, action, className = "", id, childre
 function CarteInfo({ titre, grand, unite, sous, Ic, fond, bord, couleur, onClick }) {
   return (
     <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
-      <div className="flex items-center gap-3">
-        <span className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={26} /></span>
+      <div className="flex items-center gap-2.5">
+        <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={20} /></span>
         <div className="min-w-0 flex-1">
-          <div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
-          <div className="flex items-baseline gap-1.5"><span className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
+          <div className="text-xs font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
+          <div className="flex items-baseline gap-1.5"><span className="text-2xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
           <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>
         </div>
       </div>
@@ -16393,7 +16393,7 @@ function CartesReservations({ reservations, date, horaires, onChoisir }) {
   const exemples = Array.from(new Set(speciales.map((r) => (typeResa(r) === "Buffet" ? "buffet" : typeResa(r) === "Événement" ? (/anniv/i.test(r.nom) ? "anniversaire" : "événement") : "demande")))).slice(0, 2).join(", ");
   const nb = (l) => `${l.length} réservation${l.length > 1 ? "s" : ""}`;
   return (
-    <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
+    <div className="grid grid-cols-2 xl:grid-cols-5 gap-2 mb-3">
       <CarteInfo onClick={() => onChoisir("toutes")} titre="Total de la journée" grand={couvertsDe(duJour)} unite="couverts" sous={nb(duJour)} Ic={Users} fond="#E3EDFB" bord="#BCD3F2" couleur="#1B4F9C" />
       <CarteInfo onClick={() => onChoisir("groupes")} titre="Groupes (8 personnes et plus)" grand={groupes.length} sous={`${couvertsDe(groupes)} couverts`} Ic={Users} fond="#DDF3E6" bord="#B3E0C5" couleur="#14653A" />
       <CarteInfo onClick={() => onChoisir("speciales")} titre="Demandes spéciales" grand={speciales.length} sous={exemples || "allergie, anniversaire, buffet…"} Ic={IcEtoile} fond="#FFF0D2" bord="#F3D69A" couleur="#8A5300" />
@@ -16568,16 +16568,16 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
       )}
       {!integre && <SectionHeader title="Réservations" subtitle="Gestion des réservations et des services" />}
 
-      <div className="flex items-center gap-3 flex-wrap justify-between mb-4">
+      <div className="flex items-center gap-3 flex-wrap justify-between mb-2">
         <div className="flex items-center gap-2 min-w-0">
-          <button type="button" onClick={onPrev} className="w-11 h-11 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]" aria-label="Précédent"><ChevronLeft size={20} /></button>
-          <div className="h-11 px-4 min-w-[12rem] rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center gap-2.5 text-sm sm:text-base font-semibold text-[var(--ink)] capitalize"><CalendarDays size={20} className="text-[#1B4F9C]" /> {label}</div>
-          <button type="button" onClick={onNext} className="w-11 h-11 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]" aria-label="Suivant"><ChevronRight size={20} /></button>
-          {selectedDate !== todayISO() && <button type="button" onClick={() => goDate(todayISO())} className="h-11 px-3 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[#1B4F9C]">Aujourd'hui</button>}
+          <button type="button" onClick={onPrev} className="w-10 h-10 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]" aria-label="Précédent"><ChevronLeft size={20} /></button>
+          <div className="h-10 px-4 min-w-[12rem] rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center gap-2.5 text-sm font-semibold text-[var(--ink)] capitalize"><CalendarDays size={20} className="text-[#1B4F9C]" /> {label}</div>
+          <button type="button" onClick={onNext} className="w-10 h-10 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]" aria-label="Suivant"><ChevronRight size={20} /></button>
+          {selectedDate !== todayISO() && <button type="button" onClick={() => goDate(todayISO())} className="h-10 px-3 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[#1B4F9C]">Aujourd'hui</button>}
         </div>
         <div className="flex rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
           {["jour", "semaine", "mois"].map((v) => (
-            <button key={v} type="button" onClick={() => setViewMode(v)} style={viewMode === v ? { backgroundColor: ACTION_PLANNING, color: "#fff" } : undefined} className={`h-11 px-4 text-sm font-semibold capitalize ${viewMode === v ? "" : "text-[var(--ink)]"}`}>{v}</button>
+            <button key={v} type="button" onClick={() => setViewMode(v)} style={viewMode === v ? { backgroundColor: ACTION_PLANNING, color: "#fff" } : undefined} className={`h-10 px-4 text-sm font-semibold capitalize ${viewMode === v ? "" : "text-[var(--ink)]"}`}>{v}</button>
           ))}
         </div>
       </div>
@@ -16586,7 +16586,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
         <>
           {!integre && <CartesReservations reservations={reservations} date={selectedDate} horaires={horaires} onChoisir={aller} />}
 
-          <div ref={refListe} id="reservations-liste" className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-4 mb-6 scroll-mt-4">
+          <div ref={refListe} id="reservations-liste" className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-3 mb-3 scroll-mt-4">
             <CarteZone icone={Users} titre={`Liste des réservations (${duJour.length})`} sous="Touchez une réservation pour voir le détail">
               <div className="flex items-center gap-3 flex-wrap mb-3">
                 <div className="relative flex-1 min-w-[12rem]">
@@ -18455,7 +18455,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         const nbResa = resasAujourdhui.length;
         const couverts = resasAujourdhui.reduce((t, r) => t + (Number(r.personnes) || 0), 0);
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3 mb-5">
+          <div className="grid grid-cols-2 xl:grid-cols-5 gap-2 mb-3">
             <CarteInfo onClick={() => allerBloc("colonne-preparations")} titre="Préparations culinaires à faire" grand={prepsRestantes} sous={`sur ${dj.preparations_.length} aujourd'hui`} Ic={ChefHat} fond="#FDE4E8" bord="#F6B8C2" couleur="#B4233A" />
             <CarteInfo onClick={() => allerBloc("colonne-nettoyage")} titre="Tâches de nettoyage à faire" grand={netRestants} sous={`sur ${netTotal + dj.nettoyagesPeriodiques} aujourd'hui`} Ic={SprayCan} fond="#FBE3EF" bord="#F1B3D3" couleur="#9D174D" />
             <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="DLC à traiter avant la fin de la journée" grand={dlc.length} sous="produits à utiliser ou à jeter" Ic={Clock} fond="#FFEFD0" bord="#F3D69A" couleur="#8A5300" />
@@ -18465,16 +18465,16 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         );
       })()}
 
-      <Card className="mb-6">
-        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <div className="grid grid-cols-2 gap-3 w-full sm:w-auto sm:flex">
+      <Card className="mb-3 !p-3">
+        <div className="flex items-center justify-between mb-2 flex-wrap gap-2">
+          <div className="grid grid-cols-2 gap-2 w-full sm:w-auto sm:flex">
             {ONGLETS_PLANNING.map(([id, lib, Ic]) => {
               const actif = vueAccueil === id;
               return (
                 <button key={id} type="button" onClick={() => setVueAccueil(id)}
                   style={actif ? { backgroundColor: ACTION_PLANNING, color: "#ffffff", borderColor: ACTION_PLANNING } : undefined}
-                  className={`h-14 sm:min-w-[17rem] px-5 rounded-lg border-2 flex items-center justify-center gap-3 text-base font-semibold ${actif ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>
-                  <Ic size={24} /> {lib}
+                  className={`h-10 sm:min-w-[11rem] px-4 rounded-lg border-2 flex items-center justify-center gap-2 text-sm font-semibold ${actif ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>
+                  <Ic size={18} /> {lib}
                 </button>
               );
             })}
@@ -18482,16 +18482,16 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         </div>
 
         {currentUserId !== "direction" && vueAccueil === "planning" && (
-          <div className="mb-4">
+          <div className="mb-2">
             {(() => {
               const label = vueTemps === "jour" ? fmtLong(dateSelectionnee) : vueTemps === "semaine" ? `Semaine du ${fmtShort(startOfWeek(dateSelectionnee))}` : fmtMonthYear(dateSelectionnee);
               const pas = (sens) => setDateSelectionnee((d) => vueTemps === "jour" ? addDays(d, sens) : vueTemps === "semaine" ? addDays(d, 7 * sens) : decalerDateMois(d, sens));
-              const bt = "w-12 h-12 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]";
+              const bt = "w-10 h-10 shrink-0 rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center text-[#1B4F9C]";
               return (
                 <div className="flex items-center gap-3 flex-wrap justify-between">
                   <div className="flex items-center gap-2 min-w-0">
                     <button type="button" onClick={() => pas(-1)} className={bt} aria-label="Précédent"><ChevronRight size={22} style={{ transform: "rotate(180deg)" }} /></button>
-                    <div className="h-12 px-5 min-w-[14rem] rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center gap-3 text-base font-semibold text-[var(--ink)] capitalize">
+                    <div className="h-10 px-4 min-w-[12rem] rounded-lg border border-[var(--cadre)] bg-white flex items-center justify-center gap-2 text-sm font-semibold text-[var(--ink)] capitalize">
                       <CalendarDays size={22} className="text-[#1B4F9C]" /> {label}
                     </div>
                     <button type="button" onClick={() => pas(1)} className={bt} aria-label="Suivant"><ChevronRight size={22} /></button>
@@ -18500,7 +18500,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                     {["jour", "semaine", "mois"].map((v) => (
                       <button key={v} type="button" onClick={() => setVueTemps(v)}
                         style={vueTemps === v ? { backgroundColor: ACTION_PLANNING, color: "#ffffff" } : undefined}
-                        className={`h-12 px-5 text-sm font-semibold capitalize ${vueTemps === v ? "" : "text-[var(--ink)]"}`}>
+                        className={`h-10 px-4 text-sm font-semibold capitalize ${vueTemps === v ? "" : "text-[var(--ink)]"}`}>
                         {v}
                       </button>
                     ))}
@@ -18596,7 +18596,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         );
         const vide = (txt) => <p className="px-3 py-3 text-sm text-[var(--steel)]">{txt}</p>;
         return (
-          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-4 mb-6">
+          <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-3 mb-3">
             <CarteZone icone={ClipboardList} titre="Tâches du jour" sous="Liste des tâches à réaliser aujourd'hui"
               action={<button type="button" onClick={() => setToutesTaches((v) => !v)} className="h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[#1B4F9C] flex items-center gap-2">
                   <ListChecks size={18} /> {toutesTaches ? "Réduire les listes" : `Voir toutes les tâches (${total})`}
@@ -20762,10 +20762,10 @@ function KitchenApp({ identiteExterne } = {}) {
           <>
           {vueTaches === "reservations" ? (
             <ZoneContext.Provider value={zoneDepuisFonction("reservationsClient")}>
-              <SectionHeader title="Réservations" subtitle="Gestion des réservations et des services" />
+              <SectionHeader compact title="Réservations" subtitle="Gestion des réservations et des services" />
             </ZoneContext.Provider>
           ) : (<>
-          <SectionHeader title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
+          <SectionHeader compact title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
           </>)}
           <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null}  cuissons={cuissons} vueExt={vueTaches} setVueExt={setVueTaches} />
           </>
