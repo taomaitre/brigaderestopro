@@ -106,6 +106,8 @@ const Printer = makeIcon([P("M6 9V2h12v7"), P("M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 
 const BookOpen = makeIcon([P("M12 7v14"), P("M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h5a4 4 0 0 1 4 4 4 4 0 0 1 4-4h5a1 1 0 0 1 1 1v13a1 1 0 0 1-1 1h-6a3 3 0 0 0-3 3 3 3 0 0 0-3-3z")]);
 const Camera = makeIcon([P("M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"), C(12, 13, 3)]);
 const Mail = makeIcon([RC(2, 4, 20, 16, 2), P("m22 6-8.97 6.7a2 2 0 0 1-2.06 0L2 6")]);
+const Search = makeIcon([C(11, 11, 8), L(21, 21, 16.65, 16.65)]);
+const Sliders = makeIcon([L(4, 21, 4, 14), L(4, 10, 4, 3), L(12, 21, 12, 12), L(12, 8, 12, 3), L(20, 21, 20, 16), L(20, 12, 20, 3), L(1, 14, 7, 14), L(9, 8, 15, 8), L(17, 16, 23, 16)]);
 const Loader2 = makeIcon([P("M21 12a9 9 0 1 1-6.219-8.56")]);
 const XCircle = makeIcon([C(12, 12, 10), L(15, 9, 9, 15), L(9, 9, 15, 15)]);
 const Mic = makeIcon([RC(9, 2, 6, 11, 3), P("M19 10v2a7 7 0 0 1-14 0v-2"), L(12, 19, 12, 22)]);
@@ -471,7 +473,10 @@ const COULEURS_FONCTION = {
   pmsPrestataires: degrade("#DB2777", "#831843"),
   allergenes: degrade("#EAB308", "#A16207"),
   origine: degrade("#0EA5E9", "#075985"),
-  tiac: degrade("#4B5563", "#111827"),
+  tiac: degrade("#DC2626", "#7F1D1D"),
+  rappelconso: degrade("#DC2626", "#7F1D1D"),
+  notifications: degrade("#3B82F6", "#1D4ED8"),
+  alertes: degrade("#D4A017", "#9A7000"),
   historiqueJour: degrade("#0F766E", "#134E4A"),
   preparations: degrade("#E07A5F", "#B5523B"),
 };
@@ -3856,6 +3861,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   const [rechercheTracabilite, setRechercheTracabilite] = useState("");
   const [remarqueEnCours, setRemarqueEnCours] = useState(null);
   const [sousEcran, setSousEcran] = useState(null);
+  const [rechercheCG, setRechercheCG] = useState("");
   const [suppRefroidId, setSuppRefroidId] = useState(null);
   const [nouveauMaintien, setNouveauMaintien] = useState("");
   // Doit rester avec les autres hooks, AVANT les retours anticipés plus bas (sinon React plante : « Rendered fewer hooks »).
@@ -3917,17 +3923,20 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     setMessageComptes(null);
   };
 
-  // Quatre grandes rubriques, chacune avec sa couleur : tout ce que le chef et le directeur gèrent s'y range.
+  // Grandes rubriques par métier, chacune avec sa couleur. « Urgence sanitaire » (TIAC + rappels de produit)
+  // est toujours en rouge, en haut et en pleine largeur : c'est la seule qu'on doit trouver sans réfléchir.
   const SECTIONS_CG = [
-    { id: "equipe", label: "Équipe et planning", desc: "Horaires, heures de service, réservations, comptes", icon: Users, couleur: { fond: "linear-gradient(160deg, #2563B8 0%, #1D4E89 100%)", ombre: "rgba(29,78,137,0.35)" } },
-    { id: "controle", label: "Contrôles du jour", desc: "Suivi des températures, refroidissements, maintien au chaud, cuissons, huiles de friture et réceptions", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
-    { id: "cuisine", label: "Cuisine et achats", desc: "Fiches techniques, carte, fournisseurs, livraisons", icon: ChefHat, couleur: { fond: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", ombre: "rgba(180,83,9,0.35)" } },
-    { id: "hygiene", label: "Hygiène et réglementation", desc: "Plan de nettoyage, allergènes, origine des viandes, TIAC", icon: SprayCan, couleur: { fond: "linear-gradient(160deg, #B83A6B 0%, #8B2450 100%)", ombre: "rgba(139,36,80,0.35)" } },
+    { id: "urgence", label: "Urgence sanitaire", desc: "Intoxication alimentaire (TIAC) ou rappel de produit : que faire, que déclarer", icon: AlertTriangle, urgence: true, couleur: { fond: "linear-gradient(160deg, #DC2626 0%, #7F1D1D 100%)", ombre: "rgba(127,29,29,0.4)" } },
+    { id: "controle", label: "Contrôles du jour", desc: "Tâches, températures, huiles, cuissons, refroidissements, maintien au chaud, traçabilité", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
+    { id: "reception", label: "Réception et fournisseurs", desc: "Livraisons reçues, fournisseurs et produits, notifications à envoyer", icon: Truck, couleur: { fond: "linear-gradient(160deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" } },
+    { id: "cuisine", label: "Cuisine et carte", desc: "Fiches techniques et carte du restaurant", icon: ChefHat, couleur: { fond: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", ombre: "rgba(180,83,9,0.35)" } },
+    { id: "hygiene", label: "PMS et réglementation", desc: "Dossier PMS, plan de nettoyage, prestataires, allergènes, origine des viandes", icon: SprayCan, couleur: { fond: "linear-gradient(160deg, #B83A6B 0%, #8B2450 100%)", ombre: "rgba(139,36,80,0.35)" } },
+    { id: "equipe", label: "Équipe et planning", desc: "Horaires, heures de service, réservations", icon: Users, couleur: { fond: "linear-gradient(160deg, #2563B8 0%, #1D4E89 100%)", ombre: "rgba(29,78,137,0.35)" } },
+    { id: "reglages", label: "Réglages", desc: "Comptes de l'équipe, appareils de froid, produits des étiquettes DLC", icon: Sliders, couleur: { fond: "linear-gradient(160deg, #64748B 0%, #334155 100%)", ombre: "rgba(51,65,85,0.35)" } },
   ];
   const SOUS_TUILES_CONTROLE_TOUTES = [
-    { id: "planningEmploye", label: "Planning employé et heures de service", icon: Clock, section: "equipe", tab: "horaires" },
-    { id: "reservationsClient", label: "Réservations client", icon: CalendarDays, section: "equipe", tab: "reservations" },
-    { id: "comptes", label: "Gestion des comptes", icon: Users, section: "equipe" },
+    { id: "tiac", label: "Procédure de TIAC", icon: Activity, section: "urgence" },
+    { id: "rappelconso", label: "Rappels de produits (RappelConso)", icon: AlertTriangle, section: "urgence" },
     { id: "planning", label: "Tâches du jour", icon: ListChecks, section: "controle" },
     { id: "temperatures", label: "Températures frigos et congélateurs", icon: Thermometer, section: "controle" },
     { id: "huile", label: "Huile de friture", icon: Droplets, section: "controle" },
@@ -3936,19 +3945,23 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     { id: "maintien", label: "Maintien au chaud", icon: Soup, section: "controle" },
     { id: "tracabilite", label: "Traçabilité", icon: Camera, section: "controle" },
     { id: "historiqueJour", label: "Historique de la journée", icon: ClipboardList, section: "controle" },
+    { id: "alertes", label: "Alertes qualité", icon: Bell, section: "controle" },
+    { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "reception" },
+    { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "reception" },
+    { id: "notifications", label: "Notifications fournisseur", icon: Mail, section: "reception" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
     { id: "modifierFiche", label: "Modifier ou dupliquer une fiche technique", icon: BookOpen, section: "cuisine" },
-    { id: "appareilsFroid", label: "Appareils de froid (ajout, modification)", icon: Thermometer, section: "controle" },
-    { id: "catalogueDlc", label: "Produits des étiquettes DLC", icon: Printer, section: "cuisine" },
     { id: "carte", label: "Ma carte", icon: UtensilsCrossed, section: "cuisine" },
-    { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "cuisine" },
-    { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "cuisine" },
-    { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
     { id: "pmsDossier", label: "PMS — dossier", icon: Building2, section: "hygiene" },
+    { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
     { id: "pmsPrestataires", label: "Prestataires", icon: PhoneCall, section: "hygiene" },
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
-    { id: "tiac", label: "Procédure de TIAC", icon: Activity, section: "hygiene" },
+    { id: "planningEmploye", label: "Planning employé et heures de service", icon: Clock, section: "equipe", tab: "horaires" },
+    { id: "reservationsClient", label: "Réservations client", icon: CalendarDays, section: "equipe", tab: "reservations" },
+    { id: "comptes", label: "Gestion des comptes", icon: Users, section: "reglages" },
+    { id: "appareilsFroid", label: "Appareils de froid (ajout, modification)", icon: Thermometer, section: "reglages" },
+    { id: "catalogueDlc", label: "Produits des étiquettes DLC", icon: Printer, section: "reglages" },
   ];
   const sectionInfo = SECTIONS_CG.find((x) => x.id === sectionActive);
   // "Planning employé" et "Réservation client" sont réservées à la direction : elles ne sont
@@ -3956,7 +3969,8 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "modifierFiche" || !!stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms))));
+  const tuileVisible = (t) => (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "modifierFiche" || !!stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
+  const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && tuileVisible(t));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
     if (tuile && tuile.tab) return setTab(tuile.tab);
@@ -4032,7 +4046,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => setTracabiliteCompleteActif(false)} />;
   }
 
-  const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", comptes: "comptes" })[sousEcran] || ({ equipe: "comptes", controle: "controle", cuisine: "carte", hygiene: "pms" })[sectionActive] || "controle";
+  const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", comptes: "comptes", rappelconso: "rappelconso", alertes: "alertes", notifications: "notifications", appareilsFroid: "temperatures" })[sousEcran] || ({ equipe: "planningEmploye", controle: "controle", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "controle";
   return (
     <ZoneContext.Provider value={zoneDepuisFonction(fonctionZoneControle)}>
     <div>
@@ -4041,7 +4055,62 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
       <SectionHeader title="Contrôle & Gestion" subtitle="Vue d'ensemble du chef — qui a fait quoi aujourd'hui"
         action={<button onClick={() => setTab("equipe")} className="text-xs text-[var(--accent)] font-medium">Journal d'activité complet →</button>} />
 
-      <BandeauEcheancesPms alertes={alertesEcheancesPms(reglagesEtablissement && reglagesEtablissement.pms, todayISO(), compteDirection)} onOuvrir={(cible) => { setSectionActive("hygiene"); setSousEcran(cible); }} />
+      {/* Barre de recherche : tape « tiac », « allergène », « température »… et la bonne rubrique s'ouvre. */}
+      <div className="relative mb-4">
+        <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
+        <input value={rechercheCG} onChange={(e) => setRechercheCG(e.target.value)} placeholder="Chercher une rubrique (TIAC, allergènes, température, fournisseur…)"
+          className="w-full rounded-xl border border-[var(--line)] bg-white pl-10 pr-3 py-3 text-sm text-[var(--ink)]" />
+      </div>
+
+      {rechercheCG.trim() ? (() => {
+        const q = rechercheCG.trim().toLowerCase();
+        const trouvees = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => tuileVisible(t) && (t.label.toLowerCase().includes(q) || (SECTIONS_CG.find((x) => x.id === t.section)?.label || "").toLowerCase().includes(q)));
+        return (
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+            {trouvees.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune rubrique ne correspond.</p>}
+            {trouvees.map((t) => {
+              const Icon = t.icon; const sec = SECTIONS_CG.find((x) => x.id === t.section); const c = couleurSousTuile(t.id, sec.couleur);
+              return (
+                <button key={t.id} onClick={() => { setRechercheCG(""); setSectionActive(t.section); ouvrirSousTuile(t.id); }}
+                  style={{ background: c.fond, boxShadow: `0 6px 16px ${c.ombre}` }}
+                  className="rounded-2xl flex items-center gap-3 px-4 py-3 text-left active:scale-[0.98] transition-transform">
+                  <Icon size={26} color="#ffffff" strokeWidth={2} />
+                  <span className="min-w-0"><span className="block text-sm font-bold text-white leading-tight">{t.label}</span><span className="block text-xs text-white/80">{sec.label}</span></span>
+                </button>
+              );
+            })}
+          </div>
+        );
+      })() : (
+      <>
+      {(() => {
+        const rappelsAtraiter = alertesRappelConso.filter((a) => !a.traite).length;
+        const aTraiter = [
+          { n: enAttente.length, texte: enAttente.length > 1 ? "notifications fournisseur à envoyer" : "notification fournisseur à envoyer", section: "reception", ecran: "notifications", couleur: "#1D4ED8" },
+          { n: alertesNonVues.length, texte: alertesNonVues.length > 1 ? "alertes qualité à lire" : "alerte qualité à lire", section: "controle", ecran: "alertes", couleur: "#9A7000" },
+          { n: rappelsAtraiter, texte: rappelsAtraiter > 1 ? "rappels de produits à traiter" : "rappel de produit à traiter", section: "urgence", ecran: "rappelconso", couleur: "#7F1D1D" },
+        ].filter((x) => x.n > 0);
+        return (
+          <Card className="mb-6">
+            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">À traiter</h3>
+            <BandeauEcheancesPms alertes={alertesEcheancesPms(reglagesEtablissement && reglagesEtablissement.pms, todayISO(), compteDirection)} onOuvrir={(cible) => { setSectionActive("hygiene"); setSousEcran(cible); }} />
+            {aTraiter.length === 0 ? (
+              <p className="text-sm text-[var(--accent)]">✓ Rien à traiter pour le moment.</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {aTraiter.map((x) => (
+                  <button key={x.ecran} onClick={() => { setSectionActive(x.section); setSousEcran(x.ecran); }}
+                    style={{ borderColor: x.couleur, color: x.couleur }}
+                    className="rounded-full border-2 bg-white px-3 py-1.5 text-sm font-semibold active:scale-95 transition-transform">
+                    {x.n} {x.texte} →
+                  </button>
+                ))}
+              </div>
+            )}
+          </Card>
+        );
+      })()}
+
 
       {emailsIaPrets.length > 0 && (
         <Card className="mb-6 border-2" style={{ borderColor: "#C1432D", backgroundColor: "#fff5f5" }}>
@@ -4069,7 +4138,65 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         </Card>
       )}
 
-      {alertesNonVues.length > 0 && (
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        {SECTIONS_CG.map((x) => {
+          const Icon = x.icon;
+          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && tuileVisible(t)).length;
+          if (nb === 0) return null;
+          return (
+            <button key={x.id} onClick={() => { setSousEcran(null); setSectionActive(x.id); }}
+              style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
+              className={`rounded-2xl flex items-center gap-4 min-h-[110px] px-5 py-4 text-left active:scale-[0.98] transition-transform ${x.urgence ? "sm:col-span-2 ring-2 ring-red-300" : ""}`}>
+              <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
+              <span className="min-w-0">
+                <span className="block text-lg font-bold text-white leading-tight">{x.label}</span>
+                <span className="block text-sm text-white/90 mt-1 leading-snug">{x.desc}</span>
+                {!x.urgence && <span className="block text-xs text-white/80 mt-1">{nb} rubrique{nb > 1 ? "s" : ""}</span>}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+      </>
+      )}
+
+      </>
+      ) : (
+      <>
+      {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
+      {sousEcran
+        ? <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3">Retour à {sectionInfo.label}</BoutonRetour>
+        : <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>}
+
+      {!sousEcran && <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} fonction={({ equipe: "planningEmploye", controle: "taches", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "pms"} icone={sectionInfo.icon} />}
+      {sousEcran && ["temperatures", "cellule", "cuisson", "maintien", "huile", "allergenes", "origine", "tiac", "comptes", "planning"].includes(sousEcran) && (() => {
+        const t = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === sousEcran);
+        const sous = { temperatures: "Relevés de température et alertes", cellule: "Suivi des refroidissements et de la cellule", cuisson: "Suivi des cuissons", maintien: "Suivi des produits maintenus au chaud", huile: "Tests et suivi des bains d'huile", allergenes: "Les 14 allergènes à déclarer, plat par plat et produit par produit", origine: "Origine des viandes servies — à renseigner et à conserver", tiac: "Que faire et que déclarer en cas de suspicion d'intoxication alimentaire collective", comptes: "Créez et gérez les comptes de l'équipe", planning: "Vue d'ensemble de la journée : qui a fait quoi" }[sousEcran];
+        return t ? <SectionHeader title={t.label} subtitle={sous} fonction={sousEcran} icone={t.icon} /> : null;
+      })()}
+
+      {!sousEcran && (
+        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
+          {SOUS_TUILES_CONTROLE.map((t) => {
+            const Icon = t.icon;
+            return (
+              <button key={t.id} onClick={() => ouvrirSousTuile(t.id)}
+                style={{ background: couleurSousTuile(t.id, sectionInfo.couleur).fond, boxShadow: `0 8px 20px ${couleurSousTuile(t.id, sectionInfo.couleur).ombre}` }}
+                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[88px] px-2 text-center active:scale-95 transition-transform">
+                <Icon size={28} color="#ffffff" strokeWidth={2} />
+                <span className="text-xs font-bold text-white leading-tight line-clamp-2">{t.label}</span>
+              </button>
+            );
+          })}
+        </div>
+      )}
+      </>
+      )}
+
+      {sousEcran === "alertes" && (
+        <div>
+          <SectionHeader title="Alertes qualité" subtitle="Les anomalies relevées par l'équipe, à lire et à masquer une fois vues" fonction="alertes" icone={Bell} />
+      {alertesNonVues.length > 0 ? (
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-[var(--warn)] uppercase tracking-wide mb-3">Alertes qualité ({alertesNonVues.length})</h3>
           <div className="space-y-3">
@@ -4087,9 +4214,15 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
             ))}
           </div>
         </div>
+      ) : <Card><p className="text-sm text-[var(--accent)]">Aucune alerte qualité à lire.</p></Card>}
+
+        </div>
       )}
 
-      {notificationsFournisseur.length > 0 && (
+      {sousEcran === "notifications" && (
+        <div>
+          <SectionHeader title="Notifications fournisseur" subtitle="Les livraisons non conformes à signaler au fournisseur (et à la comptabilité)" fonction="notifications" icone={Mail} />
+      {notificationsFournisseur.length > 0 ? (
         <div className="mb-6">
           <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">Notifications fournisseur {enAttente.length > 0 && <span className="text-[var(--warn)]">({enAttente.length} à envoyer)</span>}</h3>
           {totalEcartPrixAnnee === 0 && <div className="mb-2" />}
@@ -4101,36 +4234,14 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
             <ArchiveNotificationsTraitees notifs={envoyees} employees={employees} emailsFournisseurs={emailsFournisseurs} onEnregistrerEmail={enregistrerEmailFournisseur} onMarquerEnvoyee={marquerEnvoyee} fournisseursCatalogue={fournisseursCatalogue} />
           </div>
         </div>
+      ) : <Card><p className="text-sm text-[var(--accent)]">Aucune notification fournisseur pour le moment.</p></Card>}
+
+        </div>
       )}
 
-      {/* Les grandes tuiles, dans le même style que toutes les autres tuiles de l'appli :
-          on choisit une des sections, puis on retrouve les icônes qui lui correspondent.
-          Sur le compte direction, deux tuiles supplémentaires (Planning employé, Réservation
-          client) arrivent en premier et ouvrent directement leur écran, sans passer par
-          une section — avec un bouton de retour en haut de chaque écran. */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        {SECTIONS_CG.map((x) => {
-          const Icon = x.icon;
-          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && (t.id !== "commandes" || !!stockCatalogue) && (t.id !== "modifierFiche" || !!stockCatalogue) && (t.id !== "catalogueDlc" || !stockCatalogue) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)))).length;
-          return (
-            <button key={x.id} onClick={() => { setSousEcran(null); setSectionActive(x.id); }}
-              style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
-              className="rounded-2xl flex items-center gap-4 min-h-[110px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
-              <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
-              <span className="min-w-0">
-                <span className="block text-lg font-bold text-white leading-tight">{x.label}</span>
-                <span className="block text-sm text-white/90 mt-1 leading-snug">{x.desc}</span>
-                <span className="block text-xs text-white/80 mt-1">{nb} rubrique{nb > 1 ? "s" : ""}</span>
-              </span>
-            </button>
-          );
-        })}
-      </div>
-
-      <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">Veille sanitaire</h3>
-      <BoutonInfosNormes ficheKey="tiac" onClick={setInfosTiac} label="Procédure de déclaration d'une TIAC" />
-      {infosTiac && <ModalInfosNormes fiche={FICHES_NORMES[infosTiac] || infosTiac} onClose={() => setInfosTiac(null)} />}
-
+      {sousEcran === "rappelconso" && (
+        <div>
+          <SectionHeader title="Rappels de produits" subtitle="Vérification automatique de vos produits avec la liste officielle des rappels (RappelConso)" fonction="rappelconso" icone={AlertTriangle} />
       <Card className="mb-6">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
           <h3 className="font-semibold text-[var(--ink)]">Vérification RappelConso (DGCCRF)</h3>
@@ -4161,37 +4272,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         )}
       </Card>
 
-      </>
-      ) : (
-      <>
-      {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
-      {sousEcran
-        ? <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3">Retour à {sectionInfo.label}</BoutonRetour>
-        : <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>}
-
-      {!sousEcran && <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} fonction={sectionActive === "equipe" ? "comptes" : sectionActive === "controle" ? "taches" : sectionActive === "cuisine" ? "carte" : "pms"} icone={sectionInfo.icon} />}
-      {sousEcran && ["temperatures", "cellule", "cuisson", "maintien", "huile", "allergenes", "origine", "tiac", "comptes", "planning"].includes(sousEcran) && (() => {
-        const t = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === sousEcran);
-        const sous = { temperatures: "Relevés de température et alertes", cellule: "Suivi des refroidissements et de la cellule", cuisson: "Suivi des cuissons", maintien: "Suivi des produits maintenus au chaud", huile: "Tests et suivi des bains d'huile", allergenes: "Les 14 allergènes à déclarer, plat par plat et produit par produit", origine: "Origine des viandes servies — à renseigner et à conserver", tiac: "Que faire et que déclarer en cas de suspicion d'intoxication alimentaire collective", comptes: "Créez et gérez les comptes de l'équipe", planning: "Vue d'ensemble de la journée : qui a fait quoi" }[sousEcran];
-        return t ? <SectionHeader title={t.label} subtitle={sous} fonction={sousEcran} icone={t.icon} /> : null;
-      })()}
-
-      {!sousEcran && (
-        <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
-          {SOUS_TUILES_CONTROLE.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button key={t.id} onClick={() => ouvrirSousTuile(t.id)}
-                style={{ background: couleurSousTuile(t.id, sectionInfo.couleur).fond, boxShadow: `0 8px 20px ${couleurSousTuile(t.id, sectionInfo.couleur).ombre}` }}
-                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[88px] px-2 text-center active:scale-95 transition-transform">
-                <Icon size={28} color="#ffffff" strokeWidth={2} />
-                <span className="text-xs font-bold text-white leading-tight line-clamp-2">{t.label}</span>
-              </button>
-            );
-          })}
         </div>
-      )}
-      </>
       )}
 
       {sousEcran === "commandes" && (
@@ -4463,9 +4544,11 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         </div>
       )}
 
-      {sousEcran === "tiac" && (
+      {sousEcran === "tiac" && (<>
+        <BoutonInfosNormes ficheKey="tiac" onClick={setInfosTiac} label="Procédure de déclaration d'une TIAC" />
+        {infosTiac && <ModalInfosNormes fiche={FICHES_NORMES[infosTiac] || infosTiac} onClose={() => setInfosTiac(null)} />}
         <DeclarationTiac employees={employees} activityLog={activityLog} receptions={receptions} preparations={preparations} produits={produits} reservations={reservations} currentUserId={currentUserId} logActivity={logActivity} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} />
-      )}
+      </>)}
 
       {sousEcran === "comptes" && gestionComptes && (
         <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} />
