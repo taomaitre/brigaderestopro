@@ -16353,11 +16353,25 @@ const couvertsDe = (list) => list.reduce((n, r) => n + (Number(r.personnes) || 0
 const RESA_VIDE = { date: "", heure: "", nom: "", contact: "", personnes: "", telephone: "", email: "", type: "", demandes: "", notesCuisine: "", table: "", statut: "à confirmer", duree: "90" };
 
 // Carte d'information cliquable (même style partout : titre complet, chiffre, précision)
+function CarteZone({ icone: Ic, titre, sous, action, className = "", id, children }) {
+  const z = React.useContext(ZoneContext) || { bord: "#475569", fond: "#47556922", texte: "#1E293B" };
+  return (
+    <div id={id} className={`bg-white border border-[var(--cadre)] rounded-xl overflow-hidden ${className}`} style={{ borderTop: `3px solid ${z.bord}` }}>
+      <div className="px-4 py-3 flex items-center gap-3 flex-wrap" style={{ background: z.fond }}>
+        <span className="w-11 h-11 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: `linear-gradient(160deg, ${z.bord}, ${z.texte})` }}><Ic size={24} /></span>
+        <div className="min-w-0 flex-1"><h3 className="text-lg font-bold leading-tight" style={{ color: z.texte }}>{titre}</h3>{sous && <p className="text-xs text-[var(--steel)]">{sous}</p>}</div>
+        {action}
+      </div>
+      <div className="p-4">{children}</div>
+    </div>
+  );
+}
+
 function CarteInfo({ titre, grand, unite, sous, Ic, fond, bord, couleur, onClick }) {
   return (
     <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
       <div className="flex items-center gap-3">
-        <span className="w-11 h-11 rounded-full bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={24} /></span>
+        <span className="w-12 h-12 rounded-xl flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={26} /></span>
         <div className="min-w-0 flex-1">
           <div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
           <div className="flex items-baseline gap-1.5"><span className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
@@ -16552,18 +16566,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
       {onBack && (
         <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
       )}
-      <div className={`flex items-center justify-between gap-3 flex-wrap mb-4 ${integre ? "hidden" : ""}`}>
-        <div className="flex items-center gap-3">
-          <Users size={34} className="text-[var(--ink)]" />
-          <div>
-            <h2 className="text-2xl font-bold leading-tight" style={{ color: "#1B4F9C" }}>Réservations</h2>
-            <p className="text-sm text-[var(--steel)]">Gestion des réservations et des services</p>
-          </div>
-        </div>
-        {!integre && (
-          <button type="button" onClick={ouvrirNouvelle} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ACTION_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
-        )}
-      </div>
+      {!integre && <SectionHeader title="Réservations" subtitle="Gestion des réservations et des services" />}
 
       <div className="flex items-center gap-3 flex-wrap justify-between mb-4">
         <div className="flex items-center gap-2 min-w-0">
@@ -16584,9 +16587,8 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
           {!integre && <CartesReservations reservations={reservations} date={selectedDate} horaires={horaires} onChoisir={aller} />}
 
           <div ref={refListe} id="reservations-liste" className="grid grid-cols-1 lg:grid-cols-[minmax(0,1.25fr)_minmax(0,1fr)] gap-4 mb-6 scroll-mt-4">
-            <Card>
+            <CarteZone icone={Users} titre={`Liste des réservations (${duJour.length})`} sous="Touchez une réservation pour voir le détail">
               <div className="flex items-center gap-3 flex-wrap mb-3">
-                <div className="flex items-center gap-2.5"><Users size={24} className="text-[var(--ink)]" /><h3 className="text-lg font-semibold text-[var(--ink)]">Liste des réservations ({duJour.length})</h3></div>
                 <div className="relative flex-1 min-w-[12rem]">
                   <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
                   <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher (nom, téléphone…)" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
@@ -16605,11 +16607,11 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
                 </div>
                 {listeFiltree.length === 0 ? <p className="px-4 py-6 text-sm text-[var(--steel)] border-t border-[var(--line)]">Aucune réservation pour cette sélection.</p> : listeFiltree.map(ligneListe)}
               </div>
-            </Card>
+            </CarteZone>
             {selectionnee && (
               <div className={`${detailMobile ? "fixed inset-0 z-50 overflow-y-auto bg-[var(--bg)] p-4" : "hidden"} lg:block lg:static lg:z-auto lg:overflow-visible lg:p-0 lg:bg-transparent`}>
                 <BoutonRetour onClick={() => setDetailMobile(false)} className="lg:hidden mb-3">Retour à la liste</BoutonRetour>
-                <Card>{detail(selectionnee)}</Card>
+                <CarteZone icone={ClipboardList} titre="Détail de la réservation">{detail(selectionnee)}</CarteZone>
               </div>
             )}
           </div>
@@ -18583,7 +18585,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         const tons = { or: ["#FFE8C2", "#9A5B00"], rouge: ["#FDE2E2", "#B42318"], bleu: ["#DCE9FB", "#1B4F9C"] };
         const colonneBas = (titre, nb, Ic, fond, entete, couleur, children) => (
           <div id={{ "Préparations culinaires": "colonne-preparations", "Nettoyage": "colonne-nettoyage", "À surveiller": "colonne-surveiller" }[titre]} className="rounded-lg border overflow-hidden min-w-0" style={{ borderColor: entete, backgroundColor: "#fff" }}>
-            <div className="h-11 px-3 flex items-center gap-2 font-semibold text-sm" style={{ backgroundColor: fond, color: couleur }}><Ic size={20} /> {titre} ({nb})</div>
+            <div className="h-11 px-3 flex items-center gap-2 font-semibold text-sm" style={{ backgroundColor: fond, color: couleur }}><span className="w-8 h-8 rounded-lg flex items-center justify-center text-white shrink-0" style={{ backgroundColor: couleur }}><Ic size={18} /></span> {titre} ({nb})</div>
             <div className="divide-y divide-[var(--line)]">{children}</div>
           </div>
         );
@@ -18598,19 +18600,10 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         const vide = (txt) => <p className="px-3 py-3 text-sm text-[var(--steel)]">{txt}</p>;
         return (
           <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_20rem] gap-4 mb-6">
-            <Card>
-              <div className="flex items-center justify-between gap-3 flex-wrap mb-3">
-                <div className="flex items-center gap-3">
-                  <ClipboardList size={30} className="text-[#1B4F9C]" />
-                  <div>
-                    <h3 className="text-lg font-semibold text-[#1B4F9C] leading-tight">Tâches du jour</h3>
-                    <p className="text-xs text-[var(--steel)]">Liste des tâches à réaliser aujourd'hui</p>
-                  </div>
-                </div>
-                <button type="button" onClick={() => setToutesTaches((v) => !v)} className="h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[#1B4F9C] flex items-center gap-2">
+            <CarteZone icone={ClipboardList} titre="Tâches du jour" sous="Liste des tâches à réaliser aujourd'hui"
+              action={<button type="button" onClick={() => setToutesTaches((v) => !v)} className="h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium text-[#1B4F9C] flex items-center gap-2">
                   <ListChecks size={18} /> {toutesTaches ? "Réduire les listes" : `Voir toutes les tâches (${total})`}
-                </button>
-              </div>
+                </button>}>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                 {colonneBas("Préparations culinaires", preparations_.length, ChefHat, "#FBE9E2", "#EFC2B2", "#B5523B",
                   preparations_.length === 0 ? vide(carteJ ? "Rien à préparer aujourd'hui." : "Aucune préparation : renseignez Ma carte (quantités à avoir en stock).") : preparations_.slice(0, LIM).map((x) => ligne(x.cle, x.nom, true, () => basculerPrep(x), !!(prepsFaites || {})[cleFaite(x)], null, true)))}
@@ -18644,15 +18637,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                     </div>
                   )))}
               </div>
-            </Card>
-            <Card>
-              <div className="flex items-center gap-3 mb-3">
-                <Users size={30} className="text-[var(--ink)]" />
-                <div>
-                  <h3 className="text-lg font-semibold text-[var(--ink)] leading-tight">Autres employés</h3>
-                  <p className="text-xs text-[var(--steel)]">Cliquez pour voir leur planning</p>
-                </div>
-              </div>
+            </CarteZone>
+            <CarteZone icone={Users} titre="Autres employés" sous="Cliquez pour voir leur planning">
               {autres.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun autre employé.</p> : (
                 <div className="space-y-2.5">
                   {autres.map((emp, i) => {
@@ -18671,7 +18657,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                   })}
                 </div>
               )}
-            </Card>
+            </CarteZone>
           </div>
         );
       })()}
