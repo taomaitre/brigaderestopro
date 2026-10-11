@@ -439,36 +439,53 @@ const degrade = (c1, c2) => {
   return { fond: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)`, ombre: `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},0.35)` };
 };
 const COULEURS_FONCTION = {
+  // Tuiles de l'accueil (une couleur par grande fonction)
+  taches: degrade("#1F8F5F", "#146B45"),
+  etiquettes: degrade("#8B5CF6", "#6027C9"),
+  stock: degrade("#F59E0B", "#C26A00"),
+  reception: degrade("#3B82F6", "#1D4ED8"),
+  tracabilite: degrade("#14A5B8", "#0B7285"),
+  haccp: degrade("#D4A017", "#9A7000"),
+  fiches: degrade("#C1893C", "#8C5E22"),
+  controle: degrade("#5B6B8C", "#34405C"),
+  // Contrôles HACCP
   temperatures: degrade("#4F46E5", "#312E81"),
   cellule: degrade("#4FC3F7", "#1E88C7"),
   huile: degrade("#84CC16", "#4D7C0F"),
   maintien: degrade("#F97316", "#C2410C"),
   cuisson: degrade("#BC6C4D", "#7F3F2A"),
+  // Équipe et gestion
   planningEmploye: degrade("#7E22CE", "#581C87"),
   reservationsClient: degrade("#C026D3", "#86198F"),
   comptes: degrade("#475569", "#1E293B"),
-  creationFiche: degrade("#84A98C", "#52796F"),
+  // Cuisine
+  creationFiche: degrade("#C1893C", "#8C5E22"),
   carte: degrade("#E07A5F", "#B5523B"),
   fournisseur: degrade("#2F55C7", "#1E3A8A"),
-  commandes: degrade("#A8A29E", "#57534E"),
+  commandes: degrade("#3B82F6", "#1D4ED8"),
+  // Hygiène
   pms: degrade("#DB2777", "#831843"),
+  pmsDossier: degrade("#DB2777", "#831843"),
+  pmsPrestataires: degrade("#DB2777", "#831843"),
   allergenes: degrade("#EAB308", "#A16207"),
   origine: degrade("#0EA5E9", "#075985"),
   tiac: degrade("#4B5563", "#111827"),
   historiqueJour: degrade("#0F766E", "#134E4A"),
   preparations: degrade("#E07A5F", "#B5523B"),
-  pmsDossier: degrade("#DB2777", "#831843"),
-  pmsPrestataires: degrade("#DB2777", "#831843"),
 };
-const COULEUR_CONTROLE_COMMUNE = {
-  tracabilite: () => ACCUEIL_TUILES.find((x) => x.id === "tracabilite"),
-  planning: () => ACCUEIL_TUILES.find((x) => x.id === "taches"),
+COULEURS_FONCTION.planning = COULEURS_FONCTION.taches;
+// Les tuiles de l'accueil et du hub lisent la même table : une fonction = une seule couleur partout.
+ACCUEIL_TUILES.forEach((t) => { const c = COULEURS_FONCTION[t.id]; if (c) { t.fond = c.fond; t.ombre = c.ombre; } });
+["haccp", "taches", "stock", "reception", "etiquettes", "tracabilite", "fiches", "controle", "comptes"].forEach((id) => { const c = COULEURS_FONCTION[id]; if (c) TUILE_COULEURS[id] = { fond: c.fond, ombre: c.ombre }; });
+// Couleur d'une zone (titre teinté, filet du haut) déduite de la table
+const zoneDepuisFonction = (id) => {
+  const c = COULEURS_FONCTION[id]; if (!c) return null;
+  const m = /(#[0-9A-Fa-f]{6}) 0%, (#[0-9A-Fa-f]{6})/.exec(c.fond); if (!m) return null;
+  return { bord: m[1], fond: `${m[1]}22`, texte: m[2] };
 };
+const ZoneContext = React.createContext(null);
 const couleurSousTuile = (id, parDefaut) => {
-  if (COULEURS_FONCTION[id]) return COULEURS_FONCTION[id];
-  const f = COULEUR_CONTROLE_COMMUNE[id];
-  const c = f ? f() : null;
-  return c && c.fond ? { fond: c.fond, ombre: c.ombre } : parDefaut;
+  return COULEURS_FONCTION[id] || parDefaut;
 };
 const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccp", "fiches", "controle"];
 
@@ -1073,9 +1090,23 @@ function useStored(key, initial) {
 /* ---------- éléments d'UI partagés ---------- */
 
 function Card({ children, className = "", id, style }) {
+  const zone = React.useContext(ZoneContext);
+  const premier = React.Children.toArray(children)[0];
+  // Zone colorée : si la carte commence par un titre (h3), il devient un bandeau teinté avec filet de couleur en haut.
+  // Les cartes d'alerte (rouge), sans marge ou déjà stylées à la main restent telles quelles.
+  const zonee = zone && !style && premier && premier.type === "h3" && !/warn|danger|border-l-4|sans-zone|(^|\s)!?p[xytblr]?-\d/.test(className);
+  if (!zonee) {
+    return (
+      <div id={id} style={style} className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
+        {children}
+      </div>
+    );
+  }
+  const reste = React.Children.toArray(children).slice(1);
   return (
-    <div id={id} style={style} className={`bg-white border border-[var(--cadre)] rounded-xl p-5 ${className}`}>
-      {children}
+    <div id={id} className={`bg-white border border-[var(--cadre)] rounded-xl ${className}`} style={{ borderTop: `3px solid ${zone.bord}` }}>
+      <div className="px-5 py-2.5 rounded-t-[9px] [&_h3]:!mb-0 [&_h3]:!text-[color:var(--zt)] [&_h3]:!text-sm [&_h3]:!font-bold" style={{ background: zone.fond, "--zt": zone.texte }}>{premier}</div>
+      <div className="p-5">{reste}</div>
     </div>
   );
 }
@@ -1297,6 +1328,21 @@ function ChipsResume({ items }) {
   );
 }
 
+// Carrés d'information en haut d'un écran : logo + chiffre + libellé, aux couleurs de la fonction (simples repères, jamais des boutons).
+function TuilesResume({ fonction, items }) {
+  const z = zoneDepuisFonction(fonction) || { bord: "#64748B", fond: "#64748B22", texte: "#334155" };
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+      {items.map(([Ic, valeur, libelle, alerte], i) => (
+        <div key={i} className="rounded-xl px-3 py-2.5 flex items-center gap-3" style={{ background: alerte ? "#FDECEC" : z.fond, border: "1px solid rgba(0,0,0,.05)" }}>
+          <Ic size={22} style={{ color: alerte ? "#B3261E" : z.texte }} />
+          <div><div className="text-[17px] font-bold leading-tight" style={{ color: alerte ? "#B3261E" : "var(--ink)" }}>{valeur}</div><div className="text-xs text-[var(--steel)]">{libelle}</div></div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // Même fonction = même couleur et même logo partout : le logo du titre vient de la table couleurSousTuile.
 const LOGOS_TITRE = [
   ["Températures", "temperatures", () => Thermometer], ["Refroidissement", "cellule", () => Snowflake], ["Huile", "huile", () => Droplets],
@@ -1305,6 +1351,7 @@ const LOGOS_TITRE = [
   ["Prestataires", "pmsPrestataires", () => PhoneCall], ["Ma carte", "carte", () => UtensilsCrossed], ["Fiches techniques", "creationFiche", () => Sparkles],
   ["Préparation culinaire", "creationFiche", () => Sparkles], ["Référentiel produits", "fournisseur", () => ShoppingCart], ["Livraisons reçues", "commandes", () => ClipboardList],
   ["Vérification des réceptions", "commandes", () => ClipboardList], ["Traçabilité", "tracabilite", () => Camera], ["Historique de la journée", "historiqueJour", () => ClipboardList],
+  ["Réception", "reception", () => Truck], ["Équipe", "comptes", () => Users], ["Gestion des comptes", "comptes", () => Users], ["Tâches du jour", "taches", () => ListChecks],
   ["Commande", "fournisseur", () => ShoppingCart], ["Envoyer la commande", "fournisseur", () => ShoppingCart],
 ];
 function SectionHeader({ title, subtitle, action }) {
@@ -3731,7 +3778,9 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
     return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => setTracabiliteCompleteActif(false)} />;
   }
 
+  const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", comptes: "comptes" })[sousEcran] || ({ equipe: "comptes", controle: "controle", cuisine: "carte", hygiene: "pms" })[sectionActive] || "controle";
   return (
+    <ZoneContext.Provider value={zoneDepuisFonction(fonctionZoneControle)}>
     <div>
       {!sectionActive ? (
       <>
@@ -4234,6 +4283,7 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
         </Card>
       )}
     </div>
+    </ZoneContext.Provider>
   );
 }
 
@@ -5169,6 +5219,7 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
     <div>
       <BoutonInfosNormes ficheKey="temperatureFrigo" onClick={ouvrirNormes} label="Températures & rangement — Normes HACCP" />
       <SectionHeader title="Températures frigos et congélateurs" subtitle="Relevés de température et alertes" />
+      <TuilesResume fonction="temperatures" items={[[Thermometer, equipementsFroid.length, "équipements suivis"], [ClipboardCheck, relevesFroid.filter((r) => r.date === todayISO()).length, "relevés aujourd'hui"], [AlertTriangle, relevesFroid.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", relevesFroid.some((r) => r.date === todayISO() && r.conforme === false)]]} />
       <HaccpTemperatures tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} logActivity={logActivity} who={who} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -5184,6 +5235,7 @@ function HaccpRefroidPage({ onCuissonRefroidie, onMaintienRefroidi, cuissons, se
       <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire les règles officielles : de +63 °C à +10 °C en moins de 2 h." />
       <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire les règles officielles : passer sous −18 °C en moins de 4 h 30." />
       <SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" />
+      <TuilesResume fonction="cellule" items={[[Clock, refroidissements.filter((r) => r.statut === "en-cours").length, "en cours"], [CheckCircle2, refroidissements.filter((r) => r.statut === "termine" && r.date === todayISO()).length, "terminés aujourd'hui"], [AlertTriangle, refroidissements.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", refroidissements.some((r) => r.date === todayISO() && r.conforme === false)]]} />
       <HaccpRefroidissement onCuissonRefroidie={onCuissonRefroidie} onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -5198,6 +5250,7 @@ function HaccpHuilePage({ huileTests, employees, onEnregistrerTest }) {
     <div>
       <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Normes HACCP" texte="Cliquez pour lire les règles officielles : test de l'huile après chaque utilisation, voyant vert = huile bonne, voyant jaune = à changer." />
       <SectionHeader title="Huile de friture" subtitle="Tests et suivi des bains d'huile" />
+      <TuilesResume fonction="huile" items={[[Droplets, huileTests.filter((h) => h.date === todayISO()).length, "tests aujourd'hui"], [CheckCircle2, huileTests.length ? (huileTests[0].resultat || "—") : "—", "dernier résultat"]]} />
       {onEnregistrerTest && <HuileSaisie onEnregistrerTest={onEnregistrerTest} />}
       <HaccpHuile huileTests={huileTests} who={who} manuelPossible={!!onEnregistrerTest} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
@@ -5319,6 +5372,7 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
     <div>
       <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire les règles officielles : 63 °C minimum en permanence, une seule régénération à 65 °C ou plus." />
       <SectionHeader title="Maintien au chaud" subtitle="Suivi des produits maintenus au chaud" />
+      <TuilesResume fonction="maintien" items={[[Soup, entriesMaintienChaud.filter((e) => e.statut === "en-cours").length, "en cours"], [CheckCircle2, entriesMaintienChaud.filter((e) => e.date === todayISO() && e.statut === "termine").length, "terminés aujourd'hui"]]} />
       <MaintienChaud currentUserId={currentUserId} logActivity={logActivity} who={who} catalogue={catalogueMaintienChaud} setCatalogue={setCatalogueMaintienChaud} entries={entriesMaintienChaud} setEntries={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} produitSuggere={maintienChaudSuggere} setProduitSuggere={setMaintienChaudSuggere} onLancerRefroidissement={onLancerRefroidissement} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -5333,6 +5387,7 @@ function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId,
     <div>
       <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" texte="Cliquez pour lire les règles officielles : température à cœur à atteindre selon le produit (63 °C en général, 71 °C viande hachée, 74 °C volaille hachée…)." />
       <SectionHeader title="Cuisson" subtitle="Lancer une cuisson selon les fiches techniques ou créer une cuisson personnalisée" />
+      <TuilesResume fonction="cuisson" items={[[Flame, cuissons.filter((c) => c.statut === "en-cours").length, "en cours"], [CheckCircle2, cuissons.filter((c) => c.date === todayISO() && c.statut === "termine").length, "terminées aujourd'hui"], [AlertTriangle, cuissons.filter((c) => c.date === todayISO() && c.conforme === false).length, "non conformes", cuissons.some((c) => c.date === todayISO() && c.conforme === false)]]} />
       <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={onLancerRefroidissement} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -11977,7 +12032,7 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
     <div>
       <BoutonInfosNormes ficheKey="tracabilite" onClick={ouvrirNormes} label="Qu'est-ce qu'une traçabilité et comment bien la faire" texte="Cliquez pour lire les règles officielles : informations à conserver, durée de conservation, rappel de produits." />
       <div className="flex items-center gap-3 mb-4">
-        <span className="w-14 h-14 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={28} /></span>
+        <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.tracabilite.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.tracabilite.ombre}` }}><Camera size={28} /></span>
         <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Traçabilité</h2><p className="text-sm text-[var(--steel)]">{sansIA ? "Photographiez l'étiquette du produit : la photo est conservée et classée par jour" : "Enregistrez la traçabilité d'un produit par photo, ou recherchez une traçabilité déjà enregistrée"}</p></div>
       </div>
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
@@ -12223,7 +12278,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
 
       <div className="flex items-center gap-3 flex-wrap mb-4">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="w-14 h-14 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: "#E5243B" }}><Printer size={28} /></span>
+          <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.etiquettes.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.etiquettes.ombre}` }}><Printer size={28} /></span>
           <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Étiquettes (DLC)</h2><p className="text-sm text-[var(--steel)]">Sélectionnez un ou plusieurs produits pour imprimer vos étiquettes DLC</p></div>
         </div>
       </div>
@@ -12690,7 +12745,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     <div>
       <div className="flex items-center gap-3 flex-wrap mb-4">
         <div className="flex items-center gap-3 min-w-0">
-          <span className="w-14 h-14 rounded-full flex items-center justify-center text-white shrink-0" style={{ backgroundColor: "#F28C28" }}><Package size={30} /></span>
+          <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.stock.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.stock.ombre}` }}><Package size={30} /></span>
           <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Stock</h2><p className="text-sm text-[var(--steel)]">Gérez vos produits, vos quantités et vos inventaires</p></div>
         </div>
         <div className="flex items-center gap-2 flex-1 min-w-[16rem] justify-end flex-wrap">
@@ -16437,7 +16492,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
           </div>
         </div>
         <div className="flex items-center gap-3 mb-3">
-          <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: "#FDE4E8", color: "#E5243B" }}><Users size={26} /></span>
+          <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.reservationsClient.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.reservationsClient.ombre}` }}><Users size={26} /></span>
           <div className="min-w-0">
             <div className="flex items-center gap-2 flex-wrap"><span className="text-lg font-bold text-[var(--ink)]">{r.nom}</span><span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: st.fond, color: st.texte }}>{t}</span><span className="text-xs font-medium px-2 py-0.5 rounded" style={{ backgroundColor: ss.fond, color: ss.texte }}>{ss.lib}</span></div>
             {r.contact && <div className="text-sm text-[var(--ink)]">{r.contact}</div>}
@@ -20573,7 +20628,7 @@ function KitchenApp({ identiteExterne } = {}) {
                 style={actif ? { backgroundColor: "#1F6B47", color: "#fff", boxShadow: "inset 4px 0 0 #6EE7A8" } : { color: "#C5CEDA" }}
                 onMouseEnter={(e) => { if (!actif) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.07)"; }}
                 onMouseLeave={(e) => { if (!actif) e.currentTarget.style.backgroundColor = "transparent"; }}>
-                <n.icon size={21} className="shrink-0" />
+                <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: (COULEURS_FONCTION[n.id] || { fond: "linear-gradient(160deg,#64748B,#334155)" }).fond }}><n.icon size={20} /></span>
                 <span className="flex-1 leading-tight">{n.label}</span>
                 {badges[n.id] > 0 && <span className="text-[11px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#E5243B", color: "#fff" }}>{badges[n.id]}</span>}
               </button>
@@ -20668,6 +20723,7 @@ function KitchenApp({ identiteExterne } = {}) {
             pour ne pas doubler l'affichage. */}
         {consentementAccorde() && iaDispo() && <CommandeVocaleFlottante onCommande={executerCommande} />}
 
+        <ZoneContext.Provider value={zoneDepuisFonction({ taches: "taches", stock: "stock", reception: "reception", etiquettes: "etiquettes", tracabilite: "tracabilite", haccp: "haccp", haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson", fiches: "fiches", controle: "controle", reservations: "reservationsClient", equipe: "comptes", horaires: "planningEmploye" }[tab])}>
         {tab === "accueil" && (
           <div>
             <div className="rounded-2xl px-6 py-5 mb-4 text-white" style={{ background: "linear-gradient(120deg, #121821 0%, #1D2733 60%, #25324A 100%)" }}>
@@ -20701,7 +20757,7 @@ function KitchenApp({ identiteExterne } = {}) {
         {tab === "haccp" && (
           <div>
             <div className="flex items-center gap-3 mb-5">
-              <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: "#FDE4E8", color: "#E5243B" }}><Thermometer size={30} /></span>
+              <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.haccp.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.haccp.ombre}` }}><Thermometer size={30} /></span>
               <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">HACCP</h2><p className="text-sm text-[var(--steel)]">Les contrôles de sécurité alimentaire de la cuisine</p></div>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
@@ -20727,7 +20783,10 @@ function KitchenApp({ identiteExterne } = {}) {
           <div className="mb-4"><button onClick={() => setTab("haccp")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white"><ChevronLeft size={14} />Retour HACCP</button></div>
         )}
         {tab === "taches" && (
+          <>
+          <SectionHeader title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
           <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} />
+          </>
         )}
         {tab === "stock" && (
           consentementAccorde()
@@ -20786,6 +20845,7 @@ function KitchenApp({ identiteExterne } = {}) {
         {tab === "horaires" && !bloqueChef && (
           <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} />
         )}
+        </ZoneContext.Provider>
       </main>
       {/* La barre d'onglets mobile du bas a été retirée : la navigation se fait maintenant
           depuis les grandes tuiles de la page d'accueil, avec un bouton "maison" dans l'en-tête
