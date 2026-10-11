@@ -6743,6 +6743,24 @@ function DemandeCodeChef({ action, onAutorise, onAnnuler, verifierCodeChef }) {
   );
 }
 
+// Zone colorée d'une fiche technique : titre teinté avec logo, filet de couleur en haut (la couleur ne sert qu'à distinguer les zones).
+function ZoneFiche({ icone: Ic, titre, bord, fond, texte, className = "mb-5", children }) {
+  return (
+    <div className={`bg-white border border-[var(--line)] rounded-xl overflow-hidden ${className}`} style={{ borderTop: `3px solid ${bord}` }}>
+      <h3 className="px-4 py-2.5 text-sm font-bold flex items-center gap-2" style={{ background: fond, color: texte }}>{Ic && <Ic size={16} />}<span>{titre}</span></h3>
+      <div className="px-4 py-3 text-sm">{children}</div>
+    </div>
+  );
+}
+function TuileInfoFiche({ icone: Ic, valeur, libelle, fond, couleur }) {
+  return (
+    <div className="rounded-xl px-3 py-2.5 flex items-center gap-3" style={{ background: fond, border: "1px solid rgba(0,0,0,.05)" }}>
+      <Ic size={22} style={{ color: couleur }} />
+      <div><div className="text-[17px] font-bold leading-tight text-[var(--ink)]">{valeur}</div><div className="text-xs text-[var(--steel)]">{libelle}</div></div>
+    </div>
+  );
+}
+
 function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes, onModifier, verifierCodeChef }) {
   const [demandeCode, setDemandeCode] = useState(null);
   const whoSafe = who || (() => null);
@@ -6843,20 +6861,30 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 
       {fiche.sousTitre && <p className="text-sm text-[var(--steel)] mb-4">{fiche.sousTitre}</p>}
 
-      {/* Carrés d'information (simples repères, pas des boutons) */}
-      <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-4">
-        {[
-          ["Ingrédients", (fiche.ingredients || []).length, "#2F55C7", "#E6ECFA"],
-          ["Points de contrôle", (fiche.haccp || []).length, "#15803D", "#E4F4EA"],
-          ["Allergènes", fiche.allergenes && fiche.allergenes.length ? fiche.allergenes.length : (fiche.allergenesConfirmes ? 0 : "?"), "#A16207", "#FBF1D3"],
-          ["Conservation", fiche.dlcJours != null && fiche.dlcJours !== "" ? `${fiche.dlcJours} j` : "—", "#0E7490", "#DDF1F6"],
-        ].map(([lib, val, coul, fond]) => (
-          <div key={lib} className="rounded-xl px-3 py-2 text-center" style={{ background: fond }}>
-            <div className="text-lg font-bold" style={{ color: coul }}>{val}</div>
-            <div className="text-[11px] font-medium" style={{ color: coul }}>{lib}</div>
+      {/* Carrés d'information (simples repères, pas des boutons) — seulement ceux dont la valeur est connue */}
+      {(() => {
+        const proc = fiche.procedes || (fiche.formulaire && fiche.formulaire.procedes) || {};
+        const rend = (fiche.formulaire && fiche.formulaire.rendement) || {};
+        const lignesRend = fiche.rendement || [];
+        let nbPortions = rend.portions || "", gramPortion = rend.grammage || "";
+        lignesRend.forEach((l) => { const b = /^(\d+)\s*portions?(?:\s+de\s+(.*))?$/.exec(l); if (b) { nbPortions = nbPortions || b[1]; gramPortion = gramPortion || b[2] || ""; } });
+        const dureeCuisson = proc.cuisson && proc.cuisson.on ? (proc.cuisson.dureeMin || proc.cuisson.duree) : "";
+        const refroidOn = !!(proc.refroid && proc.refroid.on);
+        const nAllg = fiche.allergenes ? fiche.allergenes.length : 0;
+        const tuiles = [
+          nbPortions ? [Users, nbPortions, "portions", "#fdeaea", "#b4233a"] : null,
+          gramPortion ? [Package, /\d\s*(g|kg|ml|cl|l)\b/i.test(gramPortion) ? gramPortion : `${gramPortion} g`, "par portion", "#e3f4e8", "#1b5e3a"] : null,
+          dureeCuisson ? [Flame, /min|h/i.test(String(dureeCuisson)) ? dureeCuisson : `${dureeCuisson} min`, "cuisson", "#fdf0dc", "#8a5200"] : null,
+          refroidOn ? [Snowflake, `${REFROIDISSEMENT_NORME.dureeMaxMin / 60} h max`, "refroidissement", "#e0f5f8", "#14606e"] : null,
+          fiche.dlcJours != null && fiche.dlcJours !== "" ? [CalendarDays, `${fiche.dlcJours} jour${Number(fiche.dlcJours) > 1 ? "s" : ""}`, "conservation", "#efe8fa", "#4d2d84"] : null,
+          nAllg > 0 ? [AlertTriangle, nAllg, `allergène${nAllg > 1 ? "s" : ""} (${fiche.allergenes.join(", ").toLowerCase()})`, "#fff6cc", "#7a5f00"] : null,
+        ].filter(Boolean);
+        return tuiles.length ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mb-4">
+            {tuiles.map(([Ic, v, l, fond, coul], k) => <TuileInfoFiche key={k} icone={Ic} valeur={v} libelle={l} fond={fond} couleur={coul} />)}
           </div>
-        ))}
-      </div>
+        ) : null;
+      })()}
 
       {avecModes && onModifier && (
         <div className="flex flex-wrap gap-2 mb-4">
@@ -7020,8 +7048,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       )}
 
       {fiche.ingredients.length > 0 && (
-        <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[1] || "1. Ingrédients"}{avecModes && facteur !== 1 ? <span className="ml-2 text-xs font-semibold text-[var(--accent)]">× {formaterNb(facteur)}</span> : null}</h3>
+        <ZoneFiche icone={ChefHat} bord="#4caf7a" fond="#e3f4e8" texte="#1b5e3a" titre={<>{t[1] || "1. Ingrédients"}{avecModes && facteur !== 1 ? <span className="ml-2 text-xs font-semibold text-[var(--accent)]">× {formaterNb(facteur)}</span> : null}</>} className="mb-5">
           <table className="w-full text-sm">
             <tbody>
               {fiche.ingredients.map((ing, i) => { const e = avecModes ? quantiteEchelle(ing) : ing; return (
@@ -7035,7 +7062,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           {fiche.rendementAttendu && (
             <p className="text-xs text-[var(--steel)] mt-3 pt-3 border-t border-[var(--line)] whitespace-pre-line">{fiche.rendementAttendu}</p>
           )}
-        </Card>
+        </ZoneFiche>
       )}
 
       {expert && fiche.groupesPortions.length > 0 && (
@@ -7062,15 +7089,13 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       )}
 
       {expert && fiche.materiel.length > 0 && (
-        <Card className="mb-5 border-l-4" style={{ borderLeftColor: "#7E22CE" }}>
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[2] || "2. Matériel nécessaire"}</h3>
+        <ZoneFiche icone={ClipboardList} bord="#5b9bd5" fond="#e3eefb" texte="#1d4a7a" titre={<>{t[2] || "2. Matériel nécessaire"}</>} className="mb-5">
           {ligneBloc(fiche.materiel)}
-        </Card>
+        </ZoneFiche>
       )}
 
       {fiche.haccp.length > 0 && (
-        <Card className="mb-5 border-l-4" style={{ borderLeftColor: "#15803D" }}>
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[4] || "4. Points de contrôle — HACCP"}</h3>
+        <ZoneFiche icone={ClipboardCheck} bord="#f0a030" fond="#fdf0dc" texte="#8a5200" titre={<>{t[4] || "4. Points de contrôle — HACCP"}</>} className="mb-5">
           <div className="overflow-x-auto">
             <table className="w-full text-sm border-collapse">
               <thead>
@@ -7091,12 +7116,11 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
               </tbody>
             </table>
           </div>
-        </Card>
+        </ZoneFiche>
       )}
 
       {fiche.preparation.length > 0 && (
-        <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[5] || "5. Préparation — étape par étape"}</h3>
+        <ZoneFiche icone={ChefHat} bord="#8a94a3" fond="#eceff3" texte="#374151" titre={<>{t[5] || "5. Préparation — étape par étape"}</>} className="mb-5">
           <ol className="space-y-3">
             {fiche.preparation.map((p, i) => (
               <li key={i} className="flex gap-3">
@@ -7114,63 +7138,55 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
               {ligneBloc(fiche.consignesImportantes)}
             </div>
           )}
-        </Card>
+        </ZoneFiche>
       )}
 
       {expert && fiche.refroidissementStockage.length > 0 && (
-        <Card className="mb-5 border-l-4" style={{ borderLeftColor: "#0E7490" }}>
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[6] || "6. Refroidissement — stockage — utilisation"}</h3>
+        <ZoneFiche icone={Snowflake} bord="#3ab5c9" fond="#e0f5f8" texte="#14606e" titre={<>{t[6] || "6. Refroidissement — stockage — utilisation"}</>} className="mb-5">
           {ligneBloc(fiche.refroidissementStockage)}
-        </Card>
+        </ZoneFiche>
       )}
 
       {expert && (fiche.rendement.length > 0 || fiche.dureeConservation.length > 0) && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-5 mb-5">
           {fiche.rendement.length > 0 && (
-            <Card>
-              <h3 className="font-semibold text-[var(--ink)] mb-3">{t[7] || "7. Rendement"}</h3>
+            <ZoneFiche icone={Package} bord="#8a94a3" fond="#eceff3" texte="#374151" titre={<>{t[7] || "7. Rendement"}</>} className="mb-5">
               {ligneBloc(fiche.rendement)}
-            </Card>
+            </ZoneFiche>
           )}
           {fiche.dureeConservation.length > 0 && (
-            <Card>
-              <h3 className="font-semibold text-[var(--ink)] mb-3">{t[8] || "8. Durée de conservation"}</h3>
+            <ZoneFiche icone={CalendarDays} bord="#3ab5c9" fond="#e0f5f8" texte="#14606e" titre={<>{t[8] || "8. Durée de conservation"}</>} className="mb-5">
               {ligneBloc(fiche.dureeConservation)}
-            </Card>
+            </ZoneFiche>
           )}
         </div>
       )}
 
       {expert && fiche.nonConformite.length > 0 && (
-        <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[9] || "9. Conduite en cas de non-conformité"}</h3>
+        <ZoneFiche icone={AlertTriangle} bord="#f0a030" fond="#fdf0dc" texte="#8a5200" titre={<>{t[9] || "9. Conduite en cas de non-conformité"}</>} className="mb-5">
           {ligneBloc(fiche.nonConformite)}
-        </Card>
+        </ZoneFiche>
       )}
 
       {expert && fiche.tracabilite.length > 0 && (
-        <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[10] || "10. Traçabilité obligatoire"}</h3>
+        <ZoneFiche icone={Camera} bord="#8e6bd1" fond="#efe8fa" texte="#4d2d84" titre={<>{t[10] || "10. Traçabilité obligatoire"}</>} className="mb-5">
           {ligneBloc(fiche.tracabilite)}
-        </Card>
+        </ZoneFiche>
       )}
 
       {expert && fiche.etiquetage.length > 0 && (
-        <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">{t[11] || "11. Étiquetage — exemple d'étiquette"}</h3>
+        <ZoneFiche icone={Printer} bord="#8e6bd1" fond="#efe8fa" texte="#4d2d84" titre={<>{t[11] || "11. Étiquetage — exemple d'étiquette"}</>} className="mb-5">
           {ligneBloc(fiche.etiquetage)}
-        </Card>
+        </ZoneFiche>
       )}
 
       {avecModes && !(fiche.allergenes && fiche.allergenes.length > 0) && (
-        <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-1">Allergènes</h3>
+        <ZoneFiche icone={AlertTriangle} bord="#e6c229" fond="#fff6cc" texte="#7a5f00" titre={<>Allergènes</>} className="mb-5">
           <p className="text-sm text-[var(--steel)]">{fiche.allergenesConfirmes ? "Aucun allergène déclaré (confirmé par le chef)." : "Aucune information donnée ni confirmée."}</p>
-        </Card>
+        </ZoneFiche>
       )}
       {fiche.allergenes && fiche.allergenes.length > 0 && (
-        <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">Allergènes</h3>
+        <ZoneFiche icone={AlertTriangle} bord="#e6c229" fond="#fff6cc" texte="#7a5f00" titre={<>Allergènes</>} className="mb-5">
           <div className="grid grid-cols-2 sm:grid-cols-3 gap-1.5">
             {ALLERGENES_14.map((a) => (
               <span key={a} className={`text-xs font-medium ${fiche.allergenes.includes(a) ? "text-[var(--accent)] font-semibold" : "text-[var(--steel)]"}`}>
@@ -7178,22 +7194,17 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
               </span>
             ))}
           </div>
-        </Card>
+        </ZoneFiche>
       )}
 
       {fiche.aRetenir.length > 0 && (
-        <Card className="mb-5">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">À retenir</h3>
+        <ZoneFiche icone={IcInfo} bord="#8a94a3" fond="#eceff3" texte="#374151" titre={<>À retenir</>} className="mb-5">
           {ligneBloc(fiche.aRetenir)}
-        </Card>
+        </ZoneFiche>
       )}
 
       {estChef && fiche.cout && (fiche.cout.coutRecette || fiche.cout.prixVente) && (
-        <Card className="mb-5 border-[var(--accent)]/30">
-          <h3 className="font-semibold text-[var(--ink)] mb-1 flex items-center gap-2">
-            Coût matière
-            <span className="text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--ink)] text-white">Chef / Directeur</span>
-          </h3>
+        <ZoneFiche icone={Package} bord="#9ca3af" fond="#eef0f2" texte="#4b5563" className="mb-5" titre={<>Coût matière <span className="ml-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--ink)] text-white">Chef / Directeur</span></>}>
           <p className="text-xs text-[var(--steel)] mb-3">Jamais affiché ni imprimé pour les employés.</p>
           <ul className="text-sm text-[var(--ink)] space-y-1">
             {fiche.cout.coutRecette && <li>Coût matière de la recette (calculé depuis le stock) : <strong>{fiche.cout.coutRecette} €</strong></li>}
@@ -7203,7 +7214,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
               <li>Marge indicative par portion : <strong>{(Number(fiche.cout.prixVente) - Number(fiche.cout.coutPortion)).toFixed(2)} €</strong></li>
             )}
           </ul>
-        </Card>
+        </ZoneFiche>
       )}
 
       {expert && fiche.autresSections.map((s, i) => (
