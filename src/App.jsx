@@ -12640,36 +12640,42 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
       <div>
         <BoutonRetour onClick={() => setVueListeCommande(false)} className="mb-4">Retour au stock</BoutonRetour>
         <SectionHeader title="Commande" subtitle="Les produits ajoutés au panier depuis le tableau du stock. Ajustez les quantités (un pas = un conditionnement), puis enregistrez la commande une fois passée." />
-        <Card>
-          <div className="flex flex-wrap gap-2 mb-4">
+        <TuilesResume fonction="stock" items={[[ShoppingCart, lignesPanier.length, "produits au panier"], [Truck, Object.keys(groupesPanier).length, "fournisseurs"], [AlertTriangle, alertesHorsPanier.length, "en alerte, pas encore au panier", alertesHorsPanier.length > 0]]} />
+        <div className="flex flex-wrap gap-2 mb-3">
             <Button variant="ghost" onClick={() => setPanier((p) => { const n = { ...p }; alertesHorsPanier.forEach((s) => { n[s.id] = qteSuggeree(s); }); return n; })} disabled={alertesHorsPanier.length === 0}><AlertTriangle size={16} /> Ajouter les produits en alerte ({alertesHorsPanier.length})</Button>
-            <Button variant="ghost" onClick={() => setVueEnvoyerCommande(true)} disabled={lignesPanier.length === 0}><Mail size={16} /> Écrire les e-mails aux fournisseurs</Button>
-          </div>
-          {lignesPanier.length === 0 ? (
-            <p className="text-sm text-[var(--steel)]">Le panier est vide. Utilisez le bouton panier d'un produit dans le tableau du stock pour l'ajouter à la commande.</p>
-          ) : (
-            <>
-              {Object.entries(groupesPanier).map(([fournisseur, items]) => (
-                <div key={fournisseur} className="mb-4 last:mb-0">
-                  <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{fournisseur}</div>
-                  <div className="divide-y divide-[var(--line)]">
-                    {items.map((s) => (
-                      <div key={s.id} className="flex items-center justify-between gap-3 py-2.5 text-sm flex-wrap">
-                        <div className="flex-1 min-w-[10rem]">
-                          <div className="text-[var(--ink)] font-medium">{s.nom}</div>
-                          <div className="text-xs text-[var(--steel)]">En stock : {s.quantite} {s.unite} · à avoir : {s.cible || 0} {s.unite}{s.conditionnement ? ` · ${s.conditionnement}` : ""}</div>
-                        </div>
-                        <CelluleQuantite valeur={panier[s.id]} pas={pasDe(s)} onSet={(n) => setPanier({ ...panier, [s.id]: n })} label={`quantité à commander de ${s.nom}`} />
-                        <span className="text-sm text-[var(--steel)] w-10">{s.unite}</span>
-                        <button type="button" onClick={() => basculerPanier(s)} className="text-[var(--steel)] hover:text-[var(--warn)]" title="Retirer du panier"><X size={18} /></button>
-                      </div>
-                    ))}
-                  </div>
+          <Button variant="ghost" onClick={() => setVueEnvoyerCommande(true)} disabled={lignesPanier.length === 0}><Mail size={16} /> Écrire les e-mails aux fournisseurs</Button>
+        </div>
+        {lignesPanier.length === 0 ? (
+          <CarteZone icone={ShoppingCart} titre="Panier de commande" sous="Aucun produit pour l'instant"><p className="text-sm text-[var(--steel)]">Le panier est vide. Utilisez le bouton panier d'un produit dans le tableau du stock pour l'ajouter à la commande.</p></CarteZone>
+        ) : (
+          <>
+            {Object.entries(groupesPanier).map(([fournisseur, items]) => (
+              <CarteZone key={fournisseur} icone={Truck} titre={fournisseur} sous={`${items.length} produit${items.length > 1 ? "s" : ""} à commander`} className="mb-3">
+                <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_6.5rem_6.5rem_10rem_6rem_2rem] gap-3 px-1 pb-1 text-xs font-semibold text-[var(--steel)] border-b border-[var(--line)]">
+                  <span>Produit / code</span><span>En stock</span><span>À avoir</span><span className="text-center">Quantité à commander</span><span>Unité</span><span />
                 </div>
-              ))}
-              <Button onClick={validerCommande} className="mt-3"><CheckCircle2 size={16} /> J'ai passé la commande (enregistrer)</Button>
-            </>
-          )}
+                {items.map((s) => (
+                  <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_6.5rem_6.5rem_10rem_6rem_2rem] gap-x-3 gap-y-1 px-1 py-1.5 border-b border-[var(--line)] last:border-b-0 items-center">
+                    <div className="col-span-2 lg:col-span-1 min-w-0">
+                      <div className="text-sm font-semibold text-[var(--ink)] leading-tight break-words">{s.nom}</div>
+                      <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference || "— (produit non référencé)"}</div>
+                    </div>
+                    <div className="text-xs text-[var(--ink)]"><span className="lg:hidden font-semibold">En stock : </span>{s.quantite} {s.unite}</div>
+                    <div className="text-xs text-[var(--ink)]"><span className="lg:hidden font-semibold">À avoir : </span>{s.cible || 0} {s.unite}</div>
+                    <div className="lg:text-center"><CelluleQuantite valeur={panier[s.id]} pas={pasDe(s)} onSet={(n) => setPanier({ ...panier, [s.id]: n })} label={`quantité à commander de ${s.nom}`} /></div>
+                    <div className="text-xs text-[var(--steel)] leading-tight"><b className="text-sm text-[var(--ink)]">{s.unite}</b>{s.conditionnement ? <div>{s.conditionnement}</div> : null}</div>
+                    <button type="button" onClick={() => basculerPanier(s)} className="text-[var(--steel)] hover:text-[var(--warn)] justify-self-end" title="Retirer du panier"><X size={18} /></button>
+                  </div>
+                ))}
+              </CarteZone>
+            ))}
+            <div className="flex flex-wrap gap-3 mb-4">
+              <button type="button" onClick={validerCommande} className="flex-1 min-w-[16rem] h-14 rounded-xl text-white text-base font-bold flex items-center justify-center gap-2 shadow-md" style={{ backgroundColor: "#1F8F5F" }}><CheckCircle2 size={22} /> Valider la commande (j'ai passé la commande)</button>
+              <button type="button" onClick={() => setVueEnvoyerCommande(true)} className="h-14 px-5 rounded-xl border-2 text-sm font-bold flex items-center justify-center gap-2 bg-white" style={{ borderColor: "#1B4F9C", color: "#1B4F9C" }}><Mail size={20} /> Écrire les e-mails aux fournisseurs</button>
+            </div>
+          </>
+        )}
+        {(dernierBon || (estResponsable && commandesHistorique.length > 0)) && <Card>
           {dernierBon && (
             <div className="mt-5 pt-4 border-t border-[var(--line)]">
               <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Dernier bon généré — {dernierBon.date}</div>
@@ -12684,7 +12690,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               </div>
             </div>
           )}
-        </Card>
+        </Card>}
       </div>
     );
   }
