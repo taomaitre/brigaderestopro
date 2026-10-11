@@ -12820,7 +12820,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               </div>
             );
           })}
-          <div className="px-4 py-3 border-t border-[var(--line)] text-sm text-[var(--steel)]">{liste.length} produit{liste.length > 1 ? "s" : ""}</div>
+          <div className="px-4 py-2.5 border-t border-[var(--line)] text-sm text-[var(--steel)] flex items-center justify-between gap-3 flex-wrap">
+            <span>{liste.length} produit{liste.length > 1 ? "s" : ""}</span>
+            <button type="button" onClick={() => setVueListeCommande(true)} className="h-10 px-4 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: "#1B4F9C" }}><ShoppingCart size={18} /> Passer ma commande ({lignesPanier.length} produit{lignesPanier.length > 1 ? "s" : ""} au panier)</button>
+          </div>
         </div>
       </div>
 
