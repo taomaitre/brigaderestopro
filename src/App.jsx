@@ -2195,6 +2195,7 @@ function Equipe({ employees, shifts, activityLog, tasks, toggleTask, currentUser
 
   return (
     <div>
+      <BandeauNormes label="Journal d'activité — preuves des autocontrôles : Règlement (CE) n° 852/2004, art. 5 (documents et enregistrements)" />
       <SectionHeader title="Équipe" subtitle="Chaque membre, ce qu'il a fait, et quand" />
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -2213,7 +2214,6 @@ function Equipe({ employees, shifts, activityLog, tasks, toggleTask, currentUser
         ))}
       </div>
 
-      <BandeauNormes label="Journal d'activité — preuves des autocontrôles : Règlement (CE) n° 852/2004, art. 5 (documents et enregistrements)" />
       <Card>
         <div className="flex items-center justify-between mb-4 gap-3 flex-wrap">
           <h3 className="font-semibold text-[var(--ink)]">Journal d'activité</h3>
@@ -12729,9 +12729,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
   const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
     <button type="button" onClick={onClick} className="text-left rounded-lg border px-2.5 py-1.5 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
-      <div className="flex items-center gap-3">
-        <span className="w-12 h-12 rounded-lg bg-white/70 flex items-center justify-center shrink-0" style={{ color: couleur }}><Ic size={28} /></span>
-        <div className="min-w-0 flex-1"><div className="text-3xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-sm font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-[10px] leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
+      <div className="flex items-center gap-2">
+        <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={16} /></span>
+        <div className="min-w-0 flex-1"><div className="text-xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-[11px] font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-[10px] leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
       </div>
     </button>
   );
@@ -12739,26 +12739,6 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 
   return (
     <div>
-      <div className="flex items-center gap-3 flex-wrap mb-4">
-        <div className="flex items-center gap-3 min-w-0">
-          <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.stock.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.stock.ombre}` }}><Package size={30} /></span>
-          <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Stock</h2><p className="text-sm text-[var(--steel)]">Gérez vos produits, vos quantités et vos inventaires</p></div>
-        </div>
-        <div className="flex items-center gap-2 flex-1 min-w-[16rem] justify-end flex-wrap">
-          <div className="relative flex-1 min-w-[12rem] max-w-md">
-            <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
-            <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
-          </div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-4">
-        {carteKpi("Produits référencés", stock.length, Package, "#DDF3E6", "#B3E0C5", "#14653A", () => aller("tous"))}
-        {carteKpi("Produits en alerte", alertes.length, AlertTriangle, "#FDE4E8", "#F6B8C2", "#B4233A", () => aller("alerte"), "sous le stock à avoir")}
-        {carteKpi("À commander", alertesHorsPanier.length, ShoppingCart, "#FFF0D2", "#F3D69A", "#8A5300", () => aller("alerte"), "pas encore au panier")}
-        {carteKpi("Commande", lignesPanier.length, ClipboardList, "#E3EDFB", "#BCD3F2", "#1B4F9C", () => setVueListeCommande(true), lignesPanier.length ? "produit(s) au panier — voir" : "panier vide")}
-      </div>
-
       <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
         className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left border-2 shadow-sm"
         style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
@@ -12768,6 +12748,24 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           <span className="block text-xs font-normal mt-0.5">Cliquez pour lire les règles officielles : stockage, températures, DLC/DDM, rotation des produits (FIFO).</span>
         </span>
       </button>
+      <div className="flex items-center gap-3 flex-wrap mb-3">
+        <div className="flex items-center gap-3 min-w-0">
+          <span className="w-14 h-14 rounded-2xl flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.stock.fond, boxShadow: `0 6px 14px ${COULEURS_FONCTION.stock.ombre}` }}><Package size={30} /></span>
+          <div className="min-w-0"><h2 className="text-3xl font-bold text-[var(--ink)] leading-tight">Stock</h2><p className="text-sm text-[var(--steel)]">Gérez vos produits, vos quantités et vos inventaires</p></div>
+        </div>
+      </div>
+      <div className="relative mb-3">
+        <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
+        <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
+        {carteKpi("Produits référencés", stock.length, Package, "#DDF3E6", "#B3E0C5", "#14653A", () => aller("tous"))}
+        {carteKpi("Produits en alerte", alertes.length, AlertTriangle, "#FDE4E8", "#F6B8C2", "#B4233A", () => aller("alerte"), "sous le stock à avoir")}
+        {carteKpi("À commander", alertesHorsPanier.length, ShoppingCart, "#FFF0D2", "#F3D69A", "#8A5300", () => aller("alerte"), "pas encore au panier")}
+        {carteKpi("Commande", lignesPanier.length, ClipboardList, "#E3EDFB", "#BCD3F2", "#1B4F9C", () => setVueListeCommande(true), lignesPanier.length ? "produit(s) au panier — voir" : "panier vide")}
+      </div>
+
       {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4 mb-6">
