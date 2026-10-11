@@ -3970,7 +3970,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
       )}
 
       {sousEcran === "temperatures" && (
-        <>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
         <Card className="mb-6">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Frigos & congélateurs</h3>
           <div className="mb-3"><TableauTemperaturesDuJour equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} who={who} /></div>
@@ -3996,11 +3996,11 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
           )}
         </Card>
         <HistoriqueEtCourbesTemperature relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} who={who} />
-        </>
+        </div>
       )}
 
       {sousEcran === "cellule" && (
-        <>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
         {suppRefroidId && (
           <ModalConfirmerSuppression
             libelle={refroidissements.find((x) => x.id === suppRefroidId)?.produit || ""}
@@ -4048,11 +4048,11 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         ) : (
           <HistoriqueRefroidissements refroidissements={refroidissements} who={who} nettoyerCellule={nettoyerCelluleChef} creerEtiquetteDlc={creerEtiquetteDlc} onEditerEtiquette={setEtiquetteOuverte} />
         )}
-        </>
+        </div>
       )}
 
       {sousEcran === "cuisson" && (
-        <>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
         <Card className="mb-6">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Cuissons du jour</h3>
           {cuissons.filter((c) => c.date === today).length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune aujourd'hui.</p> : (
@@ -4072,11 +4072,11 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
           )}
         </Card>
         <HistoriqueCuissons cuissons={cuissons} who={who} />
-        </>
+        </div>
       )}
 
       {sousEcran === "maintien" && (
-        <>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
         <Card className="mb-6">
           <h3 className="font-semibold text-[var(--ink)] mb-3">Maintien au chaud du jour</h3>
           {(entriesMaintienChaud || []).filter((e) => e.date === today).length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun aujourd'hui.</p> : (
@@ -4113,7 +4113,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
           </div>
         </Card>
         <HistoriqueMaintienChaud entries={entriesMaintienChaud} who={who} />
-        </>
+        </div>
       )}
 
       {sousEcran === "appareilsFroid" && (
@@ -4125,10 +4125,10 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
       )}
 
       {sousEcran === "huile" && (
-        <>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
         <div className="mb-6"><CarteHuileDuJour huileTests={huileTests} who={who} /></div>
         <HaccpHuile huileTests={huileTests} who={who} manuelPossible={false} historiqueComplet />
-        </>
+        </div>
       )}
 
       {sousEcran === "historiqueJour" && (
@@ -10113,7 +10113,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
   };
 
   return (
-    <div>
+    <div className="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-3">Appareils de froid</h3>
         <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
