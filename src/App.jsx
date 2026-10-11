@@ -1941,7 +1941,246 @@ function PmsAssistant({ reglages, employees, onOuvrirComptes, comptes, onFin }) 
   );
 }
 
-function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, comptes, onImprimer }) {
+/* ---------- PMS — dossier complet : catégories par couleur ---------- */
+
+const PMS_CATEGORIES = [
+  { id: "societe", num: "A", titre: "Société, direction et employés", sous: "Qui est l'exploitant, qui est responsable de l'hygiène, qui travaille ici et qui est formé", icone: Building2, zone: { bord: "#4F46E5", fond: "#4F46E522", texte: "#312E81" } },
+  { id: "locaux", num: "B", titre: "Locaux, nettoyage et prestataires", sous: "Anti-nuisibles, huiles usagées, déchets, froid, laboratoire, plan de nettoyage, eau", icone: SprayCan, zone: { bord: "#1F8F5F", fond: "#1F8F5F22", texte: "#146B45" } },
+  { id: "fournisseurs", num: "C", titre: "Fournisseurs et réception", sous: "Registre des fournisseurs, contrôle à la livraison, traçabilité amont", icone: Truck, zone: { bord: "#3B82F6", fond: "#3B82F622", texte: "#1D4ED8" } },
+  { id: "haccp", num: "D", titre: "Maîtrise des dangers (HACCP)", sous: "Limites, surveillance et actions correctives : froid, cuisson, refroidissement, maintien au chaud, huile", icone: Thermometer, zone: { bord: "#D4A017", fond: "#D4A01722", texte: "#7A5A00" } },
+  { id: "tracabilite", num: "E", titre: "Traçabilité, allergènes, TIAC et rappels", sous: "Retrouver un lot, informer sur les allergènes et l'origine, réagir à une intoxication ou à un rappel", icone: Camera, zone: { bord: "#14A5B8", fond: "#14A5B822", texte: "#0B7285" } },
+  { id: "nonconf", num: "F", titre: "Non-conformités et amélioration", sous: "Ce qui s'est mal passé, ce qui a été corrigé, ce qu'on améliore", icone: AlertTriangle, zone: { bord: "#E07A5F", fond: "#E07A5F22", texte: "#B5523B" } },
+  { id: "documents", num: "G", titre: "Documents et pièces jointes", sous: "Contrats, attestations, rapports, bordereaux — avec leur date d'échéance", icone: BookOpen, zone: { bord: "#8B5CF6", fond: "#8B5CF622", texte: "#6027C9" } },
+  { id: "synthese", num: "H", titre: "Synthèse et préparation au contrôle", sous: "Ce que le logiciel a enregistré et ce qu'il reste à compléter avant un contrôle", icone: ClipboardCheck, zone: { bord: "#475569", fond: "#47556922", texte: "#1E293B" } },
+];
+
+function BandePms({ cat, statut, children }) {
+  const z = cat.zone; const Ic = cat.icone;
+  return (
+    <section id={`pms-${cat.id}`} className="mb-8 rounded-2xl border-2 p-3 sm:p-4 scroll-mt-4" style={{ borderColor: z.bord, background: `${z.bord}0D` }}>
+      <div className="flex items-center gap-3 mb-4 rounded-xl px-3 py-2.5 text-white" style={{ background: `linear-gradient(160deg, ${z.bord}, ${z.texte})` }}>
+        <span className="w-11 h-11 rounded-xl bg-white/20 flex items-center justify-center shrink-0"><Ic size={24} /></span>
+        <div className="min-w-0 flex-1">
+          <h2 className="text-lg font-bold leading-tight">{cat.num} — {cat.titre}</h2>
+          <p className="text-xs text-white/85 leading-snug">{cat.sous}</p>
+        </div>
+        {statut && <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-white shrink-0 text-center" style={{ color: z.texte }}>{statut}</span>}
+      </div>
+      <ZoneContext.Provider value={z}>{children}</ZoneContext.Provider>
+    </section>
+  );
+}
+
+function SousTitrePms({ children }) {
+  return <h3 className="text-xs font-bold uppercase tracking-wide mt-5 mb-2 first:mt-0" style={{ color: "var(--steel)" }}>{children}</h3>;
+}
+
+function LignePms({ ok, children }) {
+  return (
+    <div className="flex items-start gap-2 py-1.5 border-b border-[var(--cadre)] last:border-0 text-sm">
+      <span className="shrink-0 w-5 h-5 mt-0.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ backgroundColor: ok ? "#1E7B4B" : "#C1432D" }}>{ok ? "✓" : "!"}</span>
+      <span className="text-[var(--ink)]">{children}</span>
+    </div>
+  );
+}
+
+const PMS_ETAPES_HACCP = [
+  { etape: "Réception", limite: "Selon le produit : haché et poisson +2 °C, abats et plats cuisinés +3 °C, autres produits frais +4 °C, surgelés −18 °C", surveillance: "Température à cœur et aspect à chaque livraison", action: "Refus et renvoi, notification au fournisseur", ouvrir: "commandes", libelle: "Livraisons reçues" },
+  { etape: "Stockage froid", limite: "Norme de chaque enceinte (réfrigérateur 0 à +4 °C, congélateur −18 °C)", surveillance: "Relevés et sondes", action: "Recontrôle sous 30 min, puis anomalie et devenir des produits", ouvrir: "temperatures", libelle: "Températures" },
+  { etape: "Cuisson", limite: "63 °C à cœur (général) ; viande hachée 71 °C ; volaille hachée 74 °C ; poisson 60 à 80 °C selon la durée ; coquillages 90 °C", surveillance: "Sonde à cœur", action: "Poursuite de cuisson ou rejet", ouvrir: "cuisson", libelle: "Cuisson" },
+  { etape: "Refroidissement", limite: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C", surveillance: "Chronomètre et alarme", action: "Produit non conforme jeté", ouvrir: "cellule", libelle: "Refroidissement" },
+  { etape: "Maintien au chaud", limite: "63 °C ou plus", surveillance: "Contrôle en service", action: "Une régénération à 65 °C ou plus, sinon destruction", ouvrir: "maintien", libelle: "Maintien au chaud" },
+  { etape: "Huile de friture", limite: "Test du bain conforme", surveillance: "Photo de la bandelette, validation", action: "Renouvellement de l'huile, alerte", ouvrir: "huile", libelle: "Huile de friture" },
+];
+
+function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes, comptes, onOuvrir }) {
+  const fiche = reglages.fiche || {};
+  const nous = todayISO();
+  const equipe = employees || [];
+  const docs = pms.documents || [];
+  const formations = pms.formations || [];
+  const prestataires = pms.prestataires || [];
+  const synth = syntheseLogiciel(donnees || {}, nous);
+  const compte = (i) => (synth[i] ? synth[i].n : 0);
+  const ouvrir = (id) => { if (onOuvrir) onOuvrir(id); };
+  const bouton = (id, libelle) => (onOuvrir ? <div className="mt-3"><Button variant="ghost" onClick={() => ouvrir(id)}>{libelle} →</Button></div> : null);
+
+  const requis = FICHE_ETAB_CHAMPS.filter((c) => c.requis);
+  const remplis = requis.filter((c) => String(fiche[c.cle] || "").trim() !== "").length;
+  const attendusPresents = TYPES_PRESTATAIRE_ATTENDUS.filter((t) => prestataires.some((p) => p.type === t)).length;
+  const echeancesDepassees = alertesEcheancesPms(pms, nous, true).filter((a) => a.etat === "depassee").length;
+  const origineEau = fiche.origineEau;
+  const manquantsEau = origineEau === "Source privée (puits, forage)" ? ["autorisation_eau_privee", "analyse_eau"].filter((c) => !docs.some((d) => d.categorie === c)) : (origineEau === "Réseau public" && !docs.some((d) => d.categorie === "attestation_eau") ? ["attestation_eau"] : []);
+  const declarationJointe = docs.some((d) => d.categorie === "declaration_activite");
+
+  const controle = [
+    { ok: remplis === requis.length, texte: `Informations essentielles de l'établissement : ${remplis} sur ${requis.length}` },
+    { ok: !!String(fiche.responsableHygiene || "").trim(), texte: "Responsable hygiène / référent PMS désigné" },
+    { ok: !!fiche.dateDeclarationActivite && declarationJointe, texte: "Déclaration d'activité : date renseignée et récépissé joint" },
+    { ok: equipe.length > 0, texte: `Équipe créée dans le logiciel (${equipe.length} personne${equipe.length > 1 ? "s" : ""})` },
+    { ok: formations.some((f) => f.type === "hygiene_14h"), texte: "Formation hygiène de 14 h : au moins une personne renseignée (ou dérogation)" },
+    { ok: attendusPresents === TYPES_PRESTATAIRE_ATTENDUS.length, texte: `Prestataires attendus renseignés : ${attendusPresents} sur ${TYPES_PRESTATAIRE_ATTENDUS.length}` },
+    { ok: !!origineEau && manquantsEau.length === 0, texte: "Origine de l'eau indiquée et pièce correspondante jointe" },
+    { ok: echeancesDepassees === 0, texte: echeancesDepassees === 0 ? "Aucune échéance dépassée" : `${echeancesDepassees} échéance(s) dépassée(s)` },
+  ];
+  const nbOk = controle.filter((c) => c.ok).length;
+
+  const aller = (id) => { const el = document.getElementById(`pms-${id}`); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); };
+  const cat = (id) => PMS_CATEGORIES.find((c) => c.id === id);
+
+  return (
+    <div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {PMS_CATEGORIES.map((c) => (
+          <button key={c.id} type="button" onClick={() => aller(c.id)} className="inline-flex items-center gap-2 min-h-[40px] pl-1.5 pr-3 rounded-full border-2 text-sm font-bold bg-white" style={{ borderColor: c.zone.bord, color: c.zone.texte }}>
+            <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs" style={{ background: c.zone.bord }}>{c.num}</span>{c.titre}
+          </button>
+        ))}
+      </div>
+
+      <BandePms cat={cat("societe")} statut={`${remplis}/${requis.length} infos essentielles`}>
+        <SousTitrePms>1 — Identification de la société et de l'établissement</SousTitrePms>
+        <PmsFicheEtablissement reglages={reglages} />
+        <SousTitrePms>2 — Personnel, hygiène et formation</SousTitrePms>
+        <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} comptes={comptes} />
+        <Card className="mt-3">
+          <h3 className="font-semibold">Registre unique du personnel — à tenir hors du logiciel</h3>
+          <p className="text-sm text-[var(--ink)]">Cette obligation d'employeur (Code du travail, art. L.1221-13 et D.1221-23) est distincte du PMS : papier ou outil de paie. Il doit rester disponible dans l'établissement pour l'inspection du travail et être conservé 5 ans après le départ du salarié. Ne saisissez ici ni adresse personnelle, ni date de naissance, ni donnée de santé.</p>
+        </Card>
+        <Card className="mt-3">
+          <h3 className="font-semibold">Santé et hygiène du personnel</h3>
+          <p className="text-sm text-[var(--ink)]">Toute personne atteinte d'une maladie transmissible par les aliments, de plaies ou d'infections cutanées, ou de diarrhée ne manipule pas les denrées et signale immédiatement ses symptômes à l'exploitant. Consigne à remettre et à afficher, avec la méthode de lavage des mains. Les signalements sont consignés (date, décision) sans détail médical.</p>
+        </Card>
+      </BandePms>
+
+      <BandePms cat={cat("locaux")} statut={`${attendusPresents}/${TYPES_PRESTATAIRE_ATTENDUS.length} prestataires`}>
+        <SousTitrePms>3 — Prestataires (anti-nuisibles, huiles, déchets, froid, laboratoire, matériel)</SousTitrePms>
+        <PmsPrestataires pms={pms} editable />
+        <SousTitrePms>4 — Nettoyage, locaux et équipements</SousTitrePms>
+        <Card className="mb-3">
+          <h3 className="font-semibold">Plan de nettoyage et de désinfection</h3>
+          <p className="text-sm text-[var(--ink)]">Zone, fréquence, produit, dosage, temps d'action, responsable. Les fiches de données de sécurité de chaque produit sont à classer dans les pièces jointes (partie G). Les exécutions sont enregistrées par l'équipe et consultables par le chef.</p>
+          {bouton("pms", "Ouvrir le plan de nettoyage")}
+        </Card>
+        <Card className="mb-3">
+          <h3 className="font-semibold">Locaux, marche en avant et équipements</h3>
+          <p className="text-sm text-[var(--ink)]">Plan de la cuisine avec le circuit des denrées, des déchets, du personnel et de la vaisselle (à joindre dans la partie G). Registre des équipements : type, emplacement, entretien, dernier et prochain passage. Thermomètres et sondes : vérification périodique recommandée.</p>
+          {bouton("appareilsFroid", "Appareils de froid")}
+        </Card>
+        <Card>
+          <h3 className="font-semibold">Eau</h3>
+          <p className="text-sm text-[var(--ink)]">{origineEau ? `Origine indiquée : ${origineEau}.` : "Origine de l'eau non indiquée : à renseigner dans la partie A."}{manquantsEau.length > 0 ? ` Pièce(s) à joindre : ${manquantsEau.map((c) => libelleDe(CATEGORIES_DOCUMENT, c)).join(" · ")}.` : (origineEau ? " Pièce justificative jointe." : "")}</p>
+        </Card>
+      </BandePms>
+
+      <BandePms cat={cat("fournisseurs")} statut={`${compte(4)} réception${compte(4) > 1 ? "s" : ""} en 30 j`}>
+        <SousTitrePms>5 — Registre des fournisseurs</SousTitrePms>
+        <Card className="mb-3">
+          <h3 className="font-semibold">Fournisseurs et produits</h3>
+          <p className="text-sm text-[var(--ink)]">Nom, contact, type de produits, n° d'agrément ou marque de salubrité pour les produits d'origine animale, jours de livraison. Les fournisseurs à risque (coquillages, œufs, viande hachée, produits de la pêche) sont à repérer. Le registre est généré à partir du référentiel fournisseurs du logiciel.</p>
+          {bouton("fournisseur", "Fournisseurs et produits")}
+        </Card>
+        <SousTitrePms>6 — Contrôle à la réception</SousTitrePms>
+        <Card className="mb-3">
+          <h3 className="font-semibold">Limites de température appliquées par le logiciel</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 text-sm">
+            {Object.keys(SEUILS_RECEPTION_NOUVEAU).map((k) => (
+              <div key={k} className="flex justify-between gap-3 py-1 border-b border-[var(--cadre)]"><span className="text-[var(--ink)]">{LIBELLE_CONSERVATION[k] || k}</span><span className="font-semibold text-[var(--ink)] text-right">{SEUILS_RECEPTION_NOUVEAU[k].label}</span></div>
+            ))}
+          </div>
+          <p className="text-xs text-[var(--steel)] mt-2">Le contrôle porte sur la température à cœur à la sonde, pas sur l'air du camion. Par livraison : température, aspect, DLC, conformité du bon, photos, produits refusés et motif, notification au fournisseur.</p>
+          {bouton("commandes", "Livraisons reçues")}
+        </Card>
+        <SousTitrePms>7 — Traçabilité amont et conservation</SousTitrePms>
+        <Card>
+          <h3 className="font-semibold">Bons de livraison, étiquettes, lots, factures</h3>
+          <p className="text-sm text-[var(--ink)]">À conserver au moins 6 mois pour les produits périssables (date limite de moins de 3 mois ou sans date) et 5 ans pour les autres. Le logiciel conserve la traçabilité 5 ans. Pour les autres enregistrements (températures, cuissons, refroidissements, maintiens au chaud, tests d'huile), les textes ne fixent aucune durée : le logiciel garde l'année précédente complète et l'année en cours.</p>
+        </Card>
+      </BandePms>
+
+      <BandePms cat={cat("haccp")} statut="6 points suivis">
+        <SousTitrePms>8 — Étapes, limites, surveillance et actions correctives</SousTitrePms>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          {PMS_ETAPES_HACCP.map((e) => (
+            <Card key={e.etape}>
+              <h3 className="font-semibold">{e.etape}</h3>
+              <div className="text-sm text-[var(--ink)] space-y-1.5">
+                <div><span className="text-xs font-semibold text-[var(--steel)] uppercase">Limite</span><br />{e.limite}</div>
+                <div><span className="text-xs font-semibold text-[var(--steel)] uppercase">Surveillance</span><br />{e.surveillance}</div>
+                <div><span className="text-xs font-semibold text-[var(--steel)] uppercase">Action corrective</span><br />{e.action}</div>
+              </div>
+              {bouton(e.ouvrir, e.libelle)}
+            </Card>
+          ))}
+        </div>
+        <Card className="mt-3">
+          <h3 className="font-semibold">Chaîne du froid et décongélation</h3>
+          <p className="text-sm text-[var(--ink)]">La chaîne du froid ne doit pas être interrompue ; le refroidissement après cuisson doit être aussi rapide que possible ; la décongélation se fait à une température sans risque, avec évacuation des écoulements.</p>
+        </Card>
+        <SousTitrePms>9 — Vérification et analyses</SousTitrePms>
+        <Card>
+          <h3 className="font-semibold">Contrôle interne et laboratoire</h3>
+          <p className="text-sm text-[var(--ink)]">Contrôle journalier, registre mensuel, audit interne et revue annuelle du PMS. Aucune fréquence légale fixe d'analyses pour un restaurant classique : indiquez votre laboratoire dans la partie B et joignez les résultats dans la partie G.</p>
+        </Card>
+      </BandePms>
+
+      <BandePms cat={cat("tracabilite")} statut={`${compte(5)} étiquette${compte(5) > 1 ? "s" : ""} en 30 j`}>
+        <SousTitrePms>10 — Traçabilité, allergènes et origine</SousTitrePms>
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
+          <Card>
+            <h3 className="font-semibold">Traçabilité</h3>
+            <p className="text-sm text-[var(--ink)]">Réceptions, photos, étiquettes DLC avec numéro de lot, fiches de fabrication : de quoi retrouver d'où vient un produit et où il est passé.</p>
+            {bouton("tracabilite", "Traçabilité")}
+          </Card>
+          <Card>
+            <h3 className="font-semibold">Allergènes</h3>
+            <p className="text-sm text-[var(--ink)]">Les 14 allergènes réglementaires, information écrite accessible au client, tableau par plat, mise à jour à chaque changement de recette ou de fournisseur, prévention de la contamination croisée.</p>
+          </Card>
+          <Card>
+            <h3 className="font-semibold">Origine des viandes</h3>
+            <p className="text-sm text-[var(--ink)]">Bœuf, porc, ovin et volaille : origine affichée selon le décret 2025-141. Obligatoire ; son absence peut être sanctionnée.</p>
+          </Card>
+        </div>
+        <SousTitrePms>11 — TIAC, retrait et rappel</SousTitrePms>
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <Card>
+            <h3 className="font-semibold">Intoxication alimentaire collective (TIAC)</h3>
+            <p className="text-sm text-[var(--ink)]">Arrêter l'usage des produits suspects et les isoler, conserver échantillons et traçabilité, prévenir l'ARS et la DDPP, réunir menus, listes de malades, personnel en service. La procédure en 7 étapes est dans « Veille sanitaire » de l'accueil Contrôle & Gestion.</p>
+          </Card>
+          <Card>
+            <h3 className="font-semibold">Retrait et rappel de produits</h3>
+            <p className="text-sm text-[var(--ink)]">Identifier le lot, isoler le stock concerné, informer le fournisseur et, si le produit est dangereux, la DDPP ; tracer la décision et la date. Le logiciel vérifie automatiquement vos produits sur RappelConso (DGCCRF).</p>
+          </Card>
+        </div>
+      </BandePms>
+
+      <BandePms cat={cat("nonconf")}>
+        <SousTitrePms>12 — Registre des non-conformités et actions correctives</SousTitrePms>
+        <Card>
+          <h3 className="font-semibold">Alertes générées par le logiciel</h3>
+          <p className="text-sm text-[var(--ink)]">Température hors norme, cuisson ou refroidissement non conforme, réception refusée, huile à changer : chaque alerte garde la date, l'auteur, la cause et la décision prise. Audits internes, veille réglementaire, traitement des réclamations et réunions d'équipe complètent ce suivi.</p>
+        </Card>
+      </BandePms>
+
+      <BandePms cat={cat("documents")} statut={`${docs.length} pièce${docs.length > 1 ? "s" : ""}`}>
+        <SousTitrePms>13 — Pièces jointes avec échéance</SousTitrePms>
+        <PmsDocuments pms={pms} reglages={reglages} />
+      </BandePms>
+
+      <BandePms cat={cat("synthese")} statut={`${nbOk}/${controle.length} points en règle`}>
+        <SousTitrePms>14 — Préparation au contrôle</SousTitrePms>
+        <Card className="mb-3">
+          <h3 className="font-semibold">Ce qu'il faut pouvoir montrer à un inspecteur</h3>
+          {controle.map((c) => <LignePms key={c.texte} ok={c.ok}>{c.texte}</LignePms>)}
+        </Card>
+        <SousTitrePms>15 — Enregistrements du logiciel</SousTitrePms>
+        <PmsSyntheseLogiciel donnees={donnees} />
+      </BandePms>
+    </div>
+  );
+}
+
+function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, comptes, onImprimer, onOuvrir }) {
   const pms = reglages && reglages.pms;
   const [assistant, setAssistant] = useState(false);
   if (reglages && !pms) {
@@ -1956,26 +2195,24 @@ function PmsDossier({ reglages, employees, donnees, onOuvrirComptes, comptes, on
       </div>
     );
   }
-  if (reglages && pms && (!pms.demarrageTermine || assistant)) {
+  if (reglages && pms && assistant) {
     return <PmsAssistant reglages={reglages} employees={employees} onOuvrirComptes={onOuvrirComptes} comptes={comptes} onFin={() => { setAssistant(false); if (!pms.demarrageTermine) pms.terminerDemarrage(true); }} />;
   }
   return (
     <div>
       <SectionHeader title="PMS — dossier" subtitle="Les informations de votre établissement, réunies pour un contrôle et pour faire fonctionner le logiciel" />
+      {!pms.demarrageTermine && (
+        <Card className="mb-4 border-2" style={{ borderColor: "#4F46E5" }}>
+          <p className="text-sm font-bold text-[var(--ink)]">Première visite : vous pouvez être guidé pas à pas</p>
+          <p className="text-xs text-[var(--steel)] mt-1">L'assistant reprend les parties A, B et G dans l'ordre. Vous pouvez aussi remplir directement le dossier ci-dessous, dans l'ordre que vous voulez.</p>
+          <div className="mt-2"><Button onClick={() => setAssistant(true)}>Lancer l'assistant</Button></div>
+        </Card>
+      )}
       <div className="flex flex-wrap gap-2 mb-4">
         <Button onClick={onImprimer}><Printer size={16} /> Dossier imprimable</Button>
-        <Button variant="ghost" onClick={() => setAssistant(true)}>Relancer l'assistant</Button>
+        {pms.demarrageTermine && <Button variant="ghost" onClick={() => setAssistant(true)}>Relancer l'assistant</Button>}
       </div>
-      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">1 — Établissement</h3>
-      <PmsFicheEtablissement reglages={reglages} />
-      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">2 — Personnel et formations</h3>
-      <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} comptes={comptes} />
-      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">3 — Prestataires</h3>
-      <PmsPrestataires pms={pms} editable />
-      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">4 — Pièces jointes</h3>
-      <PmsDocuments pms={pms} reglages={reglages} />
-      <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mt-6 mb-2">5 — Enregistrements du logiciel</h3>
-      <PmsSyntheseLogiciel donnees={donnees} />
+      <PmsDossierComplet reglages={reglages} employees={employees} donnees={donnees} pms={pms} onOuvrirComptes={onOuvrirComptes} comptes={comptes} onOuvrir={onOuvrir} />
     </div>
   );
 }
@@ -4294,7 +4531,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
 
       {sousEcran === "pmsDossier" && compteDirection && (
         <div className="mb-6">
-          <PmsDossier reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onOuvrirComptes={() => setSousEcran("comptes")} comptes={gestionComptes ? <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} /> : null} onImprimer={() => setPmsImpression(true)} />
+          <PmsDossier reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onOuvrirComptes={() => setSousEcran("comptes")} comptes={gestionComptes ? <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} /> : null} onImprimer={() => setPmsImpression(true)} onOuvrir={ouvrirSousTuile} />
         </div>
       )}
 
