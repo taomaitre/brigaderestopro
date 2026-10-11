@@ -16749,6 +16749,11 @@ Une entrée par réservation visible. Si une information est illisible ou absent
               <Button variant="ghost" onClick={fermerForm}>Annuler</Button>
               <button type="button" onClick={enregistrer} disabled={!form.nom || !form.heure || !form.date} className="px-5 h-11 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ backgroundColor: ACTION_PLANNING }}>{edition ? "Enregistrer" : "Ajouter la réservation"}</button>
             </div>
+            {!edition && (
+              <div className="mt-5 pt-4 border-t border-[var(--cadre)]">
+                <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
+              </div>
+            )}
           </div>
         </div>
       )}
@@ -18097,9 +18102,9 @@ function CarteGestionHorairesDirection({ employees, shifts, setShifts, logActivi
       <p className="text-xs text-[var(--steel)] mb-3">Une ligne = un créneau — les noms sont reconnus même s'ils sont écrits un peu différemment.</p>
       <ImportSansIA colonnes="Employé, Jour, Service (Midi/Soir), Début, Fin" onLignes={preparer} />
       {apercu && <ApercuImport titre="Aperçu du planning" lignes={apercu.lignes} ignorees={apercu.ignorees} resume={(l) => `${nomDe(l.employeeId)} — ${l.jour} ${l.service} — ${l.debut} à ${l.fin}`} onValider={valider} onAnnuler={() => setApercu(null)} />}
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      {setTab && <div className="flex flex-wrap items-center gap-2 mb-3">
         <Button variant="ghost" onClick={() => setTab("horaires")}>Modifier la grille horaire →</Button>
-      </div>
+      </div>}
       {importMsg && <p className="text-xs text-[var(--steel)]">{importMsg}</p>}
     </div>
   );
@@ -18472,14 +18477,9 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
               );
             })}
           </div>
-          {vueAccueil === "reservations" && peutGererPlanning ? (
-            <div className="flex items-center gap-3 flex-wrap">
-              <button type="button" onClick={() => setFormResa(true)} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ACTION_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
-              <button onClick={() => setTab("reservations")} className="text-sm text-[var(--accent)] font-medium">Voir tout l'agenda →</button>
-            </div>
-          ) : vueAccueil === "reservations" ? null : peutGererPlanning ? (
-            <button onClick={() => setTab("horaires")} className="text-sm text-[var(--accent)] font-medium">Modifier les horaires de la semaine →</button>
-          ) : null}
+          {vueAccueil === "reservations" && peutGererPlanning && (
+            <button type="button" onClick={() => setFormResa(true)} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ACTION_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
+          )}
         </div>
 
         {currentUserId !== "direction" && vueAccueil === "planning" && (
@@ -18512,14 +18512,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           </div>
         )}
 
-        {vueAccueil === "reservations" && peutGererPlanning && (
-          <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
-        )}
         {vueAccueil === "reservations" && (
           <Reservations integre reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivity} horaires={horaires} formOuvert={formResa} setFormOuvert={setFormResa} dateExt={dateResa} setDateExt={setDateResa} filtreExt={filtreResa} setFiltreExt={setFiltreResa} />
-        )}
-        {vueTemps === "jour" && vueAccueil === "planning" && peutGererPlanning && (
-          <CarteGestionHorairesDirection employees={employees} shifts={shifts} setShifts={setShifts} logActivity={logActivity} setTab={setTab} />
         )}
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId !== "direction" && (
           <div>
@@ -19054,13 +19048,8 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
       </Card>}
 
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">Importer un planning depuis Excel</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Colonnes attendues : <strong>Employé, Jour, Service (Midi/Soir), Début, Fin</strong>. Une ligne = un créneau — les noms sont reconnus même approximatifs, une ligne non reconnue est simplement ignorée.</p>
-        <label className={`inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-[var(--cadre)] bg-white text-[var(--ink)] cursor-pointer ${importEnCours ? "opacity-50 pointer-events-none" : ""}`}>
-          <Plus size={16} /> {importEnCours ? "Import en cours..." : "Choisir un fichier .xlsx"}
-          <input type="file" accept=".xlsx,.xls" onChange={importerExcel} className="hidden" disabled={importEnCours} />
-        </label>
-        {importMsg && <p className="text-xs text-[var(--steel)] mt-2">{importMsg}</p>}
+        <h3 className="font-semibold text-[var(--ink)] mb-1">Importer un planning</h3>
+        <CarteGestionHorairesDirection employees={employees} shifts={shifts} setShifts={setShifts} logActivity={logActivity} />
       </Card>
 
       <ImportPhotoIA
@@ -20794,7 +20783,7 @@ function KitchenApp({ identiteExterne } = {}) {
               <SectionHeader title="Réservations" subtitle="Gestion des réservations et des services" />
             </ZoneContext.Provider>
           ) : (<>
-          <BandeauNormes label="Tâches du jour — plan de maîtrise sanitaire : contrôles et enregistrements · Règlement (CE) n° 852/2004, art. 5" />
+          <BoutonRetour onClick={() => setTab("accueil")} className="mb-4 hidden md:inline-flex">Retour à l'accueil</BoutonRetour>
           <SectionHeader title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
           </>)}
           <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null}  cuissons={cuissons} vueExt={vueTaches} setVueExt={setVueTaches} />
