@@ -7373,6 +7373,21 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 }
 
 /* ---------- Liste des fiches techniques, groupée par catégorie, avec recherche ---------- */
+const COULEURS_CATEGORIES_FICHES = {
+  "Partagé": ["#0E7C86", "#E3F4F5"], "Salade": ["#2F8F4E", "#E4F4E9"], "Plat": ["#C1893C", "#FBF0DD"],
+  "Base": ["#7A5C3E", "#F1E9E0"], "Sauce": ["#C0392B", "#FBE7E4"], "Burger": ["#D9712B", "#FCEBDD"],
+  "Burger du mois": ["#B8541A", "#F9E4D4"], "Pizza": ["#C9372C", "#FBE6E3"], "Pizza du mois": ["#9B2D8A", "#F5E4F2"],
+  "Dessert": ["#D1478B", "#FBE5F0"], "Entrée": ["#5B8C2A", "#EDF5E1"], "Potage / Soupe": ["#E0A100", "#FDF3D3"],
+  "Poisson": ["#1B5FA8", "#E1EDF9"], "Viande": ["#8E2F3F", "#F6E3E7"], "Légume / Accompagnement": ["#3E9B6B", "#E2F5EC"],
+  "Fromage": ["#C9A227", "#FAF3D6"], "Boisson": ["#3C7DD9", "#E4EEFB"],
+};
+const PALETTE_AUTRES_FICHES = [["#6C4FBF", "#EBE5F8"], ["#0E8FA8", "#DFF3F7"], ["#B5651D", "#F8EADB"], ["#4F6D7A", "#E5ECEF"]];
+function couleurCategorieFiche(cat) {
+  if (COULEURS_CATEGORIES_FICHES[cat]) return COULEURS_CATEGORIES_FICHES[cat];
+  let h = 0; for (const ch of String(cat || "")) h = (h * 31 + ch.charCodeAt(0)) % 997;
+  return PALETTE_AUTRES_FICHES[h % PALETTE_AUTRES_FICHES.length];
+}
+
 function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef }) {
   const [selectedId, setSelectedId] = useState(null);
   const [edition, setEdition] = useState(null);
@@ -7440,12 +7455,17 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
             className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${!categorieFiltre ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
             Toutes ({fiches.length})
           </button>
-          {categoriesPresentes.map((c) => (
-            <button key={c} onClick={() => setCategorieFiltre((v) => (v === c ? null : c))}
-              className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${categorieFiltre === c ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
-              {c} ({groupes[c].length})
-            </button>
-          ))}
+          {categoriesPresentes.map((c) => {
+            const [fort, doux] = couleurCategorieFiche(c);
+            const actif = categorieFiltre === c;
+            return (
+              <button key={c} onClick={() => setCategorieFiltre((v) => (v === c ? null : c))}
+                style={actif ? { background: fort, borderColor: fort, color: "#fff" } : { background: doux, borderColor: fort, color: fort }}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors">
+                {c} ({groupes[c].length})
+              </button>
+            );
+          })}
         </div>
       </Card>
 
@@ -7455,13 +7475,15 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
         </Card>
       )}
 
-      {categoriesAffichees.map((cat) => (
+      {categoriesAffichees.map((cat) => {
+        const [fort, doux] = couleurCategorieFiche(cat);
+        return (
         <div key={cat} className="mb-6">
-          <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">{cat}</h3>
+          <h3 className="text-sm font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block" style={{ background: doux, color: fort }}>{cat}</h3>
           <div className="space-y-2">
             {groupes[cat].map((f) => (
               <button key={f.id} id={`fiche-${f.id}`} onClick={() => setSelectedId(f.id)} className="w-full text-left">
-                <Card className="hover:border-[var(--accent)]/50 transition-colors py-3.5">
+                <Card className="border-l-4 hover:brightness-95 transition py-3.5" style={{ borderLeftColor: fort, background: doux }}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
                       <div className="font-semibold text-[var(--ink)] text-base leading-tight truncate">{f.nom}</div>
@@ -7476,7 +7498,8 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
             ))}
           </div>
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }
