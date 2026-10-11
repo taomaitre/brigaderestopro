@@ -15015,7 +15015,11 @@ function evalFamilleTemp(f, texte) {
 // Les 3 relevés de température pris dès le départ : un par famille de produits (le logiciel en déduit seul
 // si chaque produit saisi ensuite est conforme ou non).
 const FAMILLES_TEMP = [
-  { id: "viande", titre: "Viande et poisson", sous: "viande, volaille, haché, abats, poisson, plats cuisinés", norme: "viande/volaille +4°C · abats et plats cuisinés +3°C · viande hachée et poisson frais +2°C", types: ["viande", "hache", "abats", "plat", "poisson"], typeRef: "viande", fond: "#FDE4E8", bord: "#F6B8C2", couleur: "#B4233A", Ic: ChefHat },
+  { id: "hache", titre: "Viande hachée", sous: "steak haché, viande hachée, bolognaise", norme: "de -1°C à +2°C", types: ["hache"], typeRef: "hache", fond: "#F3E3EA", bord: "#D9B3C6", couleur: "#8E3B63", Ic: ChefHat },
+  { id: "viande", titre: "Viande, volaille", sous: "viande fraîche, volaille, préparations de viande", norme: "de -1°C à +4°C", types: ["viande"], typeRef: "viande", fond: "#FBE9DC", bord: "#F2C6A6", couleur: "#A64B12", Ic: UtensilsCrossed },
+  { id: "abats", titre: "Abats", sous: "foie, rognons, tripes…", norme: "de -1°C à +3°C", types: ["abats"], typeRef: "abats", fond: "#EDE4F7", bord: "#CDB8EA", couleur: "#5B3A99", Ic: Package },
+  { id: "poisson", titre: "Poisson frais", sous: "poisson, crustacés, coquillages frais", norme: "de -1°C à +2°C (glace fondante : 0 à +2°C)", types: ["poisson"], typeRef: "poisson", fond: "#DDF1F4", bord: "#A9D9E0", couleur: "#0F6B7A", Ic: Droplets },
+  { id: "plat", titre: "Plats cuisinés", sous: "préparations culinaires élaborées à l'avance", norme: "de -1°C à +3°C", types: ["plat"], typeRef: "plat", fond: "#FFF3D6", bord: "#F0D590", couleur: "#8A5A00", Ic: Soup },
   { id: "frais", titre: "Produits frais", sous: "laitiers, œufs, charcuterie, produits réfrigérés", norme: "de -1°C à +4°C", types: ["frais"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
   { id: "surgele", titre: "Surgelés", sous: "tous les produits congelés", norme: "-18°C ou moins (tolérance transport jusqu'à -15°C)", types: ["surgele"], typeRef: "surgele", fond: "#E6F0FA", bord: "#BCD3F2", couleur: "#14527F", Ic: Snowflake },
 ];
@@ -15031,7 +15035,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   const [fournisseur, setFournisseur] = useState("");
   const [autreFournisseur, setAutreFournisseur] = useState(false);
   const [photosBon, setPhotosBon] = useState([]);
-  const [temps, setTemps] = useState({ viande: { valeur: "", aucun: false, photo: null }, frais: { valeur: "", aucun: false, photo: null }, surgele: { valeur: "", aucun: false, photo: null } });
+  const [temps, setTemps] = useState(() => Object.fromEntries(FAMILLES_TEMP.map((f) => [f.id, { valeur: "", aucun: true, photo: null }])));
   const [produits, setProduits] = useState([]);
   const [brouillon, setBrouillon] = useState(null); // produit en cours de saisie
   const [detailsOuverts, setDetailsOuverts] = useState(false);
@@ -15273,9 +15277,17 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
         {entete}
         <Card>
           <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Relevez les températures de la livraison</h3>
-          <p className="text-sm text-[var(--steel)] mb-4">Une température à cœur par famille de produits. Le logiciel sait ensuite, pour chaque produit saisi, s'il est conforme ou non. Si une famille n'est pas dans cette livraison, cochez « Pas de produit ».</p>
+          <p className="text-sm text-[var(--steel)] mb-3">1. Cochez les types de produits présents dans cette livraison. 2. Relevez une température à cœur pour chaque type coché : le logiciel la compare à la norme de ce type.</p>
+          <div className="flex flex-wrap gap-2 mb-4">
+            {FAMILLES_TEMP.map((f) => { const sel = !temps[f.id].aucun; return (
+              <button key={f.id} type="button" onClick={() => majTemp(f.id, { aucun: sel, valeur: "", photo: null })} className="h-11 px-3 rounded-full border-2 text-sm font-semibold flex items-center gap-2" style={sel ? { backgroundColor: f.couleur, borderColor: f.couleur, color: "#fff" } : { backgroundColor: f.fond, borderColor: f.bord, color: f.couleur }}>
+                <f.Ic size={18} />{sel ? "✓ " : ""}{f.titre}
+              </button>
+            ); })}
+          </div>
+          {FAMILLES_TEMP.every((f) => temps[f.id].aucun) && <p className="text-sm text-[var(--steel)] mb-3">Aucun type coché : pas de température à relever (produits secs, boissons, emballages…).</p>}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
-            {FAMILLES_TEMP.map((f) => {
+            {FAMILLES_TEMP.filter((f) => !temps[f.id].aucun).map((f) => {
               const t = temps[f.id]; const ev = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur) : { etat: null, ncTypes: [], okTypes: [] }; const etat = ev.etat;
               const nc = etat === "hors" || etat === "gele";
               return (
@@ -15299,15 +15311,15 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                       <PhotoInput rond value={t.photo} onChange={(v) => majTemp(f.id, { photo: v })} label="Photographier le thermomètre" />
                     </div>
                   )}
-                  <button type="button" onClick={() => majTemp(f.id, { aucun: !t.aucun, valeur: "", photo: null })} className="mt-auto h-11 rounded-lg border text-sm font-medium flex items-center justify-center gap-2" style={t.aucun ? { backgroundColor: "#E7F1EB", borderColor: "#2F6B4F", color: "#2F6B4F" } : { borderColor: "var(--cadre)", color: "var(--ink)", backgroundColor: "#fff" }}>
-                    {t.aucun ? "✓ " : ""}Pas de produit {f.id === "surgele" ? "surgelé" : f.id === "frais" ? "frais" : "de viande ou poisson"} aujourd'hui
+                  <button type="button" onClick={() => majTemp(f.id, { aucun: true, valeur: "", photo: null })} className="mt-auto h-11 rounded-lg border text-sm font-medium flex items-center justify-center gap-2" style={{ borderColor: "var(--cadre)", color: "var(--ink)", backgroundColor: "#fff" }}>
+                    Retirer : pas de {f.titre.toLowerCase()} aujourd'hui
                   </button>
                 </div>
               );
             })}
           </div>
           {pied(<BoutonRetour onClick={() => setEtape(1)}>Retour</BoutonRetour>, null, <>
-            {!tempsCompletes && <span className="text-sm text-[var(--warn)] self-center">Relevez les 3 températures (ou cochez « Pas de produit »).</span>}
+            {!tempsCompletes && <span className="text-sm text-[var(--warn)] self-center">Relevez la température de chaque type coché.</span>}
             <Button onClick={() => { if (!brouillon) commencer(); setEtape(3); }} disabled={!tempsCompletes}>Suivant : les produits <ChevronRight size={16} /></Button>
           </>)}
         </Card>
@@ -15401,7 +15413,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               <fam.Ic size={22} style={{ color: ev.temperature === "" ? "#5B6670" : ev.tempNC ? "#B4233A" : "#14653A" }} />
               <div className="flex-1 min-w-0 text-sm text-[var(--ink)]">
                 {temps[fam.id].aucun || ev.temperature === ""
-                  ? <>Aucune température relevée pour « {fam.titre} ». <button type="button" className="underline font-semibold" onClick={() => setEtape(2)}>Retourner aux températures</button></>
+                  ? <>Aucune température relevée pour « {fam.titre} » (type non coché ou vide). <button type="button" className="underline font-semibold" onClick={() => setEtape(2)}>Retourner aux températures</button></>
                   : <>Température relevée pour « {fam.titre} » : <b>{ev.temperature} °C</b></>}
               </div>
               {ev.temperature !== "" && badge(!ev.tempNC, ev.tempNC ? "Non conforme — refusé" : "Conforme")}
@@ -15518,7 +15530,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
         {erreur && <p className="text-sm text-[var(--warn)] mb-3">{erreur}</p>}
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-          {FAMILLES_TEMP.map((f) => {
+          {FAMILLES_TEMP.filter((f) => !temps[f.id].aucun).map((f) => {
             const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur).etat : null; const nc = etat === "hors" || etat === "gele";
             return (
               <div key={f.id} className="rounded-xl border p-3 flex items-center gap-3" style={t.aucun ? { borderColor: "#D5DAE0", backgroundColor: "#F4F6F8" } : nc ? { borderColor: "#F6B8C2", backgroundColor: "#FDE4E8" } : { borderColor: "#B3E0C5", backgroundColor: "#EAF6EF" }}>
