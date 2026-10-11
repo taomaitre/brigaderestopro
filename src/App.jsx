@@ -9898,50 +9898,13 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
 }
 
 function FichesTechniquesMenu({ fichesProps, creationProps, consentementAccorde, ouvrirIdAuto, onConsommeOuvrirIdAuto }) {
-  const [sub, setSub] = useState(null);
-
-  // Même logique de déverrouillage automatique que dans FichesTechniques : si on nous demande
-  // d'ouvrir une fiche précise (commande vocale), on saute directement le sous-menu "Préparation
-  // culinaire" au lieu de laisser l'utilisateur cliquer dessus lui-même.
-  useEffect(() => {
-    if (ouvrirIdAuto) setSub("preparation");
-  }, [ouvrirIdAuto]);
-
-  if (sub === null) {
-    return (
-      <div>
-        <SectionHeader title="Fiches techniques" subtitle="Préparation culinaire et plan de maîtrise sanitaire" />
-        <div className="grid grid-cols-2 gap-3 mb-6">
-          {FICHES_TUILES.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button
-                key={t.id}
-                onClick={() => setSub(t.id)}
-                style={{ background: t.couleur.fond, boxShadow: `0 8px 20px ${t.couleur.ombre}` }}
-                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[85px] px-2 text-center active:scale-95 transition-transform"
-              >
-                <Icon size={34} color="#ffffff" strokeWidth={2} />
-                <span className="text-sm font-bold text-white leading-tight line-clamp-2">{t.label}</span>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
+  // Une seule rubrique existe (préparation culinaire) : on affiche directement les fiches,
+  // sans tuile intermédiaire.
   return (
     <div>
-      <div className="flex justify-end mb-3">
-        <BoutonRetour onClick={() => setSub(null)}>Retour Fiches techniques</BoutonRetour>
-      </div>
-
-      {sub === "preparation" && (
-        consentementAccorde()
-          ? <FichesTechniques {...fichesProps} ouvrirIdAuto={ouvrirIdAuto} onConsommeOuvrirIdAuto={onConsommeOuvrirIdAuto} />
-          : <AccesRestreint titre="Fiches techniques et recettes personnalisées" />
-      )}
+      {consentementAccorde()
+        ? <FichesTechniques {...fichesProps} ouvrirIdAuto={ouvrirIdAuto} onConsommeOuvrirIdAuto={onConsommeOuvrirIdAuto} />
+        : <AccesRestreint titre="Fiches techniques et recettes personnalisées" />}
     </div>
   );
 }
