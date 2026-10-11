@@ -1336,10 +1336,10 @@ function TuilesResume({ fonction, items }) {
   const z = zoneDepuisFonction(fonction) || { bord: "#64748B", fond: "#64748B22", texte: "#334155" };
   return (
     <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
-      {items.map(([Ic, valeur, libelle, alerte], i) => (
-        <div key={i} className="rounded-lg px-2.5 py-1.5 flex items-center gap-2" style={{ background: alerte ? "#FDECEC" : z.fond, border: "1px solid rgba(0,0,0,.05)" }}>
-          <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: alerte ? "#B3261E" : z.texte }}><Ic size={16} /></span>
-          <div className="min-w-0"><div className="text-xl font-bold leading-tight" style={{ color: alerte ? "#B3261E" : "var(--ink)" }}>{valeur}</div><div className="text-[10px] leading-tight text-[var(--steel)]">{libelle}</div></div>
+      {items.map(([Ic, valeur, libelle, alerte, teinte], i) => (
+        <div key={i} className="rounded-lg px-2.5 py-1.5 flex items-center gap-2" style={{ background: teinte ? teinte.fond : (alerte ? "#FDECEC" : z.fond), border: "1px solid rgba(0,0,0,.05)" }}>
+          <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: teinte ? teinte.couleur : (alerte ? "#B3261E" : z.texte) }}><Ic size={16} /></span>
+          <div className="min-w-0"><div className="text-xl font-bold leading-tight" style={{ color: teinte ? teinte.couleur : (alerte ? "#B3261E" : "var(--ink)") }}>{valeur}</div><div className="text-[10px] leading-tight text-[var(--steel)]">{libelle}</div></div>
         </div>
       ))}
     </div>
@@ -5334,9 +5334,8 @@ function HaccpHuilePage({ huileTests, employees, onEnregistrerTest }) {
     <div>
       <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Normes HACCP" texte="Cliquez pour lire les règles officielles : test de l'huile après chaque utilisation, voyant vert = huile bonne, voyant jaune = à changer." />
       <SectionHeader title="Huile de friture" subtitle="Tests et suivi des bains d'huile" />
-      <TuilesResume fonction="huile" items={[[Droplets, huileTests.filter((h) => h.date === todayISO()).length, "tests aujourd'hui"], [CheckCircle2, huileTests.length ? (huileTests[0].resultat || "—") : "—", "dernier résultat"]]} />
+      <TuilesResume fonction="huile" items={[[Droplets, huileTests.filter((h) => h.date === todayISO()).length, "tests aujourd'hui"], [CheckCircle2, huileTests.length ? (huileTests[0].resultat || "—") : "—", "dernier résultat", false, (() => { const r = huileTests.length ? (huileTests[0].resultat || "") : ""; if (/non conforme|à changer|mauvaise/i.test(r)) return { fond: "#FDE4E8", couleur: "#B4233A" }; if (/limite/i.test(r)) return { fond: "#FDEBD3", couleur: "#B8620B" }; if (r) return { fond: "#EAF6EF", couleur: "#14653A" }; return undefined; })()]]} />
       {onEnregistrerTest && <HuileSaisie onEnregistrerTest={onEnregistrerTest} />}
-      <HaccpHuile huileTests={huileTests} who={who} manuelPossible={!!onEnregistrerTest} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
