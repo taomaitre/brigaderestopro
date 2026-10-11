@@ -95,6 +95,7 @@ const ChevronDown = makeIcon([P("m6 9 6 6 6-6")]);
 const ChevronUp = makeIcon([P("m18 15-6-6-6 6")]);
 const Soup = makeIcon([P("M12 21a9 9 0 0 0 9-9H3a9 9 0 0 0 9 9Z"), P("M7 21h10"), P("M19.5 12 22 6"), P("M16.25 3c.27.1.8.53.75 1.36-.06.83-.93 1.2-1 2.02-.05.63.37.94.75 1.62"), P("M11.25 3c.27.1.8.53.75 1.36-.06.83-.93 1.2-1 2.02-.05.63.37.94.75 1.62"), P("M6.25 3c.27.1.8.53.75 1.36-.06.83-.93 1.2-1 2.02-.05.63.37.94.75 1.62")]);
 const Droplets = makeIcon([P("M7 16.3c2.2 0 4-1.83 4-4.05 0-1.16-.57-2.26-1.71-3.19S7.29 6.75 7 5.3c-.29 1.45-1.14 2.84-2.29 3.76S3 11.1 3 12.25c0 2.22 1.8 4.05 4 4.05z"), P("M12.56 6.6A18 18 0 0 1 17 15.4c0 3.31-2.69 6-6 6a5.98 5.98 0 0 1-4.06-1.6")]);
+const Milk = makeIcon([P("M8 2h8"), P("M9 2v2.789a4 4 0 0 1-.672 2.219l-.656.984A4 4 0 0 0 7 10.212V20a2 2 0 0 0 2 2h6a2 2 0 0 0 2-2v-9.789a4 4 0 0 0-.672-2.219l-.656-.984A4 4 0 0 1 15 4.788V2"), P("M7 15a6.472 6.472 0 0 1 5 0 6.47 6.47 0 0 0 5 0")]);
 const UtensilsCrossed = makeIcon([P("m16 2-2.3 2.3a3 3 0 0 0 0 4.2l1.8 1.8a3 3 0 0 0 4.2 0L22 8"), P("M15 15 3.3 3.3a4.2 4.2 0 0 0 0 6l7.3 7.3c.7.7 2 .7 2.8 0L15 15Zm0 0 7 7"), P("m2.1 21.8 6.4-6.3")]);
 const Home = makeIcon([P("m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"), P("M9 22V12h6v10")]);
 const ShoppingCart = makeIcon([C(8, 21, 1), C(19, 21, 1), P("M2.05 2.05h2l2.66 12.42a2 2 0 0 0 2 1.58h9.78a2 2 0 0 0 1.95-1.57l1.65-7.43H5.12")]);
@@ -12911,6 +12912,7 @@ const SEUILS_RECEPTION = {
   poisson: { max: 2, label: "≤ 2°C" },
   abats: { max: 3, label: "≤ 3°C" },
   plat: { max: 3, label: "≤ 3°C" },
+  laitier: { max: 4, label: "limite du fabricant (à défaut ≤ 4°C)" },
 };
 // Normes de réception de la version migrée (aperçu) : tolérance de transport pour le surgelé,
 // limite basse pour le frais (un produit frais ne doit pas arriver gelé), seuil plus strict pour poisson/haché/plats cuisinés.
@@ -12924,8 +12926,11 @@ const SEUILS_RECEPTION_NOUVEAU = {
   poisson: { min: -1, max: 2, label: "de -1°C à +2°C (glace fondante : 0 à +2°C)" },
   abats: { min: -1, max: 3, label: "de -1°C à +3°C" },
   plat: { min: -1, max: 3, label: "de -1°C à +3°C" },
+  // Lait pasteurisé et fromages affinés : l'arrêté ne fixe pas de chiffre, la température est définie par le fabricant
+  // (à lire sur l'emballage). Elle est saisie à la réception ; sans elle, aucun verdict n'est rendu.
+  laitier: { min: -1, max: 4, label: "limite indiquée par le fabricant" },
 };
-const NOM_TYPE_TEMP = { viande: "viande fraîche / volaille", hache: "viande hachée", poisson: "poisson frais", abats: "abats", plat: "plat cuisiné" };
+const NOM_TYPE_TEMP = { viande: "viande fraîche / volaille", hache: "viande hachée", poisson: "poisson frais", abats: "abats", plat: "plat cuisiné", laitier: "lait pasteurisé / fromage affiné" };
 const RAISONS_NON_CONFORMITE = ["Produit abîmé à la livraison", "DLC trop courte", "Température non conforme", "Produit non commandé", "Produit substitué / facturé plus cher que commandé"];
 
 // Redimensionne et compresse automatiquement toute photo prise dans le logiciel avant de la
@@ -13834,6 +13839,7 @@ const CONSERVATIONS = [
   { v: "abats", l: "Abats" },
   { v: "poisson", l: "Poisson / produits de la pêche frais" },
   { v: "plat", l: "Plat cuisiné / préparation à l'avance" },
+  { v: "laitier", l: "Lait pasteurisé / fromage affiné (température du fabricant)" },
   { v: "legume", l: "Fruits et légumes frais / herbes" },
   { v: "surgele", l: "Surgelé" },
   { v: "sec", l: "Sec / épicerie" },
@@ -13842,7 +13848,7 @@ const CONSERVATIONS = [
   { v: "entretien", l: "Produits d'entretien / ménagers" },
   { v: "autre", l: "Autre (non alimentaire)" },
 ];
-const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", hache: "Viande hachée", abats: "Abats", plat: "Plat cuisiné", poisson: "Poisson", legume: "Fruits & légumes", surgele: "Surgelé", sec: "Sec", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autre" };
+const LIBELLE_CONSERVATION = { frais: "Frais", viande: "Viande", hache: "Viande hachée", abats: "Abats", plat: "Plat cuisiné", laitier: "Lait pasteurisé / fromage affiné", poisson: "Poisson", legume: "Fruits & légumes", surgele: "Surgelé", sec: "Sec", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autre" };
 
 // Date saisie à la main (JJ/MM/AAAA, JJMMAAAA ou MM/AAAA — pour une DDM lointaine) OU choisie dans le calendrier.
 // La valeur échangée est toujours au format AAAA-MM-JJ ("" si vide). Pour MM/AAAA, on prend le dernier jour du mois.
@@ -14124,7 +14130,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
   };
   const seuilsAffiches = modeManuel ? SEUILS_RECEPTION_NOUVEAU : SEUILS_RECEPTION;
   // Prévisualisation : on ne demande que les températures des types de produits présents sur le bon (frais, viande, surgelé).
-  const typesATemperature = [...new Set(lignesBon.map((l) => l.conservation).filter((c) => c === "frais" || c === "viande" || c === "hache" || c === "abats" || c === "plat" || c === "poisson" || c === "surgele"))];
+  const typesATemperature = [...new Set(lignesBon.map((l) => l.conservation).filter((c) => c === "frais" || c === "viande" || c === "hache" || c === "abats" || c === "plat" || c === "laitier" || c === "poisson" || c === "surgele"))];
   const tempsPretes = typesATemperature.every((t) => !Number.isNaN(parseFloat(temps[t])));
   const tempsNonConformes = typesATemperature.some((t) => conformeTemp(t) === false);
 
@@ -14591,7 +14597,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
             </p>
           </Card>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-5">
-            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande fraîche / volaille"], ["hache", "Viande hachée"], ["abats", "Abats"], ["poisson", "Poisson frais"], ["plat", "Plat cuisiné"]].filter(([type]) => !modeManuel || typesATemperature.includes(type)).map(([type, label]) => {
+            {[["surgele", "Produit surgelé"], ["frais", "Produit frais / laitier"], ["viande", "Viande fraîche / volaille"], ["hache", "Viande hachée"], ["abats", "Abats"], ["poisson", "Poisson frais"], ["plat", "Plat cuisiné"], ["laitier", "Lait pasteurisé / fromage affiné"]].filter(([type]) => !modeManuel || typesATemperature.includes(type)).map(([type, label]) => {
               const ok = conformeTemp(type);
               return (
                 <Field key={type} label={`${label} (${seuilsAffiches[type].label})`}>
@@ -14975,13 +14981,18 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
 // Pour revenir à l'ancien parcours : mettre PARCOURS_RECEPTION_SIMPLE à false.
 // ─────────────────────────────────────────────────────────────────────────────
 const PARCOURS_RECEPTION_SIMPLE = true;
-const TYPES_ALIMENTAIRES = ["frais", "viande", "hache", "abats", "plat", "poisson", "surgele", "sec", "boisson"];
-const TYPES_A_TEMPERATURE = ["frais", "viande", "hache", "abats", "plat", "poisson", "surgele"];
+const TYPES_ALIMENTAIRES = ["frais", "viande", "hache", "abats", "plat", "laitier", "poisson", "surgele", "sec", "boisson"];
+const TYPES_A_TEMPERATURE = ["frais", "viande", "hache", "abats", "plat", "laitier", "poisson", "surgele"];
 
-function etatTemperatureReception(type, texte) {
+function etatTemperatureReception(type, texte, limite) {
   const v = parseFloat(String(texte).replace(",", "."));
-  const sn = SEUILS_RECEPTION_NOUVEAU[type];
+  let sn = SEUILS_RECEPTION_NOUVEAU[type];
   if (Number.isNaN(v) || !sn) return null;
+  if (type === "laitier") {
+    const lim = parseFloat(String(limite == null ? "" : limite).replace(",", "."));
+    if (Number.isNaN(lim)) return null; // limite du fabricant non saisie : pas de verdict
+    sn = { ...sn, max: lim };
+  }
   if (v > sn.max || (sn.min != null && v < sn.min)) return v > sn.max ? "hors" : "gele";
   if (type === "surgele" && v > sn.ideal) return "tolerance";
   return "ok";
@@ -14996,15 +15007,16 @@ function typeSuggere(nom) {
   if (/\babats?\b|foie|rognon|tripe|cervelle|ris de veau/.test(t)) return "abats";
   if (/poisson|saumon|thon|cabillaud|colin|dorade|truite|merlu|crevette|gambas|moule|huitre|calamar|crabe|langoustine|anchois|maquereau|sardine|bar |lieu /.test(t)) return "poisson";
   if (/poulet|volaille|dinde|canard|boeuf|porc|veau|agneau|jambon|lard|steak|escalope|cote|magret|saucisse|merguez|lapin|viande/.test(t)) return "viande";
-  if (/\blait\b|creme|beurre|fromage|yaourt|oeuf|mozzarella|emmental|camembert|gruyere/.test(t)) return "frais";
+  if (/fromage|camembert|brie\b|comte|emmental|gruyere|roquefort|cantal|reblochon|munster|parmesan|\blait\b/.test(t)) return "laitier";
+  if (/creme|beurre|yaourt|oeuf|mozzarella/.test(t)) return "frais";
   if (/salade|tomate|carotte|oignon|pomme de terre|courgette|poivron|champignon|legume|fruit|basilic|persil|citron|pomme|banane/.test(t)) return "legume";
   return "";
 }
 
 // Une température relevée pour une famille est jugée type par type (ex. 3°C : conforme pour une viande fraîche,
 // hors norme pour une viande hachée). Renvoie l'état global et les types hors norme / conformes.
-function evalFamilleTemp(f, texte) {
-  const etats = f.types.map((ty) => [ty, etatTemperatureReception(ty, texte)]).filter(([, e]) => e);
+function evalFamilleTemp(f, texte, limite) {
+  const etats = f.types.map((ty) => [ty, etatTemperatureReception(ty, texte, limite)]).filter(([, e]) => e);
   if (etats.length === 0) return { etat: null, ncTypes: [], okTypes: [] };
   const nc = etats.filter(([, e]) => e === "hors" || e === "gele");
   const ok = etats.filter(([, e]) => e !== "hors" && e !== "gele");
@@ -15020,7 +15032,8 @@ const FAMILLES_TEMP = [
   { id: "abats", titre: "Abats", sous: "foie, rognons, tripes…", norme: "de -1°C à +3°C", types: ["abats"], typeRef: "abats", fond: "#EDE4F7", bord: "#CDB8EA", couleur: "#5B3A99", Ic: Package },
   { id: "poisson", titre: "Poisson frais", sous: "poisson, crustacés, coquillages frais", norme: "de -1°C à +2°C (glace fondante : 0 à +2°C)", types: ["poisson"], typeRef: "poisson", fond: "#DDF1F4", bord: "#A9D9E0", couleur: "#0F6B7A", Ic: Droplets },
   { id: "plat", titre: "Plats cuisinés", sous: "préparations culinaires élaborées à l'avance", norme: "de -1°C à +3°C", types: ["plat"], typeRef: "plat", fond: "#FFF3D6", bord: "#F0D590", couleur: "#8A5A00", Ic: Soup },
-  { id: "frais", titre: "Produits frais", sous: "laitiers, œufs, charcuterie, produits réfrigérés", norme: "de -1°C à +4°C", types: ["frais"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
+  { id: "laitier", titre: "Lait pasteurisé, fromages affinés", sous: "limite fixée par le fabricant (voir l'emballage)", norme: "limite indiquée par le fabricant", types: ["laitier"], typeRef: "laitier", fond: "#F4EEDC", bord: "#DCCB9A", couleur: "#6B5B1A", Ic: Milk },
+  { id: "frais", titre: "Produits frais", sous: "œufs, charcuterie, autres produits réfrigérés très périssables", norme: "de -1°C à +4°C", types: ["frais"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
   { id: "surgele", titre: "Surgelés", sous: "tous les produits congelés", norme: "-18°C ou moins (tolérance : +3°C en surface, brièvement, au déchargement)", types: ["surgele"], typeRef: "surgele", fond: "#E6F0FA", bord: "#BCD3F2", couleur: "#14527F", Ic: Snowflake },
 ];
 const CONSIGNE_ETIQUETTE_RECEPTION = "Tu regardes la photo d'un produit alimentaire reçu en cuisine professionnelle (étiquette ou emballage). Identifie si visible : le nom du produit, la référence/le code article, le numéro de lot, la date limite de consommation (DLC/DDM), les allergènes déclarés, l'origine/provenance indiquée et le numéro d'agrément sanitaire CE s'il est visible. Réponds UNIQUEMENT en JSON strict, sans texte autour, format exact : {\"nom\": \"...\" ou null, \"reference\": \"...\" ou null, \"lot\": \"...\" ou null, \"dlc\": \"AAAA-MM-JJ\" ou null, \"allergenes\": \"...\" ou null, \"origine\": \"...\" ou null, \"agrementSanitaire\": \"...\" ou null}. Mets null si l'information n'est pas visible, n'invente jamais.";
@@ -15035,7 +15048,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   const [fournisseur, setFournisseur] = useState("");
   const [autreFournisseur, setAutreFournisseur] = useState(false);
   const [photosBon, setPhotosBon] = useState([]);
-  const [temps, setTemps] = useState(() => Object.fromEntries(FAMILLES_TEMP.map((f) => [f.id, { valeur: "", aucun: true, photo: null }])));
+  const [temps, setTemps] = useState(() => Object.fromEntries(FAMILLES_TEMP.map((f) => [f.id, { valeur: "", limite: "", aucun: true, photo: null }])));
   const [produits, setProduits] = useState([]);
   const [brouillon, setBrouillon] = useState(null); // produit en cours de saisie
   const [detailsOuverts, setDetailsOuverts] = useState(false);
@@ -15064,7 +15077,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
     const fam = familleDe(p.conservation);
     const t = fam ? temps[fam.id] : null;
     const val = t && !t.aucun && String(t.valeur).trim() !== "" ? String(t.valeur) : "";
-    const etat = val !== "" ? etatTemperatureReception(p.conservation, val) : null;
+    const etat = val !== "" ? etatTemperatureReception(p.conservation, val, t && t.limite) : null;
     const tNC = etat === "hors" || etat === "gele";
     const renvoiePlus = p.kind === "plus" && p.plusRenvoi;
     let raison = ""; let qNC = 0; let photoNC = null;
@@ -15072,7 +15085,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
     else if (renvoiePlus) { raison = "Produit non commandé (livré en plus) — renvoyé"; qNC = p.quantite; }
     else if (p.autrePb) { raison = p.raisonPb || "Problème signalé sur le produit"; qNC = p.quantitePb === "" ? p.quantite : p.quantitePb; photoNC = p.photoPb || null; }
     else if (p.kind === "plus") raison = "Produit en plus (non commandé) conservé";
-    const tempManquante = TYPES_A_TEMPERATURE.includes(p.conservation) && val === "";
+    const tempManquante = TYPES_A_TEMPERATURE.includes(p.conservation) && (val === "" || (p.conservation === "laitier" && String((t && t.limite) || "").trim() === ""));
     return { temperature: val, tempManquante, etatTemp: etat, tempNC: tNC, conforme: !(tNC || renvoiePlus || p.autrePb), raison, quantiteNC: qNC, photoNC, ecartPrix: 0 };
   };
   const produitsF = produits.map((p) => ({ ...p, ...evalue(p) }));
@@ -15288,7 +15301,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
           {FAMILLES_TEMP.every((f) => temps[f.id].aucun) && <p className="text-sm text-[var(--steel)] mb-3">Aucun type coché : pas de température à relever (produits secs, boissons, emballages…).</p>}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-3">
             {FAMILLES_TEMP.filter((f) => !temps[f.id].aucun).map((f) => {
-              const t = temps[f.id]; const ev = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur) : { etat: null, ncTypes: [], okTypes: [] }; const etat = ev.etat;
+              const t = temps[f.id]; const ev = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur, t.limite) : { etat: null, ncTypes: [], okTypes: [] }; const etat = ev.etat;
               const nc = etat === "hors" || etat === "gele";
               return (
                 <div key={f.id} className="rounded-xl border-2 p-4 flex flex-col" style={{ borderColor: nc ? "#C1432D" : (etat ? "#2F6B4F" : f.bord), backgroundColor: nc ? "#FFF5F6" : (etat ? "#F3FAF6" : "#fff") }}>
@@ -15299,6 +15312,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                   <p className="text-xs text-[var(--ink)] mb-3 rounded-md px-2.5 py-1.5" style={{ backgroundColor: f.fond }}>Norme : <b>{f.norme}</b></p>
                   <label className={lab}>Température à cœur (°C)</label>
                   <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" step="0.1" inputMode="decimal" disabled={t.aucun} placeholder="0.0" value={t.valeur} onChange={(e) => majTemp(f.id, { valeur: e.target.value })} />
+                  {f.id === "laitier" && (<div className="mt-2"><label className={lab}>Limite indiquée par le fabricant (°C)</label><input className={`${inputCls} w-full`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. 4" value={t.limite || ""} onChange={(e) => majTemp(f.id, { limite: e.target.value })} />{String(t.limite || "").trim() === "" && <p className="text-xs mt-1 text-[var(--warn)]">Lisez la température de conservation sur l'emballage : sans elle, le logiciel ne peut pas juger ce produit.</p>}</div>)}
                   <div className="min-h-[2.75rem] mt-2 text-sm">
                     {etat === "ok" && <p style={{ color: "#2F6B4F" }}>✓ Température conforme</p>}
                     {etat === "tolerance" && <p style={{ color: "#2F6B4F" }}>✓ Accepté (tolérance transport) — au congélateur immédiatement</p>}
@@ -15418,6 +15432,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                   <span className="text-sm">°C</span>
                   {ev.temperature === "" && <span className="text-xs text-[var(--steel)]">Relevez la température de ce produit ici.</span>}
                 </div>
+                {fam.id === "laitier" && (<div className="flex items-center gap-2 mt-2"><span className="text-xs">Limite du fabricant (emballage) :</span><input className={`${inputCls} !w-20 !h-9 text-center`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. 4" value={temps[fam.id].limite || ""} onChange={(e) => majTemp(fam.id, { aucun: false, limite: e.target.value })} /><span className="text-xs">°C</span></div>)}
               </div>
               {ev.temperature !== "" && badge(!ev.tempNC, ev.tempNC ? "Non conforme — refusé" : "Conforme")}
             </div>
@@ -15534,7 +15549,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
           {FAMILLES_TEMP.filter((f) => !temps[f.id].aucun).map((f) => {
-            const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur).etat : null; const nc = etat === "hors" || etat === "gele";
+            const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur, t.limite).etat : null; const nc = etat === "hors" || etat === "gele";
             return (
               <div key={f.id} className="rounded-xl border p-3 flex items-center gap-3" style={t.aucun ? { borderColor: "#D5DAE0", backgroundColor: "#F4F6F8" } : nc ? { borderColor: "#F6B8C2", backgroundColor: "#FDE4E8" } : { borderColor: "#B3E0C5", backgroundColor: "#EAF6EF" }}>
                 <f.Ic size={24} style={{ color: t.aucun ? "#5B6670" : nc ? "#B4233A" : "#14653A" }} />
