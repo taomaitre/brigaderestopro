@@ -12435,11 +12435,6 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         </div>
       </div>
 
-      {modeMigre && (
-        <Card className="mb-6">
-          <p className="text-sm text-[var(--steel)]">Les produits de cet écran viennent de votre catalogue (Contrôle & Gestion → Gestion → Fournisseur). Pour ajouter un produit ou régler sa durée de conservation (DLC en jours ou DDM), ouvrez sa fiche produit à cet endroit.</p>
-        </Card>
-      )}
       {!modeMigre && estResponsable && <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-3">Ajouter ou retirer un produit</h3>
         <div className="flex gap-2 mb-4">
