@@ -11061,10 +11061,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
         <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Flame size={18} /></span> Démarrer une cuisson</h3>
         <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont une cuisson : cochez-en un ou plusieurs, les indications de la fiche sont remplies toutes seules. Sans produit coché, remplissez la cuisson à la main à droite.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-2 rounded-xl border border-[var(--line)] p-3">
-            <div className="flex items-center justify-between mb-2">
-              <span className="text-sm font-bold text-[var(--ink)]">Fiches techniques ({catalogue.length})</span>
-            </div>
+          <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${catalogue.length})`} sous="Produits ayant une cuisson">
             <input className={`${inputCls} mb-2`} value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Rechercher un produit…" />
             {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune fiche technique avec une cuisson pour l'instant : elles apparaîtront ici dès que vos fiches seront enregistrées. En attendant, utilisez la cuisson manuelle.</p>}
             <div className="space-y-1.5 max-h-[26rem] overflow-y-auto pr-1">
@@ -11084,15 +11081,11 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
               })}
               {catalogue.length > 0 && produitsFiltres.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun produit trouvé.</p>}
             </div>
-          </div>
+          </CarteZone>
 
-          <div className="lg:col-span-3 rounded-xl border border-[var(--line)] p-3">
+          <CarteZone className="lg:col-span-3 self-start" icone={selectionnes.length > 0 ? Flame : IcCrayon} titre={selectionnes.length > 0 ? `Produits sélectionnés (${selectionnes.length})` : "Cuisson manuelle"} sous={selectionnes.length > 0 ? undefined : "Pour un produit qui n'est pas dans les fiches techniques"} action={selectionnes.length > 0 ? <button onClick={() => setSelection([])} className="text-sm text-[var(--steel)] underline">Tout effacer</button> : undefined}>
             {selectionnes.length > 0 ? (
               <div>
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-sm font-bold text-[var(--ink)]">Produits sélectionnés ({selectionnes.length})</span>
-                  <button onClick={() => setSelection([])} className="text-sm text-[var(--steel)] underline">Tout effacer</button>
-                </div>
                 <div className="space-y-2 mb-3">
                   {selectionnes.map((p) => (
                     <div key={p.nom} className="rounded-lg border border-[var(--line)] px-3 py-2 flex items-start justify-between gap-2">
@@ -11115,8 +11108,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
               </div>
             ) : (
               <div>
-                <p className="text-sm font-bold text-[var(--ink)] mb-0.5">Cuisson manuelle</p>
-                <p className="text-xs text-[var(--steel)] mb-3">Pour un produit qui n'est pas dans les fiches techniques : renseignez les paramètres vous-même.</p>
+                <p className="text-xs text-[var(--steel)] mb-3">Renseignez les paramètres vous-même.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
                   <Field label="Nom du produit *"><input className={inputCls} value={mNom} onChange={(e) => setMNom(e.target.value)} placeholder="Ex. : Pizza margherita" /></Field>
                   <Field label="Appareil *">
@@ -11146,7 +11138,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                 </button>
               </div>
             )}
-          </div>
+          </CarteZone>
         </div>
       </Card>
 
