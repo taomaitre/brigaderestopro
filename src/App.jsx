@@ -15604,9 +15604,16 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             </div>
           )}
 
-          <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
+          <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
             <button type="button" onClick={() => setDetailsOuverts(!detailsOuverts)} className="min-h-[48px] px-4 py-2 rounded-xl border-2 text-sm font-bold text-left shadow-sm" style={{ borderColor: "#1B5FA8", backgroundColor: detailsOuverts ? "#1B5FA8" : "#E3EEFB", color: detailsOuverts ? "#fff" : "#1B4F9C" }}>{detailsOuverts ? "− Masquer les détails" : "+ Plus de détails (référence, allergènes, origine, agrément)"}</button>
             <button type="button" onClick={() => maj({ autrePb: !b.autrePb })} className="min-h-[48px] px-4 py-2 rounded-xl border-2 text-sm font-bold text-left shadow-sm" style={{ borderColor: "#C1432D", backgroundColor: b.autrePb ? "#C1432D" : "#FDE4E8", color: b.autrePb ? "#fff" : "#B4233A" }}>{b.autrePb ? "− Aucun autre problème sur ce produit" : "+ Autre problème sur ce produit (abîmé, DLC trop courte…)"}</button>
+          </div>
+          <div className="mt-3 flex justify-center">
+            <button type="button" onClick={produitSuivant} disabled={brouillonVide || manque.length > 0}
+              className="min-h-[56px] px-8 py-2 rounded-xl border-2 text-base font-bold shadow-md flex items-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform"
+              style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63", color: "#fff" }}>
+              <Plus size={22} strokeWidth={3} /> Ajouter un produit
+            </button>
           </div>
           {detailsOuverts && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
@@ -15635,7 +15642,6 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               </div>
             ) : null,
             <>
-              <Button variant="ghost" onClick={produitSuivant} disabled={brouillonVide || manque.length > 0}><Plus size={16} /> Produit suivant</Button>
               <Button onClick={validerEtapeProduits} disabled={!peutContinuer}>Valider cette étape <ChevronRight size={16} /></Button>
             </>
           )}
