@@ -14987,6 +14987,20 @@ function etatTemperatureReception(type, texte) {
   return "ok";
 }
 
+// Propose le type de produit d'après son nom (ex. « steak haché » → Viande hachée). Simple suggestion, toujours modifiable.
+function typeSuggere(nom) {
+  const t = String(nom || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  if (t.trim().length < 3) return "";
+  if (/surgel|congel/.test(t)) return "surgele";
+  if (/hach|bolognaise|kefta|boulette/.test(t)) return "hache";
+  if (/\babats?\b|foie|rognon|tripe|cervelle|ris de veau/.test(t)) return "abats";
+  if (/poisson|saumon|thon|cabillaud|colin|dorade|truite|merlu|crevette|gambas|moule|huitre|calamar|crabe|langoustine|anchois|maquereau|sardine|bar |lieu /.test(t)) return "poisson";
+  if (/poulet|volaille|dinde|canard|boeuf|porc|veau|agneau|jambon|lard|steak|escalope|cote|magret|saucisse|merguez|lapin|viande/.test(t)) return "viande";
+  if (/\blait\b|creme|beurre|fromage|yaourt|oeuf|mozzarella|emmental|camembert|gruyere/.test(t)) return "frais";
+  if (/salade|tomate|carotte|oignon|pomme de terre|courgette|poivron|champignon|legume|fruit|basilic|persil|citron|pomme|banane/.test(t)) return "legume";
+  return "";
+}
+
 // Une température relevée pour une famille est jugée type par type (ex. 3°C : conforme pour une viande fraîche,
 // hors norme pour une viande hachée). Renvoie l'état global et les types hors norme / conformes.
 function evalFamilleTemp(f, texte) {
@@ -15054,7 +15068,8 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
     else if (renvoiePlus) { raison = "Produit non commandé (livré en plus) — renvoyé"; qNC = p.quantite; }
     else if (p.autrePb) { raison = p.raisonPb || "Problème signalé sur le produit"; qNC = p.quantitePb === "" ? p.quantite : p.quantitePb; photoNC = p.photoPb || null; }
     else if (p.kind === "plus") raison = "Produit en plus (non commandé) conservé";
-    return { temperature: val, etatTemp: etat, tempNC: tNC, conforme: !(tNC || renvoiePlus || p.autrePb), raison, quantiteNC: qNC, photoNC, ecartPrix: 0 };
+    const tempManquante = TYPES_A_TEMPERATURE.includes(p.conservation) && val === "";
+    return { temperature: val, tempManquante, etatTemp: etat, tempNC: tNC, conforme: !(tNC || renvoiePlus || p.autrePb), raison, quantiteNC: qNC, photoNC, ecartPrix: 0 };
   };
   const produitsF = produits.map((p) => ({ ...p, ...evalue(p) }));
   const nonConformes = produitsF.filter((p) => !p.conforme);
@@ -15063,7 +15078,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
   // ── Aides de saisie du brouillon ──
   const suggestions = brouillon && brouillon.nom.trim().length >= 1 && !stock.some((s) => norm(s.nom) === norm(brouillon.nom))
     ? stock.filter((s) => norm(s.nom).includes(norm(brouillon.nom))).slice(0, 6) : [];
-  const choisirDuStock = (s) => maj({ nom: s.nom, reference: s.reference || "", conservation: s.conservation || "" });
+  const choisirDuStock = (s) => maj({ nom: s.nom, reference: s.reference || "", conservation: s.conservation || "", typeChoisi: !!s.conservation, typeAuto: false });
   const sitStock = (p) => {
     if (!p.conservation || !norm(p.nom)) return null;
     if (p.reference && stock.some((x) => norm(x.reference) === norm(p.reference))) return null;
@@ -15337,7 +15352,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4">
             <div className="sm:col-span-2">
               <label className={lab}>Nom du produit</label>
-              <input autoComplete="off" className={`${inputCls} w-full`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => maj({ nom: e.target.value })} />
+              <input autoComplete="off" className={`${inputCls} w-full`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => { const v = e.target.value; const ts = typeSuggere(v); maj({ nom: v, ...(!b.typeChoisi ? (ts ? { conservation: ts, typeAuto: true } : (b.typeAuto ? { conservation: "", typeAuto: false } : {})) : {}) }); }} />
               {suggestions.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {suggestions.map((s) => <button key={s.id} onClick={() => choisirDuStock(s)} className="text-sm px-3 py-1.5 rounded-full border border-[var(--accent)] text-[var(--accent)]">{s.nom}{s.conservation ? ` · ${LIBELLE_CONSERVATION[s.conservation] || s.conservation}` : ""}</button>)}
@@ -15351,10 +15366,12 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             </div>
             <div>
               <label className={lab}>Type de produit</label>
-              <select className={`${inputCls} w-full`} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value })}>
+              <select className={`${inputCls} w-full`} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value, typeChoisi: true, typeAuto: false })}>
                 <option value="">Choisir…</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
+              {b.conservation && SEUILS_RECEPTION_NOUVEAU[b.conservation] && <p className="text-xs mt-1.5 text-[var(--steel)]">{b.typeAuto ? "Type proposé d'après le nom (modifiable). " : ""}Norme à la réception : <b>{SEUILS_RECEPTION_NOUVEAU[b.conservation].label}</b></p>}
+              {(() => { const ts = typeSuggere(b.nom); return ts && b.conservation && ts !== b.conservation ? <p className="text-xs mt-1.5 text-[var(--warn)]">⚠ Le nom fait penser à « {LIBELLE_CONSERVATION[ts]} » : vérifiez le type (norme {SEUILS_RECEPTION_NOUVEAU[ts] ? SEUILS_RECEPTION_NOUVEAU[ts].label : "différente"}).</p> : null; })()}
             </div>
             <div>
               <label className={lab}>N° de lot{alimentaire || !b.conservation ? "" : " (facultatif)"}</label>
@@ -15518,6 +15535,11 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             <span>Produit</span><span className="text-center">Qté</span><span>Type</span><span className="text-center">Temp.</span><span>Lot · DLC</span><span className="text-center">Statut</span><span />
           </div>
           {produitsF.length === 0 && <p className="px-4 py-6 text-sm text-[var(--steel)]">Aucun produit saisi.</p>}
+          {produitsF.some((p) => p.tempManquante && !p.manquant) && (
+            <div className="px-4 py-3 text-sm border-b border-[var(--line)]" style={{ backgroundColor: "#FDF0D5", color: "#8A5A00" }}>
+              ⚠ Température non relevée pour : {produitsF.filter((p) => p.tempManquante && !p.manquant).map((p) => p.nom).join(", ")}. Ces produits ne sont pas contrôlés. <button type="button" className="underline font-semibold" onClick={() => setEtape(2)}>Retourner aux températures</button>
+            </div>
+          )}
           {produitsF.map((p) => (
             <div key={p.id} className={`grid grid-cols-2 ${colonnes} gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center`}>
               <div className="col-span-2 lg:col-span-1 min-w-0">
@@ -15528,7 +15550,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "—" : (LIBELLE_CONSERVATION[p.conservation] || "—")}</div>
               <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Temp. : </span>{p.temperature !== "" && p.temperature != null && !p.manquant ? `${p.temperature} °C` : "—"}</div>
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "Non livré" : `${p.lot || "—"} · ${p.dlc || "—"}`}</div>
-              <div className="lg:text-center">{badge(p.conforme, p.conforme ? "Accepté" : p.manquant ? "Manquant" : "Refusé")}</div>
+              <div className="lg:text-center">{p.conforme && p.tempManquante && !p.manquant ? <span className="inline-block text-xs font-semibold rounded-full px-2.5 py-1" style={{ backgroundColor: "#FDF0D5", color: "#8A5A00" }}>Température non relevée</span> : badge(p.conforme, p.conforme ? "Accepté" : p.manquant ? "Manquant" : "Refusé")}</div>
               <div className="lg:text-center text-right"><button onClick={() => retirer(p.id)} className="text-xs text-[var(--steel)] underline">Retirer</button></div>
             </div>
           ))}
