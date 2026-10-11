@@ -10470,7 +10470,8 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
 
   return (
     <div>
-      <Card className="mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
+      <Card className="xl:col-span-8 !mb-0">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Play size={16} /></span> Démarrer un maintien au chaud</h3>
         <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits proposés (fiches techniques avec maintien au chaud) : cochez-en un ou plusieurs. Sans produit coché, saisissez le produit à la main à droite.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -10526,7 +10527,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
         </div>
       </Card>
 
-      <Card>
+      <Card className="xl:col-span-4 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Maintiens au chaud en cours ({enCours.length})</h3>
         {enCours.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien en maintien au chaud actuellement.</p> : (
           <div className="space-y-3">
@@ -10582,6 +10583,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
           </div>
         )}
       </Card>
+      </div>
     </div>
   );
 }
@@ -10772,7 +10774,8 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
         </button>
       </div>
 
-      <Card className="mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
+      <Card className="xl:col-span-8 !mb-0">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Snowflake size={18} /></span> {neg ? "Démarrer une congélation" : "Démarrer un refroidissement"}</h3>
         <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont {neg ? "une congélation" : "un refroidissement"} : touchez-en un, il est rempli tout seul. Sinon, saisissez le produit à la main à droite. L'heure de départ est pré-remplie, modifiable si vous démarrez avec un léger décalage.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -10826,6 +10829,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
         </div>
       </Card>
 
+      <div className="xl:col-span-4 min-w-0">
       {verdict && (
         <div className="mb-5 rounded-xl border-2 p-4" style={verdict.conforme ? { backgroundColor: "#EAF6EF", borderColor: "#B3E0C5" } : { backgroundColor: "#FDE4E8", borderColor: "#E5243B" }}>
           <p className="text-lg font-bold mb-1" style={{ color: verdict.conforme ? "#14653A" : "#B4233A" }}>{verdict.conforme ? "✔ " : "⚠ "}{verdict.produit} : {verdict.conforme ? "conforme" : "NON CONFORME — à détruire"}</p>
@@ -10834,7 +10838,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
         </div>
       )}
 
-      <Card className="mb-6">
+      <Card className="!mb-0 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
         <h3 className="font-semibold text-[var(--ink)] mb-3">Refroidissements et congélations en cours ({enCours.length})</h3>
         {enCours.length === 0 && <p className="text-sm text-[var(--steel)]">Rien en cours pour le moment.</p>}
         <div className="space-y-3">
@@ -10894,6 +10898,8 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
           })}
         </div>
       </Card>
+      </div>
+      </div>
 
     </div>
   );
@@ -11102,7 +11108,8 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
 
   return (
     <div>
-      <Card className="mb-6">
+      <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
+      <Card className="xl:col-span-8 !mb-0">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Flame size={18} /></span> Démarrer une cuisson</h3>
         <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont une cuisson : cochez-en un ou plusieurs, les indications de la fiche sont remplies toutes seules. Sans produit coché, remplissez la cuisson à la main à droite.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
@@ -11187,7 +11194,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
         </div>
       </Card>
 
-      <Card className="mb-6">
+      <Card className="xl:col-span-4 !mb-0 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Cuissons en cours ({enCours.length})</h3>
         {enCours.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune cuisson en cours.</p> : (
           <div className="space-y-3">
@@ -11261,6 +11268,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
           </div>
         )}
       </Card>
+      </div>
 
       {(() => {
         const suivis = cuissons
