@@ -20851,7 +20851,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
       </header>
 
-      {tab !== "accueil" && (
+      {tab !== "accueil" && tab !== "fiches" && (
         <div className="md:hidden px-4 pt-3 bg-white">
           <BoutonRetour onClick={() => setTab("accueil")}>Retour Accueil</BoutonRetour>
         </div>
