@@ -1096,7 +1096,10 @@ function Card({ children, className = "", id, style }) {
   const premier = React.Children.toArray(children)[0];
   // Zone colorée : si la carte commence par un titre (h3), il devient un bandeau teinté avec filet de couleur en haut.
   // Les cartes d'alerte (rouge), sans marge ou déjà stylées à la main restent telles quelles.
-  const zonee = zone && !style && premier && premier.type === "h3" && !/warn|danger|border-l-4|sans-zone|(^|\s)!?p[xytblr]?-\d/.test(className);
+  // Variante : l'en-tête est un petit bloc (icône + h3) plutôt qu'un h3 seul.
+  const enfantsPremier = premier && premier.type === "div" && premier.props ? React.Children.toArray(premier.props.children) : [];
+  const entetePetitBloc = enfantsPremier.length > 0 && enfantsPremier.length <= 3 && enfantsPremier.some((c) => c && c.type === "h3");
+  const zonee = zone && !style && premier && (premier.type === "h3" || entetePetitBloc) && !/warn|danger|border-l-4|sans-zone|(^|\s)!?p[xytblr]?-\d/.test(className);
   if (!zonee) {
     const filet = zone && !style && !/warn|danger|border-l-4|sans-zone/.test(className) ? { borderTop: `3px solid ${zone.bord}` } : style;
     return (
@@ -1108,7 +1111,7 @@ function Card({ children, className = "", id, style }) {
   const reste = React.Children.toArray(children).slice(1);
   return (
     <div id={id} className={`bg-white border border-[var(--cadre)] rounded-xl ${className}`} style={{ borderTop: `3px solid ${zone.bord}` }}>
-      <div className="px-5 py-2.5 rounded-t-[9px] [&_h3]:!mb-0 [&_h3]:!text-[color:var(--zt)] [&_h3]:!text-sm [&_h3]:!font-bold" style={{ background: zone.fond, "--zt": zone.texte }}>{premier}</div>
+      <div className="px-5 py-2.5 rounded-t-[9px] [&>*]:!mb-0 [&_h3]:!mb-0 [&_h3]:!text-[color:var(--zt)] [&_h3]:!text-sm [&_h3]:!font-bold" style={{ background: zone.fond, "--zt": zone.texte }}>{premier}</div>
       <div className="p-5">{reste}</div>
     </div>
   );
@@ -12481,13 +12484,14 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         </div>
 
         {/* Tableau des produits */}
-        <div className="rounded-xl border border-[var(--cadre)] bg-white min-w-0 self-start">
-          <div className="p-3 border-b border-[var(--line)] flex items-center gap-3 flex-wrap">
+        <div className="rounded-xl border border-[var(--cadre)] bg-white min-w-0 self-start overflow-hidden" style={{ borderTop: `3px solid ${zoneDepuisFonction("etiquettes").bord}` }}>
+          <div className="p-3 border-b border-[var(--line)] flex items-center gap-3 flex-wrap" style={{ background: zoneDepuisFonction("etiquettes").fond }}>
+            <span className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: `linear-gradient(160deg, ${zoneDepuisFonction("etiquettes").bord}, ${zoneDepuisFonction("etiquettes").texte})` }}><Package size={20} /></span>
             <div className="relative flex-1 min-w-[12rem]">
               <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
               <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
             </div>
-            <span className="text-sm font-semibold text-[var(--ink)]">{catChoisie === "__tous__" ? "Tous les produits" : catChoisie} ({visibles.length})</span>
+            <span className="text-sm font-bold" style={{ color: zoneDepuisFonction("etiquettes").texte }}>{catChoisie === "__tous__" ? "Tous les produits" : catChoisie} ({visibles.length})</span>
           </div>
           <div className="hidden md:grid md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1.3fr)] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
             <span /><span>Produit</span><span>Référence et n° de lot actuel</span><span>DLC après ouverture</span>
@@ -12516,9 +12520,9 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         </div>
 
         {/* Produits sélectionnés */}
-        <div className="rounded-xl border border-[var(--cadre)] bg-white self-start">
-          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--line)]">
-            <h3 className="text-base font-bold text-[var(--ink)]">Produits sélectionnés ({produitsSel.length})</h3>
+        <div className="rounded-xl border border-[var(--cadre)] bg-white self-start overflow-hidden" style={{ borderTop: `3px solid ${zoneDepuisFonction("etiquettes").bord}` }}>
+          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--line)]" style={{ background: zoneDepuisFonction("etiquettes").fond }}>
+            <span className="flex items-center gap-2.5 min-w-0"><span className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: `linear-gradient(160deg, ${zoneDepuisFonction("etiquettes").bord}, ${zoneDepuisFonction("etiquettes").texte})` }}><Printer size={20} /></span><h3 className="text-base font-bold" style={{ color: zoneDepuisFonction("etiquettes").texte }}>Produits sélectionnés ({produitsSel.length})</h3></span>
             {produitsSel.length > 0 && <button type="button" onClick={() => { setSelection([]); setNbParProduit({}); setQteParProduit({}); setDecongParProduit({}); }} className="text-sm font-semibold" style={{ color: "#6027C9" }}>Tout effacer</button>}
           </div>
           {produitsSel.length === 0 && <p className="px-4 py-6 text-sm text-[var(--steel)]">Cochez un ou plusieurs produits dans la liste.</p>}
