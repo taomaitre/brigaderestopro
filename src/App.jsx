@@ -12558,14 +12558,14 @@ function CelluleQuantite({ valeur, pas, onSet, fond, texte, label }) {
   const [t, setT] = useState(String(valeur));
   useEffect(() => { setT(String(valeur)); }, [valeur]);
   const valider = () => { const n = parseFloat(String(t).replace(",", ".")); if (Number.isNaN(n) || n < 0) { setT(String(valeur)); return; } if (n !== Number(valeur)) onSet(arrondiQte(n)); };
-  const bouton = "w-9 h-8 rounded-md border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
+  const bouton = "w-8 h-9 rounded-md border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
   return (
     <div className="inline-flex items-center gap-1.5">
       <input type="text" inputMode="decimal" value={t} onChange={(e) => setT(e.target.value)} onBlur={valider} onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }} aria-label={label}
-        className="w-16 h-[4.25rem] text-center text-base font-semibold border border-[var(--cadre)] rounded-lg" style={{ backgroundColor: fond || "#fff", color: texte || "var(--ink)" }} />
-      <div className="flex flex-col gap-1">
-        <button type="button" className={bouton} onClick={() => onSet(arrondiQte(Number(valeur) + pas))} aria-label={`Augmenter ${label}`}>+</button>
+        className="w-14 h-9 text-center text-sm font-semibold border border-[var(--cadre)] rounded-lg" style={{ backgroundColor: fond || "#fff", color: texte || "var(--ink)" }} />
+      <div className="flex gap-1">
         <button type="button" className={bouton} onClick={() => onSet(arrondiQte(Math.max(0, Number(valeur) - pas)))} aria-label={`Diminuer ${label}`}>−</button>
+        <button type="button" className={bouton} onClick={() => onSet(arrondiQte(Number(valeur) + pas))} aria-label={`Augmenter ${label}`}>+</button>
       </div>
     </div>
   );
@@ -12796,7 +12796,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             <h3 className="text-xl font-bold text-[var(--ink)]">{q ? "Résultats de la recherche" : infoCat.nom} ({liste.length})</h3>
             {filtreEtat !== "tous" && <span className="text-xs font-semibold px-2 py-1 rounded-md bg-[var(--bg)] text-[var(--ink)]">Filtre : {filtreEtat === "alerte" ? "en alerte" : "dans le panier"} <button type="button" className="underline ml-1" onClick={() => setFiltreEtat("tous")}>retirer</button></span>}
           </div>
-          <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-2 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)]" style={{ borderBottom: `2px solid ${zoneDepuisFonction("stock").bord}55` }}>
+          <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)]" style={{ borderBottom: `2px solid ${zoneDepuisFonction("stock").bord}55` }}>
             <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span>Unité / pas</span><span className="text-center">Panier</span>
           </div>
           {liste.length === 0 ? (
@@ -12804,19 +12804,19 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           ) : liste.map((s) => {
             const bas = enAlerte(s); const pas = pasDe(s); const pasConnu = !!quantiteParConditionnement(s); const dp = dansPanier(s);
             return (
-              <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-2 px-4 py-3 border-t border-[var(--line)] items-center">
+              <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
                 <div className="col-span-2 lg:col-span-1 min-w-0">
-                  <div className="text-base font-semibold text-[var(--ink)] break-words">{s.nom}</div>
+                  <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
-                  <div className="text-xs text-[var(--steel)]">Code : {s.reference || "—"}</div>
+                  <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference || "—"}</div>
                   {bas && <div className="text-[11px] font-semibold mt-0.5" style={{ color: "#B4233A" }}>Sous le stock à avoir</div>}
                 </div>
-                <div className="text-xs text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>DLC : {s.dlc || "—"}<br />Lot : {s.lot || "—"}</div>
+                <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>DLC : {s.dlc || "—"}<br />Lot : {s.lot || "—"}</div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div><CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} /></div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div><CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} /></div>
-                <div className="text-sm text-[var(--ink)]"><b>{s.unite || "—"}</b><div className="text-xs text-[var(--steel)]">{pasConnu ? `+1 = ${pas} ${s.unite}` : "+1 = 1 (conditionnement non précisé)"}</div></div>
+                <div className="text-sm text-[var(--ink)] leading-tight"><b>{s.unite || "—"}</b><div className="text-[11px] text-[var(--steel)]">{pasConnu ? `+1 = ${pas} ${s.unite}` : "+1 = 1 (à préciser)"}</div></div>
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
-                  className="w-11 h-11 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
+                  className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
               </div>
             );
           })}
