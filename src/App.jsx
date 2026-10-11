@@ -8851,7 +8851,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             <div className="text-right text-[10px] text-[var(--steel)]">Fiche générée par<br /><strong>BrigadeRestoPro</strong></div>
           </div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
-            {S.photoPlat && <img src={S.photoPlat} alt="" className="w-20 h-20 object-cover rounded-lg border border-[var(--cadre)] shrink-0" />}
+            {S.photoPlat
+              ? <img src={S.photoPlat} alt="" className="w-24 h-24 object-cover rounded-lg border border-[var(--cadre)] shrink-0" />
+              : <div className="w-24 h-24 rounded-lg shrink-0 flex flex-col items-center justify-center gap-1 text-[#b4306b] text-[10px] font-semibold text-center border-2 border-dashed border-[#e58cb5]" style={{ background: "#fdeaf3" }}><Camera size={22} />Photo du plat</div>}
             <div className="text-white font-bold text-center px-3 py-1.5 rounded shrink-0" style={{ backgroundColor: "#C1432D" }}>
               <div className="text-[10px] leading-none">{codeCatActuel ? `FT ${codeCatActuel}` : "FT CATÉGORIE"}</div>
               <div className="text-lg leading-none mt-0.5">{codeFTActuel ? codeFTActuel.split(" ").pop() : "—"}</div>
