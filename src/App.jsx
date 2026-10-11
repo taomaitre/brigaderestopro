@@ -1351,9 +1351,19 @@ const LOGOS_TITRE = [
   ["Prestataires", "pmsPrestataires", () => PhoneCall], ["Ma carte", "carte", () => UtensilsCrossed], ["Fiches techniques", "creationFiche", () => Sparkles],
   ["Préparation culinaire", "creationFiche", () => Sparkles], ["Référentiel produits", "fournisseur", () => ShoppingCart], ["Livraisons reçues", "commandes", () => ClipboardList],
   ["Vérification des réceptions", "commandes", () => ClipboardList], ["Traçabilité", "tracabilite", () => Camera], ["Historique de la journée", "historiqueJour", () => ClipboardList],
-  ["Réception", "reception", () => Truck], ["Équipe", "comptes", () => Users], ["Gestion des comptes", "comptes", () => Users], ["Tâches du jour", "taches", () => ListChecks],
+  ["Réception", "reception", () => Truck], ["Équipe", "comptes", () => Users], ["Réservations", "reservationsClient", () => Users], ["Gestion des comptes", "comptes", () => Users], ["Tâches du jour", "taches", () => ListChecks],
   ["Commande", "fournisseur", () => ShoppingCart], ["Envoyer la commande", "fournisseur", () => ShoppingCart],
 ];
+function BoutonRetour({ onClick, children, className = "" }) {
+  const z = React.useContext(ZoneContext) || { bord: "#475569", fond: "#47556922", texte: "#1E293B" };
+  return (
+    <button type="button" onClick={onClick} className={`inline-flex items-center gap-2 h-11 px-4 rounded-xl border-2 text-sm font-bold shadow-sm active:scale-[0.98] transition-transform print:hidden ${className}`}
+      style={{ borderColor: z.bord, backgroundColor: z.fond, color: z.texte }}>
+      <ArrowLeft size={18} strokeWidth={2.5} /> {children}
+    </button>
+  );
+}
+
 function SectionHeader({ title, subtitle, action }) {
   const logo = typeof title === "string" ? LOGOS_TITRE.find(([debut]) => title.startsWith(debut)) : null;
   const Ic = logo ? logo[2]() : null;
@@ -1818,7 +1828,7 @@ function PmsDossierImprimable({ reglages, employees, donnees, onBack }) {
   return (
     <div className="max-w-3xl mx-auto p-4 print:p-0">
       <div className="print:hidden flex gap-2 mb-4">
-        <Button variant="ghost" onClick={onBack}><ArrowLeft size={16} /> Retour</Button>
+        <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
       </div>
       <h1 className="text-xl font-bold text-[var(--ink)]">Dossier PMS — {(reglages && reglages.nom) || "Établissement"}</h1>
@@ -2109,9 +2119,7 @@ function EmployeeDetail({ employee, employees, shifts, activityLog, tasks, toggl
 
   return (
     <div>
-      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
-        <ArrowLeft size={15} /> Retour à l'équipe
-      </button>
+      <BoutonRetour onClick={onBack} className="mb-4">Retour à l'équipe</BoutonRetour>
 
       <div className="flex items-center gap-4 mb-6">
         <Avatar nom={employee.nom} size={56} />
@@ -2934,9 +2942,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
   if (consultation) {
     return (
       <div className="mb-6">
-        <button onClick={() => setConsultation(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
-          <ArrowLeft size={15} /> Retour à l'historique
-        </button>
+        <BoutonRetour onClick={() => setConsultation(null)} className="mb-4 print:hidden">Retour à l'historique</BoutonRetour>
         <Card>
           <pre className="text-xs whitespace-pre-wrap text-[var(--ink)] font-sans">{consultation.texte}</pre>
         </Card>
@@ -2951,9 +2957,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
   if (texteGenere) {
     return (
       <div className="mb-6">
-        <button onClick={() => setTexteGenere(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
-          <ArrowLeft size={15} /> Retour au formulaire
-        </button>
+        <BoutonRetour onClick={() => setTexteGenere(null)} className="mb-4 print:hidden">Retour au formulaire</BoutonRetour>
         <Card>
           <pre className="text-xs whitespace-pre-wrap text-[var(--ink)] font-sans">{texteGenere}</pre>
         </Card>
@@ -3911,12 +3915,12 @@ function Controle({ gestionComptes, chargerPlanDepart, employees, setEmployees, 
       ) : (
       <>
       {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
-      <button onClick={() => { setSousEcran(null); setSectionActive(null); }} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
+      <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
 
       <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} />
 
       {sousEcran && (
-        <button onClick={() => setSousEcran(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à {sectionInfo.label}</button>
+        <BoutonRetour onClick={() => setSousEcran(null)} className="mb-4">Retour à {sectionInfo.label}</BoutonRetour>
       )}
 
       {!sousEcran && (
@@ -4310,9 +4314,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4 print:hidden">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
-          <ArrowLeft size={15} /> Retour au contrôle
-        </button>
+        <BoutonRetour onClick={onBack}>Retour au contrôle</BoutonRetour>
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
       </div>
 
@@ -4484,9 +4486,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
   return (
     <div>
       <BandeauNormes label="Fournisseurs et produits — traçabilité : Règlement (CE) n° 178/2002, art. 18 · allergènes : Règlement (UE) n° 1169/2011, art. 44" />
-      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
-        <ArrowLeft size={15} /> Retour au contrôle
-      </button>
+      <BoutonRetour onClick={onBack} className="mb-4">Retour au contrôle</BoutonRetour>
       <SectionHeader title="Référentiel produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
 
       {gestion && edition && (
@@ -4835,9 +4835,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
   return (
     <div>
       <div className="flex items-center justify-between mb-4 print:hidden flex-wrap gap-2">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
-          <ArrowLeft size={15} /> Retour
-        </button>
+        <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <div className="flex items-center gap-2">
           <button onClick={moisPrecedent} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronLeft size={16} /></button>
           <span className="text-sm font-medium text-[var(--ink)]">{titreMois}</span>
@@ -5013,9 +5011,7 @@ function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissemen
   return (
     <div>
       <div className="flex items-center justify-between mb-4 print:hidden">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]">
-          <ArrowLeft size={15} /> Retour au contrôle
-        </button>
+        <BoutonRetour onClick={onBack}>Retour au contrôle</BoutonRetour>
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / Exporter</Button>
       </div>
 
@@ -6547,7 +6543,7 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
     return (
       <div>
         <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
-        <button onClick={() => setVue(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour au plan de nettoyage</button>
+        <BoutonRetour onClick={() => setVue(null)} className="mb-4">Retour au plan de nettoyage</BoutonRetour>
         <SectionHeader title="Planning de nettoyage" subtitle="Quoi nettoyer, où, à quelle fréquence et par qui" />
       <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
       </div>
@@ -6557,7 +6553,7 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
     return (
       <div>
         <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
-        <button onClick={() => setVue(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour au plan de nettoyage</button>
+        <BoutonRetour onClick={() => setVue(null)} className="mb-4">Retour au plan de nettoyage</BoutonRetour>
         <SectionHeader title="Protocoles de nettoyage" subtitle="Pour chaque surface ou matériel : les produits à utiliser et les étapes à suivre" />
         <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
       </div>
@@ -6592,9 +6588,7 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
 function ProtocoleDetail({ protocole, onBack, onRemove }) {
   return (
     <div>
-      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
-        <ArrowLeft size={15} /> Retour aux protocoles
-      </button>
+      <BoutonRetour onClick={onBack} className="mb-4">Retour aux protocoles</BoutonRetour>
       <div className="flex items-start justify-between mb-6 gap-4">
         <h2 className="text-xl font-semibold text-[var(--ink)] tracking-tight">{protocole.nom}</h2>
         <BoutonSupprimer onConfirm={() => onRemove(protocole.id)} size={16} libelle={protocole.nom} />
@@ -6910,9 +6904,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           {fiche.code && <span className="text-xs font-bold px-2 py-1 rounded shrink-0" style={{ backgroundColor: "#C1432D", color: "#fff" }}>{fiche.code}</span>}
           <h2 className="text-lg font-semibold text-[var(--ink)] tracking-tight">{fiche.nom}</h2>
         </div>
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm font-medium text-[var(--ink)] hover:text-[var(--accent)] shrink-0 px-3 py-1.5 rounded-lg border border-[var(--cadre)] bg-white">
-          <ArrowLeft size={15} /> Retour
-        </button>
+        <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
       </div>
 
       {fiche.sousTitre && <p className="text-sm text-[var(--steel)] mb-4">{fiche.sousTitre}</p>}
@@ -9864,11 +9856,7 @@ function FichesTechniquesMenu({ fichesProps, creationProps, consentementAccorde,
   return (
     <div>
       <div className="flex justify-end mb-3">
-        <button onClick={() => setSub(null)}
-          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white">
-          <ChevronLeft size={14} />
-          Retour Fiches techniques
-        </button>
+        <BoutonRetour onClick={() => setSub(null)}>Retour Fiches techniques</BoutonRetour>
       </div>
 
       {sub === "preparation" && (
@@ -11621,9 +11609,7 @@ function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDl
   if (duplicata) {
     return (
       <div>
-        <button onClick={() => setDuplicata(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
-          <ArrowLeft size={15} /> Retour
-        </button>
+        <BoutonRetour onClick={() => setDuplicata(null)} className="mb-4 print:hidden">Retour</BoutonRetour>
         <p className="text-xs text-[var(--steel)] mb-3 print:hidden">Duplicata — mêmes informations que l'étiquette d'origine, à réimprimer en remplacement.</p>
         <EtiquetteDlcImprimable produitNom={nom} lot={duplicata.lot} dlcDate={duplicata.dlcDate} date={duplicata.date} heure={duplicata.heure} who={who} employeeId={duplicata.employeeId} cuissonInfo={duplicata.cuissonInfo} refroidissementInfo={duplicata.refroidissementInfo} maintienInfo={duplicata.maintienInfo} decongelationInfo={duplicata.decongelationInfo} />
         <Button className="mt-4 print:hidden" onClick={() => window.print()}><Printer size={16} /> Imprimer le duplicata</Button>
@@ -11634,9 +11620,7 @@ function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDl
   if (entreeCreee) {
     return (
       <div>
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
-          <ArrowLeft size={15} /> Retour aux étiquettes
-        </button>
+        <BoutonRetour onClick={onBack} className="mb-4 print:hidden">Retour aux étiquettes</BoutonRetour>
         <div className="flex flex-wrap gap-3 mb-4">
           {Array.from({ length: entreeCreee.nbEtiquettes || 1 }, (_, i) => (
             <EtiquetteDlcImprimable key={i} produitNom={nom} lot={entreeCreee.lot} dlcDate={entreeCreee.dlcDate} date={entreeCreee.date} heure={entreeCreee.heure} who={who} employeeId={entreeCreee.employeeId} cuissonInfo={entreeCreee.cuissonInfo} refroidissementInfo={entreeCreee.refroidissementInfo} maintienInfo={entreeCreee.maintienInfo} decongelationInfo={entreeCreee.decongelationInfo} />
@@ -11650,9 +11634,7 @@ function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDl
 
   return (
     <div>
-      <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
-        <ArrowLeft size={15} /> Retour aux étiquettes
-      </button>
+      <BoutonRetour onClick={onBack} className="mb-4">Retour aux étiquettes</BoutonRetour>
       <h2 className="text-xl font-semibold text-[var(--ink)] mb-4">{nom}</h2>
 
       <Card className="mb-6">
@@ -12246,9 +12228,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   if (etiquettesAImprimer) {
     return (
       <div>
-        <button onClick={() => setEtiquettesAImprimer(null)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4 print:hidden">
-          <ArrowLeft size={15} /> Retour aux étiquettes
-        </button>
+        <BoutonRetour onClick={() => setEtiquettesAImprimer(null)} className="mb-4 print:hidden">Retour aux étiquettes</BoutonRetour>
         <div className="space-y-4 print:space-y-2">
           {etiquettesAImprimer.flatMap((e) => Array.from({ length: e.nbEtiquettes || 1 }, (_, i) => (
             <EtiquetteDlcImprimable key={`${e.id}-${i}`} produitNom={e.produitNom} lot={e.lot} dlcDate={e.dlcDate} date={e.date} heure={e.heure} who={who} employeeId={e.employeeId} cuissonInfo={e.cuissonInfo} refroidissementInfo={e.refroidissementInfo} maintienInfo={e.maintienInfo} decongelationInfo={e.decongelationInfo} />
@@ -12657,7 +12637,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   if (vueListeCommande) {
     return (
       <div>
-        <button onClick={() => setVueListeCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour au stock</button>
+        <BoutonRetour onClick={() => setVueListeCommande(false)} className="mb-4">Retour au stock</BoutonRetour>
         <SectionHeader title="Commande" subtitle="Les produits ajoutés au panier depuis le tableau du stock. Ajustez les quantités (un pas = un conditionnement), puis enregistrez la commande une fois passée." />
         <Card>
           <div className="flex flex-wrap gap-2 mb-4">
@@ -12711,7 +12691,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   if (vueEnvoyerCommande) {
     return (
       <div>
-        <button onClick={() => setVueEnvoyerCommande(false)} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à la commande</button>
+        <BoutonRetour onClick={() => setVueEnvoyerCommande(false)} className="mb-4">Retour à la commande</BoutonRetour>
         <SectionHeader title="Envoyer la commande" subtitle="L'envoi automatique directement sur le site d'un fournisseur n'est pas possible depuis cette application : voici le plus proche — un e-mail prêt à envoyer, par fournisseur." />
         {lignesPanier.length === 0 ? (
           <Card><p className="text-sm text-[var(--steel)]">Le panier est vide.</p></Card>
@@ -13912,7 +13892,7 @@ function StepShell({ titre, sousTitre, children, onPrev, onNext, nextLabel = "Su
       {sousTitre && <p className="text-xs text-[var(--steel)] mb-4">{sousTitre}</p>}
       <div className="mb-5">{children}</div>
       <div className="flex items-center justify-between pt-4 border-t border-[var(--line)]">
-        {onPrev ? <Button variant="ghost" onClick={onPrev}><ArrowLeft size={15} /> Retour</Button> : <span />}
+        {onPrev ? <BoutonRetour onClick={onPrev}>Retour</BoutonRetour> : <span />}
         {!hideNext && <Button onClick={onNext} disabled={nextDisabled}>{nextLabel}</Button>}
       </div>
     </Card>
@@ -15286,7 +15266,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               );
             })}
           </div>
-          {pied(<Button variant="ghost" onClick={() => setEtape(1)}><ArrowLeft size={15} /> Retour</Button>, null, <>
+          {pied(<BoutonRetour onClick={() => setEtape(1)}>Retour</BoutonRetour>, null, <>
             {!tempsCompletes && <span className="text-sm text-[var(--warn)] self-center">Relevez les 3 températures (ou cochez « Pas de produit »).</span>}
             <Button onClick={() => { if (!brouillon) commencer(); setEtape(3); }} disabled={!tempsCompletes}>Suivant : les produits <ChevronRight size={16} /></Button>
           </>)}
@@ -15420,7 +15400,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
           {manque.length > 0 && <p className="text-sm text-[var(--warn)] mt-4">Il manque : {manque.join(", ")}.</p>}
 
           {pied(
-            <Button variant="ghost" onClick={() => { setBrouillon(null); setEtape(produits.length === 0 ? 2 : 2); }}><ArrowLeft size={15} /> Retour aux températures</Button>,
+            <BoutonRetour onClick={() => { setBrouillon(null); setEtape(produits.length === 0 ? 2 : 2); }}>Retour aux températures</BoutonRetour>,
             iaDispo ? (
               <div className="flex flex-col items-center text-center">
                 <p className="text-sm font-semibold text-[var(--ink)] mb-1.5">Photo de l'étiquette</p>
@@ -15477,7 +15457,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
               </button>
             </div>
           )}
-          {pied(<Button variant="ghost" onClick={() => { commencer(); setEtape(3); }}><ArrowLeft size={15} /> Retour aux produits</Button>, null,
+          {pied(<BoutonRetour onClick={() => { commencer(); setEtape(3); }}>Retour aux produits</BoutonRetour>, null,
             <Button onClick={() => setEtape(5)}>{extras.length ? "Passer au récapitulatif" : "Non, tout est bon — récapitulatif"} <ChevronRight size={16} /></Button>)}
         </Card>
       </div>
@@ -15542,7 +15522,7 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
             )}
           </div>
         )}
-        {pied(<Button variant="ghost" onClick={() => setEtape(4)}><ArrowLeft size={15} /> Retour</Button>, null,
+        {pied(<BoutonRetour onClick={() => setEtape(4)}>Retour</BoutonRetour>, null,
           <Button onClick={valider} disabled={enCours || produits.length === 0}>{enCours ? "Enregistrement…" : "Terminer et enregistrer la réception"}</Button>)}
       </Card>
     </div>
@@ -15630,7 +15610,7 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Retour</button>
+        <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <span className="text-xs text-[var(--steel)]">{groupes.length} réception(s)</span>
       </div>
       <SectionHeader title="Vérification des réceptions" subtitle="Bon de livraison, produits reçus et non-conformités, réception par réception" />
@@ -15891,7 +15871,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
   return (
     <div>
       <div className="flex items-center justify-between mb-4">
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Retour</button>
+        <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <span className="text-xs text-[var(--steel)]">{tracabiliteFiltree.length} entrée(s)</span>
       </div>
       <SectionHeader title="Traçabilité — historique complet" subtitle="Toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) photos comprises, puis supprimées automatiquement après 5 ans." />
@@ -16570,9 +16550,9 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
   return (
     <div>
       {onBack && (
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
+        <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
       )}
-      <div className="flex items-center justify-between gap-3 flex-wrap mb-4">
+      <div className={`flex items-center justify-between gap-3 flex-wrap mb-4 ${integre ? "hidden" : ""}`}>
         <div className="flex items-center gap-3">
           <Users size={34} className="text-[var(--ink)]" />
           <div>
@@ -16628,7 +16608,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
             </Card>
             {selectionnee && (
               <div className={`${detailMobile ? "fixed inset-0 z-50 overflow-y-auto bg-[var(--bg)] p-4" : "hidden"} lg:block lg:static lg:z-auto lg:overflow-visible lg:p-0 lg:bg-transparent`}>
-                <button type="button" onClick={() => setDetailMobile(false)} className="lg:hidden mb-3 h-10 px-4 rounded-lg border border-[var(--cadre)] bg-white text-sm font-medium flex items-center gap-2"><ArrowLeft size={16} /> Retour à la liste</button>
+                <BoutonRetour onClick={() => setDetailMobile(false)} className="lg:hidden mb-3">Retour à la liste</BoutonRetour>
                 <Card>{detail(selectionnee)}</Card>
               </div>
             )}
@@ -17435,9 +17415,7 @@ function ModalJourDetail({ date, vueAccueil, reservations, onRemoveReservation, 
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
       <div className="bg-white rounded-xl max-w-lg w-full p-5 overflow-y-auto overscroll-contain" style={{ maxHeight: "85vh", WebkitOverflowScrolling: "touch" }}>
-        <button onClick={onClose} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4">
-          <ArrowLeft size={15} /> Retour
-        </button>
+        <BoutonRetour onClick={onClose} className="mb-4">Retour</BoutonRetour>
         <h2 className="font-semibold text-[var(--ink)] mb-3 capitalize">{fmtLong(date)}</h2>
         {vueAccueil === "reservations" ? (
           listeResa.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune réservation ce jour-là.</p> : (
@@ -18332,7 +18310,7 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
 
 const ONGLETS_PLANNING = [["planning", "Mon planning", ClipboardList], ["reservations", "Réservations", Users]];
 
-function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires, cartes, fournisseursPlanning, cuissons }) {
+function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask, employees, shifts, setShifts, currentUserId, logActivity, reservations, setReservations, setTab, produits, preparations, preparerProduit, jeterPreparation, goToEmployee, stock, jeterStock, produitEnPreparation, setProduitEnPreparation, quantitePreparation, setQuantitePreparation, executerCommande, fiches, protocolesNettoyage, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onRuptureStock, onTracabiliteIngredients, cleaning, setCleaning, onOuvrirHuileMatin, onOuvrirHuileTest, onDemarrerRefroidissementBainMarie, refroidissements, entriesMaintienChaud, huileTests, equipementsFroid, relevesFroid, remarquesChef, setRemarquesChef, horaires, cartes, fournisseursPlanning, cuissons, vueExt, setVueExt }) {
   // Planning et réservations : seuls le chef et le directeur créent ou modifient ; les employés consultent.
   const peutGererPlanning = currentUserId === "direction" || !!employees.find((e) => e.id === currentUserId)?.estChef;
   const today = todayISO();
@@ -18343,7 +18321,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   const [quantiteJeteeSaisie, setQuantiteJeteeSaisie] = useState("");
   const [traceImprimable, setTraceImprimable] = useState(null);
   const [protocoleAffiche, setProtocoleAffiche] = useState(null);
-  const [vueAccueil, setVueAccueil] = useState("planning");
+  const [vueLocale, setVueLocale] = useState("planning");
+  const vueAccueil = vueExt || vueLocale; const setVueAccueil = setVueExt || setVueLocale;
   const [plage, setPlage] = useState(plageActuelle());
   const [vueTemps, setVueTemps] = useState("jour");
   const [dateSelectionnee, setDateSelectionnee] = useState(todayISO());
@@ -19053,7 +19032,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
   return (
     <div>
       {onBack && (
-        <button onClick={onBack} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)] mb-4"><ArrowLeft size={15} /> Retour à Contrôle & Gestion</button>
+        <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
       )}
       <SectionHeader
         title="Horaires"
@@ -19380,6 +19359,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // déverrouillant un téléphone.
   const [verrouille, setVerrouille] = useState(false);
   const [menuProfil, setMenuProfil] = useState(false);
+  const [vueTaches, setVueTaches] = useState("planning");
   const [refroidissementSuggere, setRefroidissementSuggere] = useState(null);
   const [cuissonSuggere, setCuissonSuggere] = useState(null);
   const [maintienChaudSuggere, setMaintienChaudSuggere] = useState(null);
@@ -20719,11 +20699,7 @@ function KitchenApp({ identiteExterne } = {}) {
 
       {tab !== "accueil" && (
         <div className="md:hidden px-4 pt-3 bg-white">
-          <button onClick={() => setTab("accueil")}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white">
-            <ChevronLeft size={14} />
-            Retour Accueil
-          </button>
+          <BoutonRetour onClick={() => setTab("accueil")}>Retour Accueil</BoutonRetour>
         </div>
       )}
 
@@ -20755,7 +20731,7 @@ function KitchenApp({ identiteExterne } = {}) {
             pour ne pas doubler l'affichage. */}
         {consentementAccorde() && iaDispo() && <CommandeVocaleFlottante onCommande={executerCommande} />}
 
-        <ZoneContext.Provider value={zoneDepuisFonction({ taches: "taches", stock: "stock", reception: "reception", etiquettes: "etiquettes", tracabilite: "tracabilite", haccp: "haccp", haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson", fiches: "fiches", controle: "controle", reservations: "reservationsClient", equipe: "comptes", horaires: "planningEmploye" }[tab])}>
+        <ZoneContext.Provider value={zoneDepuisFonction({ taches: vueTaches === "reservations" ? "reservationsClient" : "taches", stock: "stock", reception: "reception", etiquettes: "etiquettes", tracabilite: "tracabilite", haccp: "haccp", haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson", fiches: "fiches", controle: "controle", reservations: "reservationsClient", equipe: "comptes", horaires: "planningEmploye" }[tab])}>
         {tab === "accueil" && (
           <div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
@@ -20808,13 +20784,20 @@ function KitchenApp({ identiteExterne } = {}) {
           </div>
         )}
         {NAV_HACCP.some((n) => n.id === tab) && (
-          <div className="mb-4"><button onClick={() => setTab("haccp")} className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-medium border border-[var(--cadre)] text-[var(--steel)] bg-white"><ChevronLeft size={14} />Retour Contrôles en cuisine</button></div>
+          <div className="mb-4"><BoutonRetour onClick={() => setTab("haccp")}>Retour Contrôles en cuisine</BoutonRetour></div>
         )}
         {tab === "taches" && (
           <>
+          {vueTaches === "reservations" ? (
+            <ZoneContext.Provider value={zoneDepuisFonction("reservationsClient")}>
+              <BoutonRetour onClick={() => setVueTaches("planning")} className="mb-4">Retour aux Tâches du jour</BoutonRetour>
+              <SectionHeader title="Réservations" subtitle="Gestion des réservations et des services" />
+            </ZoneContext.Provider>
+          ) : (<>
           <BandeauNormes label="Tâches du jour — plan de maîtrise sanitaire : contrôles et enregistrements · Règlement (CE) n° 852/2004, art. 5" />
           <SectionHeader title="Tâches du jour" subtitle="Votre planning, vos tâches et ce qu'il y a à surveiller aujourd'hui" />
-          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null}  cuissons={cuissons} />
+          </>)}
+          <Taches tasks={tasks} addTask={addTaskShared} removeTask={removeTaskShared} updateTask={updateTaskShared} toggleTask={toggleTaskShared} employees={employees} shifts={shifts} setShifts={setShifts} currentUserId={currentUserId} logActivity={logActivitySafe} reservations={reservations} setReservations={setReservations} setTab={setTab} produits={produits} preparations={preparations} preparerProduit={preparerProduit} jeterPreparation={jeterPreparation} goToEmployee={goToEmployee} stock={stock} jeterStock={jeterStock} produitEnPreparation={produitEnPreparation} setProduitEnPreparation={setProduitEnPreparation} quantitePreparation={quantitePreparation} setQuantitePreparation={setQuantitePreparation} executerCommande={executerCommande} fiches={fiches} protocolesNettoyage={protocolesNettoyage} onDemarrerRefroidissement={demarrerRefroidissementDepuisFiche} onDemarrerCuisson={demarrerCuissonDepuisFiche} onDemarrerMaintienChaud={demarrerMaintienChaudDepuisFiche} onEditerDlc={enregistrerTracabiliteFiche} onRuptureStock={signalerRuptureStock} onTracabiliteIngredients={enregistrerTracabiliteIngredients} cleaning={cleaning} setCleaning={setCleaning} onOuvrirHuileMatin={(t) => setHuileMatinActif({ titre: t.titre, taskId: t.id })} onOuvrirHuileTest={() => setHuileTestActif({ titre: "Nettoyage quotidien" })} onDemarrerRefroidissementBainMarie={demarrerRefroidissementBainMarie} refroidissements={refroidissements} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} cartes={cartes}  fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null}  cuissons={cuissons} vueExt={vueTaches} setVueExt={setVueTaches} />
           </>
         )}
         {tab === "stock" && (
