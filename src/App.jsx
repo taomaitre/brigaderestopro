@@ -19783,6 +19783,22 @@ function KitchenApp({ identiteExterne } = {}) {
   const fichesCustom = modeExterne ? fichesExternes : fichesCustomStockees;
   const setFichesCustom = modeExterne ? setFichesExternes : setFichesCustomStockees;
   const fiches = React.useMemo(() => (modeExterne ? fichesExternes : [...FICHES_TECHNIQUES, ...fichesCustomStockees]), [modeExterne, fichesExternes, fichesCustomStockees]);
+
+  // « Retour » = page précédente : on retient d'où l'on vient (et, depuis une fiche technique, quelle fiche était
+  // ouverte) pour que le bouton Retour des écrans Cuisson / Refroidissement / Maintien / etc. y ramène exactement.
+  const fichesRef = useRef(fiches);
+  fichesRef.current = fiches;
+  const tabAvantRef = useRef("accueil");
+  const [tabPrecedent, setTabPrecedent] = useState(null);
+  const [ficheRetourId, setFicheRetourId] = useState(null);
+  useEffect(() => {
+    if (tabAvantRef.current !== tab) { setTabPrecedent(tabAvantRef.current); tabAvantRef.current = tab; }
+  }, [tab]);
+  const memoriserFicheOrigine = (nom) => { const f = fichesRef.current.find((x) => x.nom === nom); setFicheRetourId(f ? f.id : null); };
+  const retourPagePrecedente = () => {
+    if (tabPrecedent === "fiches") { if (ficheRetourId) setFicheAutoOuvrirId(ficheRetourId); setFicheRetourId(null); setTab("fiches"); }
+    else setTab(tabPrecedent && tabPrecedent !== tab ? tabPrecedent : "haccp");
+  };
   // Prévisualisation : les cuissons pré-programmées et les produits du maintien au chaud viennent des fiches techniques (nouvelle base).
   const catalogueCuissonFiches = React.useMemo(() => fichesExternes
     .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
@@ -20264,6 +20280,7 @@ function KitchenApp({ identiteExterne } = {}) {
 
   const demarrerRefroidissementDepuisFiche = useCallback((nom, mode) => {
     setRefroidissementSuggere(mode === "negatif" ? { nom, mode: "negatif" } : nom);
+    memoriserFicheOrigine(nom);
     setTab("haccpRefroid");
   }, [setTab]);
 
@@ -20279,6 +20296,7 @@ function KitchenApp({ identiteExterne } = {}) {
 
   const demarrerCuissonDepuisFiche = useCallback((nom, dureeMin, famille) => {
     setCuissonSuggere({ nom, dureeMin, famille });
+    memoriserFicheOrigine(nom);
     setTab("haccpCuisson");
   }, [setTab]);
 
@@ -20306,6 +20324,7 @@ function KitchenApp({ identiteExterne } = {}) {
 
   const demarrerMaintienChaudDepuisFiche = useCallback((nom) => {
     setMaintienChaudSuggere(nom);
+    memoriserFicheOrigine(nom);
     setTab("haccpChaud");
   }, [setTab]);
 
@@ -21000,7 +21019,7 @@ function KitchenApp({ identiteExterne } = {}) {
           </div>
         )}
         {NAV_HACCP.some((n) => n.id === tab) && (
-          <div className="mb-4"><BoutonRetour onClick={() => setTab("haccp")}>Retour Contrôles en cuisine</BoutonRetour></div>
+          <div className="mb-4"><BoutonRetour onClick={retourPagePrecedente}>Retour</BoutonRetour></div>
         )}
         {tab === "taches" && (
           <>
