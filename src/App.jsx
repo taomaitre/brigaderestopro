@@ -15456,13 +15456,12 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
         {entete}
         <Card>
           <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Relevez les températures de la livraison</h3>
-          <p className="text-sm text-[var(--steel)] mb-4">Deux relevés obligatoires : une température à cœur pour les produits frais et une pour les surgelés. Le logiciel juge ensuite chaque produit saisi selon la norme de son type. S'il n'y a aucun produit de l'une des familles dans cette livraison, utilisez « Pas de produit … aujourd'hui ».</p>
+          <p className="text-sm text-[var(--steel)] mb-4">Deux relevés obligatoires : une température à cœur pour les produits frais et une pour les surgelés. Notez seulement la température : le résultat conforme / non conforme de chaque produit s'affiche à la fin, dans le récapitulatif. Laissez vide la famille absente de cette livraison.</p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {FAMILLES_TEMP.map((f) => {
-              const t = temps[f.id]; const ev = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur, t.limite) : { etat: null, ncTypes: [], okTypes: [] }; const etat = ev.etat;
-              const nc = etat === "hors" || etat === "gele";
+              const t = temps[f.id];
               return (
-                <div key={f.id} className="rounded-xl border-2 p-4 flex flex-col" style={{ borderColor: nc ? "#C1432D" : (etat ? "#2F6B4F" : f.bord), backgroundColor: nc ? "#FFF5F6" : (etat ? "#F3FAF6" : "#fff") }}>
+                <div key={f.id} className="rounded-xl border-2 p-4 flex flex-col" style={{ borderColor: f.bord, backgroundColor: "#fff" }}>
                   <div className="flex items-center gap-3 mb-2">
                     <span className="w-12 h-12 rounded-full flex items-center justify-center shrink-0" style={{ backgroundColor: f.fond, color: f.couleur }}><f.Ic size={26} /></span>
                     <div className="min-w-0"><div className="text-base font-bold" style={{ color: f.couleur }}>{f.titre}</div><div className="text-xs text-[var(--steel)]">{f.sous}</div></div>
@@ -15471,28 +15470,18 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
                   <label className={lab}>Température à cœur (°C)</label>
                   <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" step="0.1" inputMode="decimal" disabled={t.aucun} placeholder="0.0" value={t.valeur} onChange={(e) => majTemp(f.id, { valeur: e.target.value })} />
                   {f.types.includes("laitier") && (<div className="mt-2"><label className={lab}>Lait pasteurisé / fromage affiné : limite indiquée par le fabricant (°C)</label><input className={`${inputCls} w-full`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. 4" value={t.limite || ""} onChange={(e) => majTemp(f.id, { limite: e.target.value })} /></div>)}
-                  <div className="min-h-[2.75rem] mt-2 text-sm">
-                    {etat === "ok" && <p style={{ color: "#2F6B4F" }}>✓ Température conforme</p>}
-                    {etat === "tolerance" && <p style={{ color: "#2F6B4F" }}>✓ Accepté (tolérance transport) — au congélateur immédiatement</p>}
-                    {nc && f.types.length > 1 && <p className="font-semibold text-[var(--warn)]">⚠ Hors norme{etat === "gele" ? " (produit gelé)" : ""} pour : {ev.ncTypes.map((x) => NOM_TYPE_TEMP[x]).join(", ")} — ces produits seront refusés.{ev.okTypes.length > 0 && <span className="block font-normal" style={{ color: "#2F6B4F" }}>Conforme pour : {ev.okTypes.map((x) => NOM_TYPE_TEMP[x]).join(", ")}.</span>}</p>}
-                    {nc && f.types.length === 1 && <p className="font-semibold text-[var(--warn)]">⚠ Hors norme{etat === "gele" ? " : produit gelé (un produit frais ne doit pas arriver gelé)" : ""} — les produits de cette famille seront refusés.</p>}
-                  </div>
-                  {nc && (
-                    <div className="flex flex-col items-center text-center mb-3">
-                      <p className="text-xs text-[var(--ink)] mb-1.5">Photo du thermomètre (conseillée)</p>
+                  {String(t.valeur).trim() !== "" && (
+                    <div className="flex flex-col items-center text-center mt-3">
+                      <p className="text-xs text-[var(--ink)] mb-1.5">Photo du thermomètre (facultative)</p>
                       <PhotoInput rond value={t.photo} onChange={(v) => majTemp(f.id, { photo: v })} label="Photographier le thermomètre" />
                     </div>
                   )}
-                  <button type="button" onClick={() => majTemp(f.id, { aucun: !t.aucun, valeur: "", photo: null })} className="mt-auto h-11 rounded-lg border text-sm font-medium flex items-center justify-center gap-2" style={t.aucun ? { borderColor: f.couleur, color: "#fff", backgroundColor: f.couleur } : { borderColor: "var(--cadre)", color: "var(--ink)", backgroundColor: "#fff" }}>
-                    {t.aucun ? "✓ " : ""}Pas de produit {f.id === "surgele" ? "surgelé" : "frais"} aujourd'hui
-                  </button>
                 </div>
               );
             })}
           </div>
           {pied(<BoutonRetour onClick={() => setEtape(1)}>Retour</BoutonRetour>, null, <>
-            {!tempsCompletes && <span className="text-sm text-[var(--warn)] self-center">Relevez les 2 températures (ou cochez « Pas de produit »).</span>}
-            <Button onClick={() => { if (!brouillon) commencer(); setEtape(3); }} disabled={!tempsCompletes}>Suivant : les produits <ChevronRight size={16} /></Button>
+            <Button onClick={() => { if (!brouillon) commencer(); setEtape(3); }}>Suivant : les produits <ChevronRight size={16} /></Button>
           </>)}
         </Card>
       </div>
@@ -15619,8 +15608,8 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
           )}
 
           <div className="mt-4 flex flex-wrap gap-x-5 gap-y-2">
-            <button type="button" onClick={() => setDetailsOuverts(!detailsOuverts)} className="text-sm text-[var(--accent)] font-medium">{detailsOuverts ? "− Masquer les détails" : "+ Plus de détails (référence, allergènes, origine, agrément)"}</button>
-            <button type="button" onClick={() => maj({ autrePb: !b.autrePb })} className="text-sm font-medium" style={{ color: "#C1432D" }}>{b.autrePb ? "− Aucun autre problème sur ce produit" : "+ Autre problème sur ce produit (abîmé, DLC trop courte…)"}</button>
+            <button type="button" onClick={() => setDetailsOuverts(!detailsOuverts)} className="min-h-[48px] px-4 py-2 rounded-xl border-2 text-sm font-bold text-left shadow-sm" style={{ borderColor: "#1B5FA8", backgroundColor: detailsOuverts ? "#1B5FA8" : "#E3EEFB", color: detailsOuverts ? "#fff" : "#1B4F9C" }}>{detailsOuverts ? "− Masquer les détails" : "+ Plus de détails (référence, allergènes, origine, agrément)"}</button>
+            <button type="button" onClick={() => maj({ autrePb: !b.autrePb })} className="min-h-[48px] px-4 py-2 rounded-xl border-2 text-sm font-bold text-left shadow-sm" style={{ borderColor: "#C1432D", backgroundColor: b.autrePb ? "#C1432D" : "#FDE4E8", color: b.autrePb ? "#fff" : "#B4233A" }}>{b.autrePb ? "− Aucun autre problème sur ce produit" : "+ Autre problème sur ce produit (abîmé, DLC trop courte…)"}</button>
           </div>
           {detailsOuverts && (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
@@ -15718,12 +15707,11 @@ function ReceptionSimple({ optionsExterne, stock, currentUserId, employees, logA
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {FAMILLES_TEMP.map((f) => {
-            const t = temps[f.id]; const etat = !t.aucun && String(t.valeur).trim() !== "" ? evalFamilleTemp(f, t.valeur, t.limite).etat : null; const nc = etat === "hors" || etat === "gele";
+            const t = temps[f.id]; const releve = String(t.valeur).trim() !== "";
             return (
-              <div key={f.id} className="rounded-xl border p-3 flex items-center gap-3" style={t.aucun ? { borderColor: "#D5DAE0", backgroundColor: "#F4F6F8" } : nc ? { borderColor: "#F6B8C2", backgroundColor: "#FDE4E8" } : { borderColor: "#B3E0C5", backgroundColor: "#EAF6EF" }}>
-                <f.Ic size={24} style={{ color: t.aucun ? "#5B6670" : nc ? "#B4233A" : "#14653A" }} />
-                <div className="min-w-0 flex-1"><div className="text-xs font-semibold" style={{ color: t.aucun ? "#5B6670" : nc ? "#B4233A" : "#14653A" }}>{f.titre}</div><div className="text-lg font-bold text-[var(--ink)]">{t.aucun ? "Pas de produit" : `${t.valeur} °C`}</div></div>
-                {!t.aucun && badge(!nc, nc ? "Hors norme" : "Conforme")}
+              <div key={f.id} className="rounded-xl border p-3 flex items-center gap-3" style={{ borderColor: f.bord, backgroundColor: f.fond }}>
+                <f.Ic size={24} style={{ color: f.couleur }} />
+                <div className="min-w-0 flex-1"><div className="text-xs font-semibold" style={{ color: f.couleur }}>{f.titre}</div><div className="text-lg font-bold text-[var(--ink)]">{releve ? `${t.valeur} °C` : "Non relevée"}</div></div>
               </div>
             );
           })}
