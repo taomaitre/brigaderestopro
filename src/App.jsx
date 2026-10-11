@@ -5310,7 +5310,7 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   );
 }
 
-function HaccpRefroidPage({ onCuissonRefroidie, onMaintienRefroidi, cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidPage({ fiches, onCuissonRefroidie, onMaintienRefroidi, cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -5320,7 +5320,7 @@ function HaccpRefroidPage({ onCuissonRefroidie, onMaintienRefroidi, cuissons, se
       <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire les règles officielles : passer sous −18 °C en moins de 4 h 30." />
       <SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" />
       <TuilesResume fonction="cellule" items={[[Clock, refroidissements.filter((r) => r.statut === "en-cours").length, "en cours"], [CheckCircle2, refroidissements.filter((r) => r.statut === "termine" && r.date === todayISO()).length, "terminés aujourd'hui"], [AlertTriangle, refroidissements.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", refroidissements.some((r) => r.date === todayISO() && r.conforme === false)]]} />
-      <HaccpRefroidissement onCuissonRefroidie={onCuissonRefroidie} onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+      <HaccpRefroidissement fiches={fiches} onCuissonRefroidie={onCuissonRefroidie} onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -10407,6 +10407,8 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
   const [unite, setUnite] = useState("kg");
   const [notes, setNotes] = useState("");
   const [tempFin, setTempFin] = useState({});
+  const [rechercheFiche, setRechercheFiche] = useState("");
+  const [mNom, setMNom] = useState("");
   const today = todayISO();
 
   // Arrivée depuis le bouton "Démarrer un maintien au chaud" d'une fiche technique : on démarre
@@ -10422,15 +10424,16 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
   }, [produitSuggere, setProduitSuggere, catalogue, setCatalogue, setEntries, currentUserId, logActivity, today]);
 
   const toggleSelection = (nom) => setSelection((s) => (s.includes(nom) ? s.filter((n) => n !== nom) : [...s, nom]));
+  const nomsAdemarrer = selection.length > 0 ? selection : (mNom.trim() ? [mNom.trim()] : []);
   const demarrerMaintien = () => {
-    if (selection.length === 0) return;
-    const nouvelles = selection.map((nom) => ({
+    if (nomsAdemarrer.length === 0) return;
+    const nouvelles = nomsAdemarrer.map((nom) => ({
       id: uid(), nom, appareil, date: today, heureDebut, debutTs: Date.now(), employeeId: currentUserId, statut: "en-cours",
       quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null,
     }));
     setEntries([...nouvelles, ...entries]);
-    logActivity("HACCP", "Maintien au chaud démarré", `${selection.join(", ")} — ${appareil} à ${heureDebut}`);
-    setSelection([]); setQuantite(""); setNotes(""); setHeureDebut(new Date().toTimeString().slice(0, 5));
+    logActivity("HACCP", "Maintien au chaud démarré", `${nomsAdemarrer.join(", ")} — ${appareil} à ${heureDebut}`);
+    setSelection([]); setMNom(""); setQuantite(""); setNotes(""); setHeureDebut(new Date().toTimeString().slice(0, 5));
   };
 
   const enCours = entries.filter((e) => e.statut === "en-cours");
@@ -10467,40 +10470,60 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
 
   return (
     <div>
-      <Card className="mb-6" >
-        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-full flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Play size={16} /></span> Démarrer un maintien au chaud</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Cochez le ou les produits, renseignez l'appareil et l'heure de début.</p>
-        {catalogue.length === 0 && <p className="text-sm text-[var(--steel)] mb-3">Aucun produit dans la liste pour le moment : le chef peut en ajouter dans Contrôle & Gestion.</p>}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 mb-3">
-          {catalogue.map((nom) => (
-            <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2.5 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[#1E7B4B] bg-[#EAF6EF] text-[#14653A] font-medium" : "border-[var(--line)] text-[var(--ink)]"}`}>
-              <input type="checkbox" checked={selection.includes(nom)} onChange={() => toggleSelection(nom)} />
-              <span className="min-w-0">{nom}</span>
-            </label>
-          ))}
-        </div>
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          <Field label="Appareil *">
-            <select className={inputCls} value={appareil} onChange={(ev) => setAppareil(ev.target.value)}>
-              <option value="Bain-marie">Bain-marie</option>
-              <option value="Four Rational">Four Rational</option>
-            </select>
-          </Field>
-          <Field label="Heure de début *"><input className={inputCls} type="time" value={heureDebut} onChange={(ev) => setHeureDebut(ev.target.value)} /></Field>
-          <Field label="Quantité (optionnel)">
-            <div className="flex gap-2">
-              <input className={inputCls} type="number" inputMode="decimal" value={quantite} onChange={(ev) => setQuantite(ev.target.value)} />
-              <select className={`${inputCls} w-28`} value={unite} onChange={(ev) => setUnite(ev.target.value)}>
-                <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="portions">portions</option><option value="bacs">bacs</option>
-              </select>
+      <Card className="mb-6">
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Play size={16} /></span> Démarrer un maintien au chaud</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits proposés (fiches techniques avec maintien au chaud) : cochez-en un ou plusieurs. Sans produit coché, saisissez le produit à la main à droite.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${catalogue.length})`} sous="Produits ayant un maintien au chaud">
+            <input className={`${inputCls} mb-2`} value={rechercheFiche} onChange={(ev) => setRechercheFiche(ev.target.value)} placeholder="Rechercher un produit…" />
+            {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun produit dans la liste pour le moment : ils apparaîtront ici dès que vos fiches seront enregistrées (le chef peut aussi en ajouter dans Contrôle & Gestion). En attendant, saisissez le produit à droite.</p>}
+            <div className="space-y-1.5 max-h-[26rem] overflow-y-auto pr-1">
+              {catalogue.filter((nom) => nom.toLowerCase().includes(rechercheFiche.trim().toLowerCase())).map((nom) => (
+                <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[#1E7B4B] bg-[#EAF6EF] text-[#14653A] font-medium" : "border-[var(--line)] text-[var(--ink)] bg-white"}`}>
+                  <input type="checkbox" checked={selection.includes(nom)} onChange={() => toggleSelection(nom)} />
+                  <span className="min-w-0 break-words">{nom}</span>
+                </label>
+              ))}
             </div>
-          </Field>
-          <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(ev) => setNotes(ev.target.value)} placeholder="Ex. : plat, bac, observations…" /></Field>
+          </CarteZone>
+
+          <CarteZone className="lg:col-span-3 self-start" icone={selection.length > 0 ? Soup : IcCrayon} titre={selection.length > 0 ? `Produits sélectionnés (${selection.length})` : "Maintien manuel"} sous={selection.length > 0 ? undefined : "Pour un produit qui n'est pas dans les fiches techniques"} action={selection.length > 0 ? <button onClick={() => setSelection([])} className="text-sm text-[var(--steel)] underline">Tout effacer</button> : undefined}>
+            {selection.length > 0 ? (
+              <div className="space-y-2 mb-3">
+                {selection.map((nom) => (
+                  <div key={nom} className="rounded-lg border border-[var(--line)] px-3 py-2 flex items-center justify-between gap-2">
+                    <span className="text-sm font-semibold text-[var(--ink)] min-w-0 break-words">{nom}</span>
+                    <button onClick={() => toggleSelection(nom)} className="text-[var(--steel)] hover:text-[var(--warn)] p-1" title="Retirer"><X size={16} /></button>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <div className="mb-3"><Field label="Nom du produit *"><input className={inputCls} value={mNom} onChange={(ev) => setMNom(ev.target.value)} placeholder="Ex. : Sauce poivre" /></Field></div>
+            )}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+              <Field label="Appareil *">
+                <select className={inputCls} value={appareil} onChange={(ev) => setAppareil(ev.target.value)}>
+                  <option value="Bain-marie">Bain-marie</option>
+                  <option value="Four Rational">Four Rational</option>
+                </select>
+              </Field>
+              <Field label="Heure de début *"><input className={inputCls} type="time" value={heureDebut} onChange={(ev) => setHeureDebut(ev.target.value)} /></Field>
+              <Field label="Quantité (optionnel)">
+                <div className="flex gap-2">
+                  <input className={inputCls} type="number" inputMode="decimal" value={quantite} onChange={(ev) => setQuantite(ev.target.value)} />
+                  <select className={`${inputCls} w-28`} value={unite} onChange={(ev) => setUnite(ev.target.value)}>
+                    <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="portions">portions</option><option value="bacs">bacs</option>
+                  </select>
+                </div>
+              </Field>
+              <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(ev) => setNotes(ev.target.value)} placeholder="Ex. : plat, bac, observations…" /></Field>
+            </div>
+            <button onClick={demarrerMaintien} disabled={nomsAdemarrer.length === 0}
+              className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
+              <Play size={16} /> Démarrer le maintien au chaud{nomsAdemarrer.length > 1 ? ` (${nomsAdemarrer.length})` : ""}
+            </button>
+          </CarteZone>
         </div>
-        <button onClick={demarrerMaintien} disabled={selection.length === 0}
-          className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
-          <Play size={16} /> Démarrer le maintien au chaud{selection.length > 0 ? ` (${selection.length})` : ""}
-        </button>
       </Card>
 
       <Card>
@@ -10613,7 +10636,7 @@ function EtiquetteRefroidissement({ r, who }) {
 
 const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme", "Autre motif"];
 
-function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
   const [produit, setProduit] = useState("");
   const [tempDebut, setTempDebut] = useState("");
@@ -10626,6 +10649,7 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
   const [notes, setNotes] = useState("");
   const [cuissonRetourId, setCuissonRetourId] = useState(null); // cuisson d'où vient ce refroidissement
   const [maintienId, setMaintienId] = useState(null); // maintien au chaud d'où vient ce refroidissement
+  const [rechercheFiche, setRechercheFiche] = useState("");
   const [verdict, setVerdict] = useState(null); // résultat affiché après validation : { produit, conforme, detail }
   const today = todayISO();
 
@@ -10734,6 +10758,7 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
   }
 
   const neg = modeDemarrage === "negatif";
+  const produitsFiches = [...new Set((fiches || []).filter((f) => f.procedes && f.procedes[neg ? "congel" : "refroid"] && f.procedes[neg ? "congel" : "refroid"].on).map((f) => f.nom))].sort((a, b) => a.localeCompare(b));
   return (
     <div>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
@@ -10748,8 +10773,26 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
       </div>
 
       <Card className="mb-6">
-        <h3 className="font-semibold text-[var(--ink)] mb-1">{neg ? "Démarrer une congélation" : "Démarrer un refroidissement"}</h3>
-        <p className="text-xs text-[var(--steel)] mb-3">Saisie manuelle. L'heure de départ est pré-remplie à l'heure actuelle, modifiable si vous démarrez avec un léger décalage.</p>
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Snowflake size={18} /></span> {neg ? "Démarrer une congélation" : "Démarrer un refroidissement"}</h3>
+        <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont {neg ? "une congélation" : "un refroidissement"} : touchez-en un, il est rempli tout seul. Sinon, saisissez le produit à la main à droite. L'heure de départ est pré-remplie, modifiable si vous démarrez avec un léger décalage.</p>
+        <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
+          <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${produitsFiches.length})`} sous={neg ? "Produits ayant une congélation" : "Produits ayant un refroidissement"}>
+            <input className={`${inputCls} mb-2`} value={rechercheFiche} onChange={(e) => setRechercheFiche(e.target.value)} placeholder="Rechercher un produit…" />
+            {produitsFiches.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune fiche technique avec {neg ? "une congélation" : "un refroidissement"} pour l'instant : elles apparaîtront ici dès que vos fiches seront enregistrées. En attendant, saisissez le produit à droite.</p>}
+            <div className="space-y-1.5 max-h-[26rem] overflow-y-auto pr-1">
+              {produitsFiches.filter((n) => n.toLowerCase().includes(rechercheFiche.trim().toLowerCase())).map((n) => {
+                const coche = produit.trim().toLowerCase() === n.trim().toLowerCase();
+                return (
+                  <button key={n} type="button" onClick={() => setProduit(coche ? "" : n)} className={`w-full text-left flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold text-[var(--ink)] ${coche ? "border-[#1E7B4B] bg-[#EAF6EF]" : "border-[var(--line)] bg-white"}`}>
+                    <span className="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0" style={coche ? { backgroundColor: "#1E7B4B", borderColor: "#1E7B4B", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{coche && <span className="text-[10px] leading-none">✓</span>}</span>
+                    <span className="min-w-0 break-words">{n}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </CarteZone>
+
+          <CarteZone className="lg:col-span-3 self-start" icone={IcCrayon} titre={produit && produitsFiches.some((n) => n.trim().toLowerCase() === produit.trim().toLowerCase()) ? `Produit choisi : ${produit}` : (neg ? "Congélation manuelle" : "Refroidissement manuel")} sous="Renseignez la température et l'heure de départ">
         {!neg && cuissonsPretes.length > 0 && (
           <div className="mb-3 p-3 rounded-lg border border-[var(--warn)]/40 bg-[var(--warn-soft)]">
             <p className="text-xs font-medium text-[var(--ink)] mb-2">Sortis de cuisson, à mettre en refroidissement — touchez un produit pour le pré-remplir :</p>
@@ -10763,22 +10806,24 @@ function HaccpRefroidissement({ onCuissonRefroidie, onMaintienRefroidi, cuissons
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-          <Field label="Produit"><input className={inputCls} value={produit} onChange={(e) => setProduit(e.target.value)} placeholder="Ex. : Sauce bolognaise" /></Field>
-          <Field label="Quantité">
-            <div className="flex gap-2">
-              <input className={inputCls} type="number" inputMode="decimal" value={quantite} onChange={(e) => setQuantite(e.target.value)} placeholder="Ex. : 5" />
-              <select className={`${inputCls} w-28`} value={unite} onChange={(e) => setUnite(e.target.value)}>
-                <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="portions">portions</option><option value="bacs">bacs</option>
-              </select>
-            </div>
-          </Field>
-          <Field label="Température de départ (°C)"><input className={inputCls} type="number" inputMode="decimal" value={tempDebut} onChange={(e) => setTempDebut(e.target.value)} placeholder={neg ? "Ex. : 4" : "Ex. : 85"} /></Field>
-          <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDepart} onChange={(e) => setHeureDepart(e.target.value)} /></Field>
+            <Field label={neg ? "Produit (saisie manuelle)" : "Produit (saisie manuelle)"}><input className={inputCls} value={produit} onChange={(e) => setProduit(e.target.value)} placeholder="Ex. : Sauce bolognaise" /></Field>
+            <Field label="Quantité">
+              <div className="flex gap-2">
+                <input className={inputCls} type="number" inputMode="decimal" value={quantite} onChange={(e) => setQuantite(e.target.value)} placeholder="Ex. : 5" />
+                <select className={`${inputCls} w-28`} value={unite} onChange={(e) => setUnite(e.target.value)}>
+                  <option value="kg">kg</option><option value="g">g</option><option value="L">L</option><option value="portions">portions</option><option value="bacs">bacs</option>
+                </select>
+              </div>
+            </Field>
+            <Field label="Température de départ (°C)"><input className={inputCls} type="number" inputMode="decimal" value={tempDebut} onChange={(e) => setTempDebut(e.target.value)} placeholder={neg ? "Ex. : 4" : "Ex. : 85"} /></Field>
+            <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDepart} onChange={(e) => setHeureDepart(e.target.value)} /></Field>
+          </div>
+          <div className="mb-3">
+            <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : bac gastro 65 mm, couvercle ouvert" /></Field>
+          </div>
+          <Button onClick={demarrer} disabled={!produit || tempDebut === ""}><Plus size={16} /> {neg ? "Démarrer la congélation" : "Démarrer le refroidissement"}</Button>
+          </CarteZone>
         </div>
-        <div className="mb-3">
-          <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : bac gastro 65 mm, couvercle ouvert" /></Field>
-        </div>
-        <Button onClick={demarrer} disabled={!produit || tempDebut === ""}><Plus size={16} /> {neg ? "Démarrer la congélation" : "Démarrer le refroidissement"}</Button>
       </Card>
 
       {verdict && (
@@ -20913,7 +20958,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpTempPage tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} />
         )}
         {tab === "haccpRefroid" && (
-          <HaccpRefroidPage onCuissonRefroidie={cuissonRefroidie} onMaintienRefroidi={maintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+          <HaccpRefroidPage fiches={fiches} onCuissonRefroidie={cuissonRefroidie} onMaintienRefroidi={maintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpHuile" && (
           <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onEnregistrerTest={modeExterne ? confirmerTestHuile : undefined} />
