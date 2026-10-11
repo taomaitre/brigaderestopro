@@ -12915,7 +12915,7 @@ const SEUILS_RECEPTION = {
 // Normes de réception de la version migrée (aperçu) : tolérance de transport pour le surgelé,
 // limite basse pour le frais (un produit frais ne doit pas arriver gelé), seuil plus strict pour poisson/haché/plats cuisinés.
 const SEUILS_RECEPTION_NOUVEAU = {
-  surgele: { min: null, max: -15, ideal: -18, label: "≤ -18°C (tolérance transport jusqu'à -15°C)" },
+  surgele: { min: null, max: -15, ideal: -18, label: "≤ -18°C (tolérance : +3°C en surface, brièvement, au déchargement)" },
   frais: { min: -1, max: 4, label: "de -1°C à +4°C" },
   viande: { min: -1, max: 4, label: "de -1°C à +4°C" },
   // Arrêté du 21/12/2009, annexe I (valeurs maximales) : viande hachée +2°C, produits de la pêche frais +2°C
@@ -15021,7 +15021,7 @@ const FAMILLES_TEMP = [
   { id: "poisson", titre: "Poisson frais", sous: "poisson, crustacés, coquillages frais", norme: "de -1°C à +2°C (glace fondante : 0 à +2°C)", types: ["poisson"], typeRef: "poisson", fond: "#DDF1F4", bord: "#A9D9E0", couleur: "#0F6B7A", Ic: Droplets },
   { id: "plat", titre: "Plats cuisinés", sous: "préparations culinaires élaborées à l'avance", norme: "de -1°C à +3°C", types: ["plat"], typeRef: "plat", fond: "#FFF3D6", bord: "#F0D590", couleur: "#8A5A00", Ic: Soup },
   { id: "frais", titre: "Produits frais", sous: "laitiers, œufs, charcuterie, produits réfrigérés", norme: "de -1°C à +4°C", types: ["frais"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
-  { id: "surgele", titre: "Surgelés", sous: "tous les produits congelés", norme: "-18°C ou moins (tolérance transport jusqu'à -15°C)", types: ["surgele"], typeRef: "surgele", fond: "#E6F0FA", bord: "#BCD3F2", couleur: "#14527F", Ic: Snowflake },
+  { id: "surgele", titre: "Surgelés", sous: "tous les produits congelés", norme: "-18°C ou moins (tolérance : +3°C en surface, brièvement, au déchargement)", types: ["surgele"], typeRef: "surgele", fond: "#E6F0FA", bord: "#BCD3F2", couleur: "#14527F", Ic: Snowflake },
 ];
 const CONSIGNE_ETIQUETTE_RECEPTION = "Tu regardes la photo d'un produit alimentaire reçu en cuisine professionnelle (étiquette ou emballage). Identifie si visible : le nom du produit, la référence/le code article, le numéro de lot, la date limite de consommation (DLC/DDM), les allergènes déclarés, l'origine/provenance indiquée et le numéro d'agrément sanitaire CE s'il est visible. Réponds UNIQUEMENT en JSON strict, sans texte autour, format exact : {\"nom\": \"...\" ou null, \"reference\": \"...\" ou null, \"lot\": \"...\" ou null, \"dlc\": \"AAAA-MM-JJ\" ou null, \"allergenes\": \"...\" ou null, \"origine\": \"...\" ou null, \"agrementSanitaire\": \"...\" ou null}. Mets null si l'information n'est pas visible, n'invente jamais.";
 
