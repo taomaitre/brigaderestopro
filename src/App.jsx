@@ -1352,7 +1352,7 @@ const LOGOS_TITRE = [
   ["Prestataires", "pmsPrestataires", () => PhoneCall], ["Ma carte", "carte", () => UtensilsCrossed], ["Fiches techniques", "creationFiche", () => Sparkles],
   ["Préparation culinaire", "creationFiche", () => Sparkles], ["Référentiel produits", "fournisseur", () => ShoppingCart], ["Livraisons reçues", "commandes", () => ClipboardList],
   ["Vérification des réceptions", "commandes", () => ClipboardList], ["Traçabilité", "tracabilite", () => Camera], ["Historique de la journée", "historiqueJour", () => ClipboardList],
-  ["Réception", "reception", () => Truck], ["Équipe", "comptes", () => Users], ["Réservations", "reservationsClient", () => Users], ["Gestion des comptes", "comptes", () => Users], ["Tâches du jour", "taches", () => ListChecks],
+  ["Réception", "reception", () => Truck], ["Équipe", "comptes", () => Users], ["Inventaire", "stock", () => ClipboardCheck], ["Réservations", "reservationsClient", () => Users], ["Gestion des comptes", "comptes", () => Users], ["Tâches du jour", "taches", () => ListChecks],
   ["Commande", "fournisseur", () => ShoppingCart], ["Envoyer la commande", "fournisseur", () => ShoppingCart],
 ];
 function BoutonRetour({ onClick, children, className = "" }) {
@@ -4312,65 +4312,54 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
     setValide(true);
   };
 
+  const nbComptes = Object.values(comptage).filter((v) => v !== "" && v !== undefined).length;
+  const nbEcarts = stock.filter((x) => comptage[x.id] !== undefined && comptage[x.id] !== "" && Number(comptage[x.id]) !== Number(x.quantite)).length;
+  const grille = "grid-cols-[7rem_minmax(0,1fr)_7rem_11rem_6rem]";
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 print:hidden">
-        <BoutonRetour onClick={onBack}>Retour au contrôle</BoutonRetour>
+      <div className="flex items-center justify-between mb-3 print:hidden gap-2 flex-wrap">
+        <BoutonRetour onClick={onBack}>Retour au stock</BoutonRetour>
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
       </div>
+      <div className="hidden print:block mb-3 text-lg font-semibold">Ma Cuisine — Inventaire mensuel — {fmtLong(today)}</div>
+      <div className="print:hidden">
+        <SectionHeader compact title="Inventaire mensuel" subtitle={`${fmtLong(today)} — comptez chaque produit et saisissez la quantité réelle ; les écarts corrigent le stock à la validation.`} />
+      </div>
 
-      <div className="bg-white rounded-xl border border-[var(--cadre)] p-6 sm:p-8">
-        <div className="flex items-center gap-2 mb-1">
-          <ChefHat size={22} className="text-[var(--accent)]" />
-          <span className="text-lg font-semibold text-[var(--ink)]">Ma Cuisine — Inventaire mensuel</span>
-        </div>
-        <p className="text-sm text-[var(--steel)] mb-6">{fmtLong(today)}</p>
-
-        {valide ? (
-          <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/30 mb-4">
-            <p className="text-sm text-[var(--ink)]">Inventaire validé — le stock a été corrigé selon les quantités comptées.</p>
-          </Card>
-        ) : (
-          <>
-            {Object.entries(parCategorie).map(([categorie, items]) => (
-              <div key={categorie} className="mb-6">
-                <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">{categorie}</h3>
-                <div className="overflow-x-auto print:overflow-visible">
-                <table className="w-full text-sm min-w-[480px] print:min-w-0">
-                  <thead>
-                    <tr className="text-left text-[var(--steel)]">
-                      <th className="pb-1.5 font-medium">Référence</th>
-                      <th className="pb-1.5 font-medium">Nom</th>
-                      <th className="pb-1.5 font-medium">Qté système</th>
-                      <th className="pb-1.5 font-medium">Qté comptée</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {items.map((s) => (
-                      <tr key={s.id} className="border-t border-[var(--line)]">
-                        <td className="py-1.5 text-[var(--steel)]">{s.reference || "—"}</td>
-                        <td className="py-1.5 text-[var(--ink)]">{s.nom}</td>
-                        <td className="py-1.5 text-[var(--steel)]">{s.quantite} {s.unite}</td>
-                        <td className="py-1.5">
-                          <input
-                            className={`${inputCls} w-24 print:border-0`}
-                            type="number"
-                            placeholder={`${s.quantite}`}
-                            value={comptage[s.id] ?? ""}
-                            onChange={(e) => setComptage({ ...comptage, [s.id]: e.target.value })}
-                          />
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+      {valide ? (
+        <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/30 mb-4">
+          <p className="text-sm text-[var(--ink)]">Inventaire validé — le stock a été corrigé selon les quantités comptées.</p>
+        </Card>
+      ) : (
+        <>
+          <div className="print:hidden"><TuilesResume fonction="stock" items={[[Package, stock.length, "produits à compter"], [ClipboardList, Object.keys(parCategorie).length, "catégories"], [CheckCircle2, nbComptes, "déjà comptés"], [AlertTriangle, nbEcarts, "écarts constatés", nbEcarts > 0]]} /></div>
+          {Object.entries(parCategorie).map(([categorie, items]) => (
+            <CarteZone key={categorie} icone={Package} titre={categorie} sous={`${items.length} produit${items.length > 1 ? "s" : ""}`} className="mb-3">
+              <div className="overflow-x-auto print:overflow-visible">
+                <div className="min-w-[560px] print:min-w-0">
+                  <div className={`grid ${grille} gap-3 px-2 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)] rounded-md`}>
+                    <span>Référence</span><span>Nom</span><span>Qté système</span><span>Qté comptée</span><span>Écart</span>
+                  </div>
+                  {items.map((x) => {
+                    const saisi = comptage[x.id];
+                    const ecart = saisi !== undefined && saisi !== "" ? Math.round((Number(saisi) - Number(x.quantite)) * 1000) / 1000 : null;
+                    return (
+                      <div key={x.id} className={`grid ${grille} gap-3 px-2 py-1 border-b border-[var(--line)] last:border-b-0 items-center text-sm`}>
+                        <span className="text-xs text-[var(--steel)]">{x.reference || "—"}</span>
+                        <span className="text-[var(--ink)] font-medium leading-tight">{x.nom}</span>
+                        <span className="text-[var(--steel)]">{x.quantite} {x.unite}</span>
+                        <input className={`${inputCls} !h-9 w-28 print:border-0`} type="number" placeholder={`${x.quantite}`} value={saisi ?? ""} onChange={(e) => setComptage({ ...comptage, [x.id]: e.target.value })} />
+                        <span className="text-xs font-semibold" style={{ color: ecart ? "#B45309" : "#15803D" }}>{ecart === null ? "" : ecart === 0 ? "✓ OK" : `${ecart > 0 ? "+" : ""}${ecart}`}</span>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            ))}
-            <Button onClick={validerInventaire} className="print:hidden">Valider l'inventaire et corriger le stock</Button>
-          </>
-        )}
-      </div>
+            </CarteZone>
+          ))}
+          <button type="button" onClick={validerInventaire} className="print:hidden w-full h-14 rounded-xl text-white text-base font-bold flex items-center justify-center gap-2 shadow-md mb-4" style={{ backgroundColor: "#1F8F5F" }}><CheckCircle2 size={22} /> Valider l'inventaire et corriger le stock</button>
+        </>
+      )}
     </div>
   );
 }
