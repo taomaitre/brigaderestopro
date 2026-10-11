@@ -6760,7 +6760,7 @@ function GardeCodeChef({ verifierCodeChef, onAutorise, onRetour }) {
         {erreur && <p className="text-xs text-[var(--warn)] mt-2">{erreur}</p>}
         <div className="flex gap-2 mt-4 justify-center">
           <Button variant="ghost" type="button" onClick={onRetour}>Retour</Button>
-          <button type="submit" disabled={code.length !== 4 || enCours} className="px-5 h-11 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ backgroundColor: "#E5243B" }}>{enCours ? "Vérification…" : "Débloquer"}</button>
+          <button type="submit" disabled={code.length !== 4 || enCours} className="px-5 h-11 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ backgroundColor: "#1F8F5F" }}>{enCours ? "Vérification…" : "Débloquer"}</button>
         </div>
       </form>
     </div>
@@ -12299,7 +12299,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 self-start">
           <h3 className="text-lg font-bold text-[var(--ink)] mb-2 px-1">Catégories</h3>
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
-            <button type="button" onClick={() => setCatChoisie("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#E5243B", color: "#fff", outline: catChoisie === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+            <button type="button" onClick={() => setCatChoisie("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: catChoisie === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
               <span className="flex-1 min-w-0 text-sm font-semibold">Tous les produits <span className="font-normal opacity-80">({produitsUniques.length})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
@@ -12334,7 +12334,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             const jours = ddm ? (dateLim ? Math.max(0, Math.round((new Date(dateLim + "T00:00:00") - new Date(todayISO() + "T00:00:00")) / 86400000)) : null) : (p.dlcJours ?? 0);
             return (
               <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1fr)_3.5rem] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
-                <span className="w-6 h-6 rounded border-2 flex items-center justify-center" style={sel ? { backgroundColor: "#E5243B", borderColor: "#E5243B", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{sel && <span className="text-xs leading-none">✓</span>}</span>
+                <span className="w-6 h-6 rounded border-2 flex items-center justify-center" style={sel ? { backgroundColor: "#6027C9", borderColor: "#6027C9", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{sel && <span className="text-xs leading-none">✓</span>}</span>
                 <span className="min-w-0">
                   <span className="block text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</span>
                   <span className="inline-block text-[11px] font-medium px-1.5 py-0.5 rounded mt-0.5" style={{ backgroundColor: fond, color: texte }}>{cat}</span>
@@ -12354,7 +12354,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         <div className="rounded-xl border border-[var(--cadre)] bg-white self-start">
           <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--line)]">
             <h3 className="text-base font-bold text-[var(--ink)]">Produits sélectionnés ({produitsSel.length})</h3>
-            {produitsSel.length > 0 && <button type="button" onClick={() => { setSelection([]); setNbParProduit({}); }} className="text-sm font-semibold" style={{ color: "#E5243B" }}>Tout effacer</button>}
+            {produitsSel.length > 0 && <button type="button" onClick={() => { setSelection([]); setNbParProduit({}); }} className="text-sm font-semibold" style={{ color: "#6027C9" }}>Tout effacer</button>}
           </div>
           {produitsSel.length === 0 && <p className="px-4 py-6 text-sm text-[var(--steel)]">Cochez un ou plusieurs produits dans la liste.</p>}
           {produitsSel.map((p) => (
@@ -12365,7 +12365,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, -1)} aria-label={`Une étiquette de moins pour ${p.nom}`}>−</button>
                 <span className="min-w-[4.5rem] text-center text-sm font-semibold text-[var(--ink)]">{nbDe(p.id)} étiquette{nbDe(p.id) > 1 ? "s" : ""}</span>
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, 1)} aria-label={`Une étiquette de plus pour ${p.nom}`}>+</button>
-                <button type="button" onClick={() => toggleSelection(p.id)} className="ml-auto w-9 h-9 flex items-center justify-center text-[#E5243B]" aria-label={`Retirer ${p.nom}`}><Trash2 size={18} /></button>
+                <button type="button" onClick={() => toggleSelection(p.id)} className="ml-auto w-9 h-9 flex items-center justify-center text-[#6027C9]" aria-label={`Retirer ${p.nom}`}><Trash2 size={18} /></button>
               </div>
             </div>
           ))}
@@ -12789,7 +12789,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         <div className="rounded-xl border border-[var(--cadre)] bg-white p-3">
           <h3 className="text-lg font-bold text-[var(--ink)] mb-2 px-1">Catégories</h3>
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
-            <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#E5243B", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+            <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
               <span className="flex-1 min-w-0 text-sm font-semibold truncate">Tous les produits <span className="font-normal opacity-80">({stock.length})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
@@ -16576,7 +16576,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
           </div>
         </div>
         {!integre && (
-          <button type="button" onClick={ouvrirNouvelle} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ROUGE_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
+          <button type="button" onClick={ouvrirNouvelle} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ACTION_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
         )}
       </div>
 
@@ -16589,7 +16589,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
         </div>
         <div className="flex rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
           {["jour", "semaine", "mois"].map((v) => (
-            <button key={v} type="button" onClick={() => setViewMode(v)} style={viewMode === v ? { backgroundColor: ROUGE_PLANNING, color: "#fff" } : undefined} className={`h-11 px-4 text-sm font-semibold capitalize ${viewMode === v ? "" : "text-[var(--ink)]"}`}>{v}</button>
+            <button key={v} type="button" onClick={() => setViewMode(v)} style={viewMode === v ? { backgroundColor: ACTION_PLANNING, color: "#fff" } : undefined} className={`h-11 px-4 text-sm font-semibold capitalize ${viewMode === v ? "" : "text-[var(--ink)]"}`}>{v}</button>
           ))}
         </div>
       </div>
@@ -16609,7 +16609,7 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
               </div>
               <div className="flex flex-wrap gap-2 mb-3">
                 {FILTRES.map(([id, lib, l]) => (
-                  <button key={id} type="button" onClick={() => setFiltre(id)} style={filtre === id ? { backgroundColor: ROUGE_PLANNING, color: "#fff", borderColor: ROUGE_PLANNING } : undefined}
+                  <button key={id} type="button" onClick={() => setFiltre(id)} style={filtre === id ? { backgroundColor: ACTION_PLANNING, color: "#fff", borderColor: ACTION_PLANNING } : undefined}
                     className={`h-10 px-3.5 rounded-lg border text-sm font-medium ${filtre === id ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib} ({l.length})</button>
                 ))}
               </div>
@@ -16762,7 +16762,7 @@ Une entrée par réservation visible. Si une information est illisible ou absent
             </div>
             <div className="flex gap-2 justify-end">
               <Button variant="ghost" onClick={fermerForm}>Annuler</Button>
-              <button type="button" onClick={enregistrer} disabled={!form.nom || !form.heure || !form.date} className="px-5 h-11 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ backgroundColor: ROUGE_PLANNING }}>{edition ? "Enregistrer" : "Ajouter la réservation"}</button>
+              <button type="button" onClick={enregistrer} disabled={!form.nom || !form.heure || !form.date} className="px-5 h-11 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ backgroundColor: ACTION_PLANNING }}>{edition ? "Enregistrer" : "Ajouter la réservation"}</button>
             </div>
           </div>
         </div>
@@ -16775,7 +16775,7 @@ function ConfirmerSuppressionBouton({ libelle, onConfirm }) {
   const [ouvert, setOuvert] = useState(false);
   return (
     <>
-      <button type="button" onClick={() => setOuvert(true)} className="h-10 px-4 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ROUGE_PLANNING }}><Trash2 size={16} /> Supprimer</button>
+      <button type="button" onClick={() => setOuvert(true)} className="h-10 px-4 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ACTION_PLANNING }}><Trash2 size={16} /> Supprimer</button>
       {ouvert && <ModalConfirmerSuppression libelle={libelle} onAnnuler={() => setOuvert(false)} onConfirmer={() => { setOuvert(false); onConfirm(); }} />}
     </>
   );
@@ -18170,6 +18170,7 @@ const IcSoleil = makeIcon([C(12, 12, 4), L(12, 2, 12, 4), L(12, 20, 12, 22), L(4
 const IcLune = makeIcon([P("M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z")]);
 const IcInfo = makeIcon([C(12, 12, 10), L(12, 16, 12, 12), L(12, 8, 12, 8)]);
 const ROUGE_PLANNING = "#E5243B";
+const ACTION_PLANNING = "#146B45"; // couleur des boutons et onglets du planning (le rouge est réservé aux alertes)
 
 function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOuvrirFenetre, horaires, blocsNettoyage }) {
   const estAujourdhui = date === todayISO();
@@ -18478,7 +18479,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
               const actif = vueAccueil === id;
               return (
                 <button key={id} type="button" onClick={() => setVueAccueil(id)}
-                  style={actif ? { backgroundColor: ROUGE_PLANNING, color: "#ffffff", borderColor: ROUGE_PLANNING } : undefined}
+                  style={actif ? { backgroundColor: ACTION_PLANNING, color: "#ffffff", borderColor: ACTION_PLANNING } : undefined}
                   className={`h-14 sm:min-w-[17rem] px-5 rounded-lg border-2 flex items-center justify-center gap-3 text-base font-semibold ${actif ? "" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>
                   <Ic size={24} /> {lib}
                 </button>
@@ -18487,7 +18488,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           </div>
           {vueAccueil === "reservations" && peutGererPlanning ? (
             <div className="flex items-center gap-3 flex-wrap">
-              <button type="button" onClick={() => setFormResa(true)} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ROUGE_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
+              <button type="button" onClick={() => setFormResa(true)} className="h-12 px-5 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: ACTION_PLANNING }}><Plus size={18} /> Nouvelle réservation</button>
               <button onClick={() => setTab("reservations")} className="text-sm text-[var(--accent)] font-medium">Voir tout l'agenda →</button>
             </div>
           ) : vueAccueil === "reservations" ? null : peutGererPlanning ? (
@@ -18513,7 +18514,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                   <div className="flex rounded-lg border border-[var(--cadre)] overflow-hidden bg-white">
                     {["jour", "semaine", "mois"].map((v) => (
                       <button key={v} type="button" onClick={() => setVueTemps(v)}
-                        style={vueTemps === v ? { backgroundColor: ROUGE_PLANNING, color: "#ffffff" } : undefined}
+                        style={vueTemps === v ? { backgroundColor: ACTION_PLANNING, color: "#ffffff" } : undefined}
                         className={`h-12 px-5 text-sm font-semibold capitalize ${vueTemps === v ? "" : "text-[var(--ink)]"}`}>
                         {v}
                       </button>
