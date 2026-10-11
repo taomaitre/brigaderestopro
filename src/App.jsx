@@ -12423,12 +12423,17 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                 <Printer size={16} /> Réimprimer la dernière étiquette faite
               </button>
             )}
-            {derniereEtiquette && (
-              <div className="mt-3">
-                <p className="text-xs text-[var(--steel)] text-center mb-2">Aperçu de la dernière étiquette : {derniereEtiquette.nomLibre} — {fmtJour(derniereEtiquette.date)} à {derniereEtiquette.heure}</p>
-                <div className="overflow-hidden">
-                  <EtiquetteDlcImprimable typeDlc={derniereEtiquette.typeDlc} produitNom={derniereEtiquette.nomLibre} lot={derniereEtiquette.lot} dlcDate={derniereEtiquette.dlcDate} date={derniereEtiquette.date} heure={derniereEtiquette.heure} who={who} employeeId={derniereEtiquette.employeeId} cuissonInfo={derniereEtiquette.cuissonInfo} refroidissementInfo={derniereEtiquette.refroidissementInfo} maintienInfo={derniereEtiquette.maintienInfo} decongelationInfo={derniereEtiquette.decongelationInfo} />
-                </div>
+            {produitsSel.length > 0 && (
+              <div className="mt-4 space-y-3">
+                <p className="text-xs font-semibold text-[var(--ink)] text-center">Aperçu des étiquettes qui seront imprimées</p>
+                {lignesDepuisSelection().map((l) => (
+                  l.dlcDate ? (
+                    <div key={l.produitId} className="overflow-hidden">
+                      {l.nbEtiquettes > 1 && <p className="text-xs text-[var(--steel)] text-center mb-1">× {l.nbEtiquettes} étiquettes identiques</p>}
+                      <EtiquetteDlcImprimable typeDlc={l.decongele ? undefined : l.typeDlc} produitNom={l.nom} lot={l.lot} dlcDate={l.decongele ? addDays(l.decongelDate, 2) : l.dlcDate} date={todayISO()} heure={new Date().toTimeString().slice(0, 5)} who={who} employeeId={currentUserId} decongelationInfo={l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null} />
+                    </div>
+                  ) : null
+                ))}
               </div>
             )}
           </div>
