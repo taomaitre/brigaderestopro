@@ -1332,11 +1332,11 @@ function ChipsResume({ items }) {
 function TuilesResume({ fonction, items }) {
   const z = zoneDepuisFonction(fonction) || { bord: "#64748B", fond: "#64748B22", texte: "#334155" };
   return (
-    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mb-5">
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 mb-3">
       {items.map(([Ic, valeur, libelle, alerte], i) => (
-        <div key={i} className="rounded-xl px-3 py-2.5 flex items-center gap-3" style={{ background: alerte ? "#FDECEC" : z.fond, border: "1px solid rgba(0,0,0,.05)" }}>
-          <Ic size={22} style={{ color: alerte ? "#B3261E" : z.texte }} />
-          <div><div className="text-[17px] font-bold leading-tight" style={{ color: alerte ? "#B3261E" : "var(--ink)" }}>{valeur}</div><div className="text-xs text-[var(--steel)]">{libelle}</div></div>
+        <div key={i} className="rounded-lg px-2.5 py-1.5 flex items-center gap-2" style={{ background: alerte ? "#FDECEC" : z.fond, border: "1px solid rgba(0,0,0,.05)" }}>
+          <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: alerte ? "#B3261E" : z.texte }}><Ic size={16} /></span>
+          <div className="min-w-0"><div className="text-xl font-bold leading-tight" style={{ color: alerte ? "#B3261E" : "var(--ink)" }}>{valeur}</div><div className="text-[10px] leading-tight text-[var(--steel)]">{libelle}</div></div>
         </div>
       ))}
     </div>
@@ -6804,9 +6804,9 @@ function ZoneFiche({ icone: Ic, titre, bord, fond, texte, className = "mb-5", ch
 }
 function TuileInfoFiche({ icone: Ic, valeur, libelle, fond, couleur }) {
   return (
-    <div className="rounded-xl px-3 py-2.5 flex items-center gap-3" style={{ background: fond, border: "1px solid rgba(0,0,0,.05)" }}>
-      <Ic size={22} style={{ color: couleur }} />
-      <div><div className="text-[17px] font-bold leading-tight text-[var(--ink)]">{valeur}</div><div className="text-xs text-[var(--steel)]">{libelle}</div></div>
+    <div className="rounded-lg px-2.5 py-1.5 flex items-center gap-2" style={{ background: fond, border: "1px solid rgba(0,0,0,.05)" }}>
+      <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={16} /></span>
+      <div className="min-w-0"><div className="text-xl font-bold leading-tight text-[var(--ink)]">{valeur}</div><div className="text-[10px] leading-tight text-[var(--steel)]">{libelle}</div></div>
     </div>
   );
 }
@@ -6932,7 +6932,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           nAllg > 0 ? [AlertTriangle, nAllg, `allergène${nAllg > 1 ? "s" : ""} (${fiche.allergenes.join(", ").toLowerCase()})`, "#fff6cc", "#7a5f00"] : null,
         ].filter(Boolean);
         return tuiles.length ? (
-          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2.5 mb-4">
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2 mb-3">
             {tuiles.map(([Ic, v, l, fond, coul], k) => <TuileInfoFiche key={k} icone={Ic} valeur={v} libelle={l} fond={fond} couleur={coul} />)}
           </div>
         ) : null;
