@@ -430,7 +430,7 @@ const ACCUEIL_TUILES = [
   { id: "stock", label: "Stock", desc: "Gérez vos produits, vos quantités et vos inventaires", icon: Package, fond: "linear-gradient(120deg, #F59E0B 0%, #C26A00 100%)", ombre: "rgba(194,106,0,0.35)" },
   { id: "reception", label: "Réception des marchandises", desc: "Enregistrez vos livraisons et vos fournisseurs", icon: Truck, fond: "linear-gradient(120deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" },
   { id: "tracabilite", label: "Traçabilité", desc: "Photographiez les étiquettes, suivez les lots", icon: Camera, fond: "linear-gradient(120deg, #14A5B8 0%, #0B7285 100%)", ombre: "rgba(11,114,133,0.35)" },
-  { id: "haccp", label: "Contrôles en cuisine", desc: "Températures, refroidissement, huile, maintien au chaud, cuissons", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
+  { id: "haccp", label: "Contrôles en cuisine", desc: "Suivi des températures, refroidissements, maintien au chaud, cuissons et huiles de friture", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
   { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
 ];
@@ -3680,7 +3680,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   // Quatre grandes rubriques, chacune avec sa couleur : tout ce que le chef et le directeur gèrent s'y range.
   const SECTIONS_CG = [
     { id: "equipe", label: "Équipe et planning", desc: "Horaires, heures de service, réservations, comptes", icon: Users, couleur: { fond: "linear-gradient(160deg, #2563B8 0%, #1D4E89 100%)", ombre: "rgba(29,78,137,0.35)" } },
-    { id: "controle", label: "Contrôles du jour", desc: "Températures, huile, cuisson, refroidissement, réception", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
+    { id: "controle", label: "Contrôles du jour", desc: "Suivi des températures, refroidissements, maintien au chaud, cuissons, huiles de friture et réceptions", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
     { id: "cuisine", label: "Cuisine et achats", desc: "Fiches techniques, carte, fournisseurs, livraisons", icon: ChefHat, couleur: { fond: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", ombre: "rgba(180,83,9,0.35)" } },
     { id: "hygiene", label: "Hygiène et réglementation", desc: "Plan de nettoyage, allergènes, origine des viandes, TIAC", icon: SprayCan, couleur: { fond: "linear-gradient(160deg, #B83A6B 0%, #8B2450 100%)", ombre: "rgba(139,36,80,0.35)" } },
   ];
