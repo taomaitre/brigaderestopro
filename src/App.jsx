@@ -15548,10 +15548,11 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
             )}
           </div>
 
+          <div className={commandeLignes.length > 0 ? "mt-4 grid grid-cols-1 lg:grid-cols-[minmax(260px,32%)_minmax(0,1fr)] gap-4 items-start" : ""}>
           {commandeLignes.length > 0 && (
-            <div className="mt-4 rounded-xl border-2 p-3" style={{ borderColor: "#B5CDF0", backgroundColor: "#F2F7FE" }}>
-              <div className="text-sm font-bold" style={{ color: "#1B4F9C" }}>Commande du {commandeInfo.date} — cliquez sur le produit que vous êtes en train de recevoir</div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+            <div className="rounded-xl border-2 p-3" style={{ borderColor: "#B5CDF0", backgroundColor: "#F2F7FE" }}>
+              <div className="text-sm font-bold" style={{ color: "#1B4F9C" }}>Commande du {commandeInfo.date} — cliquez sur le produit que vous recevez</div>
+              <div className="grid grid-cols-1 gap-2 mt-2">
                 {commandeLignes.map((l) => {
                   const recu = produitsF.find((p) => p.ligneId === l.id && !p.manquant);
                   const actif = b.ligneId === l.id;
@@ -15568,13 +15569,14 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
             </div>
           )}
 
+          <div className="min-w-0">
           {scanMsg && <p className="text-sm rounded-lg px-3 py-2 mt-3" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{scanMsg}</p>}
           {scanEnCours && <p className="text-sm mt-3 text-[var(--steel)]">Lecture de l'étiquette en cours…</p>}
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4">
             <div className="sm:col-span-2">
               <label className={lab}>Nom du produit</label>
-              <input autoComplete="off" className={`${inputCls} w-full`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => { const v = e.target.value; const ts = typeSuggere(v); maj({ nom: v, ...(!b.typeChoisi ? (ts ? { conservation: ts, typeAuto: true } : (b.typeAuto ? { conservation: "", typeAuto: false } : {})) : {}) }); }} />
+              {b.ligneId ? <div className="text-lg font-bold text-[var(--ink)]">{b.nom}</div> : <input autoComplete="off" className={`${inputCls} w-full`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => { const v = e.target.value; const ts = typeSuggere(v); maj({ nom: v, ...(!b.typeChoisi ? (ts ? { conservation: ts, typeAuto: true } : (b.typeAuto ? { conservation: "", typeAuto: false } : {})) : {}) }); }} />}
               {suggestions.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {suggestions.map((s) => <button key={s.id} onClick={() => choisirDuStock(s)} className="text-sm px-3 py-1.5 rounded-full border border-[var(--accent)] text-[var(--accent)]">{s.nom}{s.conservation ? ` · ${LIBELLE_CONSERVATION[s.conservation] || s.conservation}` : ""}</button>)}
@@ -15588,11 +15590,11 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               {b.commandeQte != null && <p className="text-xs mt-1.5 text-[var(--steel)]">Commandé : <b>{b.commandeQte} {b.commandeUnite}</b></p>}
             </div>
             <div>
-              <label className={lab}>Type de produit</label>
-              <select className={`${inputCls} w-full`} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value, typeChoisi: true, typeAuto: false, typeCorrigeDe: "" })}>
+              {!(b.ligneId && b.conservation) && <label className={lab}>Type de produit</label>}
+              {!(b.ligneId && b.conservation) && <select className={`${inputCls} w-full`} value={b.conservation} onChange={(e) => maj({ conservation: e.target.value, typeChoisi: true, typeAuto: false, typeCorrigeDe: "" })}>
                 <option value="">Choisir…</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
-              </select>
+              </select>}
               {b.typeCorrigeDe && <p className="text-xs mt-1.5 text-[var(--warn)]"><b>Type corrigé automatiquement :</b> le stock indiquait « {LIBELLE_CONSERVATION[b.typeCorrigeDe] || b.typeCorrigeDe} », mais le nom du produit correspond à « {LIBELLE_CONSERVATION[b.conservation]} » (norme plus stricte). Modifiable si c'est une erreur.</p>}
               {b.nom.trim().length >= 3 && !b.conservation && (
                 <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ backgroundColor: "#FDF0D5", color: "#8A5A00" }}>
@@ -15657,7 +15659,6 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
           )}
 
           <div className="mt-4 flex flex-wrap justify-center gap-x-5 gap-y-2">
-            <button type="button" onClick={() => setDetailsOuverts(!detailsOuverts)} className="min-h-[48px] px-4 py-2 rounded-xl border-2 text-sm font-bold text-left shadow-sm" style={{ borderColor: "#1B5FA8", backgroundColor: detailsOuverts ? "#1B5FA8" : "#E3EEFB", color: detailsOuverts ? "#fff" : "#1B4F9C" }}>{detailsOuverts ? "− Masquer les détails" : "+ Plus de détails (référence, allergènes, origine, agrément)"}</button>
             <button type="button" onClick={() => maj({ autrePb: !b.autrePb })} className="min-h-[48px] px-4 py-2 rounded-xl border-2 text-sm font-bold text-left shadow-sm" style={{ borderColor: "#C1432D", backgroundColor: b.autrePb ? "#C1432D" : "#FDE4E8", color: b.autrePb ? "#fff" : "#B4233A" }}>{b.autrePb ? "− Aucun autre problème sur ce produit" : "+ Autre problème sur ce produit (abîmé, DLC trop courte…)"}</button>
           </div>
           <div className="mt-3 flex justify-center">
@@ -15667,14 +15668,6 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <Plus size={22} strokeWidth={3} /> Ajouter un produit
             </button>
           </div>
-          {detailsOuverts && (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
-              <input className={`${inputCls} w-full`} placeholder="Code article du bon de livraison" value={b.reference} onChange={(e) => maj({ reference: e.target.value })} />
-              <input className={`${inputCls} w-full`} placeholder="Allergènes déclarés" value={b.allergenes} onChange={(e) => maj({ allergenes: e.target.value })} />
-              <input className={`${inputCls} w-full`} placeholder="Origine / provenance" value={b.origine} onChange={(e) => maj({ origine: e.target.value })} />
-              <input className={`${inputCls} w-full`} placeholder="N° d'agrément sanitaire (l'ovale sur l'étiquette)" value={b.agrementSanitaire} onChange={(e) => maj({ agrementSanitaire: e.target.value })} />
-            </div>
-          )}
           {b.autrePb && (
             <div className="mt-3 rounded-xl p-4 border-2 space-y-2" style={{ borderColor: "#F6B8C2", backgroundColor: "#FFF5F6" }}>
               <ChampCauseNC value={b.raisonPb} onChange={(v) => maj({ raisonPb: v })} />
@@ -15682,6 +15675,8 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <div className="flex items-center gap-3"><PhotoInput rond value={b.photoPb} onChange={(v) => maj({ photoPb: v })} label="Photographier le produit" /><span className="text-xs text-[var(--ink)]">Photo du produit (conseillée)</span></div>
             </div>
           )}
+          </div>
+          </div>
 
           {manque.length > 0 && <p className="text-sm text-[var(--warn)] mt-4">Il manque : {manque.join(", ")}.</p>}
 
