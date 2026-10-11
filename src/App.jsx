@@ -20624,20 +20624,20 @@ function KitchenApp({ identiteExterne } = {}) {
               <span className="block text-[0.6rem] tracking-[0.18em] text-white/70 mt-1">GESTION DE CUISINE ET HACCP</span>
             </span>
           </button>
+          <div className="text-left leading-tight shrink-0 ml-4 pl-4" style={{ borderLeft: "1px solid #232C3A" }}>
+            <div className="text-sm text-white/90 capitalize">{fmtLong(todayISO())}</div>
+            <HorlogeSombre />
+          </div>
           <div className="flex-1" />
-          <div className="flex items-center gap-3 shrink-0">
+          <div className="flex items-center gap-4 shrink-0">
             <div className="text-right leading-tight">
-              <div className="text-sm text-white/90 capitalize">{fmtLong(todayISO())}</div>
-              <HorlogeSombre />
+              <div className="text-2xl font-bold leading-none">Bonjour <span style={{ color: "#6EE7A8" }}>{(moi?.nom || "").split(" ")[0]}</span></div>
+              <div className="text-sm text-white/90 mt-1">Que souhaitez-vous faire aujourd'hui ?</div>
             </div>
-            <button onClick={() => setTab(moi?.estChef ? "controle" : "taches")} className="relative w-11 h-11 rounded-lg flex items-center justify-center hover:bg-white/10" title="Notifications">
-              <Bell size={22} />
-              {nbNotifications > 0 && <span className="absolute top-0.5 right-0.5 min-w-[18px] h-[18px] px-1 rounded-full text-[11px] font-bold flex items-center justify-center" style={{ backgroundColor: "#E5243B", color: "#fff" }}>{nbNotifications}</span>}
-            </button>
             <div className="relative">
-              <button onClick={() => setMenuProfil(!menuProfil)} className="flex items-center gap-2 pl-1 pr-2 py-1 rounded-full hover:bg-white/10">
-                <span className="w-10 h-10 rounded-full flex items-center justify-center font-bold text-base" style={{ backgroundColor: "#2F8F63", color: "#fff" }}>{initials(moi?.nom)}</span>
-                <ChevronDown size={16} />
+              <button onClick={() => setMenuProfil(!menuProfil)} className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-white hover:bg-white/90 shadow" title="Mon compte">
+                <span className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base" style={{ backgroundColor: "#2F8F63", color: "#fff" }}>{initials(moi?.nom)}</span>
+                <ChevronDown size={16} color="#121821" />
               </button>
               {menuProfil && (
                 <div className="absolute right-0 top-[calc(100%+6px)] w-56 rounded-xl p-2 shadow-2xl text-sm" style={{ backgroundColor: "#1D2733", border: "1px solid #2E3A4B" }}>
@@ -20758,10 +20758,6 @@ function KitchenApp({ identiteExterne } = {}) {
         <ZoneContext.Provider value={zoneDepuisFonction({ taches: "taches", stock: "stock", reception: "reception", etiquettes: "etiquettes", tracabilite: "tracabilite", haccp: "haccp", haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson", fiches: "fiches", controle: "controle", reservations: "reservationsClient", equipe: "comptes", horaires: "planningEmploye" }[tab])}>
         {tab === "accueil" && (
           <div>
-            <div className="rounded-2xl px-6 py-5 mb-4 text-white" style={{ background: "linear-gradient(120deg, #121821 0%, #1D2733 60%, #25324A 100%)" }}>
-              <div className="text-3xl font-bold leading-tight">Bonjour <span style={{ color: "#6EE7A8" }}>{(moi?.nom || "").split(" ")[0]}</span></div>
-              <div className="text-lg text-white/80 mt-1">Que souhaitez-vous faire aujourd'hui ?</div>
-            </div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
               {[
                 ...ACCUEIL_TUILES.filter((t) => !t.chefOnly || moi?.estChef),
