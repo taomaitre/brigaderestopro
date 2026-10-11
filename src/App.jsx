@@ -10285,21 +10285,21 @@ function HaccpTemperatures({
     <div>
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Relevés — frigos &amp; congélateurs</h3>
-        <div className="flex flex-wrap items-center gap-2 mb-3 text-xs text-[var(--steel)]">
+        <div className="flex flex-wrap items-center gap-2 mb-1 text-xs text-[var(--steel)]">
           <span className="ml-auto">Dernière mise à jour : {(() => { const t = relevesFroid.filter((r) => r.date <= jourReleve).sort((x, y) => `${y.date} ${y.heure || ""}`.localeCompare(`${x.date} ${x.heure || ""}`))[0]; return t ? `${t.date === todayISO() ? "aujourd'hui" : t.date} à ${t.heure || "—"}` : "aucun relevé"; })()}</span>
         </div>
-        <p className="text-xs text-[var(--steel)] mb-2">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
-        <p className="text-xs text-[var(--steel)] mb-4">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
+        <p className="text-[11px] leading-snug text-[var(--steel)] mb-1">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
+        <p className="text-[11px] leading-snug text-[var(--steel)] mb-3">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
           <table className="w-full text-sm border-collapse">
             <thead>
               <tr className="bg-[var(--bg)]">
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Matériel</th>
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Type</th>
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Norme</th>
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Dernier relevé</th>
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Statut</th>
-                <th className="text-left px-3 py-2 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Contrôle manuel (thermomètre laser)</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Matériel</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Type</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Norme</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Dernier relevé</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Statut</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Contrôle manuel (thermomètre laser)</th>
               </tr>
             </thead>
             <tbody>
@@ -10308,7 +10308,7 @@ function HaccpTemperatures({
                 const s = saisieManuelle[eq.id] || {};
                 return (
                   <tr key={eq.id} className={i % 2 === 0 ? "bg-white" : "bg-[var(--bg)]/50"}>
-                    <td className="px-3 py-2 align-top">
+                    <td className="px-3 py-1.5 align-middle">
                       <div className="text-[var(--ink)] font-medium">{eq.nom}</div>
                       {eq.sonde ? (
                         <div className="text-xs text-[var(--steel)] flex items-center gap-1.5">
@@ -10319,9 +10319,9 @@ function HaccpTemperatures({
                         </div>
                       ) : <div className="text-xs text-[var(--steel)]">Sonde non renseignée</div>}
                     </td>
-                    <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#15803D" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
-                    <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
-                    <td className="px-3 py-2 align-top whitespace-nowrap">
+                    <td className="px-3 py-1.5 align-middle whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#15803D" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
+                    <td className="px-3 py-1.5 align-middle text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
+                    <td className="px-3 py-1.5 align-middle whitespace-nowrap">
                       {dr ? (
                         <>
                           <span className={`font-semibold ${dr.conforme === false ? "text-[var(--warn)]" : "text-[var(--ink)]"}`}>{dr.valeur}°C</span>
@@ -10329,13 +10329,13 @@ function HaccpTemperatures({
                         </>
                       ) : <span className="text-xs text-[var(--steel)]">Aucun relevé</span>}
                     </td>
-                    <td className="px-3 py-2 align-top whitespace-nowrap">{!dr ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#EEF1F5", color: "#475569" }}>Non relevé</span> : dr.conforme === false ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FDECEC", color: "#B3261E" }}>Hors norme</span> : <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#E4F4EA", color: "#15803D" }}>Conforme</span>}</td>
-                    <td className="px-3 py-2 align-top">
-                      <div className="flex items-center gap-1.5 mb-1.5">
-                        <input className={`${inputCls} w-20`} type="number" step="0.1" placeholder="°C" value={s.valeur ?? ""} onChange={(e) => majSaisie(eq.id, "valeur", e.target.value)} />
+                    <td className="px-3 py-1.5 align-middle whitespace-nowrap">{!dr ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#EEF1F5", color: "#475569" }}>Non relevé</span> : dr.conforme === false ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FDECEC", color: "#B3261E" }}>Hors norme</span> : <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#E4F4EA", color: "#15803D" }}>Conforme</span>}</td>
+                    <td className="px-3 py-1.5 align-middle">
+                      <div className="flex items-center gap-1.5">
+                        <input className={`${inputCls} !w-16 !py-1.5`} type="number" step="0.1" placeholder="°C" value={s.valeur ?? ""} onChange={(e) => majSaisie(eq.id, "valeur", e.target.value)} />
+                        <input className={`${inputCls} !w-36 !py-1.5`} placeholder="Note (optionnel)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
                         <Button variant="ghost" onClick={() => enregistrerSaisieManuelle(eq)} disabled={s.valeur === undefined || s.valeur === ""}>Enregistrer</Button>
                       </div>
-                      <input className={`${inputCls} w-full max-w-[220px]`} placeholder="Note (optionnel)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
                     </td>
                   </tr>
                 );
