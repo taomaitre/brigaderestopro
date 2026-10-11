@@ -15212,7 +15212,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
   const receptionId = React.useMemo(() => uid(), []);
   const [date] = useState(todayISO());
   const [heure] = useState(new Date().toTimeString().slice(0, 5));
-  const [etape, setEtape] = useState(1); // 1 fournisseur, 2 températures, 3 produits, 4 problèmes, 5 récapitulatif
+  const [etape, setEtape] = useState(1); // 1 fournisseur, 2 températures, 3 produits, 4 récapitulatif
   const [fournisseur, setFournisseur] = useState("");
   const [autreFournisseur, setAutreFournisseur] = useState(false);
   const [photosBon, setPhotosBon] = useState([]);
@@ -15312,7 +15312,14 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
     if (sit && sit.type === "question" && !brouillon.fusion) manque.push("le choix « même article ? »");
     if (brouillon.autrePb && !brouillon.raisonPb.trim()) manque.push("la cause du problème");
   }
-  const enregistrerBrouillon = () => setProduits((prev) => (prev.some((x) => x.id === brouillon.id) ? prev.map((x) => (x.id === brouillon.id ? brouillon : x)) : [...prev, brouillon]));
+  // Excédent par rapport à la commande : « renvoyé » devient un problème sur le produit (quantité en trop refusée).
+  const finaliser = (b) => {
+    const exces = b.ligneId && b.commandeQte != null ? Math.round((Number(b.quantite) - Number(b.commandeQte)) * 1000) / 1000 : 0;
+    if (exces > 0 && b.excesRenvoye && !(b.autrePb && !b.excesAuto)) return { ...b, autrePb: true, raisonPb: "Quantité livrée supérieure à la commande (excédent renvoyé)", quantitePb: String(exces), excesAuto: true };
+    if (b.excesAuto) return { ...b, autrePb: false, raisonPb: "", quantitePb: "", excesAuto: false };
+    return b;
+  };
+  const enregistrerBrouillon = () => { const fb = finaliser(brouillon); setProduits((prev) => (prev.some((x) => x.id === fb.id) ? prev.map((x) => (x.id === fb.id ? fb : x)) : [...prev, fb])); };
   const produitSuivant = () => { if (!brouillonVide) enregistrerBrouillon(); setBrouillon(nouveauBrouillon(commandeLignes.length > 0 ? "plus" : "normal")); setDetailsOuverts(false); setScanMsg(""); };
   const choisirLigneCommande = (l) => {
     if (!brouillonVide && manque.length > 0) { setScanMsg(`Terminez d'abord le produit en cours (il manque : ${manque.join(", ")}).`); return; }
@@ -15321,7 +15328,24 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
     setBrouillon(dejaSaisi || { ...nouveauBrouillon(), nom: l.nom, conservation: l.conservation, typeChoisi: !!l.conservation, ligneId: l.id, commandeQte: l.quantite, commandeUnite: l.unite });
     setDetailsOuverts(false); setScanMsg("");
   };
-  const validerEtapeProduits = () => { if (!brouillonVide) enregistrerBrouillon(); setBrouillon(null); setEtape(4); };
+  // Passage au récapitulatif : les produits commandés absents ou en quantité insuffisante sont ajoutés comme « manquants » (le chef sera prévenu ; « Retirer » = ne pas signaler).
+  const validerEtapeProduits = () => {
+    const fb = !brouillonVide ? finaliser(brouillon) : null;
+    setProduits((prev) => {
+      let liste = fb ? (prev.some((x) => x.id === fb.id) ? prev.map((x) => (x.id === fb.id ? fb : x)) : [...prev, fb]) : prev;
+      liste = liste.filter((p) => !(p.manquant && p.ligneId));
+      const manq = commandeLignes.map((l) => {
+        const recus = liste.filter((p) => p.ligneId === l.id && !p.manquant);
+        const q = recus.reduce((somme, p) => somme + (Number(p.quantite) || 0), 0);
+        const cmd = Number(l.quantite) || 0;
+        if (recus.length > 0 && q >= cmd) return null;
+        const diff = Math.round((cmd - q) * 1000) / 1000;
+        return { id: uid(), kind: "manquant", manquant: true, ligneId: l.id, nom: l.nom, reference: "", conservation: "", quantite: String(diff), lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", conforme: false, raison: recus.length === 0 ? "Produit manquant (non livré)" : "Quantité livrée inférieure à la commande", quantiteNC: String(diff), photoNC: null, ecartPrix: 0 };
+      }).filter(Boolean);
+      return [...liste, ...manq];
+    });
+    setBrouillon(null); setEtape(4);
+  };
   const retirer = (id) => setProduits((prev) => prev.filter((p) => p.id !== id));
 
   // Lecture de l'étiquette par l'IA (uniquement si l'option IA est activée)
@@ -15396,12 +15420,12 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
   // ── Éléments d'affichage communs ──
   const gros = "w-full text-left rounded-xl border-2 border-[var(--cadre)] px-4 py-4 text-base font-semibold text-[var(--ink)] hover:border-[var(--accent)] active:scale-[0.98] transition-all";
   const lab = "block text-sm font-semibold text-[var(--ink)] mb-1.5";
-  const libelleEtapes = ["Fournisseur", "Températures", "Produits", "Problèmes", "Récapitulatif"];
+  const libelleEtapes = ["Fournisseur", "Températures", "Produits", "Récapitulatif"];
   const entete = (
     <div className="mb-4">
       <div className="flex items-center justify-between mb-2.5">
         <button onClick={onCancel} className="flex items-center gap-1.5 text-sm text-[var(--steel)] hover:text-[var(--ink)]"><ArrowLeft size={15} /> Annuler la réception</button>
-        <span className="text-sm font-semibold text-[var(--ink)]">Étape {etape} / 5 — {libelleEtapes[etape - 1]}</span>
+        <span className="text-sm font-semibold text-[var(--ink)]">Étape {etape} / 4 — {libelleEtapes[etape - 1]}</span>
       </div>
       <div className="flex items-center gap-1 sm:gap-2 flex-wrap">
         {libelleEtapes.map((lib, i) => {
@@ -15619,6 +15643,15 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
             </div>
           </div>
 
+          {b.ligneId && b.commandeQte != null && Number(b.quantite) > Number(b.commandeQte) && (
+            <div className="mt-4 rounded-xl border-2 p-3" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
+              <label className={lab}>Reçu {Math.round((Number(b.quantite) - Number(b.commandeQte)) * 1000) / 1000} {b.commandeUnite} de plus que la commande : que faites-vous de l'excédent ?</label>
+              <div className="grid grid-cols-2 gap-2">
+                <button type="button" onClick={() => maj({ excesRenvoye: false })} className="h-12 rounded-lg border-2 text-sm font-semibold" style={!b.excesRenvoye ? { borderColor: "#2F6B4F", backgroundColor: "#E7F1EB", color: "#2F6B4F" } : { borderColor: "var(--cadre)", color: "var(--ink)" }}>Je le garde</button>
+                <button type="button" onClick={() => maj({ excesRenvoye: true })} className="h-12 rounded-lg border-2 text-sm font-semibold" style={b.excesRenvoye ? { borderColor: "#C1432D", backgroundColor: "#FDE4E8", color: "#C1432D" } : { borderColor: "var(--cadre)", color: "var(--ink)" }}>Je le renvoie</button>
+              </div>
+            </div>
+          )}
           {sit && sit.type === "distinct" && <p className="text-xs text-[var(--steel)] mt-3">« {sit.c[0].nom} » existe déjà dans le stock en <strong>{LIBELLE_CONSERVATION[sit.c[0].conservation] || sit.c[0].conservation}</strong> : ce produit reçu en <strong>{LIBELLE_CONSERVATION[b.conservation]}</strong> sera un article distinct, sans toucher à l'autre.</p>}
           {sit && sit.type === "question" && (
             <div className="mt-3 rounded-lg p-3" style={{ backgroundColor: "var(--warn-soft)" }}>
@@ -15697,98 +15730,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
     );
   }
 
-  // ── ÉTAPE 4 : problèmes en plus ──
-  if (etape === 4) {
-    const extras = produitsF.filter((p) => p.manquant || p.kind === "plus");
-    const ecarts = commandeLignes.map((l) => {
-      const recus = produitsF.filter((p) => p.ligneId === l.id && !p.manquant);
-      const q = recus.reduce((somme, p) => somme + (Number(p.quantite) || 0), 0);
-      const cmd = Number(l.quantite) || 0;
-      const manqueSignale = produits.some((p) => p.manquant && p.ligneId === l.id);
-      if (recus.length === 0) return { l, type: "absent", cmd, q: 0, diff: cmd, manqueSignale };
-      if (q < cmd) return { l, type: "moins", cmd, q, diff: cmd - q, manqueSignale };
-      if (q > cmd) return { l, type: "plus", cmd, q, diff: q - cmd, produit: recus[0] };
-      return null;
-    }).filter(Boolean);
-    const signalerManque = (e) => setProduits((prev) => [...prev.filter((p) => !(p.manquant && p.ligneId === e.l.id)), { id: uid(), kind: "manquant", manquant: true, ligneId: e.l.id, nom: e.l.nom, reference: "", conservation: "", quantite: String(e.diff), lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", conforme: false, raison: e.type === "absent" ? "Produit manquant (non livré)" : "Quantité livrée inférieure à la commande", quantiteNC: String(e.diff), photoNC: null, ecartPrix: 0 }]);
-    const ignorerManque = (e) => setProduits((prev) => prev.filter((p) => !(p.manquant && p.ligneId === e.l.id)));
-    const renvoyerExces = (e) => setProduits((prev) => prev.map((p) => (p.id === e.produit.id ? { ...p, autrePb: true, raisonPb: "Quantité livrée supérieure à la commande (excédent renvoyé)", quantitePb: String(e.diff), excesRenvoye: true } : p)));
-    const garderExces = (e) => setProduits((prev) => prev.map((p) => (p.id === e.produit.id && p.excesRenvoye ? { ...p, autrePb: false, raisonPb: "", quantitePb: "", excesRenvoye: false } : p)));
-    return (
-      <div>
-        {entete}
-        <Card>
-          <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Y a-t-il un autre problème avec cette livraison ?</h3>
-          <p className="text-sm text-[var(--steel)] mb-4">Un produit manquant, ou un produit livré en plus. S'il n'y a rien à signaler, passez au récapitulatif.</p>
-          {ecarts.length > 0 && (
-            <div className="rounded-xl border-2 p-4 mb-4" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
-              <div className="text-sm font-bold mb-2" style={{ color: "#8A5300" }}>Écarts avec la commande du {commandeInfo.date} — que voulez-vous faire ?</div>
-              <div className="space-y-2">
-                {ecarts.map((e) => (
-                  <div key={e.l.id} className="rounded-lg bg-white border border-[var(--cadre)] px-3 py-2.5 flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm text-[var(--ink)]">
-                      <strong>{e.l.nom}</strong> —{" "}
-                      {e.type === "absent" && <>commandé {e.cmd} {e.l.unite}, <b>rien reçu</b></>}
-                      {e.type === "moins" && <>commandé {e.cmd}, reçu {e.q} {e.l.unite} : <b>{e.diff} {e.l.unite} manquant(s)</b></>}
-                      {e.type === "plus" && <>commandé {e.cmd}, reçu {e.q} {e.l.unite} : <b>{e.diff} {e.l.unite} en trop</b></>}
-                    </div>
-                    {e.type !== "plus" ? (
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => signalerManque(e)} className="min-h-[40px] px-3 rounded-lg border-2 text-sm font-bold" style={e.manqueSignale ? { borderColor: "#C1432D", backgroundColor: "#C1432D", color: "#fff" } : { borderColor: "#C1432D", backgroundColor: "#FDE4E8", color: "#B4233A" }}>{e.manqueSignale ? "✓ Signalé au chef" : "Signaler le manque au chef"}</button>
-                        <button type="button" onClick={() => ignorerManque(e)} className="min-h-[40px] px-3 rounded-lg border-2 text-sm font-bold" style={!e.manqueSignale ? { borderColor: "#64748B", backgroundColor: "#64748B", color: "#fff" } : { borderColor: "#D5DAE0", color: "#64748B" }}>Ne pas signaler</button>
-                      </div>
-                    ) : e.produit.autrePb && !e.produit.excesRenvoye ? (
-                      <span className="text-xs text-[var(--steel)]">Problème déjà signalé sur ce produit</span>
-                    ) : (
-                      <div className="flex gap-2">
-                        <button type="button" onClick={() => garderExces(e)} className="min-h-[40px] px-3 rounded-lg border-2 text-sm font-bold" style={!e.produit.excesRenvoye ? { borderColor: "#2F6B4F", backgroundColor: "#2F6B4F", color: "#fff" } : { borderColor: "#D5DAE0", color: "#64748B" }}>Garder l'excédent</button>
-                        <button type="button" onClick={() => renvoyerExces(e)} className="min-h-[40px] px-3 rounded-lg border-2 text-sm font-bold" style={e.produit.excesRenvoye ? { borderColor: "#C1432D", backgroundColor: "#C1432D", color: "#fff" } : { borderColor: "#C1432D", backgroundColor: "#FDE4E8", color: "#B4233A" }}>Renvoyer l'excédent</button>
-                      </div>
-                    )}
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
-          {extras.length > 0 && (
-            <div className="space-y-2 mb-4">
-              {extras.map((p) => (
-                <div key={p.id} className="flex items-center justify-between gap-3 rounded-lg border border-[var(--cadre)] px-4 py-2.5 text-sm text-[var(--ink)]">
-                  <span><strong>{p.nom}</strong> — {p.manquant ? `${p.quantiteNC} manquant(s)` : (p.conforme ? "livré en plus, conservé" : "livré en plus, renvoyé")}</span>
-                  <button type="button" onClick={() => retirer(p.id)} className="text-xs text-[var(--steel)] underline shrink-0">Retirer</button>
-                </div>
-              ))}
-            </div>
-          )}
-          {mode4 === "manquant" ? (
-            <div className="rounded-xl border-2 border-[var(--cadre)] p-4 mb-3">
-              <p className="text-sm text-[var(--steel)] mb-3">Un produit commandé (ou facturé) mais pas livré. Pas de photo : il sera indiqué dans le mail.</p>
-              <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 mb-3">
-                <div><label className={lab}>Nom du produit manquant</label><input className={`${inputCls} w-full`} value={manqNom} onChange={(e) => setManqNom(e.target.value)} /></div>
-                <div><label className={lab}>Quantité manquante</label><input className={`${inputCls} w-full`} type="number" value={manqQte} onChange={(e) => setManqQte(e.target.value)} /></div>
-              </div>
-              <div className="flex gap-2"><Button onClick={ajouterManquant} disabled={!manqNom.trim()}>Ajouter</Button><Button variant="ghost" onClick={() => setMode4(null)}>Annuler</Button></div>
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <button type="button" onClick={() => setMode4("manquant")} className="rounded-xl border-2 p-5 text-left flex items-center gap-4 hover:shadow-md transition-shadow" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
-                <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-white" style={{ color: "#8A5300" }}><AlertTriangle size={28} /></span>
-                <span><span className="block text-base font-bold" style={{ color: "#8A5300" }}>Il manque un produit</span><span className="block text-xs text-[var(--steel)]">Commandé ou facturé, mais pas livré</span></span>
-              </button>
-              <button type="button" onClick={() => { commencer("plus"); setEtape(3); }} className="rounded-xl border-2 p-5 text-left flex items-center gap-4 hover:shadow-md transition-shadow" style={{ borderColor: "#B5CDF0", backgroundColor: "#F2F7FE" }}>
-                <span className="w-14 h-14 rounded-full flex items-center justify-center shrink-0 bg-white" style={{ color: "#1B4F9C" }}><Package size={28} /></span>
-                <span><span className="block text-base font-bold" style={{ color: "#1B4F9C" }}>Un produit en plus</span><span className="block text-xs text-[var(--steel)]">Livré sans être commandé : je le garde ou je le renvoie</span></span>
-              </button>
-            </div>
-          )}
-          {pied(<BoutonRetour onClick={() => { commencer(); setEtape(3); }}>Retour aux produits</BoutonRetour>, null,
-            <Button onClick={() => setEtape(5)}>{extras.length ? "Passer au récapitulatif" : "Non, tout est bon — récapitulatif"} <ChevronRight size={16} /></Button>)}
-        </Card>
-      </div>
-    );
-  }
-
-  // ── ÉTAPE 5 : récapitulatif ──
+  // ── ÉTAPE 4 : récapitulatif ──
   const m = nonConformes.length ? construireMail() : null;
   const colonnes = "lg:grid-cols-[minmax(0,1.7fr)_4.5rem_minmax(0,1fr)_5.5rem_minmax(0,1.3fr)_7rem_4rem]";
   return (
@@ -15832,10 +15774,23 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Temp. : </span>{p.temperature !== "" && p.temperature != null && !p.manquant ? `${p.temperature} °C` : "—"}</div>
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "Non livré" : `${p.lot || "—"} · ${p.dlc || "—"}`}</div>
               <div className="lg:text-center">{p.conforme && p.tempManquante && !p.manquant ? <span className="inline-block text-xs font-semibold rounded-full px-2.5 py-1" style={{ backgroundColor: "#FDF0D5", color: "#8A5A00" }}>Température non relevée</span> : badge(p.conforme, p.conforme ? "Accepté" : p.manquant ? "Manquant" : "Refusé")}</div>
-              <div className="lg:text-center text-right"><button onClick={() => retirer(p.id)} className="text-xs text-[var(--steel)] underline">Retirer</button></div>
+              <div className="lg:text-center text-right"><button onClick={() => retirer(p.id)} className="text-xs text-[var(--steel)] underline">{p.manquant && p.ligneId ? "Ne pas signaler" : "Retirer"}</button></div>
             </div>
           ))}
         </div>
+
+        {mode4 === "manquant" ? (
+          <div className="rounded-xl border-2 border-[var(--cadre)] p-4 mb-4">
+            <p className="text-sm text-[var(--steel)] mb-3">Un produit facturé mais pas livré. Pas de photo : il sera indiqué dans le mail.</p>
+            <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,2fr)_minmax(0,1fr)] gap-3 mb-3">
+              <div><label className={lab}>Nom du produit manquant</label><input className={`${inputCls} w-full`} value={manqNom} onChange={(e) => setManqNom(e.target.value)} /></div>
+              <div><label className={lab}>Quantité manquante</label><input className={`${inputCls} w-full`} type="number" value={manqQte} onChange={(e) => setManqQte(e.target.value)} /></div>
+            </div>
+            <div className="flex gap-2"><Button onClick={ajouterManquant} disabled={!manqNom.trim()}>Ajouter</Button><Button variant="ghost" onClick={() => setMode4(null)}>Annuler</Button></div>
+          </div>
+        ) : (
+          <div className="mb-4"><button type="button" onClick={() => setMode4("manquant")} className="min-h-[44px] px-4 rounded-xl border-2 text-sm font-bold" style={{ borderColor: "#E0B45A", backgroundColor: "#FFF8E8", color: "#8A5300" }}>+ Signaler un produit manquant (hors commande)</button></div>
+        )}
 
         {m && (
           <div className="mb-2">
@@ -15850,7 +15805,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
             )}
           </div>
         )}
-        {pied(<BoutonRetour onClick={() => setEtape(4)}>Retour</BoutonRetour>, null,
+        {pied(<BoutonRetour onClick={() => { commencer(); setEtape(3); }}>Retour aux produits</BoutonRetour>, null,
           <Button onClick={valider} disabled={enCours || produits.length === 0}>{enCours ? "Enregistrement…" : "Terminer et enregistrer la réception"}</Button>)}
       </Card>
     </div>
