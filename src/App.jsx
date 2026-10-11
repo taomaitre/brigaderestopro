@@ -12804,7 +12804,6 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
                   <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference || "—"}</div>
-                  {bas && <div className="text-[11px] font-semibold mt-0.5" style={{ color: "#B4233A" }}>Sous le stock à avoir</div>}
                 </div>
                 <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>DLC : {s.dlc || "—"}<br />Lot : {s.lot || "—"}</div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div><CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} /></div>
