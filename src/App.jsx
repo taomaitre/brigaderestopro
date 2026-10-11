@@ -8345,7 +8345,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 onChange={(v) => champ("categorie", v)}
                 onAjouterAutre={(v) => { const code = normaliserCode(v).slice(0, 8) || "AUTRE"; setCustomCategories([...customCategories, [v, code]]); champ("categorie", v); }} />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <Field label="Poste *">
                 <select className={inputCls} value={S.poste} onChange={(e) => champ("poste", e.target.value)}>
                   <option value="">Choisir…</option>
@@ -8354,11 +8354,11 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               </Field>
               <Field label="Type de fiche">
                 <select className={inputCls} value={S.type} onChange={(e) => champ("type", e.target.value)}>
-                  <option value="recette">Plat servi au client</option>
-                  <option value="base">Préparation de base (utilisée dans d'autres fiches)</option>
+                  <option value="recette">Plat servi</option>
+                  <option value="base">Préparation de base</option>
                 </select>
               </Field>
-              <Field label="Mention affichée sur la fiche (rendement / contenant)"><input className={inputCls} value={S.badge} onChange={(e) => champ("badge", e.target.value)} placeholder="ex. bac 1/1, 12 parts" /></Field>
+              <div className="sm:col-span-2"><Field label="Mention affichée sur la fiche (rendement / contenant)"><input className={inputCls} value={S.badge} onChange={(e) => champ("badge", e.target.value)} placeholder="ex. bac 1/1, 12 parts" /></Field></div>
             </div>
             <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: "#fdeaf3", border: "1px solid #f3c4da" }}>
               {S.photoPlat
