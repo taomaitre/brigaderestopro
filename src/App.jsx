@@ -10485,6 +10485,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
   const enCours = entries.filter((e) => e.statut === "en-cours");
   const tf = (e) => (tempFin[e.id] !== undefined ? tempFin[e.id] : (e.tempFin ?? ""));
   const maj = (id, champs) => setEntries((prev) => prev.map((x) => (x.id === id ? { ...x, ...champs } : x)));
+  const supprimerMaintien = (e) => { setEntries((prev) => prev.filter((x) => x.id !== e.id)); logActivity("HACCP", "Maintien au chaud supprimé", e.nom); };
 
   // Température de fin de maintien : sous 63 °C, le produit est sorti de la zone de maintien → alerte.
   const verifierTemp = (e, t) => {
@@ -10588,6 +10589,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                     <span className="text-base font-semibold text-[var(--ink)]">{e.nom}</span>
                     <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: "#FDEBD3", color: "#8A4B0F" }}>{e.appareil}</span>
                     {e.arrete && <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--line)] text-[var(--ink)]">Maintien arrêté à {e.heureArret}</span>}
+                    <span className="ml-auto"><BoutonSupprimer onConfirm={() => supprimerMaintien(e)} size={18} titre="Supprimer ce maintien (erreur de saisie)" libelle={`Maintien au chaud : ${e.nom}`} /></span>
                   </div>
                   <MentionNormePersoFiche nom={e.nom} etape="maintien" />
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2 text-sm text-[var(--ink)]">
@@ -10788,6 +10790,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
 
   const enCours = refroidissements.filter((r) => r.statut === "en-cours");
   const termines = refroidissements.filter((r) => r.statut === "termine");
+  const supprimerRefroidissement = (r) => { setRefroidissements(refroidissements.filter((x) => x.id !== r.id)); logActivity("HACCP", r.type === "negatif" ? "Congélation supprimée" : "Refroidissement supprimé", r.produit); };
 
   if (etiquetteOuverte) {
     const historiqueProduit = (preparations || [])
@@ -10899,6 +10902,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
                 <div className="flex flex-wrap items-center gap-2 mb-1">
                   <span className="text-base font-semibold text-[var(--ink)]">{r.produit}</span>
                   <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-[var(--accent-soft)] text-[var(--accent)]">{r.type === "negatif" ? "Congélation" : "Refroidissement"}</span>
+                  <span className="ml-auto"><BoutonSupprimer onConfirm={() => supprimerRefroidissement(r)} size={18} titre="Supprimer (erreur de saisie)" libelle={`${r.type === "negatif" ? "Congélation" : "Refroidissement"} : ${r.produit}`} /></span>
                 </div>
                 <MentionNormePersoFiche nom={r.produit} etape="refroid" />
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2 text-sm text-[var(--ink)]">
@@ -11068,6 +11072,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   }, [produitSuggere, setProduitSuggere, currentUserId, setCuissons, logActivity]);
 
   const maj = (id, champs) => setCuissons((prev) => prev.map((x) => (x.id === id ? { ...x, ...champs } : x)));
+  const supprimerCuisson = (c) => { setCuissons((prev) => prev.filter((x) => x.id !== c.id)); logActivity("HACCP", "Cuisson supprimée", c.produit); };
   const toggleSelection = (nom) => setSelection((sel) => (sel.includes(nom) ? sel.filter((n) => n !== nom) : [...sel, nom]));
   const produitsFiltres = catalogue.filter((p) => !recherche.trim() || p.nom.toLowerCase().includes(recherche.trim().toLowerCase()));
   const selectionnes = selection.map((nom) => catalogue.find((p) => p.nom === nom)).filter(Boolean);
@@ -11258,6 +11263,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                     <span className="text-base font-semibold text-[var(--ink)]">{c.produit}</span>
                     {(c.mode || modeCuissonDepuisAppareil(c.appareil)) && <span className="text-xs font-medium px-2 py-0.5 rounded-full" style={{ backgroundColor: "#FDEBD3", color: "#8A4B0F" }}>{c.mode || modeCuissonDepuisAppareil(c.appareil)}</span>}
                     {c.appareil && <span className="text-xs text-[var(--steel)]">{c.appareil}{c.reglage ? ` · ${c.reglage}` : ""}</span>}
+                    <span className="ml-auto"><BoutonSupprimer onConfirm={() => supprimerCuisson(c)} size={18} titre="Supprimer cette cuisson (erreur de saisie)" libelle={`Cuisson : ${c.produit}`} /></span>
                   </div>
                   <MentionNormePersoFiche nom={c.produit} etape="cuisson" />
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 my-2 text-sm text-[var(--ink)]">
@@ -11355,6 +11361,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                   <div className="text-sm text-[var(--ink)] font-medium">{c.produit}</div>
                   <div className="text-xs text-[var(--steel)]">Cuisson terminée à {c.heureFin} · {c.controleVisuel ? "contrôle visuel" : `${c.temperature}°C à cœur`}</div>
                 </div>
+                <BoutonSupprimer onConfirm={() => supprimerCuisson(c)} size={16} titre="Supprimer cette cuisson (erreur de saisie)" libelle={`Cuisson : ${c.produit}`} />
                 {selectionRefroid.includes(c.id) && (
                   <div className="flex items-center gap-1.5 text-xs text-[var(--steel)]">
                     <span>T° de départ à confirmer</span>
