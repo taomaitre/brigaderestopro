@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
+import { CATALOGUE_NETTOYAGE, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
@@ -4030,7 +4031,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     return <PmsDossierImprimable reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onBack={() => setPmsImpression(false)} />;
   }
 
-  const donneesDossier = { employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, nomEtablissement: reglagesEtablissement && reglagesEtablissement.nom, receptions, alertes: alertesControle, rappels: alertesRappelConso, declarationsTiac, pms: reglagesEtablissement && reglagesEtablissement.pms, fiches, allergenesPlats, stock, origineProduits };
+  const donneesDossier = { employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning: cleaning.filter((t) => !t.masque && t.planifie !== false), shifts, reservations, relevesFroid, equipementsFroid, nomEtablissement: reglagesEtablissement && reglagesEtablissement.nom, receptions, alertes: alertesControle, rappels: alertesRappelConso, declarationsTiac, pms: reglagesEtablissement && reglagesEtablissement.pms, fiches, allergenesPlats, stock, origineProduits };
   if (impressionDossier) {
     return <DossierControle {...donneesDossier} modeInit={impressionDossier.mode} jourInit={impressionDossier.jour} moisInit={impressionDossier.mois} imprimerAuMontage onBack={() => setImpressionDossier(null)} />;
   }
@@ -4617,7 +4618,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
 
       {sousEcran === "pms" && (
         <div className="mb-6">
-          <NettoyagePage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} employees={employees} logActivity={logActivity} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
+          <NettoyagePage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} employees={employees} logActivity={logActivity} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} demandesAjout={demandesAjout} signalerAjout={signalerAjout} shifts={shifts} />
         </div>
       )}
 
@@ -6659,6 +6660,7 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
   const quitterMulti = () => { setModeMulti(false); setChoisies([]); setConfirmerGroupe(false); };
   const zonesListe = [...new Set([...zones, ...cleaning.map((t) => t.poste || "Tous")])];
   const visibles = cleaning
+    .filter((t) => !t.masque && t.planifie !== false)
     .filter((t) => (!filtreZone || (t.poste || "Tous") === filtreZone) && (!filtreFreq || t.frequence === filtreFreq) && (!filtreQui || concerneNet(t, filtreQui)) && (!recherche.trim() || t.tache.toLowerCase().includes(recherche.trim().toLowerCase())))
     .map((t, i) => ({ t, i }))
     .sort((a, b) => FREQUENCES_NETTOYAGE.indexOf(a.t.frequence) - FREQUENCES_NETTOYAGE.indexOf(b.t.frequence) || a.i - b.i)
@@ -7052,7 +7054,7 @@ function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserI
   );
 }
 
-function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, employees, logActivity, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, demandesAjout, signalerAjout }) {
+function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, employees, logActivity, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, demandesAjout, signalerAjout, shifts }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const [vue, setVue] = useState(null); // null | "protocoles" | "planning"
   if (vue === "planning") {
@@ -7060,8 +7062,8 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
       <div>
         <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
         <BoutonRetour onClick={() => setVue(null)} className="mb-4">Retour au plan de nettoyage</BoutonRetour>
-        <SectionHeader title="Planning de nettoyage" subtitle="Quoi nettoyer, où, à quelle fréquence et par qui" />
-      <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />
+        <SectionHeader title="Planning de nettoyage" subtitle="Pour chaque zone : quand, par qui — et un coup d'œil sur la charge de chacun" fonction="pms" icone={CalendarDays} />
+      <PlanningNettoyageZones chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} shifts={shifts} />
       </div>
     );
   }
@@ -7070,8 +7072,8 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
       <div>
         <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
         <BoutonRetour onClick={() => setVue(null)} className="mb-4">Retour au plan de nettoyage</BoutonRetour>
-        <SectionHeader title="Protocoles de nettoyage" subtitle="Pour chaque surface ou matériel : les produits à utiliser et les étapes à suivre" />
-        <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />
+        <SectionHeader title="Protocoles de nettoyage" subtitle="Pour chaque appareil ou surface d'une zone : le produit et le protocole à suivre" fonction="pms" icone={SprayCan} />
+        <ProtocolesNettoyageZones cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} logActivity={logActivity} />
       </div>
     );
   }
@@ -7097,6 +7099,464 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
         </button>
       </div>
       <p className="text-xs text-[var(--steel)]">Les protocoles et le planning se relient : un nettoyage planifié s'appuie sur son protocole. Les tâches faites restent barrées dans le planning des employés.</p>
+    </div>
+  );
+}
+
+/* ---------- Plan de nettoyage par zone : page 1 (protocoles) et page 2 (planning) ---------- */
+// Un « élément » = un appareil ou une surface d'une zone. Il est enregistré comme une tâche du plan (cleaning) :
+// page 1 renseigne le produit et le protocole, page 2 renseigne quand et par qui. Tant qu'il n'est pas planifié,
+// il porte planifie:false (aucun employé ne le voit). Les propositions du catalogue ne sont enregistrées qu'une fois validées.
+const estPlanifieNet = (t) => !!t && !t.masque && t.planifie !== false;
+
+function construireZonesNet(cleaning, zonesStockees) {
+  const noms = [];
+  const ajout = (n) => { const z = n || "Tous"; if (!noms.some((x) => normaliserNomNet(x) === normaliserNomNet(z))) noms.push(z); };
+  CATALOGUE_NETTOYAGE.forEach((z) => ajout(z.nom));
+  (zonesStockees || []).forEach(ajout);
+  (cleaning || []).forEach((t) => ajout(t.poste));
+  let extra = 0;
+  return noms.map((nom) => {
+    const cat = CATALOGUE_NETTOYAGE.find((z) => normaliserNomNet(z.nom) === normaliserNomNet(nom));
+    const couleur = cat ? cat.couleur : COULEURS_ZONES_EXTRA[extra++ % COULEURS_ZONES_EXTRA.length];
+    const taches = (cleaning || []).filter((t) => normaliserNomNet(t.poste || "Tous") === normaliserNomNet(nom));
+    const lignes = [];
+    const utilisees = new Set();
+    if (cat) {
+      cat.elements.forEach((e) => {
+        const cible = normaliserNomNet(e.nom);
+        const liees = taches.filter((t) => normaliserNomNet(baseTacheNet(t.tache)) === cible);
+        liees.forEach((t) => utilisees.add(t.id));
+        const visibles = liees.filter((t) => !t.masque);
+        if (visibles.length) visibles.forEach((t) => lignes.push({ cle: t.id, nom: t.tache, tache: t, cat: e }));
+        else if (!liees.length) lignes.push({ cle: `cat|${nom}|${e.nom}`, nom: e.nom, tache: null, cat: e });
+      });
+    }
+    taches.filter((t) => !utilisees.has(t.id) && !t.masque).forEach((t) => lignes.push({ cle: t.id, nom: t.tache, tache: t, cat: null }));
+    return { nom, couleur, lignes, nbPlanifiees: lignes.filter((l) => estPlanifieNet(l.tache)).length };
+  });
+}
+
+function outilsLignesNet(cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity) {
+  const nouvelle = (zone, nom, patch) => normaliserTacheNet({ id: uid(), tache: nom, poste: zone, frequence: "À chaque utilisation", planifie: false, ligneZone: true, creeLe: todayISO(), fait: false, date: null, employeeId: null, ...patch });
+  const enregistrer = (zone, ligne, patch) => {
+    if (ligne.tache) setCleaning(cleaning.map((t) => (t.id === ligne.tache.id ? normaliserTacheNet({ ...t, ...patch }) : t)));
+    else setCleaning([...cleaning, nouvelle(zone, ligne.nom, { duree: ligne.cat ? ligne.cat.duree : undefined, ...patch })]);
+  };
+  const validerPropositions = (zone) => {
+    const virtuelles = zone.lignes.filter((l) => !l.tache && l.cat);
+    if (!virtuelles.length) return;
+    setCleaning([...cleaning, ...virtuelles.map((l) => nouvelle(zone.nom, l.nom, { produit: l.cat.produit, etapes: l.cat.etapes, duree: l.cat.duree }))]);
+    logActivity("Nettoyage", "Propositions de protocoles validées", `${zone.nom} : ${virtuelles.length} éléments`);
+  };
+  const retirer = (zone, ligne) => {
+    if (ligne.cat) {
+      const patch = { masque: true, planifie: false, frequence: "À chaque utilisation" };
+      if (ligne.tache) setCleaning(cleaning.map((t) => (t.id === ligne.tache.id ? normaliserTacheNet({ ...t, ...patch }) : t)));
+      else setCleaning([...cleaning, nouvelle(zone, ligne.nom, patch)]);
+    } else if (ligne.tache) setCleaning(cleaning.filter((t) => t.id !== ligne.tache.id));
+    logActivity("Nettoyage", "Élément retiré du plan de nettoyage", `${zone} — ${ligne.nom}`);
+  };
+  const ajouterElement = (zone, nom) => {
+    const t = nouvelle(zone, nom, {});
+    setCleaning([...cleaning, t]);
+    logActivity("Nettoyage", "Élément ajouté au plan de nettoyage", `${zone} — ${nom}`);
+    return t.id;
+  };
+  const ajouterZone = (nom, premier) => {
+    if (!nom.trim() || !premier.trim()) return "Indiquez le nom de la zone et son premier élément.";
+    if (construireZonesNet(cleaning, zonesNettoyage).some((z) => normaliserNomNet(z.nom) === normaliserNomNet(nom))) return "Cette zone existe déjà.";
+    setZonesNettoyage([...zonesNettoyage, nom.trim()]);
+    setCleaning([...cleaning, nouvelle(nom.trim(), premier.trim(), {})]);
+    logActivity("Nettoyage", "Zone ajoutée au plan de nettoyage", nom.trim());
+    return null;
+  };
+  return { enregistrer, validerPropositions, retirer, ajouterElement, ajouterZone };
+}
+
+function ListeZonesNet({ zones, sel, onSel, compte }) {
+  return (
+    <div className="grid grid-cols-2 lg:grid-cols-1 gap-3 content-start">
+      {zones.map((z) => {
+        const actif = z.nom === sel;
+        return (
+          <button key={z.nom} type="button" onClick={() => onSel(z.nom)} style={{ background: z.couleur, boxShadow: actif ? `0 0 0 2px #fff, 0 0 0 5px ${z.couleur}` : "none" }} className={`rounded-xl px-3 py-2.5 min-h-[48px] text-left flex items-center justify-between gap-2 ${actif ? "" : "opacity-90"}`}>
+            <span className="min-w-0 text-sm font-semibold text-white leading-tight break-words">{libelleZone(z.nom)}</span>
+            <span className="shrink-0 rounded-full bg-white/25 text-white text-xs font-bold px-2 py-0.5">{compte(z)}</span>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+// Bandeau coloré en haut de la zone : son nom, et les deux ajouts (un élément, une zone)
+function EnteteZoneNet({ zone, soustitre, noms, onAjouterElement, onAjouterZone, children }) {
+  const [mode, setMode] = useState(null);
+  const [nom, setNom] = useState("");
+  const [premier, setPremier] = useState("");
+  const [msg, setMsg] = useState("");
+  const fermer = () => { setMode(null); setNom(""); setPremier(""); setMsg(""); };
+  const validerElement = () => {
+    const n = nom.trim();
+    if (!n) return;
+    if (noms.some((x) => normaliserNomNet(x) === normaliserNomNet(n))) { setMsg("Cet élément existe déjà dans cette zone."); return; }
+    onAjouterElement(n);
+    fermer();
+  };
+  const validerZone = () => {
+    const r = onAjouterZone(nom, premier);
+    if (r) setMsg(r); else fermer();
+  };
+  const btn = "inline-flex items-center gap-1.5 rounded-lg bg-white/95 text-[var(--ink)] text-sm font-medium px-3 py-2 min-h-[40px]";
+  return (
+    <div className="mb-3">
+      <div className="rounded-xl p-3 flex flex-wrap items-center gap-2" style={{ background: zone.couleur }}>
+        <div className="min-w-0 flex-1 basis-48">
+          <div className="text-white text-lg font-bold leading-tight break-words">{libelleZone(zone.nom)}</div>
+          <div className="text-white/90 text-xs mt-0.5">{soustitre}</div>
+        </div>
+        <button type="button" className={btn} onClick={() => { fermer(); setMode("element"); }}><Plus size={15} /> Ajouter un élément</button>
+        <button type="button" className={btn} onClick={() => { fermer(); setMode("zone"); }}><Plus size={15} /> Ajouter une zone</button>
+      </div>
+      {mode && (
+        <div className="rounded-xl border-2 p-3 mt-2 bg-white" style={{ borderColor: zone.couleur }}>
+          {mode === "element" ? (
+            <>
+              <label className={libNet}>Nouvel appareil ou surface dans « {libelleZone(zone.nom)} »</label>
+              <input className={`${champNet}`} value={nom} onChange={(e) => { setNom(e.target.value); setMsg(""); }} placeholder="Ex. Trancheur, Plan de travail 2, Hotte…" autoFocus />
+            </>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div><label className={libNet}>Nom de la nouvelle zone</label><input className={champNet} value={nom} onChange={(e) => { setNom(e.target.value); setMsg(""); }} placeholder="Ex. Laboratoire, Traiteur, Cave…" autoFocus /></div>
+              <div><label className={libNet}>Son premier élément</label><input className={champNet} value={premier} onChange={(e) => { setPremier(e.target.value); setMsg(""); }} placeholder="Ex. Plan de travail" /></div>
+            </div>
+          )}
+          {msg && <p className="text-xs text-[var(--warn)] mt-1.5">{msg}</p>}
+          <div className="flex flex-wrap gap-2 mt-2">
+            <Button onClick={mode === "element" ? validerElement : validerZone} disabled={mode === "element" ? !nom.trim() : !nom.trim() || !premier.trim()}>Ajouter</Button>
+            <Button variant="ghost" onClick={fermer}>Annuler</Button>
+          </div>
+        </div>
+      )}
+      {children}
+    </div>
+  );
+}
+
+function EditeurLigneProtocoleNet({ ligne, onSave, onRetirer, onCancel }) {
+  const t = ligne.tache;
+  const [produit, setProduit] = useState(t && t.produit != null ? t.produit : (ligne.cat ? ligne.cat.produit : ""));
+  const [etapes, setEtapes] = useState(() => { const e = t && t.etapes && t.etapes.length ? t.etapes : (ligne.cat ? ligne.cat.etapes : []); return e.length ? [...e] : [""]; });
+  const [note, setNote] = useState((t && t.note) || "");
+  const [confirmer, setConfirmer] = useState(false);
+  const listeId = "produits-net-" + ligne.cle;
+  return (
+    <div className="border-t border-[var(--cadre)] bg-[var(--bg)] p-3 space-y-3">
+      <div>
+        <label className={libNet}>Produit utilisé</label>
+        <input className={champNet} list={listeId} value={produit} onChange={(e) => setProduit(e.target.value)} placeholder="Choisissez ou écrivez le produit de votre cuisine" />
+        <datalist id={listeId}>{PRODUITS_NETTOYAGE_SUGGERES.map((p) => <option key={p} value={p} />)}</datalist>
+        <p className="text-xs text-[var(--steel)] mt-1">Dosage et temps de contact : selon la fiche technique du produit que vous utilisez.</p>
+      </div>
+      <div>
+        <div className="flex items-center justify-between gap-2 mb-1.5">
+          <span className={`${libNet} !mb-0`}>Protocole (étapes)</span>
+          <Button variant="ghost" onClick={() => setEtapes([...etapes, ""])}><Plus size={14} /> Étape</Button>
+        </div>
+        <div className="space-y-2">
+          {etapes.map((e, i) => (
+            <div key={i} className="flex items-start gap-2">
+              <span className="w-6 h-10 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
+              <textarea rows={2} className={`${inputCls} flex-1 min-w-0 text-sm`} value={e} onChange={(ev) => setEtapes(etapes.map((x, j) => (j === i ? ev.target.value : x)))} placeholder="Décrire l'étape" />
+              <button type="button" onClick={() => setEtapes(etapes.filter((_, j) => j !== i))} className="h-10 px-1 text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title="Retirer l'étape"><X size={14} /></button>
+            </div>
+          ))}
+        </div>
+      </div>
+      <div>
+        <label className={libNet}>Précisions (facultatif)</label>
+        <textarea rows={2} className={`${inputCls} w-full text-sm`} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex. repère officiel, précaution particulière…" />
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => onSave({ produit: produit.trim(), etapes: etapes.map((x) => x.trim()).filter(Boolean), note: note.trim() })}>Valider</Button>
+        <Button variant="ghost" onClick={onCancel}>Annuler</Button>
+        {confirmer
+          ? <span className="inline-flex flex-wrap items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Retirer « {ligne.nom} » du plan, planning compris ?</span><Button variant="danger" onClick={onRetirer}>Oui</Button><Button variant="ghost" onClick={() => setConfirmer(false)}>Non</Button></span>
+          : <button type="button" className="ml-auto text-xs text-[var(--steel)] underline" onClick={() => setConfirmer(true)}>Retirer cet élément</button>}
+      </div>
+    </div>
+  );
+}
+
+// Page 1 : par zone, quel appareil ou quelle surface est nettoyé avec quel produit et quel protocole
+function ProtocolesParZone({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity }) {
+  const zones = construireZonesNet(cleaning, zonesNettoyage);
+  const [sel, setSel] = useState("Poste Chaud");
+  const [ouverte, setOuverte] = useState(null);
+  const zone = zones.find((z) => z.nom === sel) || zones[0];
+  const o = outilsLignesNet(cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity);
+  const nbPropositions = zone.lignes.filter((l) => !l.tache && l.cat).length;
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4">
+      <ListeZonesNet zones={zones} sel={zone.nom} onSel={(n) => { setSel(n); setOuverte(null); }} compte={(z) => z.lignes.length} />
+      <div className="min-w-0">
+        <EnteteZoneNet zone={zone} soustitre={`${zone.lignes.length} élément${zone.lignes.length > 1 ? "s" : ""} — produit et protocole de chacun`} noms={zone.lignes.map((l) => l.nom)}
+          onAjouterElement={(nom) => setOuverte(o.ajouterElement(zone.nom, nom))}
+          onAjouterZone={(nom, premier) => { const r = o.ajouterZone(nom, premier); if (!r) setSel(nom.trim()); return r; }}>
+          {nbPropositions > 0 && (
+            <div className="rounded-lg border border-[var(--cadre)] bg-white p-2.5 mt-2 flex flex-wrap items-center gap-2">
+              <p className="text-xs text-[var(--steel)] flex-1 basis-56 min-w-0">{nbPropositions} ligne{nbPropositions > 1 ? "s" : ""} proposée{nbPropositions > 1 ? "s" : ""} (produit et protocole types). Ouvrez une ligne pour l'adapter à vos produits, ou validez tout d'un coup.</p>
+              <Button variant="ghost" onClick={() => o.validerPropositions(zone)}>Valider toutes les propositions</Button>
+            </div>
+          )}
+        </EnteteZoneNet>
+        <div className="hidden sm:grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 px-3 pb-1 text-xs font-bold uppercase tracking-wide text-[var(--steel)]">
+          <span>Appareil ou surface</span><span>Produit</span><span>Protocole</span>
+        </div>
+        <div className="space-y-2">
+          {zone.lignes.map((l) => {
+            const t = l.tache;
+            const produit = t && t.produit != null ? t.produit : (l.cat ? l.cat.produit : "");
+            const nbEtapes = t && t.etapes && t.etapes.length ? t.etapes.length : (l.cat && !(t && t.ligneZone && t.etapes) ? l.cat.etapes.length : 0);
+            const ouvert = ouverte === l.cle;
+            return (
+              <div key={l.cle} className="rounded-xl border border-[var(--cadre)] bg-white overflow-hidden" style={{ borderLeft: `6px solid ${zone.couleur}` }}>
+                <button type="button" onClick={() => setOuverte(ouvert ? null : l.cle)} className="w-full text-left p-3 grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1 sm:gap-3 items-start">
+                  <span className="min-w-0 font-medium text-[var(--ink)] break-words">{l.nom}</span>
+                  <span className="min-w-0 text-sm text-[var(--ink)] break-words">{produit || <em className="text-[var(--steel)]">Produit à choisir</em>}</span>
+                  <span className="min-w-0 text-sm flex items-start justify-between gap-2">
+                    <span className="min-w-0 break-words text-[var(--ink)]">{nbEtapes ? `${nbEtapes} étape${nbEtapes > 1 ? "s" : ""}` : <em className="text-[var(--steel)]">Protocole à définir</em>}{t ? "" : " · proposé"}</span>
+                    {ouvert ? <ChevronUp size={16} className="shrink-0 text-[var(--steel)]" /> : <ChevronDown size={16} className="shrink-0 text-[var(--steel)]" />}
+                  </span>
+                </button>
+                {ouvert && <EditeurLigneProtocoleNet key={l.cle} ligne={l} onCancel={() => setOuverte(null)} onSave={(patch) => { o.enregistrer(zone.nom, l, patch); setOuverte(null); }} onRetirer={() => { o.retirer(zone.nom, l); setOuverte(null); }} />}
+              </div>
+            );
+          })}
+          {!zone.lignes.length && <p className="text-sm text-[var(--steel)]">Aucun élément dans cette zone. Utilisez « Ajouter un élément ».</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function resumePlanningNet(t, employees) {
+  if (!estPlanifieNet(t)) return "Non planifié";
+  const quand = t.frequence === "À chaque utilisation" ? "Après chaque utilisation" : libelleFrequenceNet(t).replace(/^./, (c) => c.toUpperCase());
+  const moments = ["Quotidienne", "Hebdomadaire", "Toutes les 2 semaines", "Mensuelle", "Annuelle"].includes(t.frequence) ? ` · ${libelleMomentsNet(t)}` : "";
+  return quand + moments;
+}
+function resumeQuiNet(t, employees) {
+  if (!estPlanifieNet(t)) return "—";
+  const mode = t.assigneA || "tous";
+  let qui = "Toute l'équipe";
+  if (mode === "personnes") qui = (t.personnes || []).map((id) => (employees || []).find((e) => e.id === id)?.nom).filter(Boolean).join(", ") || "Personne choisie";
+  else if (mode === "poste") qui = `Équipe de ${t.poste}`;
+  return `${qui} · ${Number(t.duree) || 10} min`;
+}
+
+function EditeurLignePlanningNet({ ligne, employees, onSave, onArreter, onCancel }) {
+  const t = ligne.tache;
+  const [v, setV] = useState(() => {
+    const base = estPlanifieNet(t) ? t : { ...(ligne.cat ? ligne.cat.planning : { frequence: "Quotidienne", moments: ["soir"] }), ...(t ? { assigneA: t.assigneA, personnes: t.personnes } : {}) };
+    const x = { frequence: "Quotidienne", ...base, duree: (t && t.duree) || (ligne.cat && ligne.cat.duree) || 10 };
+    if ((x.frequence === "Hebdomadaire" || x.frequence === "Toutes les 2 semaines") && !joursDeLaTache(x).length) x.jours = ["Lundi"];
+    if (x.frequence === "Toutes les 2 semaines" && !x.semaineRef) x.semaineRef = todayISO();
+    return x;
+  });
+  const maj = (p) => setV((x) => ({ ...x, ...p }));
+  const sansPersonne = (v.assigneA || "tous") === "personnes" && !(v.personnes || []).length;
+  return (
+    <div className="border-t border-[var(--cadre)] bg-[var(--bg)] p-3 space-y-3">
+      {!estPlanifieNet(t) && ligne.cat && <p className="text-xs text-[var(--steel)]">Fréquence proposée d'après le guide de bonnes pratiques : modifiez-la si besoin, puis validez.</p>}
+      <ChampsFrequenceNettoyage v={v} maj={maj} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+        <QuiCompactNettoyage v={v} maj={maj} employees={employees} />
+        <div>
+          <label className={libNet}>Durée estimée</label>
+          <select className={champNet} value={Number(v.duree) || 10} onChange={(e) => maj({ duree: Number(e.target.value) })}>
+            {[5, 10, 15, 20, 30, 45, 60, 90, 120].map((m) => <option key={m} value={m}>{m} min</option>)}
+          </select>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-2">
+        <Button onClick={() => onSave({ ...v, assigneA: v.assigneA || "tous", personnes: (v.assigneA || "tous") === "personnes" ? (v.personnes || []) : undefined, planifie: true })} disabled={sansPersonne}>{estPlanifieNet(t) ? "Enregistrer" : "Planifier"}</Button>
+        <Button variant="ghost" onClick={onCancel}>Annuler</Button>
+        {estPlanifieNet(t) && <button type="button" className="ml-auto text-xs text-[var(--steel)] underline" onClick={onArreter}>Ne plus planifier</button>}
+      </div>
+    </div>
+  );
+}
+
+// Page 2 — onglet « Par zone » : quand et par qui pour chaque appareil ou surface
+function PlanificationParZone({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, employees, logActivity }) {
+  const zones = construireZonesNet(cleaning, zonesNettoyage);
+  const [sel, setSel] = useState("Poste Chaud");
+  const [ouverte, setOuverte] = useState(null);
+  const zone = zones.find((z) => z.nom === sel) || zones[0];
+  const o = outilsLignesNet(cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity);
+  return (
+    <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4">
+      <ListeZonesNet zones={zones} sel={zone.nom} onSel={(n) => { setSel(n); setOuverte(null); }} compte={(z) => `${z.nbPlanifiees}/${z.lignes.length}`} />
+      <div className="min-w-0">
+        <EnteteZoneNet zone={zone} soustitre={`${zone.nbPlanifiees} planifié${zone.nbPlanifiees > 1 ? "s" : ""} sur ${zone.lignes.length}`} noms={zone.lignes.map((l) => l.nom)}
+          onAjouterElement={(nom) => setOuverte(o.ajouterElement(zone.nom, nom))}
+          onAjouterZone={(nom, premier) => { const r = o.ajouterZone(nom, premier); if (!r) setSel(nom.trim()); return r; }} />
+        <div className="hidden sm:grid grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-3 px-3 pb-1 text-xs font-bold uppercase tracking-wide text-[var(--steel)]">
+          <span>Appareil ou surface</span><span>Quand</span><span>Par qui · durée</span>
+        </div>
+        <div className="space-y-2">
+          {zone.lignes.map((l) => {
+            const t = l.tache;
+            const ouvert = ouverte === l.cle;
+            const planifie = estPlanifieNet(t);
+            return (
+              <div key={l.cle} className="rounded-xl border border-[var(--cadre)] bg-white overflow-hidden" style={{ borderLeft: `6px solid ${planifie ? zone.couleur : "#B8BEC6"}` }}>
+                <button type="button" onClick={() => setOuverte(ouvert ? null : l.cle)} className="w-full text-left p-3 grid grid-cols-1 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1fr)] gap-1 sm:gap-3 items-start">
+                  <span className="min-w-0 font-medium text-[var(--ink)] break-words">{l.nom}</span>
+                  <span className={`min-w-0 text-sm break-words ${planifie ? "text-[var(--ink)]" : "text-[var(--steel)] italic"}`}>{resumePlanningNet(t, employees)}</span>
+                  <span className="min-w-0 text-sm flex items-start justify-between gap-2">
+                    <span className="min-w-0 break-words text-[var(--ink)]">{resumeQuiNet(t, employees)}</span>
+                    {ouvert ? <ChevronUp size={16} className="shrink-0 text-[var(--steel)]" /> : <ChevronDown size={16} className="shrink-0 text-[var(--steel)]" />}
+                  </span>
+                </button>
+                {ouvert && <EditeurLignePlanningNet key={l.cle} ligne={l} employees={employees} onCancel={() => setOuverte(null)} onSave={(patch) => { o.enregistrer(zone.nom, l, patch); setOuverte(null); }} onArreter={() => { o.enregistrer(zone.nom, l, { planifie: false, frequence: "À chaque utilisation" }); setOuverte(null); }} />}
+              </div>
+            );
+          })}
+          {!zone.lignes.length && <p className="text-sm text-[var(--steel)]">Aucun élément dans cette zone. Utilisez « Ajouter un élément ».</p>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const lundiDeNet = (iso) => { const [y, m, d] = String(iso).split("-").map(Number); const dt = new Date(y, m - 1, d); dt.setDate(dt.getDate() - ((dt.getDay() + 6) % 7)); return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`; };
+
+// Page 2 — onglet « Semaine » : qui fait quoi chaque jour, et qui est trop chargé
+function ChargeSemaineNet({ cleaning, employees, shifts }) {
+  const [debut, setDebut] = useState(lundiDeNet(todayISO()));
+  const [seuil, setSeuil] = useState(60);
+  const [choix, setChoix] = useState(null);
+  const jours = Array.from({ length: 7 }, (_, i) => ajouterJours(debut, i));
+  const equipe = (employees || []).filter((e) => e.id !== "direction");
+  const donnees = {};
+  const ajouter = (id, iso, t, moment, duree) => { const k = `${id}|${iso}`; const d = donnees[k] || (donnees[k] = { min: 0, items: [] }); d.min += duree; d.items.push({ t, moment, duree }); };
+  cleaning.filter(estPlanifieNet).forEach((t) => jours.forEach((iso) => {
+    if (!tacheDueLe(t, iso)) return;
+    const duree = Number(t.duree) || 10;
+    momentsDeLaTache(t).forEach((m) => {
+      const mode = t.assigneA || "tous";
+      if (mode === "tous") { ajouter("__equipe__", iso, t, m, duree); return; }
+      const { ids } = personnesConcernees(t, iso, m, employees, shifts);
+      ids.forEach((id) => ajouter(id, iso, t, m, mode === "poste" ? Math.max(1, Math.round(duree / ids.length)) : duree));
+    });
+  }));
+  const minDe = (id, iso) => (donnees[`${id}|${iso}`] ? donnees[`${id}|${iso}`].min : 0);
+  const totalJour = (iso) => equipe.reduce((s, e) => s + minDe(e.id, iso), 0) + minDe("__equipe__", iso);
+  const totaux = jours.map(totalJour);
+  const maxJour = Math.max(...totaux);
+  const classe = (min) => (min === 0 ? "bg-white text-[var(--steel)]" : min <= seuil ? "bg-[#E4F3EA] text-[#1E6B3E]" : min <= seuil * 1.5 ? "bg-[#FCEFD9] text-[#8A5A00]" : "bg-[var(--warn-soft)] text-[var(--warn)] font-bold");
+  const libJour = (iso) => `${nomJour(iso).slice(0, 3)} ${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  const detail = choix ? donnees[`${choix.id}|${choix.iso}`] : null;
+  const nomChoix = choix ? (choix.id === "__equipe__" ? "Toute l'équipe" : (equipe.find((e) => e.id === choix.id) || {}).nom) : "";
+  const surcharges = [];
+  equipe.forEach((e) => jours.forEach((iso) => { if (minDe(e.id, iso) > seuil * 1.5) surcharges.push(`${e.nom} (${libJour(iso)} : ${minDe(e.id, iso)} min)`); }));
+  const celBase = "border border-[var(--cadre)] p-1.5 text-center align-middle";
+  return (
+    <div>
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        <button type="button" className="px-3 py-2 rounded-lg border border-[var(--cadre)] bg-white" onClick={() => setDebut(ajouterJours(debut, -7))} title="Semaine précédente"><ChevronLeft size={16} /></button>
+        <span className="text-sm font-semibold text-[var(--ink)]">Semaine du {libJour(debut)} au {libJour(ajouterJours(debut, 6))}</span>
+        <button type="button" className="px-3 py-2 rounded-lg border border-[var(--cadre)] bg-white" onClick={() => setDebut(ajouterJours(debut, 7))} title="Semaine suivante"><ChevronRight size={16} /></button>
+        <button type="button" className="text-xs text-[var(--accent)] underline" onClick={() => setDebut(lundiDeNet(todayISO()))}>Cette semaine</button>
+        <label className="ml-auto flex items-center gap-2 text-xs text-[var(--steel)]">Charge raisonnable par jour
+          <select className={`${champNetAuto} !h-9`} value={seuil} onChange={(e) => setSeuil(Number(e.target.value))}>{[30, 45, 60, 90, 120].map((m) => <option key={m} value={m}>{m} min</option>)}</select>
+        </label>
+      </div>
+      {surcharges.length > 0
+        ? <div className="rounded-lg border-2 border-[var(--warn)] bg-[var(--warn-soft)] p-2.5 mb-3 text-sm text-[var(--ink)]"><strong className="text-[var(--warn)]">Trop chargé :</strong> {surcharges.join(" · ")}. Répartissez ces nettoyages sur d'autres personnes ou d'autres jours (onglet « Par zone »).</div>
+        : <div className="rounded-lg border border-[var(--cadre)] bg-white p-2.5 mb-3 text-sm text-[var(--ink)]">Aucune surcharge cette semaine avec une charge raisonnable de {seuil} min par jour.</div>}
+      <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
+        <table className="w-full text-sm border-collapse" style={{ minWidth: 640 }}>
+          <thead>
+            <tr className="bg-[var(--bg)]">
+              <th className={`${celBase} text-left`}>Employé</th>
+              {jours.map((iso, i) => <th key={iso} className={`${celBase} font-semibold ${iso === todayISO() ? "bg-[var(--accent-soft)]" : ""}`}>{libJour(iso)}{totaux[i] === maxJour && maxJour > 0 && <div className="text-[10px] font-normal text-[var(--steel)]">jour le plus chargé</div>}</th>)}
+            </tr>
+          </thead>
+          <tbody>
+            {[...equipe.map((e) => ({ id: e.id, nom: e.nom })), { id: "__equipe__", nom: "Toute l'équipe (tâches pour tous)" }].map((e) => (
+              <tr key={e.id}>
+                <td className={`${celBase} text-left font-medium text-[var(--ink)] break-words`}>{e.nom}</td>
+                {jours.map((iso) => {
+                  const min = minDe(e.id, iso);
+                  const actif = choix && choix.id === e.id && choix.iso === iso;
+                  return (
+                    <td key={iso} className={`${celBase} ${e.id === "__equipe__" ? (min ? "bg-[var(--bg)] text-[var(--ink)]" : "bg-white text-[var(--steel)]") : classe(min)}`}>
+                      {min ? <button type="button" className={`w-full leading-tight ${actif ? "underline" : ""}`} onClick={() => setChoix(actif ? null : { id: e.id, iso })}>{min} min<span className="block text-[10px] font-normal opacity-80">{donnees[`${e.id}|${iso}`].items.length} nettoyage{donnees[`${e.id}|${iso}`].items.length > 1 ? "s" : ""}</span></button> : "—"}
+                    </td>
+                  );
+                })}
+              </tr>
+            ))}
+            <tr className="bg-[var(--bg)] font-semibold">
+              <td className={`${celBase} text-left`}>Total du jour</td>
+              {totaux.map((m, i) => <td key={i} className={celBase}>{m ? `${m} min` : "—"}</td>)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      <p className="text-xs text-[var(--steel)] mt-2">Vert : charge raisonnable · orange : chargé · rouge : trop chargé (plus d'une fois et demie la charge raisonnable). Un nettoyage confié à l'équipe d'un poste est réparti entre ses membres présents. Touchez une case pour voir le détail.</p>
+      {detail && (
+        <Card className="mt-3">
+          <div className="flex items-center justify-between gap-2 mb-2">
+            <h4 className="font-semibold text-[var(--ink)] break-words">{nomChoix} — {nomJour(choix.iso)} {choix.iso.slice(8, 10)}/{choix.iso.slice(5, 7)} : {detail.min} min</h4>
+            <button type="button" onClick={() => setChoix(null)} className="text-[var(--steel)]" title="Fermer"><X size={16} /></button>
+          </div>
+          <ul className="space-y-1.5">
+            {[...detail.items].sort((a, b) => (a.moment === b.moment ? 0 : a.moment === "midi" ? -1 : 1)).map((it, i) => (
+              <li key={i} className="flex flex-wrap items-baseline gap-x-2 text-sm">
+                <span className="text-xs font-semibold text-[var(--steel)] w-24 shrink-0">{it.moment === "midi" ? "Fin du midi" : "Fin du soir"}</span>
+                <span className="min-w-0 flex-1 basis-40 text-[var(--ink)] break-words">{it.t.tache}</span>
+                <span className="text-xs text-[var(--steel)]">{libelleZone(it.t.poste)} · {it.duree} min</span>
+              </li>
+            ))}
+          </ul>
+        </Card>
+      )}
+    </div>
+  );
+}
+
+function PlanningNettoyageZones({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage, setZonesNettoyage, employees, demandesAjout, signalerAjout, shifts }) {
+  const [onglet, setOnglet] = useState("zones");
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {[["zones", "Par zone : quand et qui"], ["semaine", "Semaine et charge de chacun"], ["tableau", "Tableau complet"]].map(([k, lib]) => (
+          <button key={k} type="button" onClick={() => setOnglet(k)} className={`px-3 py-2 rounded-full text-sm font-medium border ${onglet === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
+        ))}
+      </div>
+      {onglet === "zones" && <PlanificationParZone cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} logActivity={logActivity} />}
+      {onglet === "semaine" && <ChargeSemaineNet cleaning={cleaning} employees={employees} shifts={shifts} />}
+      {onglet === "tableau" && <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />}
+    </div>
+  );
+}
+
+function ProtocolesNettoyageZones({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, protocolesNettoyage, setProtocolesNettoyage, logActivity }) {
+  const [onglet, setOnglet] = useState("zones");
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5 mb-4">
+        {[["zones", "Par zone : produit et protocole"], ["libres", "Protocoles libres"]].map(([k, lib]) => (
+          <button key={k} type="button" onClick={() => setOnglet(k)} className={`px-3 py-2 rounded-full text-sm font-medium border ${onglet === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
+        ))}
+      </div>
+      {onglet === "zones" && <ProtocolesParZone cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} logActivity={logActivity} />}
+      {onglet === "libres" && <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />}
     </div>
   );
 }

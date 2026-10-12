@@ -81,6 +81,16 @@ export function statutOccurrence(exec) {
   return "a_faire";
 }
 
+// Ce que voit l'employé sous la tâche : la note du responsable, le produit à utiliser et le protocole (étapes)
+export function noteComposee(t) {
+  const lignes = [];
+  if (t.note) lignes.push(String(t.note));
+  if (t.produit && t.produit !== "Aucun") lignes.push(`Produit : ${t.produit}`);
+  const etapes = (Array.isArray(t.etapes) ? t.etapes : []).filter(Boolean);
+  if (etapes.length) lignes.push(`Protocole :\n${etapes.map((e, i) => `${i + 1}. ${e}`).join("\n")}`);
+  return lignes.join("\n");
+}
+
 // Occurrences à afficher « aujourd'hui » : celles du jour + celles des jours précédents jamais faites,
 // refusées par le chef ou déclarées impossibles (elles sont reprogrammées au lendemain, en retard).
 // Une tâche faite hier mais pas encore validée par le chef reste visible pour lui (à valider).
@@ -99,7 +109,7 @@ export function occurrencesDuJour(cleaning, executions, aujourdhui, fenetre = FE
         const passee = date < aujourdhui;
         if (passee && (statut === "valide")) return; // terminée
         sortie.push({
-          cle: cleOccurrence(t.id, date, moment), cleaningId: t.id, tache: t.tache, note: t.note || "", poste: t.poste || "Tous",
+          cle: cleOccurrence(t.id, date, moment), cleaningId: t.id, tache: t.tache, note: noteComposee(t), poste: t.poste || "Tous",
           date, moment, enRetard: passee && statut !== "fait", aValiderSeulement: passee && statut === "fait", exec, statut, t,
         });
       });
