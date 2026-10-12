@@ -11650,7 +11650,19 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
   const [editionId, setEditionId] = useState(null);
   const [editionForm, setEditionForm] = useState({});
   const [suppressionDemandee, setSuppressionDemandee] = useState(null);
-  const [formAjout, setFormAjout] = useState({ famille: "positif", sousType: "", nom: "", sonde: "", min: "", max: "" });
+  const [formAjout, setFormAjout] = useState({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "" });
+  const choixMode = (form, setForm) => (
+    <div className="w-full">
+      <div className="text-xs font-semibold text-[var(--steel)] mb-1">Comment relever la température de cet appareil ?</div>
+      <div className="flex flex-wrap gap-2">
+        {[["manuel", "✋ À la main (matin et soir)", "#B45309"], ["sonde", "📡 Avec une sonde", "#0E7490"]].map(([v, l, c]) => (
+          <button key={v} type="button" onClick={() => setForm({ ...form, mode: v })} className="px-3 py-2 min-h-[40px] rounded-lg text-sm font-semibold border-2"
+            style={form.mode === v ? { background: c, color: "#fff", borderColor: c } : { background: "#fff", color: c, borderColor: c }}>{l}</button>
+        ))}
+        {form.mode === "sonde" && <input className={`${inputCls} w-44`} placeholder="N° de la sonde" value={form.sonde} onChange={(e) => setForm({ ...form, sonde: e.target.value })} />}
+      </div>
+    </div>
+  );
   const eqById = (id) => equipementsFroid.find((e) => e.id === id);
   const updateEquipement = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val === "" ? null : Number(val) } : e)));
   const updateEquipementTexte = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val } : e)));
@@ -11672,21 +11684,21 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
     const nouveau = {
       id: uid(), nom: formAjout.nom.trim(), type: formAjout.famille === "negatif" ? "congelateur" : "frigo",
       min: formAjout.famille === "negatif" ? null : (formAjout.min === "" ? null : Number(formAjout.min)),
-      max: Number(formAjout.max), sonde: formAjout.sonde.trim() || null, sondeConnectee: false,
+      max: Number(formAjout.max), sonde: formAjout.mode === "sonde" ? (formAjout.sonde.trim() || null) : null, sondeConnectee: false,
     };
     setEquipementsFroid((prev) => [...prev, nouveau]);
     logActivity("HACCP", "Appareil de froid ajouté", `${nouveau.nom} — norme ${nouveau.type === "congelateur" ? `≤ ${nouveau.max}°C` : `${nouveau.min}°C à ${nouveau.max}°C`}`);
-    setFormAjout({ famille: "positif", sousType: "", nom: "", sonde: "", min: "", max: "" });
+    setFormAjout({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "" });
   };
 
   const commencerEdition = (eq) => {
     setEditionId(eq.id);
-    setEditionForm({ nom: eq.nom, sonde: eq.sonde || "", min: eq.min ?? "", max: eq.max ?? "" });
+    setEditionForm({ nom: eq.nom, sonde: eq.sonde || "", mode: eq.sonde ? "sonde" : "manuel", min: eq.min ?? "", max: eq.max ?? "" });
   };
   const annulerEdition = () => { setEditionId(null); setEditionForm({}); };
   const validerEdition = (id) => {
     updateEquipementTexte(id, "nom", editionForm.nom.trim());
-    updateEquipementTexte(id, "sonde", editionForm.sonde.trim() || null);
+    updateEquipementTexte(id, "sonde", editionForm.mode === "sonde" ? (editionForm.sonde.trim() || null) : null);
     const eq = eqById(id);
     if (eq.type !== "congelateur") updateEquipement(id, "min", editionForm.min);
     updateEquipement(id, "max", editionForm.max);
@@ -11730,12 +11742,12 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
                       <td colSpan={4} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-2">
                           <Field label="Nom de l'appareil"><input className={`${inputCls} w-48`} value={editionForm.nom} onChange={(e) => setEditionForm({ ...editionForm, nom: e.target.value })} /></Field>
-                          <Field label="N° du capteur connecté (vide si pas de capteur)"><input className={`${inputCls} w-28`} value={editionForm.sonde} onChange={(e) => setEditionForm({ ...editionForm, sonde: e.target.value })} /></Field>
                           {eq.type !== "congelateur" && (
                             <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.min} onChange={(e) => setEditionForm({ ...editionForm, min: e.target.value })} /></Field>
                           )}
                           <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.max} onChange={(e) => setEditionForm({ ...editionForm, max: e.target.value })} /></Field>
-                          <Button onClick={() => validerEdition(eq.id)}>Enregistrer</Button>
+                          {choixMode(editionForm, setEditionForm)}
+                          <Button onClick={() => validerEdition(eq.id)} disabled={editionForm.mode === "sonde" && !String(editionForm.sonde || "").trim()}>Enregistrer</Button>
                           <Button variant="ghost" onClick={annulerEdition}>Annuler</Button>
                         </div>
                       </td>
@@ -11755,7 +11767,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
                             <button className="underline" onClick={() => connecterSonde(eq)}>· connecter cette sonde</button>
                           )}
                         </div>
-                      ) : <div className="text-xs text-[var(--steel)]">Sonde non renseignée</div>}
+                      ) : <div className="text-xs font-semibold" style={{ color: "#B45309" }}>✋ Relevé à la main (matin et soir)</div>}
                     </td>
                     <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#15803D" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
                     <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
@@ -11776,7 +11788,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
         <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — la norme de température est pré-remplie automatiquement, modifiable ensuite si besoin.</p>
         <div className="flex flex-wrap items-end gap-2 mb-2">
           <Field label="Famille">
-            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ famille: e.target.value, sousType: "", nom: "", sonde: "", min: "", max: "" })}>
+            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ famille: e.target.value, sousType: "", nom: "", sonde: "", mode: formAjout.mode, min: "", max: "" })}>
               <option value="positif">Réfrigéré (0 à +4 °C)</option>
               <option value="negatif">Congelé (−18 °C)</option>
             </select>
@@ -11788,16 +11800,16 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
             </select>
           </Field>
           <Field label="Nom de cet appareil"><input className={`${inputCls} w-48`} placeholder="ex. Frigo viande 2" value={formAjout.nom} onChange={(e) => setFormAjout({ ...formAjout, nom: e.target.value })} /></Field>
-          <Field label="N° du capteur connecté (vide si pas de capteur)"><input className={`${inputCls} w-32`} value={formAjout.sonde} onChange={(e) => setFormAjout({ ...formAjout, sonde: e.target.value })} /></Field>
         </div>
+        <div className="mb-3">{choixMode(formAjout, setFormAjout)}</div>
         <div className="flex flex-wrap items-end gap-2 mb-4">
           {formAjout.famille === "positif" && (
             <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.min} onChange={(e) => setFormAjout({ ...formAjout, min: e.target.value })} /></Field>
           )}
           <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.max} onChange={(e) => setFormAjout({ ...formAjout, max: e.target.value })} /></Field>
-          <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === ""}><Plus size={14} /> Ajouter cet appareil</Button>
+          <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === "" || (formAjout.mode === "sonde" && !formAjout.sonde.trim())}><Plus size={14} /> Ajouter cet appareil</Button>
         </div>
-        <p className="text-xs text-[var(--steel)]">Le numéro de sonde peut être renseigné tout de suite ou ajouté plus tard (bouton "Modifier" sur la ligne de l'appareil). Une fois les sondes connectées réellement installées, le bouton "Connecter cette sonde" sur chaque ligne permettra de l'activer en un geste à sa mise en service.</p>
+        <p className="text-xs text-[var(--steel)]">Chaque appareil a son propre mode : à la main (matin et soir, sans rien acheter) ou avec une sonde. On peut commencer avec une ou deux sondes et passer les autres appareils plus tard, un par un, avec « Modifier ».</p>
       </Card>
 
       {suppressionDemandee && (
@@ -11816,6 +11828,7 @@ function HaccpTemperatures({
   tempLogs, setTempLogs, currentUserId, logActivity, who, ajouterAlerteControle, ouvrirNormes,
 }) {
   const [saisieManuelle, setSaisieManuelle] = useState({}); // { [equipementId]: { valeur, note } }
+  const [vueReleves, setVueReleves] = useState(null); // "sonde" | "manuel" (null = choix automatique)
   const [recontrole, setRecontrole] = useState({}); // { [surveillanceId]: valeur }
   const [anomalieForm, setAnomalieForm] = useState({}); // { [surveillanceId]: { motif, note } }
 
@@ -11838,6 +11851,25 @@ function HaccpTemperatures({
     }
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
   };
+
+  // Relevé à la main, matin ou soir : l'heure réelle est conservée ; le créneau est noté pour classer le relevé.
+  const enregistrerReleveCreneau = (eq, creneau) => {
+    const cle = `${eq.id}|${creneau}`;
+    const sv = saisieManuelle[cle];
+    if (!sv || sv.valeur === undefined || sv.valeur === "") return;
+    const conforme = equipementConforme(eq, sv.valeur);
+    const prefixe = creneau === "matin" ? "Relevé du matin" : "Relevé du soir";
+    const entry = { id: uid(), equipementId: eq.id, valeur: sv.valeur, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme, manuel: true, note: sv.note ? `${prefixe} — ${sv.note}` : prefixe };
+    setRelevesFroid((prev) => [entry, ...prev]);
+    logActivity("HACCP", `Contrôle température — relevé manuel du ${creneau}`, `${eq.nom} : ${sv.valeur}°C — ${conforme ? "conforme" : "hors seuil"}${sv.note ? ` — ${sv.note}` : ""}`);
+    if (equipementEcartAnomalie(eq, sv.valeur)) {
+      const surveillance = { id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: entry.heure, valeurInitiale: sv.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false };
+      setSurveillancesFroid((prev) => [surveillance, ...prev]);
+      logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${sv.valeur}°C — à recontrôler dans 30 min`);
+    }
+    setSaisieManuelle((prev) => { const n = { ...prev }; delete n[cle]; return n; });
+  };
+  const creneauDe = (r) => (String(r.note || "").startsWith("Relevé du matin") ? "matin" : String(r.note || "").startsWith("Relevé du soir") ? "soir" : ((r.heure || "00:00") < "15:00" ? "matin" : "soir"));
 
   const recontroler = (surv) => {
     const val = recontrole[surv.id];
@@ -11876,9 +11908,82 @@ function HaccpTemperatures({
   };
 
   const enAttente = surveillancesFroid.filter((s) => s.statut === "attente");
+  const avecSonde = equipementsFroid.filter((e) => e.sonde);
+  const sansSonde = equipementsFroid.filter((e) => !e.sonde);
+  const vue = vueReleves || (avecSonde.length > 0 ? "sonde" : "manuel");
+
+  const vueManuelle = () => {
+    const auj = todayISO();
+    const familles = [
+      { cle: "frigo", titre: "Réfrigérateurs et chambres froides", sous: "0 à +4 °C", couleur: "#15803D", fond: "#E4F4EA", liste: sansSonde.filter((e) => e.type !== "congelateur") },
+      { cle: "congelateur", titre: "Congélateurs", sous: "−18 °C ou moins", couleur: "#1B4F9C", fond: "#DCEBFB", liste: sansSonde.filter((e) => e.type === "congelateur") },
+    ];
+    const cellule = (eq, creneau, couleur) => {
+      const faits = relevesFroid.filter((r) => r.equipementId === eq.id && r.date === auj && creneauDe(r) === creneau).sort((x, y) => `${y.heure || ""}`.localeCompare(`${x.heure || ""}`));
+      const r = faits[0];
+      const cle = `${eq.id}|${creneau}`;
+      const sv = saisieManuelle[cle] || {};
+      return (
+        <div className="rounded-lg p-2 h-full" style={{ background: r ? (r.conforme === false ? "#FFF4E5" : "#F1FAF4") : "#fff", border: `1px solid ${couleur}55` }}>
+          {r && (
+            <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
+              <span className="text-base font-bold" style={{ color: r.conforme === false ? "var(--warn)" : "#15803D" }}>{r.valeur} °C</span>
+              <span className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={r.conforme === false ? { background: "#FDECEC", color: "#B3261E" } : { background: "#E4F4EA", color: "#15803D" }}>{r.conforme === false ? "Hors norme" : "Conforme"}</span>
+              <span className="text-[11px] text-[var(--steel)]">à {r.heure}</span>
+            </div>
+          )}
+          <div className="flex flex-wrap items-center gap-1.5">
+            <input className={`${inputCls} !w-20 !py-1.5 min-w-0`} type="number" step="0.1" placeholder="°C" value={sv.valeur ?? ""} onChange={(e) => majSaisie(cle, "valeur", e.target.value)} />
+            <Button variant="ghost" onClick={() => enregistrerReleveCreneau(eq, creneau)} disabled={sv.valeur === undefined || sv.valeur === ""}>{r ? "Corriger / ajouter" : "Enregistrer"}</Button>
+          </div>
+        </div>
+      );
+    };
+    return (
+      <div className="space-y-4 mb-6">
+        <div className="rounded-xl p-3 text-xs leading-snug text-[var(--ink)]" style={{ background: "#FFF8E1", border: "1px solid #E0C46B" }}>
+          <b>Relevé à la main, matin et soir.</b> Notez la température de chaque appareil avec un thermomètre. Conseil : un petit thermomètre posé à l'intérieur de l'appareil donne la température de l'air ; un thermomètre laser ne mesure que la surface. Tout relevé hors norme est enregistré comme non conforme, avec votre nom, la date et l'heure.
+        </div>
+        {sansSonde.length === 0 && <Card><p className="text-sm text-[var(--steel)]">Tous vos appareils sont suivis par sonde. Pour relever un appareil à la main, passez-le en « relevé à la main » dans Contrôle &amp; Gestion → Appareils de froid.</p></Card>}
+        {familles.filter((f) => f.liste.length > 0).map((f) => (
+          <div key={f.cle} className="rounded-xl overflow-hidden border-2 bg-white" style={{ borderColor: f.couleur }}>
+            <div className="px-3 py-2 text-white flex flex-wrap items-center gap-2" style={{ background: f.couleur }}>
+              <span className="font-bold text-base">{f.titre}</span>
+              <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5">{f.sous}</span>
+              <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5 ml-auto">{f.liste.length} appareil(s)</span>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="grid gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: "minmax(10rem,1.2fr) minmax(11rem,1fr) minmax(11rem,1fr)", minWidth: 520, background: f.fond, color: f.couleur }}>
+                <div>Appareil</div><div>☀️ Matin</div><div>🌙 Soir</div>
+              </div>
+              {f.liste.map((eq) => (
+                <div key={eq.id} className="grid gap-2 items-stretch px-3 py-2 border-t border-[var(--cadre)]" style={{ gridTemplateColumns: "minmax(10rem,1.2fr) minmax(11rem,1fr) minmax(11rem,1fr)", minWidth: 520 }}>
+                  <div className="min-w-0 self-center">
+                    <div className="text-sm font-semibold text-[var(--ink)] break-words">{eq.nom}</div>
+                    <div className="text-xs text-[var(--steel)]">Norme : {eq.type === "congelateur" ? `≤ ${eq.max} °C` : `${eq.min} à ${eq.max} °C`}</div>
+                  </div>
+                  {cellule(eq, "matin", f.couleur)}
+                  {cellule(eq, "soir", f.couleur)}
+                </div>
+              ))}
+            </div>
+          </div>
+        ))}
+        {avecSonde.length > 0 && <p className="text-xs text-[var(--steel)]">{avecSonde.length} appareil(s) suivi(s) par sonde ne figurent pas ici : voir l'onglet « Températures avec sonde ».</p>}
+      </div>
+    );
+  };
 
   return (
     <div>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {[["sonde", "📡 Températures avec sonde", "#0E7490"], ["manuel", "✋ Températures manuelles", "#B45309"]].map(([v, l, c]) => (
+          <button key={v} type="button" onClick={() => setVueReleves(v)} className="px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-bold border-2"
+            style={vue === v ? { background: c, color: "#fff", borderColor: c } : { background: "#fff", color: c, borderColor: c }}>{l}</button>
+        ))}
+      </div>
+      {vue === "manuel" && vueManuelle()}
+      {vue === "sonde" && (<>
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-1">Relevés — frigos &amp; congélateurs</h3>
         <div className="flex flex-wrap items-center gap-2 mb-1 text-xs text-[var(--steel)]">
@@ -11940,6 +12045,7 @@ function HaccpTemperatures({
           </table>
         </div>
       </Card>
+      </>)}
 
       {enAttente.length > 0 && (
         <Card className="mb-6 border-[var(--warn)]/40">
