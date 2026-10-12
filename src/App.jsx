@@ -7563,7 +7563,12 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
   const [debut, setDebut] = useState(lundiDeNet(todayISO()));
   const [seuil, setSeuil] = useState(60);
   const [choix, setChoix] = useState(null);
+  const [affichage, setAffichage] = useState("agenda");
+  const [filtreQui, setFiltreQui] = useState("");
   const jours = Array.from({ length: 7 }, (_, i) => ajouterJours(debut, i));
+  const couleursZones = {};
+  construireZonesNet(cleaning, []).forEach((z) => { couleursZones[normaliserNomNet(z.nom)] = z.couleur; });
+  const parJour = {};
   const equipe = (employees || []).filter((e) => e.id !== "direction");
   const donnees = {};
   const ajouter = (id, iso, t, moment, duree) => { const k = `${id}|${iso}`; const d = donnees[k] || (donnees[k] = { min: 0, items: [] }); d.min += duree; d.items.push({ t, moment, duree }); };
@@ -7572,6 +7577,8 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
     const duree = Number(t.duree) || 10;
     momentsDeLaTache(t).forEach((m) => {
       const mode = t.assigneA || "tous";
+      const quiIds = mode === "tous" ? [] : personnesConcernees(t, iso, m, employees, shifts).ids;
+      (parJour[iso] = parJour[iso] || []).push({ t, moment: m, duree, quiIds, equipe: mode === "tous" });
       if (mode === "tous") { ajouter("__equipe__", iso, t, m, duree); return; }
       const { ids } = personnesConcernees(t, iso, m, employees, shifts);
       ids.forEach((id) => ajouter(id, iso, t, m, mode === "poste" ? Math.max(1, Math.round(duree / ids.length)) : duree));
@@ -7602,6 +7609,57 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
       {surcharges.length > 0
         ? <div className="rounded-lg border-2 border-[var(--warn)] bg-[var(--warn-soft)] p-2.5 mb-3 text-sm text-[var(--ink)]"><strong className="text-[var(--warn)]">Trop chargé :</strong> {surcharges.join(" · ")}. Répartissez ces nettoyages sur d'autres personnes ou d'autres jours (onglet « Par zone »).</div>
         : <div className="rounded-lg border border-[var(--cadre)] bg-white p-2.5 mb-3 text-sm text-[var(--ink)]">Aucune surcharge cette semaine avec une charge raisonnable de {seuil} min par jour.</div>}
+      <div className="flex flex-wrap gap-1.5 mb-3">
+        {[["agenda", "Agenda : qui fait quoi"], ["charge", "Charge par employé"]].map(([k, lib]) => <button key={k} type="button" onClick={() => setAffichage(k)} className={`px-3 py-1.5 rounded-full text-xs font-medium border ${affichage === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>)}
+        {affichage === "agenda" && (
+          <label className="ml-auto flex items-center gap-2 text-xs text-[var(--steel)]">Voir le travail de
+            <select className={`${champNetAuto} !h-9`} value={filtreQui} onChange={(e) => setFiltreQui(e.target.value)}><option value="">Tout le monde</option>{equipe.map((e) => <option key={e.id} value={e.id}>{e.nom}</option>)}</select>
+          </label>
+        )}
+      </div>
+      {affichage === "agenda" && (
+        <div>
+          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(11rem, 1fr))" }}>
+            {jours.map((iso, i) => {
+              const items = (parJour[iso] || []).filter((it) => !filtreQui || it.equipe || it.quiIds.includes(filtreQui));
+              const maxPers = Math.max(0, ...equipe.map((e) => minDe(e.id, iso)));
+              const total = items.reduce((s, it) => s + it.duree, 0);
+              return (
+                <div key={iso} className={`rounded-xl border bg-white overflow-hidden min-w-0 ${iso === todayISO() ? "border-[var(--accent)] border-2" : "border-[var(--cadre)]"}`}>
+                  <div className={`px-2.5 py-1.5 ${classe(maxPers)}`}>
+                    <div className="text-sm font-bold">{libJour(iso)}</div>
+                    <div className="text-[11px] font-normal">{total} min{maxPers ? ` · plus chargé : ${maxPers} min` : ""}</div>
+                  </div>
+                  <div className="p-1.5 space-y-2 max-h-[28rem] overflow-y-auto">
+                    {["midi", "soir"].map((m) => {
+                      const liste = items.filter((it) => it.moment === m);
+                      if (!liste.length) return null;
+                      return (
+                        <div key={m}>
+                          <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--steel)] mb-1">{m === "midi" ? "Fin du midi" : "Fin du soir"}</div>
+                          <div className="space-y-1">
+                            {liste.map((it, k) => (
+                              <div key={k} className="rounded-md bg-[var(--bg)] px-2 py-1 text-xs min-w-0" style={{ borderLeft: `4px solid ${couleursZones[normaliserNomNet(it.t.poste || "Tous")] || "#9AA3AD"}` }}>
+                                <div className="font-medium text-[var(--ink)] break-words leading-snug">{it.t.tache}</div>
+                                <div className="text-[var(--steel)] break-words">{libelleZone(it.t.poste)} · {it.duree} min</div>
+                                <div className="text-[var(--ink)] break-words">{it.equipe ? "Toute l'équipe" : (it.quiIds.map((id) => (equipe.find((e) => e.id === id) || {}).nom).filter(Boolean).join(", ") || "Personne présente")}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {!items.length && <p className="text-xs text-[var(--steel)] px-1 py-2">Rien de prévu.</p>}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          {cleaning.some((t) => estPlanifieNet(t) && t.frequence === "À chaque utilisation") && <p className="text-xs text-[var(--steel)] mt-2"><strong>Après chaque utilisation</strong> (sans jour fixe) : {cleaning.filter((t) => estPlanifieNet(t) && t.frequence === "À chaque utilisation").map((t) => `${t.tache} (${libelleZone(t.poste)})`).join(" · ")}</p>}
+          <p className="text-xs text-[var(--steel)] mt-2">La couleur de l'en-tête de chaque jour montre l'employé le plus chargé ce jour-là (vert : raisonnable, orange : chargé, rouge : trop chargé). Le trait de couleur à gauche de chaque nettoyage est celui de sa zone.</p>
+        </div>
+      )}
+      {affichage === "charge" && (<>
       <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
         <table className="w-full text-sm border-collapse" style={{ minWidth: 640 }}>
           <thead>
@@ -7650,21 +7708,241 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
           </ul>
         </Card>
       )}
+      </>)}
+    </div>
+  );
+}
+
+const JOURS_PUCES_NET = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
+const FREQUENCES_MULTI_NET = [["À chaque utilisation", "Après chaque utilisation"], ["Quotidienne", "Chaque jour"], ["Hebdomadaire", "Chaque semaine (un ou plusieurs jours)"], ["Toutes les 2 semaines", "Toutes les 2 semaines"], ["Mensuelle", "Chaque mois"], ["Annuelle", "Chaque année"]];
+
+const pastilleNet = (actif) => `px-2.5 py-1.5 rounded-full text-xs font-medium border min-h-[36px] ${actif ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`;
+
+// Colonne « Fréquence » : tout empilé (jamais côte à côte) pour ne rien couper dans une colonne étroite
+function ColonneFrequenceNet({ f, maj }) {
+  const jours = f.jours || [];
+  const aMoments = f.frequence !== "À chaque utilisation";
+  const moments = f.moments && f.moments.length ? f.moments : ["soir"];
+  const momentVal = moments.length === 2 ? "les-deux" : moments[0];
+  return (
+    <div className="space-y-3">
+      <div>
+        <label className={libNet}>Quand ?</label>
+        <select className={champNet} value={f.frequence} onChange={(e) => maj({ frequence: e.target.value })}>
+          {FREQUENCES_MULTI_NET.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
+        </select>
+      </div>
+      {aMoments && (
+        <div>
+          <label className={libNet}>À quel moment ?</label>
+          <div className="flex flex-wrap gap-1.5">
+            {[["midi", "Fin du midi"], ["soir", "Fin du soir"], ["les-deux", "Midi et soir"]].map(([v, l]) => <button key={v} type="button" className={pastilleNet(momentVal === v)} onClick={() => maj({ moments: v === "les-deux" ? ["midi", "soir"] : [v] })}>{l}</button>)}
+          </div>
+        </div>
+      )}
+      {(f.frequence === "Hebdomadaire" || f.frequence === "Toutes les 2 semaines") && (
+        <div>
+          <label className={libNet}>Quels jours ?{f.frequence === "Toutes les 2 semaines" ? " (1 semaine sur 2)" : ""}</label>
+          <div className="flex flex-wrap gap-1.5">
+            {JOURS_PUCES_NET.map((j) => { const on = jours.includes(j); return <button key={j} type="button" className={pastilleNet(on)} onClick={() => maj({ jours: on ? jours.filter((x) => x !== j) : JOURS_PUCES_NET.filter((x) => x === j || jours.includes(x)) })}>{j.slice(0, 3)}</button>; })}
+          </div>
+          {!jours.length && <p className="text-xs text-[var(--warn)] mt-1">Choisissez au moins un jour.</p>}
+        </div>
+      )}
+      {f.frequence === "Mensuelle" && (
+        <div>
+          <label className={libNet}>Quel jour du mois ?</label>
+          <div className="space-y-1.5">
+            <select className={champNet} value={f.positionMois ?? 1} onChange={(e) => maj({ positionMois: e.target.value === "dernier" ? "dernier" : Number(e.target.value) })}>{POSITIONS_MOIS.map(([val, lib]) => <option key={val} value={val}>{lib}</option>)}</select>
+            <select className={champNet} value={f.jourSemaineMois || "Dimanche"} onChange={(e) => maj({ jourSemaineMois: e.target.value })}>{JOURS.map((j) => <option key={j} value={j}>{j}</option>)}</select>
+          </div>
+        </div>
+      )}
+      {f.frequence === "Annuelle" && (
+        <div>
+          <label className={libNet}>Quelle date chaque année ?</label>
+          <div className="space-y-1.5">
+            <select className={champNet} value={Number(f.jourAnnee) || 1} onChange={(e) => maj({ jourAnnee: Number(e.target.value) })}>{Array.from({ length: 31 }, (_, k) => k + 1).map((n) => <option key={n} value={n}>Le {n}</option>)}</select>
+            <select className={champNet} value={Number(f.moisAnnee) || 1} onChange={(e) => maj({ moisAnnee: Number(e.target.value) })}>{MOIS_ANNEE.map((mo, k) => <option key={mo} value={k + 1}>{mo}</option>)}</select>
+          </div>
+        </div>
+      )}
+      <div>
+        <label className={libNet}>Durée estimée</label>
+        <select className={champNet} value={Number(f.duree) || 10} onChange={(e) => maj({ duree: Number(e.target.value) })}>{[5, 10, 15, 20, 30, 45, 60, 90, 120].map((m) => <option key={m} value={m}>{m} min</option>)}</select>
+      </div>
+    </div>
+  );
+}
+
+const FREQ_VIDE_NET = { frequence: "Quotidienne", moments: ["soir"], jours: ["Lundi"], positionMois: 1, jourSemaineMois: "Dimanche", moisAnnee: 1, jourAnnee: 1, duree: 10, assigneA: "tous", personnes: [] };
+
+// Page 2 : 5 colonnes (zones, surfaces, matériel, fréquence, employés) en sélection multiple, puis l'agenda de la semaine
+function PlanningMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, employees, shifts, logActivity }) {
+  const zones = construireZonesNet(cleaning, zonesNettoyage);
+  const equipe = (employees || []).filter((e) => e.id !== "direction");
+  const [zSel, setZSel] = useState([]);
+  const [sSel, setSSel] = useState([]);
+  const [mSel, setMSel] = useState([]);
+  const [persos, setPersos] = useState([]);
+  const [f, setF] = useState(FREQ_VIDE_NET);
+  const [touche, setTouche] = useState(false);
+  const [ajout, setAjout] = useState(null);
+  const [nomAjout, setNomAjout] = useState("");
+  const [message, setMessage] = useState("");
+  const o = outilsLignesNet(cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity);
+
+  const perso = [...persos];
+  cleaning.forEach((t) => { if (!t.masque && t.genre && !trouverArticleNet(t.tache) && !perso.some((p) => normaliserNomNet(p.nom) === normaliserNomNet(baseTacheNet(t.tache)))) perso.push({ nom: baseTacheNet(t.tache), genre: t.genre }); });
+  const surfaces = [...SURFACES_NETTOYAGE, ...perso.filter((p) => p.genre === "surface")];
+  const materiels = [...MATERIELS_NETTOYAGE, ...perso.filter((p) => p.genre === "materiel")];
+  const elements = [...surfaces.filter((x) => sSel.includes(x.nom)), ...materiels.filter((x) => mSel.includes(x.nom))];
+  const nbLignes = zSel.length * elements.length;
+  const nbZonesPlan = (nom) => new Set(cleaning.filter((t) => estPlanifieNet(t) && normaliserNomNet(baseTacheNet(t.tache)) === normaliserNomNet(nom)).map((t) => normaliserNomNet(t.poste || "Tous"))).size;
+
+  const versForm = (t) => ({ ...FREQ_VIDE_NET, frequence: t.frequence || "Quotidienne", moments: t.moments && t.moments.length ? t.moments : ["soir"], jours: joursDeLaTache(t).length ? joursDeLaTache(t) : ["Lundi"], positionMois: t.positionMois ?? 1, jourSemaineMois: t.jourSemaineMois || "Dimanche", moisAnnee: t.moisAnnee || 1, jourAnnee: t.jourAnnee || 1, duree: Number(t.duree) || 10, assigneA: t.assigneA === "personnes" ? "personnes" : "tous", personnes: t.personnes || [] });
+  const signature = `${zSel.join("|")}#${sSel.join("|")}#${mSel.join("|")}`;
+  useEffect(() => {
+    if (touche) return;
+    if (!elements.length) { setF(FREQ_VIDE_NET); return; }
+    const existant = cleaning.find((t) => estPlanifieNet(t) && zSel.some((z) => normaliserNomNet(t.poste || "Tous") === normaliserNomNet(z)) && elements.some((e) => normaliserNomNet(e.nom) === normaliserNomNet(baseTacheNet(t.tache))));
+    if (existant) { setF(versForm(existant)); return; }
+    const art = trouverArticleNet(elements[0].nom);
+    setF(art ? { ...versForm(art.planning), duree: art.duree } : FREQ_VIDE_NET);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+
+  const maj = (p) => { setTouche(true); setMessage(""); setF((x) => ({ ...x, ...p })); };
+  const basculer = (liste, setListe, v) => { setListe(liste.includes(v) ? liste.filter((x) => x !== v) : [...liste, v]); setMessage(""); };
+  const basculerPersonne = (id) => maj({ assigneA: "personnes", personnes: f.personnes.includes(id) ? f.personnes.filter((x) => x !== id) : [...f.personnes, id] });
+  const validerAjout = () => {
+    const nom = nomAjout.trim();
+    if (!nom) return;
+    if (ajout === "zone") {
+      if (zones.some((z) => normaliserNomNet(z.nom) === normaliserNomNet(nom))) { setMessage("Cette zone existe déjà."); return; }
+      setZonesNettoyage([...zonesNettoyage, nom]); setZSel([...zSel, nom]);
+    } else {
+      if ([...surfaces, ...materiels].some((x) => normaliserNomNet(x.nom) === normaliserNomNet(nom))) { setMessage("Cet élément existe déjà dans la liste."); return; }
+      setPersos([...persos, { nom, genre: ajout }]);
+      if (ajout === "surface") setSSel([...sSel, nom]); else setMSel([...mSel, nom]);
+    }
+    setAjout(null); setNomAjout(""); setMessage("");
+  };
+  const besoinJours = (f.frequence === "Hebdomadaire" || f.frequence === "Toutes les 2 semaines") && !(f.jours || []).length;
+  const besoinPersonne = f.assigneA === "personnes" && !f.personnes.length;
+  const peutAppliquer = zSel.length > 0 && elements.length > 0 && !besoinJours && !besoinPersonne;
+  const appliquer = () => {
+    const valeurs = { frequence: f.frequence, moments: f.moments, jours: f.jours, jour: undefined, positionMois: f.positionMois, jourSemaineMois: f.jourSemaineMois, moisAnnee: f.moisAnnee, jourAnnee: f.jourAnnee, semaineRef: todayISO(), duree: Number(f.duree) || 10, assigneA: f.assigneA, personnes: f.assigneA === "personnes" ? f.personnes : undefined, planifie: true };
+    const nb = o.appliquerMulti(zSel, elements, valeurs);
+    setMessage(`C'est planifié : ${nb} ligne${nb > 1 ? "s" : ""} (${zSel.length} zone${zSel.length > 1 ? "s" : ""} × ${elements.length} élément${elements.length > 1 ? "s" : ""}). Regardez l'agenda en dessous.`);
+    setZSel([]); setSSel([]); setMSel([]); setTouche(false); setF(FREQ_VIDE_NET);
+  };
+  const recharger = (t, zone) => {
+    const nom = baseTacheNet(t.tache);
+    const s = surfaces.find((x) => normaliserNomNet(x.nom) === normaliserNomNet(nom));
+    const m = materiels.find((x) => normaliserNomNet(x.nom) === normaliserNomNet(nom));
+    setZSel([zone]); setSSel(s ? [s.nom] : []); setMSel(!s && m ? [m.nom] : []);
+    setTouche(true); setMessage(""); setF(versForm(t));
+  };
+  const arreter = (l) => setCleaning(cleaning.map((t) => (t.id === l.tache.id ? normaliserTacheNet({ ...t, planifie: false, frequence: "À chaque utilisation" }) : t)));
+  const planifiees = zones
+    .filter((z) => !zSel.length || zSel.includes(z.nom))
+    .map((z) => ({ z, lignes: z.lignes.filter((l) => estPlanifieNet(l.tache)) }))
+    .filter((x) => x.lignes.length);
+  const corps = "p-2 space-y-1.5 max-h-[34rem] overflow-y-auto";
+  const resumeFreq = () => `${FREQUENCES_MULTI_NET.find(([v]) => v === f.frequence)?.[1] || f.frequence}${f.frequence !== "À chaque utilisation" ? ` · ${(f.moments || []).length === 2 ? "midi et soir" : (f.moments || ["soir"])[0] === "midi" ? "fin du midi" : "fin du soir"}` : ""}`;
+  return (
+    <div>
+      <p className="text-sm text-[var(--steel)] mb-3">Cochez les <strong>zones</strong>, les <strong>surfaces</strong> et/ou le <strong>matériel</strong>, réglez <strong>quand</strong> et <strong>par qui</strong> : le planning est mis en place d'un seul coup. L'agenda en dessous montre le résultat et la charge de chacun.</p>
+      <div className="grid gap-3 items-start" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(15rem, 1fr))" }}>
+        <ColonneMultiNet numero={1} titre="Zones de la cuisine" couleur="#34495E" onTout={() => setZSel(zones.map((z) => z.nom))} onAucun={() => setZSel([])} onAjouter={() => { setAjout("zone"); setNomAjout(""); }}>
+          <div className={corps}>
+            {zones.map((z) => {
+              const actif = zSel.includes(z.nom);
+              return (
+                <button key={z.nom} type="button" onClick={() => basculer(zSel, setZSel, z.nom)} style={{ background: z.couleur }} className={`w-full rounded-lg px-2.5 py-2 min-h-[44px] text-left flex items-center gap-2 ${actif ? "ring-2 ring-offset-2 ring-[var(--ink)]" : "opacity-90"}`}>
+                  <span className="w-5 h-5 shrink-0 rounded border-2 border-white flex items-center justify-center text-xs font-bold" style={{ background: actif ? "#fff" : "transparent", color: z.couleur }}>{actif ? "✓" : ""}</span>
+                  <span className="min-w-0 text-sm font-semibold text-white break-words leading-tight">{libelleZone(z.nom)}</span>
+                </button>
+              );
+            })}
+          </div>
+        </ColonneMultiNet>
+        <ColonneMultiNet numero={2} titre="Surfaces" couleur="#2E7D6B" onTout={() => setSSel(surfaces.map((x) => x.nom))} onAucun={() => setSSel([])} onAjouter={() => { setAjout("surface"); setNomAjout(""); }}>
+          <div className={corps}>{surfaces.map((x) => <ChoixMultiNet key={x.nom} texte={x.nom} actif={sSel.includes(x.nom)} badge={nbZonesPlan(x.nom) || null} onClick={() => basculer(sSel, setSSel, x.nom)} />)}</div>
+        </ColonneMultiNet>
+        <ColonneMultiNet numero={3} titre="Matériel" couleur="#6A4FB3" onTout={() => setMSel(materiels.map((x) => x.nom))} onAucun={() => setMSel([])} onAjouter={() => { setAjout("materiel"); setNomAjout(""); }}>
+          <div className={corps}>{materiels.map((x) => <ChoixMultiNet key={x.nom} texte={x.nom} actif={mSel.includes(x.nom)} badge={nbZonesPlan(x.nom) || null} onClick={() => basculer(mSel, setMSel, x.nom)} />)}</div>
+        </ColonneMultiNet>
+        <ColonneMultiNet numero={4} titre="Fréquence" couleur="#C77700">
+          <div className="p-3"><ColonneFrequenceNet f={f} maj={maj} /></div>
+        </ColonneMultiNet>
+        <ColonneMultiNet numero={5} titre="Qui le fait ?" couleur="#1F7A8C">
+          <div className={corps}>
+            <ChoixMultiNet texte="Toute l'équipe (tâche pour tous)" actif={f.assigneA === "tous"} onClick={() => maj({ assigneA: "tous", personnes: [] })} />
+            {equipe.map((e) => <ChoixMultiNet key={e.id} texte={<>{e.nom}{e.poste ? <span className="block text-xs text-[var(--steel)]">{e.poste}</span> : null}</>} actif={f.assigneA === "personnes" && f.personnes.includes(e.id)} onClick={() => basculerPersonne(e.id)} />)}
+            {!equipe.length && <p className="text-xs text-[var(--steel)] p-1">Aucun employé enregistré.</p>}
+            {besoinPersonne && <p className="text-xs text-[var(--warn)] p-1">Cochez au moins une personne.</p>}
+          </div>
+        </ColonneMultiNet>
+      </div>
+
+      {ajout && (
+        <div className="rounded-lg border-2 border-[var(--accent)] p-3 bg-white mt-3 max-w-md">
+          <label className={libNet}>{ajout === "zone" ? "Nom de la nouvelle zone" : ajout === "surface" ? "Nouvelle surface" : "Nouveau matériel"}</label>
+          <input className={champNet} value={nomAjout} onChange={(e) => setNomAjout(e.target.value)} autoFocus />
+          <div className="flex gap-2 mt-2"><Button onClick={validerAjout} disabled={!nomAjout.trim()}>Ajouter</Button><Button variant="ghost" onClick={() => { setAjout(null); setNomAjout(""); }}>Annuler</Button></div>
+        </div>
+      )}
+      <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 mt-3 flex flex-wrap items-center gap-3">
+        <p className="flex-1 basis-64 min-w-0 text-sm text-[var(--ink)] break-words">
+          {nbLignes ? <><strong>{nbLignes} ligne{nbLignes > 1 ? "s" : ""}</strong> : {zSel.map(libelleZone).join(", ")} — {elements.map((e) => e.nom).join(", ")} → <strong>{resumeFreq()}</strong>, {f.assigneA === "tous" ? "toute l'équipe" : equipe.filter((e) => f.personnes.includes(e.id)).map((e) => e.nom).join(", ") || "personne choisie"}, {Number(f.duree) || 10} min</> : <span className="text-[var(--steel)]">Cochez au moins une zone et un élément (surface ou matériel).</span>}
+        </p>
+        <Button onClick={appliquer} disabled={!peutAppliquer}>Planifier{nbLignes > 1 ? ` ${nbLignes} lignes` : ""}</Button>
+      </div>
+      {message && <p className="text-sm text-[var(--accent)] font-medium mt-2 break-words">{message}</p>}
+
+      <h3 className="font-semibold text-[var(--ink)] mt-6 mb-2">Agenda de la semaine</h3>
+      <ChargeSemaineNet cleaning={cleaning} employees={employees} shifts={shifts} />
+
+      <h3 className="font-semibold text-[var(--ink)] mt-6 mb-2">Déjà planifié{zSel.length ? " dans les zones cochées" : ""}</h3>
+      {!planifiees.length ? <p className="text-sm text-[var(--steel)]">Rien n'est encore planifié{zSel.length ? " pour ces zones" : ""}.</p> : (
+        <div className="space-y-3">
+          {planifiees.map(({ z, lignes }) => (
+            <div key={z.nom} className="rounded-xl border border-[var(--cadre)] bg-white overflow-hidden" style={{ borderLeft: `6px solid ${z.couleur}` }}>
+              <div className="px-3 py-1.5 text-sm font-bold text-[var(--ink)] break-words">{libelleZone(z.nom)}</div>
+              <div className="divide-y divide-[var(--cadre)]">
+                {lignes.map((l) => (
+                  <div key={l.cle} className="px-3 py-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1.1fr)_minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-1 sm:gap-3 items-center">
+                    <span className="min-w-0 text-sm font-medium text-[var(--ink)] break-words">{l.nom}</span>
+                    <span className="min-w-0 text-sm text-[var(--ink)] break-words">{resumePlanningNet(l.tache, employees)}</span>
+                    <span className="min-w-0 text-sm text-[var(--steel)] break-words">{resumeQuiNet(l.tache, employees)}</span>
+                    <span className="flex items-center gap-3">
+                      <button type="button" className="text-xs text-[var(--accent)] underline" onClick={() => recharger(l.tache, z.nom)}>Modifier</button>
+                      <button type="button" className="text-xs text-[var(--steel)] underline" onClick={() => arreter(l)}>Ne plus planifier</button>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
 
 function PlanningNettoyageZones({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage, setZonesNettoyage, employees, demandesAjout, signalerAjout, shifts }) {
-  const [onglet, setOnglet] = useState("zones");
+  const [onglet, setOnglet] = useState("multi");
   return (
     <div>
       <div className="flex flex-wrap gap-1.5 mb-4">
-        {[["zones", "Par zone : quand et qui"], ["semaine", "Semaine et charge de chacun"], ["tableau", "Tableau complet"]].map(([k, lib]) => (
+        {[["multi", "Mettre en place le planning"], ["zones", "Détail ligne par ligne"], ["tableau", "Tableau complet"]].map(([k, lib]) => (
           <button key={k} type="button" onClick={() => setOnglet(k)} className={`px-3 py-2 rounded-full text-sm font-medium border ${onglet === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
         ))}
       </div>
+      {onglet === "multi" && <PlanningMultiNet cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} shifts={shifts} logActivity={logActivity} />}
       {onglet === "zones" && <PlanificationParZone cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} logActivity={logActivity} />}
-      {onglet === "semaine" && <ChargeSemaineNet cleaning={cleaning} employees={employees} shifts={shifts} />}
       {onglet === "tableau" && <HaccpNettoyage chargerPlanDepart={chargerPlanDepart} cleaning={cleaning} setCleaning={setCleaning} currentUserId={currentUserId} logActivity={logActivity} who={who} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} employees={employees} demandesAjout={demandesAjout} signalerAjout={signalerAjout} />}
     </div>
   );
