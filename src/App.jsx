@@ -11203,6 +11203,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const [joursAjout, setJoursAjout] = useState([]);
   const [messageCarte, setMessageCarte] = useState("");
   const [saisieLibre, setSaisieLibre] = useState({});
+  const [vueCarte, setVueCarte] = useState("creer");
   const [jourApercu, setJourApercu] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
   const carte = triees.find((c) => c.id === choisieId) || enCours || triees[triees.length - 1] || null;
   const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
@@ -11255,13 +11256,21 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   }
 
   const libType = (TYPES_CARTE.find((x) => x[0] === type) || [])[1];
+  const vue = estChef ? vueCarte : (vueCarte === "creer" || vueCarte === "periodes" || vueCarte === "gerer" ? "semaine" : vueCarte);
   const parCategorie = categories.map((c) => ({ c, ids: idsAujourdhui.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
   return (
     <div>
       <SectionHeader title="Ma carte" fonction="carte" icone={UtensilsCrossed} subtitle={`Créez et gérez votre carte à partir des fiches techniques — et sachez ce que chaque employé doit préparer. ${libType}${periodique && enCours ? ` — en cours : ${enCours.nom}` : ""}`}
         action={carte ? <Button variant="ghost" onClick={() => setApercuOuvert(true)}><BookOpen size={16} /> Aperçu de la carte</Button> : null} />
       {apercuOuvert && carte && <ApercuCarte carte={carte} plats={plats} categories={categories} onClose={() => setApercuOuvert(false)} />}
-      {periodique && (
+      {carte && (
+        <div className="flex flex-wrap gap-2 mb-4">
+          {[...(estChef ? [["creer", "Créer la carte", "#2E86D6"]] : []), ["semaine", "Carte de la semaine", "#D9691A"], ["apercu", "Aperçu", "#6E36AE"], ...(estChef && periodique ? [["periodes", "Périodes", "#16A085"]] : []), ...(estChef ? [["gerer", "Changer un plat · quantités · préparations", "#5D6D7E"]] : [])].map(([k, lib, col]) => (
+            <button key={k} type="button" onClick={() => setVueCarte(k)} className="px-4 py-2.5 rounded-full text-sm font-semibold border-2" style={vue === k ? { background: col, color: "#fff", borderColor: col } : { background: "#fff", color: col, borderColor: col }}>{lib}</button>
+          ))}
+        </div>
+      )}
+      {periodique && vue === "periodes" && (
         <PanneauStyle titre="Période de la carte" aide="Choisissez la carte à afficher ou créez la période suivante" couleur="#2E86D6" teinte="#E6F0FB">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {triees.map((c) => {
@@ -11277,12 +11286,12 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
           )}
         </PanneauStyle>
       )}
-      {carte && estChef && <ChangerCarte carte={carte} majCarte={majCarte} plats={plats} categories={categories} nomDe={nomDe} aujourdhui={aujourdhui} />}
+      {carte && estChef && vue === "gerer" && <ChangerCarte carte={carte} majCarte={majCarte} plats={plats} categories={categories} nomDe={nomDe} aujourdhui={aujourdhui} />}
       {carte && (
-        <PanneauStyle titre="Plats de la carte" aide="Ajoutez des plats depuis les fiches techniques, choisissez leurs jours de service" couleur="#D9691A" teinte="#FDF3E7">
+        <PanneauStyle titre={vue === "creer" ? "Créer la carte" : vue === "semaine" ? "Carte de la semaine" : vue === "apercu" ? "Aperçu de la carte" : "Plats de la carte"} aide={vue === "creer" ? "Cochez plusieurs plats, choisissez plusieurs jours, validez" : "Ajoutez des plats depuis les fiches techniques, choisissez leurs jours de service"} couleur="#D9691A" teinte="#FDF3E7">
           {!estChef && <h3 className="font-semibold text-[var(--ink)] mb-3">{carte.nom}</h3>}
 
-          {estChef && (() => {
+          {estChef && vue === "creer" && (() => {
             const COUL_CAT = ["#2874A6", "#D35400", "#8E44AD", "#16A085", "#B7950B", "#117A65", "#5D6D7E", "#C0629A"];
             const typeJour = type === "jour";
             const joursChoisis = typeJour ? [JOURS[(dateDepuisIso(carte.debut || aujourdhui).getDay() + 6) % 7]] : joursAjout;
@@ -11331,6 +11340,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                       {colonne("1. ", "Période", "#2E86D6", (
                         <div className="p-3 space-y-2">
                           <div><label className={libNet}>Nom de la carte</label><ChampTexteDiffere value={carte.nom} onCommit={(v) => v.trim() && majCarte({ nom: v.trim() })} className={champNet} /></div>
+                          {periodique && triees.length > 1 && <div><label className={libNet}>Carte à construire</label><select className={champNet} value={carte.id} onChange={(e) => { setChoisieId(e.target.value); setSelAjout([]); }}>{triees.map((x) => <option key={x.id} value={x.id}>{x.nom}</option>)}</select></div>}
                           <p className="text-xs text-[var(--steel)]">Type : <b className="text-[var(--ink)]">{libType}</b></p>
                           {periodique && <div className="grid grid-cols-2 gap-2"><div><label className={libNet}>Du</label><input type="date" className={champNet} value={carte.debut || ""} onChange={(e) => e.target.value && majCarte({ debut: e.target.value })} /></div><div><label className={libNet}>Au</label><input type="date" className={champNet} value={carte.fin || ""} onChange={(e) => e.target.value && majCarte({ fin: e.target.value })} /></div></div>}
                           <p className="text-xs text-[var(--steel)]">Les listes à droite viennent de vos fiches techniques.</p>
@@ -11399,7 +11409,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             );
           })()}
 
-          {(() => {
+          {vue === "semaine" && (() => {
             const COUL_JOURS = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"];
             const COUL_CAT = ["#2874A6", "#D35400", "#8E44AD", "#16A085", "#B7950B", "#117A65", "#5D6D7E", "#C0629A"];
             const couleurCat = (c) => COUL_CAT[Math.max(0, categories.indexOf(c)) % COUL_CAT.length];
@@ -11471,7 +11481,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
               </div>
             );
           })()}
-          {(idsCarte.length > 0 || libres.length > 0) && (() => {
+          {vue === "apercu" && (idsCarte.length > 0 || libres.length > 0) && (() => {
             const parCatJ = categories.map((c) => ({ c, items: [...plats.filter((f) => f.categorie === c && idsCarte.includes(f.id) && platServiCeJour(carte, f.id, jourApercu)), ...libres.filter((l) => l.categorie === c && (l.jours || []).includes(jourApercu))] })).filter((x) => x.items.length);
             return (
               <div className="mb-4 rounded-xl overflow-hidden border-2" style={{ borderColor: "#6E36AE" }}>
@@ -11499,6 +11509,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
               </div>
             );
           })()}
+          {vue === "gerer" && (<>
           <p className="text-sm font-semibold text-[var(--ink)] mb-2">Plats de la carte aujourd'hui ({idsAujourdhui.filter((id) => nomDe(id)).length})</p>
           {parCategorie.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucun plat pour l'instant.</p> : parCategorie.map(({ c, ids }) => (
             <div key={c} className="mb-3">
@@ -11657,6 +11668,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                 : <Button variant="ghost" onClick={() => setConfirmerType(true)}>Changer le type de carte</Button>}
             </div>
           )}
+          </>)}
         </PanneauStyle>
       )}
     </div>
