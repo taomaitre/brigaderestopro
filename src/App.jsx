@@ -18465,6 +18465,15 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
   const [edition, setEdition] = useState(null); // id en cours de modification, ou null pour une nouvelle
   const [form, setForm] = useState({ ...RESA_VIDE, date: todayISO() });
   const [commande, setCommande] = useState([""]);
+  const [importOuvert, setImportOuvert] = useState(false);
+  const telechargerModele = async () => {
+    try {
+      const XLSX = await import("xlsx");
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([["Date", "Heure", "Nom", "Personnes", "Table", "Statut", "Téléphone", "Notes"], ["2026-10-15", "12:30", "Mme Martin", 4, "Table 6", "à confirmer", "06 00 00 00 00", "Allergie arachides"]]), "Réservations");
+      XLSX.writeFile(wb, "modele-reservations.xlsx");
+    } catch (err) { /* téléchargement impossible : sans conséquence */ }
+  };
   const refListe = useRef(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
 
@@ -18604,6 +18613,38 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
     );
   };
 
+  const CONSIGNE_PHOTO_RESERVATIONS = `Voici la photo ou capture d'écran d'un cahier ou d'un agenda de réservations de restaurant. Lis les informations visibles et réponds UNIQUEMENT avec un tableau JSON strict, sans texte autour, sans balises markdown, au format exact suivant :
+[{"date": "AAAA-MM-JJ (déduis l'année en cours si elle n'est pas précisée)", "heure": "HH:MM", "nom": "nom du client", "personnes": "nombre de personnes en chiffres", "telephone": "numéro si visible sinon chaîne vide", "notes": "toute précision utile — allergies, table demandée, occasion — sinon chaîne vide", "table": "numéro ou nom de table si précisé sinon chaîne vide"}]
+Une entrée par réservation visible. Si une information est illisible ou absente pour un champ, laisse une chaîne vide plutôt que d'inventer une valeur. Ignore complètement une ligne si la date, l'heure ou le nom du client est illisible.`;
+  const importerResasPhoto = (lignes) => {
+          const nouvelles = [];
+          let ignorees = 0;
+          lignes.forEach((l) => {
+            const date = /^\d{4}-\d{2}-\d{2}$/.test(String(l.date || "").trim()) ? String(l.date).trim() : null;
+            const heure = String(l.heure || "").trim();
+            const nom = String(l.nom || "").trim();
+            if (!date || !heure || !nom) { ignorees += 1; return; }
+            nouvelles.push({
+              id: uid(), employeeId: null, date, heure, nom,
+              personnes: String(l.personnes || "").trim(),
+              telephone: String(l.telephone || "").trim(),
+              notes: String(l.notes || "").trim(),
+              table: String(l.table || "").trim(),
+              statut: "à confirmer",
+              duree: "90",
+              commande: [],
+            });
+          });
+          if (nouvelles.length === 0) {
+            return "Aucune réservation reconnue sur cette photo — réessayez avec une photo plus nette, ou saisissez manuellement.";
+          }
+          const cles = new Set(nouvelles.map((n) => `${n.date}__${n.heure}__${n.nom}`));
+          const conservees = reservations.filter((r) => !cles.has(`${r.date}__${r.heure}__${r.nom}`));
+          setReservations([...conservees, ...nouvelles].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
+          logActivity("Réservations", "Réservations importées par photo (IA)", `${nouvelles.length} réservation(s)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
+          return `${nouvelles.length} réservation(s) importée(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s)` : ""}.`;
+  };
+
   return (
     <div>
       {onBack && (
@@ -18624,6 +18665,27 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
           ))}
         </div>
       </div>
+
+      {estResponsable && (
+        <div className="mb-3">
+          <button type="button" onClick={() => setImportOuvert((o) => !o)} className="w-full sm:w-auto inline-flex items-center justify-center gap-2 h-11 px-4 rounded-xl text-sm font-bold border-2" style={importOuvert ? { background: "#0E7490", color: "#fff", borderColor: "#0E7490" } : { background: "#E6F6F8", color: "#0E7490", borderColor: "#0E7490" }}>
+            📥 Importer mes réservations (Excel, PDF, photo…) {importOuvert ? "▲" : "▼"}
+          </button>
+          {importOuvert && (
+            <div className="rounded-xl mt-2 p-3 border-2" style={{ background: "#F3FBFC", borderColor: "#0E7490" }}>
+              <p className="text-xs text-[var(--ink)] mb-2"><b>Trois façons d'importer :</b> un fichier Excel ou CSV, le texte d'un PDF (copier-coller), ou une photo / capture d'écran lue par l'IA quand elle est activée. Rien n'est enregistré avant que vous ayez relu l'aperçu et validé.</p>
+              <div className="mb-2"><button type="button" onClick={telechargerModele} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#0E7490] bg-white text-[#0E7490]">⬇ Télécharger un modèle Excel à remplir</button></div>
+              <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
+              <ImportPhotoIA
+                titre="Importer des réservations par photo"
+                description="Photo d'un cahier de réservations papier ou capture d'écran d'un agenda tenu ailleurs."
+                consigne={CONSIGNE_PHOTO_RESERVATIONS}
+                onResultats={importerResasPhoto}
+              />
+            </div>
+          )}
+        </div>
+      )}
 
       {viewMode === "jour" && (
         <>
@@ -18711,43 +18773,6 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
         );
       })()}
 
-      {!integre && (
-      <ImportPhotoIA
-        titre="Importer des réservations par photo"
-        description="Prends en photo un cahier de réservations papier, ou dépose une capture d'écran d'un agenda tenu ailleurs — en attendant une éventuelle connexion directe avec cet outil, ça évite de tout ressaisir à la main."
-        consigne={`Voici la photo ou capture d'écran d'un cahier ou d'un agenda de réservations de restaurant. Lis les informations visibles et réponds UNIQUEMENT avec un tableau JSON strict, sans texte autour, sans balises markdown, au format exact suivant :
-[{"date": "AAAA-MM-JJ (déduis l'année en cours si elle n'est pas précisée)", "heure": "HH:MM", "nom": "nom du client", "personnes": "nombre de personnes en chiffres", "telephone": "numéro si visible sinon chaîne vide", "notes": "toute précision utile — allergies, table demandée, occasion — sinon chaîne vide", "table": "numéro ou nom de table si précisé sinon chaîne vide"}]
-Une entrée par réservation visible. Si une information est illisible ou absente pour un champ, laisse une chaîne vide plutôt que d'inventer une valeur. Ignore complètement une ligne si la date, l'heure ou le nom du client est illisible.`}
-        onResultats={(lignes) => {
-          const nouvelles = [];
-          let ignorees = 0;
-          lignes.forEach((l) => {
-            const date = /^\d{4}-\d{2}-\d{2}$/.test(String(l.date || "").trim()) ? String(l.date).trim() : null;
-            const heure = String(l.heure || "").trim();
-            const nom = String(l.nom || "").trim();
-            if (!date || !heure || !nom) { ignorees += 1; return; }
-            nouvelles.push({
-              id: uid(), employeeId: null, date, heure, nom,
-              personnes: String(l.personnes || "").trim(),
-              telephone: String(l.telephone || "").trim(),
-              notes: String(l.notes || "").trim(),
-              table: String(l.table || "").trim(),
-              statut: "à confirmer",
-              duree: "90",
-              commande: [],
-            });
-          });
-          if (nouvelles.length === 0) {
-            return "Aucune réservation reconnue sur cette photo — réessayez avec une photo plus nette, ou saisissez manuellement.";
-          }
-          const cles = new Set(nouvelles.map((n) => `${n.date}__${n.heure}__${n.nom}`));
-          const conservees = reservations.filter((r) => !cles.has(`${r.date}__${r.heure}__${r.nom}`));
-          setReservations([...conservees, ...nouvelles].sort((a, b) => (a.date + a.heure).localeCompare(b.date + b.heure)));
-          logActivity("Réservations", "Réservations importées par photo (IA)", `${nouvelles.length} réservation(s)${ignorees > 0 ? `, ${ignorees} ligne(s) ignorée(s)` : ""}`);
-          return `${nouvelles.length} réservation(s) importée(s)${ignorees > 0 ? ` — ${ignorees} ligne(s) ignorée(s)` : ""}.`;
-        }}
-      />
-      )}
 
       {formOuvert && (
         <div className="fixed inset-0 z-[60] bg-black/50 flex items-start justify-center overflow-y-auto p-3 sm:p-6" onClick={fermerForm}>
