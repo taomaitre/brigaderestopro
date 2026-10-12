@@ -1,3 +1,10 @@
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Garde-fou d'agencement : un champ ou une cellule de grille ne dépasse jamais son cadre
+   (sinon deux champs côte à côte se chevauchent et les mots sont coupés). */
+@layer base {
+  input:not([type="checkbox"]):not([type="radio"]), select, textarea { min-width: 0; max-width: 100%; }
+  .grid > *, .flex > input, .flex > select, .flex > textarea { min-width: 0; }
+}
