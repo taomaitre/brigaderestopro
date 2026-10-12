@@ -3930,7 +3930,8 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   // Un compte Chef (le tien, Loïc, ou tout compte créé avec le poste "Chef") a le même niveau
   // d'accès complet qu'un compte Directeur — il doit donc pouvoir lui aussi générer le planning
   // et les réservations depuis l'écran d'accueil, pas seulement le compte "direction"/Directeur.
-  const accesPlanningReservations = compteDirection || !!employees.find((e) => e.id === currentUserId)?.estChef;
+  const { estResponsable: ouvertParCodeChef } = useAcces();
+  const accesPlanningReservations = compteDirection || ouvertParCodeChef || !!employees.find((e) => e.id === currentUserId)?.estChef;
   const [nomCompteNouveau, setNomCompteNouveau] = useState("");
   const [posteCompteNouveau, setPosteCompteNouveau] = useState("Poste Chaud");
   const [codeCompteNouveau, setCodeCompteNouveau] = useState("");
@@ -4743,7 +4744,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
             signalerAjout={signalerAjout}
             gestionCatalogue={gestionCatalogue}
             fournisseursCatalogue={fournisseursCatalogue}
-            estChef={!!(employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction")}
+            estChef={!!(ouvertParCodeChef || employees.find((e) => e.id === currentUserId)?.estChef || currentUserId === "direction")}
           />
         </div>
       )}
@@ -22673,15 +22674,19 @@ function KitchenApp({ identiteExterne } = {}) {
   // Le contrôle de fin de service ("Gestion et contrôle") est réservé au chef (estChef) et à la
   // Direction — plus d'accès de secours pour un autre employé les jours de repos du chef : voir
   // aussi Taches / appliesToDate pour la tâche "Contrôle" elle-même.
-  const navItems = NAV.filter((n) => !n.chefOnly || moi?.estChef);
+  // Connexion réelle : « Contrôle & Gestion » est visible par tous, mais seul un code de chef / directeur l'ouvre (voir GardeCodeChef).
+  const [controleDebloque, setControleDebloque] = useState(false);
+  const porteParCode = modeExterne && !!(identiteExterne && identiteExterne.verifierCodeChef);
+  const peutVoirControle = !!moi?.estChef || porteParCode;
+  const chefAcces = !!moi?.estChef || (porteParCode && controleDebloque);
+  const navItems = NAV.filter((n) => !n.chefOnly || peutVoirControle);
 
   useEffect(() => {
-    if (tab === "controle" && moi && !moi.estChef) setTab("taches");
-  }, [tab, moi, currentUserId]);
+    if (tab === "controle" && moi && !peutVoirControle) setTab("taches");
+  }, [tab, moi, currentUserId, peutVoirControle]);
 
   // Contrôle & Gestion (et ses écrans de gestion) : code du chef / directeur redemandé à chaque entrée.
   const ONGLETS_CHEF = ["controle", "reservations", "horaires"];
-  const [controleDebloque, setControleDebloque] = useState(false);
   useEffect(() => { if (!ONGLETS_CHEF.includes(tab)) setControleDebloque(false); }, [tab]);
   useEffect(() => { if (verrouille) setControleDebloque(false); }, [verrouille]);
   useEffect(() => { setControleDebloque(false); }, [currentUserId]);
@@ -22715,7 +22720,7 @@ function KitchenApp({ identiteExterne } = {}) {
     }
   }
 
-  if (tab === "controle" && !moi?.estChef) {
+  if (tab === "controle" && !chefAcces && !bloqueChef) {
     return null;
   }
 
@@ -22732,7 +22737,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
-    <AccesContext.Provider value={{ estResponsable: !!moi?.estChef || currentUserId === "direction" }}>
+    <AccesContext.Provider value={{ estResponsable: chefAcces || currentUserId === "direction" }}>
     <div className={`min-h-screen flex flex-col ${modeExterne ? "md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[auto_1fr]" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
@@ -22979,7 +22984,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <div>
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
               {[
-                ...ACCUEIL_TUILES.filter((t) => !t.chefOnly || moi?.estChef),
+                ...ACCUEIL_TUILES.filter((t) => !t.chefOnly || peutVoirControle),
               ].map((t) => {
                 const Icon = t.icon;
                 return (
