@@ -214,7 +214,12 @@ function ChampConnexion({ icone, children, droite }) {
 }
 const champConnexion = "w-full h-12 rounded-xl border-2 border-[#BDB7B0] bg-white pl-11 pr-3 text-base text-[var(--ink)] placeholder:text-[#8A8A8A] focus:outline-none focus:border-[var(--theme)]";
 const boutonConnexion = "w-full h-12 rounded-xl text-base font-semibold text-white flex items-center justify-center gap-2";
-const VersionConnexion = () => <div className="text-center md:text-right md:self-end text-sm text-white/80">v1.0.0</div>;
+const VersionConnexion = () => (
+  <div className="text-center md:text-right md:self-end text-sm text-white/80">
+    <div>Besoin d'aide ? <a href="mailto:admin@brigaderestopro.fr" className="font-semibold text-white underline break-all">✉ admin@brigaderestopro.fr</a></div>
+    <div className="mt-1">v1.0.0</div>
+  </div>
+);
 
 const inputCls = "w-full border border-[var(--line)] rounded-md px-3 py-2 text-sm";
 
