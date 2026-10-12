@@ -4964,29 +4964,36 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
         <div className="mb-5">
           <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-2">Fournisseurs</div>
           <div className="space-y-2">
-            {fournisseurs.map((f) => (
-              <Card key={f.id} className="!p-0 overflow-hidden">
-                <button onClick={() => setFournisseurOuvert((c) => (c === f.id ? null : f.id))} className="w-full flex items-center justify-between px-4 py-3 text-left">
+            {fournisseurs.map((f, idx) => {
+              const col = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E", "#117A65"][idx % 8];
+              const lien = { background: col };
+              const l = (lib, val) => <div className="grid grid-cols-[minmax(6rem,8.5rem)_minmax(0,1fr)] gap-2 py-0.5"><span>{lib}</span><span className={`min-w-0 break-words ${val ? "text-[var(--ink)]" : "italic"}`}>{val || "À renseigner"}</span></div>;
+              return (
+              <Card key={f.id} className="!p-0 overflow-hidden" style={{ borderLeft: `6px solid ${col}` }}>
+                <button onClick={() => setFournisseurOuvert((c) => (c === f.id ? null : f.id))} className="w-full flex items-center justify-between gap-2 px-4 py-3 text-left" style={{ background: col + "14" }}>
                   <span>
-                    <span className="font-medium text-[var(--ink)] text-sm block">{f.nom}</span>
+                    <span className="font-semibold text-sm block" style={{ color: col }}>{f.nom}</span>
                     {f.coordonnees_a_completer && <span className="block text-xs font-medium" style={{ color: "var(--warn)" }}>En attente des coordonnées</span>}
                     {!planningRenseigne(f.planning_commande) && !planningRenseigne(f.planning_livraison) && !f.jours_livraison && <span className="block text-xs font-medium text-[var(--steel)]">Fournisseur à compléter : jours de commande et de livraison</span>}
                   </span>
                   <span className="text-xs text-[var(--steel)] text-right">{planningRenseigne(f.planning_commande) ? <span className="block">Commande : {resumePlanning(f.planning_commande)}</span> : null}{planningRenseigne(f.planning_livraison) ? <span className="block">Livraison : {resumePlanning(f.planning_livraison)}</span> : (f.jours_livraison ? <span className="block">Livraison : {f.jours_livraison}</span> : null)}{fournisseurOuvert === f.id ? "▲" : "▼"}</span>
                 </button>
                 {fournisseurOuvert === f.id && (
-                  <div className="px-4 pb-3 text-xs text-[var(--steel)] space-y-0.5">
-                    {f.contact_nom && <div>Contact : {f.contact_nom}</div>}
-                    {f.telephone && <div>Téléphone : {f.telephone}</div>}
-                    {f.email && <div>E-mail : {f.email}</div>}
-                    {f.adresse && <div>Adresse : {f.adresse}</div>}
-                    {f.numero_client && <div>N° client : {f.numero_client}</div>}
-                    {f.note && <div className="italic">{f.note}</div>}
-                    {gestion && <button onClick={() => setEdition({ table: "fournisseurs", id: f.id, valeurs: f })} className="mt-2 text-xs font-medium text-[var(--accent)]">Modifier ce fournisseur</button>}
+                  <div className="px-4 pb-3 pt-2 text-xs text-[var(--steel)]">
+                    {l("Contact", f.contact_nom)}
+                    {l("Téléphone", f.telephone ? <a href={`tel:${String(f.telephone).replace(/[^\d+]/g, "")}`} className="inline-block rounded-lg px-2 py-0.5 font-semibold text-white" style={lien}>📞 {f.telephone}</a> : null)}
+                    {l("E-mail", f.email ? <a href={`mailto:${String(f.email).trim()}`} className="inline-block rounded-lg px-2 py-0.5 font-semibold text-white break-all" style={lien}>✉️ {f.email}</a> : null)}
+                    {l("Adresse", f.adresse ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(f.adresse)}`} target="_blank" rel="noreferrer" className="font-medium underline" style={{ color: col }}>{f.adresse}</a> : null)}
+                    {l("N° client", f.numero_client)}
+                    {l("Jours de commande", planningRenseigne(f.planning_commande) ? resumePlanning(f.planning_commande) : null)}
+                    {l("Jours de livraison", planningRenseigne(f.planning_livraison) ? resumePlanning(f.planning_livraison) : f.jours_livraison)}
+                    {f.note && <div className="italic mt-1">{f.note}</div>}
+                    {gestion && <button onClick={() => setEdition({ table: "fournisseurs", id: f.id, valeurs: f })} className="mt-2 text-xs font-medium" style={{ color: col }}>Modifier ce fournisseur (coordonnées, jours de commande et de livraison)</button>}
                   </div>
                 )}
               </Card>
-            ))}
+              );
+            })}
           </div>
           <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mt-5 mb-2">Produits</div>
         </div>
