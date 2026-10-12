@@ -24,6 +24,7 @@ import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois } from './ficheEtabli
 const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
 const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
 const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
+const URL_FONCTION_IA = `${URL_PROJET}/functions/v1/ia-gemini`;
 const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`;
 
 const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
@@ -42,6 +43,22 @@ async function appelerEmployes(jeton, action, payload) {
   const data = await reponse.json().catch(() => null);
   if (!reponse.ok || !data || data.ok !== true) {
     throw new Error(((data && data.erreur) || `Erreur serveur (${reponse.status})`) + (data && data.detail ? ` — ${data.detail}` : ""));
+  }
+  return data;
+}
+
+// IA (Gemini) via le serveur : la clé reste côté serveur, ici on n'envoie que la photo ou le texte avec le jeton de l'établissement.
+async function appelerIA(jeton, payload) {
+  const reponse = await fetch(URL_FONCTION_IA, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", apikey: CLE_PUBLIQUE, Authorization: `Bearer ${jeton}` },
+    body: JSON.stringify(payload),
+  });
+  const data = await reponse.json().catch(() => null);
+  if (!reponse.ok || !data || data.ok !== true) {
+    const e = new Error((data && (data.erreur || data.code)) || `Erreur IA (${reponse.status})`);
+    e.code = data && (data.code || data.erreur);
+    throw e;
   }
   return data;
 }
@@ -1131,6 +1148,10 @@ export default function ConnexionReelle() {
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
       gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
       signalerAjout,
+      ia: {
+        statut: async () => { const r = await appelerIA(session.token, { type: "statut" }); return r.ia_disponible === true; },
+        appeler: (payload) => appelerIA(session.token, payload),
+      },
       // « Changer de compte » : on garde la connexion de l'établissement et on redemande un code personnel à 4 chiffres.
       changerDeCompte: () => { setEmployeIdentifie(null); setCode(""); setErreur(""); setChoixNoms(true); setEtape("code"); },
       // Autorisation ponctuelle : le responsable cuisine / directeur saisit son code pour débloquer une action réservée.

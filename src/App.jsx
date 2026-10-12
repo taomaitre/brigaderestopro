@@ -9,19 +9,17 @@ import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTa
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
 
 /* ======================================================================================
-   CONFIGURATION — clé API IA (Anthropic / Claude)
+   IA (Gemini) — la clé n'est JAMAIS dans ce fichier ni dans le navigateur
    ======================================================================================
-   Cette clé ne doit JAMAIS être définie ici, ni via une variable d'environnement Vite
-   (VITE_...) : tout ce qui commence par VITE_ est inclus en clair dans le code envoyé au
-   navigateur, donc visible par quiconque ouvre le code source de la page — exactement le
-   risque que ce commentaire signalait déjà dans l'ancienne version "artifact" de ce fichier.
-   Tant que l'app tournait en démo privée sur Claude/Netlify, ce risque était jugé acceptable
-   ponctuellement. Maintenant que le code part sur un vrai dépôt en vue d'un hébergement
-   public sur o2switch, la clé doit vivre uniquement côté serveur (un petit backend/API route
-   qui appelle Anthropic ou Gemini et que l'app interroge sans jamais voir la clé). Tant que
-   ce backend n'existe pas, IA_ACTIVEE reste à false et les fonctions IA restent désactivées.
+   Les fonctions IA (lecture de photo d'étiquette, commande vocale/texte) passent par la
+   fonction serveur « ia-gemini » (Supabase). La clé Gemini est un secret serveur ; le
+   navigateur envoie seulement la photo ou le texte avec le jeton de connexion de
+   l'établissement. Le serveur vérifie que l'IA est activée pour cet établissement
+   (etablissements.ia_active), applique le forfait mensuel et journalise la consommation.
+   Côté écran, la liaison est faite par ConnexionReelle.jsx (identiteExterne.ia).
    ====================================================================================== */
-const ANTHROPIC_API_KEY = ""; // ne pas remplir ici — voir commentaire ci-dessus
+// Passerelle vers le serveur, renseignée par KitchenApp quand la connexion réelle fournit identiteExterne.ia.
+let PONT_IA = null;
 
 // Interrupteur des fonctions IA (lecture de photo, commande vocale/texte) — RÉSERVÉ à toi
 // (l'éditeur du logiciel), jamais au client/restaurant : c'est ce qui distingue l'offre
@@ -15085,30 +15083,17 @@ function redimensionnerPhoto(dataUrlOriginal) {
   });
 }
 
+function lireJsonIA(texte) {
+  return JSON.parse(String(texte || "").replace(/```json|```/g, "").trim());
+}
+
 async function analyserImage(dataUrl, consigne) {
   if (!IA_ACTIVEE) { console.warn("Analyse photo désactivée pour ce restaurant (interrupteur IA)."); return null; }
-  if (!ANTHROPIC_API_KEY) { console.warn("Analyse photo indisponible : aucune clé API configurée (voir CONFIGURATION en haut du fichier)."); return null; }
-  const match = dataUrl.match(/^data:(.*?);base64,(.*)$/);
-  if (!match) return null;
-  const [, mediaType, base64] = match;
+  if (!PONT_IA) { console.warn("Analyse photo indisponible : IA non activée pour cet établissement."); return null; }
+  if (!/^data:image\/(jpeg|png|webp);base64,/.test(dataUrl || "")) return null;
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 1500,
-        messages: [{ role: "user", content: [{ type: "image", source: { type: "base64", media_type: mediaType, data: base64 } }, { type: "text", text: consigne }] }],
-      }),
-    });
-    const data = await res.json();
-    const texte = (data.content || []).map((b) => b.text || "").join("");
-    return JSON.parse(texte.replace(/```json|```/g, "").trim());
+    const rep = await PONT_IA({ type: "photo", image: dataUrl, consigne });
+    return lireJsonIA(rep.texte);
   } catch (e) {
     console.error("Analyse image échouée", e);
     return null;
@@ -15117,44 +15102,10 @@ async function analyserImage(dataUrl, consigne) {
 
 async function interpreterCommande(texte) {
   if (!IA_ACTIVEE) { console.warn("Commande vocale/texte désactivée pour ce restaurant (interrupteur IA)."); return null; }
-  if (!ANTHROPIC_API_KEY) { console.warn("Commande vocale/texte indisponible : aucune clé API configurée (voir CONFIGURATION en haut du fichier)."); return null; }
+  if (!PONT_IA) { console.warn("Commande vocale/texte indisponible : IA non activée pour cet établissement."); return null; }
   try {
-    const res = await fetch("https://api.anthropic.com/v1/messages", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "x-api-key": ANTHROPIC_API_KEY,
-        "anthropic-version": "2023-06-01",
-        "anthropic-dangerous-direct-browser-access": "true",
-      },
-      body: JSON.stringify({
-        model: "claude-sonnet-4-6",
-        max_tokens: 300,
-        messages: [{
-          role: "user",
-          content: `Tu es l'assistant texte/vocal d'une application de gestion de cuisine de restaurant. Un employé vient de dire ou taper une commande rapide. Classe-la dans une des actions ci-dessous et extrais les paramètres utiles. Réponds UNIQUEMENT en JSON strict, sans texte autour, sans balises markdown.
-
-Actions possibles :
-- "ouvrir_reception" : l'employé veut réceptionner une livraison / commencer une réception de marchandises. Pas de paramètre.
-- "retirer_stock" : l'employé veut retirer une quantité d'un produit du stock (cassé, tombé, raté, perdu, abîmé...). Paramètres : produit (nom du produit tel que dit), quantite (nombre, estime une valeur raisonnable si approximatif type "deux trois"), motif (raison courte reformulée).
-- "preparer_produit" : l'employé annonce qu'il prépare un produit précis (traçabilité), sans préciser une étape HACCP particulière. Paramètres : produit (nom du produit).
-- "demarrer_cuisson" : l'employé veut démarrer/enregistrer une cuisson pour un produit précis (ex. "lance une cuisson pour la bolognaise", "je mets la pizza au four"). Paramètres : produit.
-- "demarrer_refroidissement" : l'employé veut démarrer/enregistrer un refroidissement pour un produit précis. Paramètres : produit.
-- "demarrer_maintien_chaud" : l'employé veut démarrer/enregistrer un maintien au chaud pour un produit précis. Paramètres : produit.
-- "naviguer" : l'employé veut ouvrir un autre onglet de l'application. Paramètres : cible, une valeur EXACTE parmi : taches, stock, reception, etiquettes, tracabilite, haccpTemp, haccpRefroid, haccpHuile, haccpChaud, haccpCuisson, fiches, controle.
-- "inconnu" : si aucune des actions ci-dessus ne correspond clairement à la demande.
-
-Important : les relevés de température restent toujours un geste physique volontaire de l'employé une fois l'écran ouvert — la commande vocale ouvre et pré-remplit l'écran, elle ne saisit jamais une température à sa place.
-
-Commande de l'employé : "${texte}"
-
-Format de réponse strict : {"action": "...", "produit": "..." ou null, "quantite": "..." ou null, "motif": "..." ou null, "cible": "..." ou null}`,
-        }],
-      }),
-    });
-    const data = await res.json();
-    const t = (data.content || []).map((b) => b.text || "").join("");
-    return JSON.parse(t.replace(/```json|```/g, "").trim());
+    const rep = await PONT_IA({ type: "commande", texte: String(texte || "").slice(0, 600) });
+    return lireJsonIA(rep.texte);
   } catch (e) {
     console.error("Interprétation commande échouée", e);
     return null;
@@ -21761,7 +21712,20 @@ function KitchenApp({ identiteExterne } = {}) {
   // (plannings, stock, HACCP...) continue pour l'instant de lire/écrire l'ancien stockage local,
   // comme avant — ce n'est pas encore migré, voir le document de suivi infrastructure.
   const modeExterne = !!identiteExterne;
-  if (typeof window !== "undefined") window.MC_SANS_IA = modeExterne;
+  // IA (Gemini via le serveur) : en connexion réelle, les boutons IA n'apparaissent que si le serveur confirme
+  // que l'IA est activée pour cet établissement. Sinon (ancien mode), comportement inchangé.
+  const [iaServeurActive, setIaServeurActive] = useState(false);
+  const iaExterne = identiteExterne && identiteExterne.ia;
+  const iaExterneRef = useRef(null);
+  iaExterneRef.current = iaExterne || null;
+  useEffect(() => {
+    let annule = false;
+    if (!modeExterne || !iaExterneRef.current) { setIaServeurActive(false); return; }
+    iaExterneRef.current.statut().then((ok) => { if (!annule) setIaServeurActive(!!ok); }).catch(() => { if (!annule) setIaServeurActive(false); });
+    return () => { annule = true; };
+  }, [modeExterne]);
+  PONT_IA = modeExterne && iaServeurActive && iaExterne ? (payload) => iaExterneRef.current.appeler(payload) : null;
+  if (typeof window !== "undefined") window.MC_SANS_IA = modeExterne && !iaServeurActive;
   const [tab, setTab] = useState("accueil");
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [sessionActive, setSessionActive] = useState(false);
