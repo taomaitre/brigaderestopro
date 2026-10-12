@@ -469,9 +469,9 @@ const COULEURS_FONCTION = {
   commandes: degrade("#3B82F6", "#1D4ED8"),
   // Hygiène
   pms: degrade("#DB2777", "#831843"),
-  pmsDossier: degrade("#DB2777", "#831843"),
+  pmsDossier: degrade("#F97316", "#9A3412"),
   dossierControle: degrade("#7C3AED", "#4C1D95"),
-  pmsPrestataires: degrade("#DB2777", "#831843"),
+  pmsPrestataires: degrade("#0D9488", "#115E59"),
   allergenes: degrade("#EAB308", "#A16207"),
   origine: degrade("#0EA5E9", "#075985"),
   tiac: degrade("#DC2626", "#7F1D1D"),
