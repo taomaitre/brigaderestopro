@@ -1666,9 +1666,9 @@ function PmsPrestataires({ pms, editable }) {
           {role && <p className="text-xs text-[var(--steel)] mb-2 break-words">{role}</p>}
           {ligne("Société", p && p.nom, "Nom de la société à renseigner")}
           {ligne("Activité", (p && p.libelle) || activite, "")}
-          {ligne("Téléphone", p && p.telephone ? <a href={`tel:${p.telephone}`} className="text-[var(--accent)] font-medium">{p.telephone}</a> : null, "À renseigner")}
-          {ligne("E-mail", p && p.email ? <a href={`mailto:${p.email}`} className="text-[var(--accent)] font-medium">{p.email}</a> : null, "À renseigner")}
-          {ligne("Adresse", n.adresse, "À renseigner")}
+          {ligne("Téléphone", p && p.telephone ? <a href={`tel:${p.telephone.replace(/[^\d+]/g, "")}`} className="inline-block rounded-lg px-2 py-0.5 font-semibold text-white" style={{ background: couleur }}>📞 {p.telephone}</a> : null, "À renseigner")}
+          {ligne("E-mail", p && p.email ? <a href={`mailto:${p.email.trim()}`} className="inline-block rounded-lg px-2 py-0.5 font-semibold text-white break-all" style={{ background: couleur }}>✉️ {p.email}</a> : null, "À renseigner")}
+          {ligne("Adresse", n.adresse ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(n.adresse)}`} target="_blank" rel="noreferrer" className="font-medium underline" style={{ color: couleur }}>{n.adresse}</a> : null, "À renseigner")}
           {ligne("Contact", n.contact, "À renseigner")}
           {ligne("N° de contrat", n.contrat, "À renseigner")}
           {ligne("Dernier passage", p && p.date_dernier_passage ? fmt(p.date_dernier_passage) : null, "Date à renseigner")}
@@ -1697,7 +1697,7 @@ function PmsPrestataires({ pms, editable }) {
       {(autres.length > 0 || editable) && <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Autres prestataires</h3>}
       {autres.length > 0 && (
         <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(21rem, 1fr))" }}>
-          {autres.map((p) => carte(null, p, "autres", "#5B6B7A", p.nom || p.libelle || libelleDe(TYPES_PRESTATAIRE, p.type), libelleDe(TYPES_PRESTATAIRE, p.type), ""))}
+          {autres.map((p, i) => carte(null, p, "autres", ["#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"][i % 6], p.nom || p.libelle || libelleDe(TYPES_PRESTATAIRE, p.type), libelleDe(TYPES_PRESTATAIRE, p.type), ""))}
         </div>
       )}
       {editable && !edition && <Button onClick={() => setEdition({ ...champsDe(null, { cle: "autres", type: "autre", libelle: "", freq: "" }), slot: "nouveau" })}><Plus size={16} /> Ajouter un autre prestataire</Button>}
