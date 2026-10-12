@@ -11207,7 +11207,9 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const [jourApercu, setJourApercu] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
   const carte = triees.find((c) => c.id === choisieId) || enCours || triees[triees.length - 1] || null;
   const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
-  const categories = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
+  const categoriesFiches = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
+  // Sans fiche technique, on garde quand même des colonnes (Entrée / Plat / Dessert) pour pouvoir ajouter à la main.
+  const categories = categoriesFiches.length ? categoriesFiches : ["Entrée", "Plat", "Dessert"];
   const idsCarte = (carte && carte.plats) || [];
   const libres = (carte && carte.platsLibres) || []; // éléments ajoutés à la main (sans fiche technique)
   const idsAujourdhui = platsAuCarte(carte, aujourdhui);
@@ -11343,7 +11345,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                           {periodique && triees.length > 1 && <div><label className={libNet}>Carte à construire</label><select className={champNet} value={carte.id} onChange={(e) => { setChoisieId(e.target.value); setSelAjout([]); }}>{triees.map((x) => <option key={x.id} value={x.id}>{x.nom}</option>)}</select></div>}
                           <p className="text-xs text-[var(--steel)]">Type : <b className="text-[var(--ink)]">{libType}</b></p>
                           {periodique && <div className="grid grid-cols-2 gap-2"><div><label className={libNet}>Du</label><input type="date" className={champNet} value={carte.debut || ""} onChange={(e) => e.target.value && majCarte({ debut: e.target.value })} /></div><div><label className={libNet}>Au</label><input type="date" className={champNet} value={carte.fin || ""} onChange={(e) => e.target.value && majCarte({ fin: e.target.value })} /></div></div>}
-                          <p className="text-xs text-[var(--steel)]">Les listes à droite viennent de vos fiches techniques.</p>
+                          <p className="text-xs text-[var(--steel)]">{categoriesFiches.length ? "Les listes à droite viennent de vos fiches techniques." : "Aucune fiche technique de plat trouvée pour l'instant : ajoutez vos plats à la main dans les colonnes, ou créez-les dans « Créer une fiche technique »."}</p>
                         </div>
                       ))}
                       {categories.map((c, ci) => {
