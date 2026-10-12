@@ -1097,6 +1097,11 @@ export default function ConnexionReelle() {
     setEmployeIdentifie({ id: emp.id, nom: [emp.prenom, emp.nom].filter(Boolean).join(" "), poste: emp.poste || "", role: emp.role });
     setChoixNoms(false);
     setEtape("connecte");
+    // Même chargement qu'avec le code : fiches, cartes, températures, réglages, PMS…
+    chargerCatalogue();
+    chargerListesFroid();
+    chargerReglagesEtab();
+    chargerPms();
   }
 
   async function seDeconnecter() {

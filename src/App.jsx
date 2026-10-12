@@ -11239,21 +11239,13 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   };
   const [copier, setCopier] = useState(true);
 
-  // 1) Première fois : quel type de carte ?
+  // Première fois : on crée directement une carte (le type se choisit ensuite dans la colonne « Type de carte »).
+  useEffect(() => { if (!type && estChef) choisirType("semaine"); }, [type, estChef]); // eslint-disable-line react-hooks/exhaustive-deps
   if (!type) {
     return (
       <div>
         <SectionHeader title="Ma carte" subtitle="Les plats que vous proposez à vos clients" />
-        <Card>
-          <h3 className="font-semibold text-[var(--ink)] mb-1">Quel type de carte avez-vous ?</h3>
-          <p className="text-sm text-[var(--steel)] mb-4">Choisissez ce qui correspond à votre restaurant. Vous pourrez le changer plus tard.</p>
-          {!estChef && <p className="text-sm text-[var(--warn)]">Seul le responsable ou le directeur peut créer la carte.</p>}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            {TYPES_CARTE.map(([k, lib, aide]) => (
-              <TuileStyle key={k} degrade={DEGRADES_CARTE[TYPES_CARTE.findIndex((x) => x[0] === k) % DEGRADES_CARTE.length]} icone={CalendarDays} titre={lib} detail={aide} disabled={!estChef} onClick={() => choisirType(k)} />
-            ))}
-          </div>
-        </Card>
+        <Card><p className="text-sm text-[var(--steel)]">{estChef ? "Préparation de la carte…" : "La carte n'a pas encore été créée par le responsable."}</p></Card>
       </div>
     );
   }
