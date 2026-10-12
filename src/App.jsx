@@ -9368,6 +9368,7 @@ function allergenesDepuisCatalogue(ingredients, stock, fiches) {
     if (!morceaux.length) { sansInfo.push(nom); return; }
     morceaux.forEach((m) => {
       if (m === "aucun" || m === "aucune" || m === "sans") return;
+      if (/^(traces?|peut contenir)/.test(m)) return; // traces seulement : pas une présence dans la recette
       const a = ALLERGENES_14.find((x) => norm(x) === m) || ALLERGENES_14.find((x) => norm(x).includes(m) || m.includes(norm(x)));
       if (a) trouves.add(a);
     });
@@ -16439,7 +16440,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       const qteAcceptee = qteAccepteeDe(p);
       const entry = {
         id: uid(), receptionId, date, heure, employeeId: currentUserId, fournisseur, produit: p.nom,
-        quantite: qteAcceptee, lot: p.lot, dlc: p.dlc, allergenes: p.allergenes || "", origine: p.origine || "", agrementSanitaire: p.agrementSanitaire || "", conforme: p.conforme,
+        quantite: qteAcceptee, lot: p.lot, dlc: p.dlc, allergenes: p.allergenes || "", origine: p.origine || "", agrementSanitaire: p.agrementSanitaire || "", conditionnement: p.poidsNet || "", typeDate: p.typeDate || "", conforme: p.conforme,
         raison: p.conforme ? "" : p.raison, quantiteNC: p.conforme ? 0 : (Number(p.quantiteNC) || 0),
         photoNC: p.conforme ? null : p.photoNC, ecartPrix: p.conforme ? 0 : (Number(p.ecartPrix) || 0), valideChef: false,
         photoBon: null, photosBon: photosBonArchive,
@@ -17090,7 +17091,69 @@ const FAMILLES_TEMP = [
   { id: "frais", titre: "Produits frais (réfrigérés)", sous: "viande, volaille, haché, abats, poisson, plats cuisinés, laitiers, œufs, charcuterie", norme: "selon le produit : haché et poisson +2°C · abats et plats cuisinés +3°C · viande, lait pasteurisé, fromage affiné et autres frais +4°C", types: ["frais", "viande", "hache", "abats", "plat", "poisson", "laitier"], typeRef: "frais", fond: "#DCE9FB", bord: "#B5CDF0", couleur: "#1B4F9C", Ic: Thermometer },
   { id: "surgele", titre: "Surgelés", sous: "tous les produits congelés", norme: "-18°C ou moins (tolérance : +3°C en surface, brièvement, au déchargement)", types: ["surgele"], typeRef: "surgele", fond: "#E6F0FA", bord: "#BCD3F2", couleur: "#14527F", Ic: Snowflake },
 ];
-const CONSIGNE_ETIQUETTE_RECEPTION = "Tu regardes la photo d'un produit alimentaire reçu en cuisine professionnelle (étiquette ou emballage). Identifie si visible : le nom du produit, la référence/le code article, le numéro de lot, la date limite de consommation (DLC/DDM), les allergènes déclarés, l'origine/provenance indiquée et le numéro d'agrément sanitaire CE s'il est visible. Réponds UNIQUEMENT en JSON strict, sans texte autour, format exact : {\"nom\": \"...\" ou null, \"reference\": \"...\" ou null, \"lot\": \"...\" ou null, \"dlc\": \"AAAA-MM-JJ\" ou null, \"allergenes\": \"...\" ou null, \"origine\": \"...\" ou null, \"agrementSanitaire\": \"...\" ou null}. Mets null si l'information n'est pas visible, n'invente jamais.";
+const CONSIGNE_ETIQUETTE_RECEPTION = `Tu lis la photo d'un produit alimentaire reçu en cuisine professionnelle (étiquette, emballage ou une face de l'emballage). La photo peut ne montrer qu'UNE partie de l'emballage (face avant, date et lot, ou liste d'ingrédients). Remplis uniquement ce que tu VOIS réellement ; mets null (ou une liste vide) pour le reste. N'invente JAMAIS une valeur : en cas de doute, mets null.
+
+Champs :
+- "nom" : le nom du produit tel qu'un cuisinier le rangerait, qui dit la NATURE du produit (ex. "Pâtes à lasagne sèches", "Chips de pommes de terre à l'ancienne", "Crème liquide entière 30 %"). Si un seul mot ambigu est écrit en gros (ex. "LASAGNE") et que l'emballage montre qu'il s'agit de pâtes sèches, écris "Pâtes à lasagne sèches". Sans marque, sauf si la marque fait partie du nom du produit. Si la nature n'est pas claire, recopie le nom écrit.
+- "reference" : code article / code-barres lisible, sinon null.
+- "lot" : le numéro de lot, recopié EXACTEMENT comme écrit (après « N° de lot », « Lot », « L »…), sinon null.
+- "dlc" : la date limite, au format AAAA-MM-JJ (si seul le mois et l'année sont écrits, mets le dernier jour du mois), sinon null.
+- "type_date" : "DDM" si l'emballage dit « à consommer de préférence avant » ou « DDM » ; "DLC" si « à consommer jusqu'au », « date limite de consommation » ou « DLC » ; sinon null.
+- "poids_net" : le contenu net écrit sur l'emballage avec son unité (ex. "300 g", "1 L", "500 g"), sinon null.
+- "type_produit" : une seule valeur parmi "frais", "viande", "hache", "abats", "poisson", "plat", "laitier", "legume", "surgele", "sec", "boisson" selon le produit et sa conservation (ex. pâtes sèches, chips, conserves, farine → "sec" ; viande hachée → "hache" ; fromage affiné, lait pasteurisé → "laitier" ; crème, beurre, œufs, charcuterie → "frais"), sinon null.
+- "allergenes_lisibles" : true UNIQUEMENT si la liste des ingrédients ou une mention d'allergènes est lisible sur cette photo ; sinon false (et alors "contient" et "traces" doivent être vides).
+- "contient" : liste des allergènes PRÉSENTS dans la recette, d'après la liste des ingrédients et les mots en gras. Déduis-les des ingrédients : blé, seigle, orge, avoine, épeautre, semoule, farine → "Gluten" ; lait, crème, beurre, fromage, lactose, petit-lait → "Lait" ; œuf, ovoproduits → "Œufs" ; soja → "Soja" ; moutarde → "Moutarde" ; céleri → "Céleri" ; sésame → "Sésame" ; arachide, cacahuète → "Arachides" ; amande, noisette, noix, pistache, noix de cajou, pécan → "Fruits à coque" ; poisson → "Poissons" ; crevette, crabe, langoustine → "Crustacés" ; moule, huître, calmar → "Mollusques" ; lupin → "Lupin" ; sulfites, anhydride sulfureux (plus de 10 mg/kg) → "Sulfites".
+- "traces" : liste des allergènes cités dans une mention « peut contenir », « traces de », « fabriqué dans un atelier qui utilise » (mêmes noms). « céréales contenant du gluten » → "Gluten". Un allergène déjà dans "contient" n'est pas répété ici.
+- "origine" : origine / provenance écrite (ex. "France", "UE"), sinon null.
+- "agrementSanitaire" : numéro d'agrément sanitaire CE (ex. "FR 85.123.456 CE"), sinon null.
+
+Les noms d'allergènes doivent être EXACTEMENT parmi : Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Sésame, Sulfites, Lupin, Mollusques.
+
+Réponds UNIQUEMENT en JSON strict, sans texte autour ni balises markdown, format exact :
+{"nom": "..." ou null, "reference": "..." ou null, "lot": "..." ou null, "dlc": "AAAA-MM-JJ" ou null, "type_date": "DDM" ou "DLC" ou null, "poids_net": "..." ou null, "type_produit": "..." ou null, "allergenes_lisibles": true ou false, "contient": [], "traces": [], "origine": "..." ou null, "agrementSanitaire": "..." ou null}`;
+
+// Texte d'allergènes au format du tableau (« Gluten ; traces : Œufs, Soja ») à partir de la réponse de l'IA.
+function texteAllergenesIA(contient, traces) {
+  const etats = ALLERGENES_14.map(() => "n");
+  const idx = (m) => allergeneDeMot(String(m || "").replace(/œ/gi, "oe").replace(/Œ/g, "Oe"));
+  (Array.isArray(contient) ? contient : []).forEach((m) => { const i = idx(m); if (i >= 0) etats[i] = "c"; });
+  (Array.isArray(traces) ? traces : []).forEach((m) => { const i = idx(m); if (i >= 0 && etats[i] !== "c") etats[i] = "t"; });
+  return ecrireAllergenes(etats, [], true);
+}
+
+// Cases d'allergènes modifiables (réception) : un clic fait passer contient → traces → ne contient pas, comme dans le tableau Allergènes.
+function ChampAllergenesReception({ value, onChange }) {
+  const lu = lireAllergenes(value);
+  const clic = (i) => {
+    const etats = [...lu.etats];
+    if (lu.vide) { for (let k = 0; k < etats.length; k++) etats[k] = "n"; etats[i] = "c"; }
+    else { const suite = { c: "t", t: "n", n: "c", q: "c" }; etats[i] = suite[etats[i]]; }
+    onChange(ecrireAllergenes(etats, lu.autres, true));
+  };
+  return (
+    <div>
+      <div className="flex flex-wrap gap-1.5">
+        {ALLERGENES_14.map((a, i) => {
+          const e = lu.etats[i]; const c = COULEURS_ETAT_ALLERGENE[e];
+          const mot = e === "c" ? "contient" : e === "t" ? "traces" : e === "n" ? "non" : "?";
+          return (
+            <button key={a} type="button" onClick={() => clic(i)} title={`${a} : ${c.titre}`} aria-label={`${a} : ${c.titre}`}
+              className="inline-flex items-center gap-1.5 rounded-full border-2 pl-1.5 pr-2.5 py-1 text-xs font-semibold"
+              style={{ borderColor: c.point, backgroundColor: c.fond, color: "#1F2937", borderStyle: e === "q" ? "dashed" : "solid" }}>
+              <span className="inline-flex items-center justify-center w-4 h-4 rounded-full text-[10px] font-bold" style={{ background: c.plein ? c.point : "#fff", border: `2px solid ${c.point}`, color: c.plein ? "#fff" : c.point }}>{e === "c" ? "✓" : e === "t" ? "−" : e === "n" ? "" : "?"}</span>
+              {a} <span className="font-normal opacity-70">· {mot}</span>
+            </button>
+          );
+        })}
+      </div>
+      <div className="flex flex-wrap items-center gap-3 mt-2">
+        <button type="button" onClick={() => onChange("Aucun")} className="text-xs underline text-[var(--steel)]">Aucun allergène</button>
+        {!lu.vide && <button type="button" onClick={() => onChange("")} className="text-xs underline text-[var(--steel)]">Tout remettre à « non renseigné »</button>}
+        <span className="text-xs text-[var(--steel)]">Un clic sur une case : contient → traces → non.</span>
+      </div>
+    </div>
+  );
+}
 
 // Commande de démonstration (version de test) : passée « hier » chez France Frais, avec de quoi essayer la réception
 // (steak haché à contrôler en température, gorgonzola abîmé, quantité différente, produit manquant…).
@@ -17150,7 +17213,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
   })();
   const commandeLignes = commandeInfo.lignes;
 
-  const nouveauBrouillon = (kind) => ({ id: uid(), kind: kind || "normal", nom: "", reference: "", conservation: "", quantite: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", plusRenvoi: false, autrePb: false, raisonPb: "", quantitePb: "", photoPb: null });
+  const nouveauBrouillon = (kind) => ({ id: uid(), kind: kind || "normal", nom: "", nomAuto: false, reference: "", conservation: "", typeIA: false, poidsNet: "", typeDate: "", quantite: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", plusRenvoi: false, autrePb: false, raisonPb: "", quantitePb: "", photoPb: null });
   const commencer = (kind) => { setBrouillon(nouveauBrouillon(kind || (commandeLignes.length > 0 ? "plus" : "normal"))); setDetailsOuverts(false); setScanMsg(""); };
   const maj = (patch) => setBrouillon((b) => ({ ...b, ...patch }));
 
@@ -17207,6 +17270,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
     if (!brouillon.nom.trim()) manque.push("le nom du produit");
     if (!(Number(brouillon.quantite) > 0)) manque.push("la quantité");
     if (!brouillon.conservation) manque.push("le type de produit");
+    else if (brouillon.typeIA && !brouillon.typeChoisi) manque.push("la confirmation du type de produit");
     if (alimentaire && !brouillon.lot.trim()) manque.push("le n° de lot");
     if (alimentaire && !brouillon.dlc) manque.push("la DLC / DDM");
     const sit = sitStock(brouillon);
@@ -17254,10 +17318,29 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
     setScanEnCours(true); setScanMsg("");
     const r = await analyserImage(dataUrl, CONSIGNE_ETIQUETTE_RECEPTION);
     setScanEnCours(false);
-    if (r && (r.nom || r.lot || r.dlc || r.reference)) {
-      setBrouillon((b) => ({ ...b, nom: r.nom || b.nom, reference: r.reference || b.reference, lot: r.lot || b.lot, dlc: r.dlc || b.dlc, allergenes: r.allergenes || b.allergenes, origine: r.origine || b.origine, agrementSanitaire: r.agrementSanitaire || b.agrementSanitaire }));
-      setScanMsg("Étiquette lue : vérifiez les informations, complétez la quantité et le type, puis passez au produit suivant.");
-    } else setScanMsg("L'étiquette n'a pas pu être lue : saisissez les informations à la main.");
+    const lisibles = !!(r && r.allergenes_lisibles === true);
+    if (r && (r.nom || r.lot || r.dlc || r.reference || r.poids_net || lisibles)) {
+      const texteAll = lisibles ? texteAllergenesIA(r.contient, r.traces) : "";
+      const nomIA = String(r.nom || "").trim();
+      const typeIA = TYPES_ALIMENTAIRES.includes(r.type_produit) ? r.type_produit : "";
+      setBrouillon((b) => {
+        const remplacerNom = nomIA && !b.ligneId && (!b.nom.trim() || (b.nomAuto && (lisibles || nomIA.length >= b.nom.length)));
+        const proposerType = typeIA && !b.typeChoisi && !b.ligneId;
+        return {
+          ...b,
+          ...(remplacerNom ? { nom: nomIA, nomAuto: true } : {}),
+          reference: r.reference || b.reference, lot: r.lot || b.lot, dlc: r.dlc || b.dlc,
+          typeDate: r.type_date === "DDM" || r.type_date === "DLC" ? r.type_date : b.typeDate,
+          poidsNet: r.poids_net || b.poidsNet,
+          ...(proposerType ? { conservation: typeIA, typeAuto: false, typeIA: true, typeCorrigeDe: "" } : {}),
+          allergenes: lisibles ? texteAll : b.allergenes,
+          origine: r.origine || b.origine, agrementSanitaire: r.agrementSanitaire || b.agrementSanitaire,
+        };
+      });
+      setScanMsg("Étiquette lue : vérifiez les informations, complétez la quantité" + (typeIA ? " et confirmez le type" : " et le type") + ". "
+        + (lisibles ? "Les allergènes ont été lus : vérifiez-les ci-dessous. " : "Allergènes non lus sur cette photo : photographiez la liste des ingrédients, ou cochez-les vous-même. ")
+        + "Vous pouvez photographier plusieurs faces du produit : les informations s'ajoutent.");
+    } else setScanMsg("L'étiquette n'a pas pu être lue : saisissez les informations à la main, ou reprenez la photo (bien à plat, bien éclairée, sans reflet).");
   };
 
   const ajouterManquant = () => {
@@ -17501,7 +17584,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4">
             <div className="sm:col-span-2">
               <label className={lab}>Nom du produit</label>
-              {b.ligneId ? <div className="text-lg font-bold text-[var(--ink)]">{b.nom}</div> : <input autoComplete="off" className={`${inputCls} w-full`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => { const v = e.target.value; const ts = typeSuggere(v); maj({ nom: v, ...(!b.typeChoisi ? (ts ? { conservation: ts, typeAuto: true } : (b.typeAuto ? { conservation: "", typeAuto: false } : {})) : {}) }); }} />}
+              {b.ligneId ? <div className="text-lg font-bold text-[var(--ink)]">{b.nom}</div> : <input autoComplete="off" className={`${inputCls} w-full`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => { const v = e.target.value; const ts = typeSuggere(v); maj({ nom: v, nomAuto: false, ...(!b.typeChoisi ? (ts ? { conservation: ts, typeAuto: true } : (b.typeAuto ? { conservation: "", typeAuto: false } : {})) : {}) }); }} />}
               {suggestions.length > 0 && (
                 <div className="flex flex-wrap gap-2 mt-2">
                   {suggestions.map((s) => <button key={s.id} onClick={() => choisirDuStock(s)} className="text-sm px-3 py-1.5 rounded-full border border-[var(--accent)] text-[var(--accent)]">{s.nom}{s.conservation ? ` · ${LIBELLE_CONSERVATION[s.conservation] || s.conservation}` : ""}</button>)}
@@ -17513,6 +17596,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <label className={lab}>Quantité reçue</label>
               <input className={`${inputCls} w-full`} type="number" inputMode="decimal" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
               {b.commandeQte != null && <p className="text-xs mt-1.5 text-[var(--steel)]">Commandé : <b>{b.commandeQte} {b.commandeUnite}</b></p>}
+              {b.poidsNet && <p className="text-xs mt-1.5 text-[var(--steel)]">Poids net lu sur l'emballage : <b>{b.poidsNet}</b>. Saisissez ici le <b>nombre</b> d'unités reçues.</p>}
             </div>
             <div>
               {!(b.ligneId && b.conservation) && <label className={lab}>Type de produit</label>}
@@ -17520,6 +17604,12 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
                 <option value="">Choisir…</option>
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>}
+              {b.typeIA && !b.typeChoisi && b.conservation && (
+                <div className="mt-2 rounded-lg px-3 py-2 text-xs flex flex-wrap items-center gap-2" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>
+                  <span>Type proposé d'après l'étiquette : <b>{LIBELLE_CONSERVATION[b.conservation] || b.conservation}</b>. Il décide de la norme de température : confirmez-le ou changez-le dans la liste.</span>
+                  <button type="button" onClick={() => maj({ typeChoisi: true, typeIA: false })} className="px-3 py-1 rounded-full border-2 bg-white font-semibold" style={{ borderColor: "#1B5FA8" }}>Oui, c'est bien ce type</button>
+                </div>
+              )}
               {b.typeCorrigeDe && <p className="text-xs mt-1.5 text-[var(--warn)]"><b>Type corrigé automatiquement :</b> le stock indiquait « {LIBELLE_CONSERVATION[b.typeCorrigeDe] || b.typeCorrigeDe} », mais le nom du produit correspond à « {LIBELLE_CONSERVATION[b.conservation]} » (norme plus stricte). Modifiable si c'est une erreur.</p>}
               {b.nom.trim().length >= 3 && !b.conservation && (
                 <div className="mt-2 rounded-lg px-3 py-2 text-xs" style={{ backgroundColor: "#FDF0D5", color: "#8A5A00" }}>
@@ -17543,6 +17633,16 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <ChampDateSaisie value={b.dlc} onChange={(v) => maj({ dlc: v })} placeholder="JJ/MM/AAAA ou MM/AAAA" />
             </div>
           </div>
+
+          {(!b.conservation || alimentaire) && (
+            <div className="mt-4 rounded-xl border-2 p-3" style={{ borderColor: "#E6D3A3", backgroundColor: "#FFFAEB" }}>
+              <label className={lab}>Allergènes de ce produit (lus sur l'étiquette, à vérifier)</label>
+              <ChampAllergenesReception value={b.allergenes} onChange={(v) => maj({ allergenes: v })} />
+              {!String(b.allergenes || "").trim() && <p className="text-xs mt-2 text-[var(--steel)]">Pas encore renseignés : photographiez la liste des ingrédients, ou cliquez sur les cases.</p>}
+              <label className={`${lab} mt-3`}>Origine (facultatif)</label>
+              <input className={`${inputCls} w-full`} value={b.origine || ""} onChange={(e) => maj({ origine: e.target.value })} placeholder="Ex. France, UE…" />
+            </div>
+          )}
 
           {b.ligneId && b.commandeQte != null && Number(b.quantite) > Number(b.commandeQte) && (
             <div className="mt-4 rounded-xl border-2 p-3" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
@@ -17620,6 +17720,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <div className="flex flex-col items-center text-center">
                 <p className="text-sm font-semibold text-[var(--ink)] mb-1.5">Photo de l'étiquette</p>
                 <PhotoInput rond value={null} onChange={scannerEtiquette} label="Photographier l'étiquette du produit" />
+                <p className="text-xs text-[var(--steel)] mt-1 max-w-[16rem]">Plusieurs photos possibles : face avant, date et lot, liste d'ingrédients.</p>
               </div>
             ) : null,
             <>

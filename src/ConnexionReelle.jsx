@@ -34,6 +34,21 @@ function dateHeureIso(date, heure) {
   return (isNaN(d.getTime()) ? new Date() : d).toISOString();
 }
 
+// Texte d'allergènes de l'application (« Gluten ; traces : Œufs, Soja ») -> liste enregistrée en base.
+// Les traces sont enregistrées une par une, préfixées « traces : », pour rester distinguées des allergènes présents.
+function allergenesVersListe(texte) {
+  const sortie = [];
+  String(texte || "").split(";").forEach((partie) => {
+    const enTraces = /^\s*(traces?|peut contenir)/i.test(partie);
+    partie.replace(/^\s*(traces?|peut contenir)\s*(de |d'|:)?\s*/i, "").split(/[,/+]/).forEach((mot) => {
+      const m = mot.trim();
+      if (!m) return;
+      sortie.push(enTraces && !/^traces?\s*:/i.test(m) ? `traces : ${m}` : m);
+    });
+  });
+  return sortie;
+}
+
 async function appelerEmployes(jeton, action, payload) {
   const reponse = await fetch(URL_FONCTION_EMPLOYES, {
     method: "POST",
@@ -850,7 +865,7 @@ export default function ConnexionReelle() {
   async function enregistrerNormeProduit(nom, champ, valeur) {
     const v = (valeur || "").trim();
     const maj = champ === "allergenes"
-      ? { allergenes_norme: v ? v.split(/[,;]+/).map((x) => x.trim()).filter(Boolean) : [] }
+      ? { allergenes_norme: allergenesVersListe(v) }
       : { origine_norme: v || null };
     const { error } = await supabasePublic.from("produits").update(maj).eq("nom", nom).eq("etablissement_id", session.etablissement.id);
     if (error) throw error;
@@ -897,6 +912,7 @@ export default function ConnexionReelle() {
       return e.fusion === "existant" ? memeNom.find((c) => !c.conservation) : undefined;
     };
     const adoptions = new Map();
+    const normesAMettre = new Map();
 
     // 1. Stock : on ajoute la quantité acceptée à chaque produit (ou on le crée s'il est inconnu).
     const idProduitParLigne = {};
@@ -908,10 +924,16 @@ export default function ConnexionReelle() {
       if (c) {
         c.quantite += qte;
         modifies.add(c.id);
+        // Fiche produit sans allergènes : ceux lus sur l'étiquette y sont enregistrés (le tableau Allergènes lit cette fiche).
+        const fiche = (catalogue || []).find((x) => x.id === c.id);
+        const listeAll = allergenesVersListe(e.allergenes);
+        if (fiche && !fiche.allergenesNorme && listeAll.length) normesAMettre.set(c.id, listeAll);
         if (!c.conservation && e.conservation) { c.conservation = e.conservation; adoptions.set(c.id, e.conservation); }
       } else {
         const { data, error } = await supabasePublic.from("produits").insert({
-          etablissement_id: etab, nom: String(e.produit).trim(), reference: e.reference || null, unite: "kg",
+          etablissement_id: etab, nom: String(e.produit).trim(), reference: e.reference || null, unite: e.conditionnement ? "pièce" : "kg",
+          conditionnement: e.conditionnement || null, type_date: e.typeDate === "DDM" || e.typeDate === "DLC" ? e.typeDate : null,
+          allergenes_norme: allergenesVersListe(e.allergenes).length ? allergenesVersListe(e.allergenes) : null, origine_norme: e.origine || null,
           fournisseur_id: idFournisseur, quantite_stock: qte, quantite_cible: 0,
           conservation: e.conservation || null, categorie: (e.categorie || "").trim() || ({ surgele: "Surgelés", viande: "Viandes", poisson: "Poissons", legume: "Fruits et légumes", frais: "Frais / laitier", sec: "Épicerie sèche", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autres" }[e.conservation] || null),
         }).select("id").single();
@@ -923,7 +945,7 @@ export default function ConnexionReelle() {
     }
     for (const id of modifies) {
       const c = catalogueCourant.find((x) => x.id === id);
-      const { error } = await supabasePublic.from("produits").update(adoptions.has(id) ? { quantite_stock: c.quantite, conservation: adoptions.get(id) } : { quantite_stock: c.quantite }).eq("id", id);
+      const { error } = await supabasePublic.from("produits").update({ quantite_stock: c.quantite, ...(adoptions.has(id) ? { conservation: adoptions.get(id) } : {}), ...(normesAMettre.has(id) ? { allergenes_norme: normesAMettre.get(id) } : {}) }).eq("id", id);
       if (error) throw error;
     }
 
@@ -932,7 +954,7 @@ export default function ConnexionReelle() {
     for (const e of entrees) {
       const produitId = idProduitParLigne[e.id];
       if (!produitId) continue;
-      const allergenes = String(e.allergenes || "").split(/[,;]/).map((t) => t.trim()).filter(Boolean);
+      const allergenes = allergenesVersListe(e.allergenes);
       const { data, error } = await supabasePublic.from("lots_produits").insert({
         etablissement_id: etab, produit_id: produitId, numero_lot: e.lot || null, dlc: e.dlc || null,
         quantite_recue: Number(e.quantite) || 0, quantite_restante: Number(e.quantite) || 0,
