@@ -4028,11 +4028,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   }
 
   if (releve) {
-    return <ReleveControle employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} today={today} onBack={() => setReleve(false)} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} />;
-  }
-
-  if (releveMensuel) {
-    return <ReleveMensuelHACCP employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} mois={moisReleve} setMois={setMoisReleve} onBack={() => setReleveMensuel(false)} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} />;
+    return <DossierControle onBack={() => setReleve(false)} employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} receptions={receptions} alertes={alertesControle} rappels={alertesRappelConso} declarationsTiac={declarationsTiac} pms={reglagesEtablissement && reglagesEtablissement.pms} />;
   }
 
   if (referentielActif) {
@@ -4676,9 +4672,8 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
             <ClipboardCheck size={20} className="text-[var(--accent)]" />
             <h3 className="font-semibold text-[var(--ink)]">Contrôle du service d'hygiène</h3>
           </div>
-          <p className="text-sm text-[var(--steel)] mb-4">Générez un relevé complet de la journée — équipe, températures, huile, refroidissement, cuisson, traçabilité, DLC et nettoyage — prêt à présenter.</p>
-          <Button onClick={() => setReleve(true)}>Générer le relevé de contrôle</Button>
-          <Button onClick={() => setReleveMensuel(true)}><BookOpen size={16} /> Registre HACCP mensuel (PDF)</Button>
+          <p className="text-sm text-[var(--steel)] mb-4">Un seul document, pour la journée de votre choix ou pour un mois entier : équipe, températures, réceptions, huile, refroidissement, cuisson, traçabilité, DLC, nettoyage, alertes, rappels de produits, TIAC et PMS — prêt à présenter et à imprimer autant de fois que nécessaire.</p>
+          <Button onClick={() => setReleve(true)}><Printer size={16} /> Dossier de contrôle — imprimer</Button>
         </Card>
       )}
     </div>
@@ -5217,7 +5212,87 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   );
 }
 
-function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, mois, setMois, onBack, nomEtablissement }) {
+// ---- Dossier de contrôle : UN SEUL document imprimable (journée ou mois), qui regroupe tout ce que l'inspecteur peut demander ----
+function ComplementsControle({ debut, fin, receptions, alertes, rappels, declarationsTiac, pms, employees }) {
+  const dansPeriode = (d) => !!d && d >= debut && d <= fin;
+  const fr = (iso) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || "—");
+  const recep = (receptions || []).filter((r) => dansPeriode(r.date) && r.produit && r.produit !== "(aucun produit détaillé)").sort((a, b) => `${a.date} ${a.heure}`.localeCompare(`${b.date} ${b.heure}`));
+  const alertesP = (alertes || []).filter((a) => dansPeriode(a.date));
+  const rappelsP = (rappels || []).filter((a) => !a.traite || dansPeriode(a.date) || dansPeriode(a.traiteDate));
+  const tiacP = (declarationsTiac || []).filter((d) => dansPeriode(d.dateDebut) || dansPeriode(d.dateCreation));
+  const aujourdhui = todayISO();
+  const prest = (pms && pms.prestataires) || [];
+  const docs = (pms && pms.documents) || [];
+  const forms = (pms && pms.formations) || [];
+  const etat = (iso) => { const e = etatEcheance(iso, aujourdhui); return e.etat === "depassee" ? "Dépassée" : e.etat === "bientot" ? `Dans ${e.jours} j` : e.etat === "ok" ? "À jour" : "Non renseignée"; };
+  const nomPrest = (p) => p.nom || p.libelle || libelleDe(TYPES_PRESTATAIRE, p.type);
+  const Titre = ({ children }) => <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3 mt-8">{children}</h3>;
+  const Tab = ({ cols, lignes, vide }) => lignes.length === 0 ? <p className="text-sm text-[var(--steel)]">{vide}</p> : (
+    <div className="overflow-x-auto print:overflow-visible">
+      <table className="w-full text-sm min-w-[480px] print:min-w-0">
+        <thead><tr className="text-left text-[var(--steel)]">{cols.map((c) => <th key={c} className="pb-1.5 pr-2 font-medium">{c}</th>)}</tr></thead>
+        <tbody>{lignes.map((l, i) => <tr key={i} className="border-t border-[var(--line)]">{l.map((v, j) => <td key={j} className={`py-1.5 pr-2 ${/non conforme|dépassée|refus|à lire|à traiter/i.test(String(v)) ? "text-[var(--warn)] font-medium" : "text-[var(--ink)]"}`}>{v}</td>)}</tr>)}</tbody>
+      </table>
+    </div>
+  );
+  return (
+    <div>
+      <Titre>Réceptions des marchandises ({recep.length} ligne{recep.length > 1 ? "s" : ""}) — températures, lots, DLC et conformité</Titre>
+      <Tab cols={["Date", "Fournisseur", "Produit", "Quantité", "Lot", "DLC", "T°", "Statut"]} vide="Aucune livraison enregistrée sur la période."
+        lignes={recep.map((r) => [`${fr(r.date)} ${r.heure || ""}`, r.fournisseur || "—", r.produit, r.quantite != null ? String(r.quantite) : "—", r.lot || "—", fr(r.dlc), r.temperature != null && r.temperature !== "" ? `${r.temperature} °C` : "—", r.conforme === false ? `Non conforme — ${r.raison || "à préciser"}` : "Conforme"])} />
+
+      <Titre>Non-conformités et alertes qualité ({alertesP.length})</Titre>
+      <Tab cols={["Date", "Alerte", "Détail", "Type", "Traitement"]} vide="Aucune alerte sur la période."
+        lignes={alertesP.map((a) => [`${fr(a.date)} ${a.heure || ""}`, a.titre, a.detail || "—", a.type || "—", a.vue ? "Lue par le chef" : "À lire"])} />
+
+      <Titre>Rappels de produits (RappelConso) — non traités ou traités sur la période</Titre>
+      <Tab cols={["Produit", "Rappel", "Motif", "Publié le", "Statut"]} vide="Aucune correspondance avec un rappel officiel."
+        lignes={rappelsP.map((a) => [a.produit, a.titre, a.motif || "—", fr(a.date), a.traite ? `Traité le ${fr(a.traiteDate)}` : "À traiter"])} />
+
+      <Titre>Toxi-infections alimentaires collectives (TIAC) déclarées</Titre>
+      <Tab cols={["Symptômes signalés le", "Enregistrée le", "Malades recensés"]} vide="Aucune déclaration sur la période."
+        lignes={tiacP.map((d) => [fr(d.dateDebut), fr(d.dateCreation), String(d.nbMalades != null ? d.nbMalades : "—")])} />
+
+      <Titre>Plan de maîtrise sanitaire — prestataires, formations et pièces</Titre>
+      <Tab cols={["Prestataire / pièce", "Prochaine échéance", "État"]} vide="Aucun prestataire ni pièce renseigné dans le dossier PMS."
+        lignes={[...prest.map((p) => [nomPrest(p), fr(p.date_prochaine_echeance), etat(p.date_prochaine_echeance)]), ...docs.map((d) => [d.titre || libelleDe(CATEGORIES_DOCUMENT, d.categorie), fr(d.date_echeance), etat(d.date_echeance)])]} />
+      <div className="mt-4" />
+      <Tab cols={["Formation", "Personne", "Date"]} vide="Aucune formation renseignée dans le dossier PMS."
+        lignes={forms.map((f) => [libelleDe(TYPES_FORMATION, f.type), (f.utilisateur_id && (employees.find((e) => e.id === f.utilisateur_id) || {}).nom) || f.personne_nom || "—", fr(f.date_formation)])} />
+    </div>
+  );
+}
+
+function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappels, declarationsTiac, pms, ...donnees }) {
+  const [mode, setMode] = useState("jour");
+  const [jour, setJour] = useState(todayISO());
+  const [mois, setMois] = useState(todayISO().slice(0, 7));
+  const debut = mode === "jour" ? jour : `${mois}-01`;
+  const fin = mode === "jour" ? jour : `${mois}-31`;
+  const complements = <ComplementsControle debut={debut} fin={fin} receptions={receptions} alertes={alertes} rappels={rappels} declarationsTiac={declarationsTiac} pms={pms} employees={donnees.employees} />;
+  const decalerMois = (n) => { const d = new Date(mois + "-01T12:00:00"); d.setMonth(d.getMonth() + n); setMois(d.toISOString().slice(0, 7)); };
+  return (
+    <div>
+      <div className="flex items-center justify-between mb-4 print:hidden flex-wrap gap-2">
+        <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="inline-flex rounded-lg border border-[var(--cadre)] overflow-hidden">
+            {[["jour", "Journée"], ["mois", "Mois"]].map(([k, l]) => <button key={k} type="button" onClick={() => setMode(k)} className={`px-3 py-1.5 text-sm font-semibold ${mode === k ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--ink)]"}`}>{l}</button>)}
+          </div>
+          {mode === "jour"
+            ? <input type="date" className={inputCls} style={{ width: "auto" }} value={jour} max={todayISO()} onChange={(e) => e.target.value && setJour(e.target.value)} />
+            : <div className="flex items-center gap-2"><button type="button" onClick={() => decalerMois(-1)} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronLeft size={16} /></button><span className="text-sm font-medium text-[var(--ink)] w-28 text-center">{mois}</span><button type="button" onClick={() => decalerMois(1)} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronRight size={16} /></button></div>}
+        </div>
+        <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / PDF</Button>
+      </div>
+      {mode === "jour"
+        ? <ReleveControle {...donnees} today={jour} nomEtablissement={nomEtablissement} sansBarre complements={complements} onBack={onBack} />
+        : <ReleveMensuelHACCP {...donnees} mois={mois} setMois={setMois} nomEtablissement={nomEtablissement} sansBarre complements={complements} onBack={onBack} />}
+    </div>
+  );
+}
+
+function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, mois, setMois, onBack, nomEtablissement, sansBarre, complements }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom || "—";
   const joursduMois = [];
   const debut = new Date(mois + "-01T00:00:00");
@@ -5246,7 +5321,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 print:hidden flex-wrap gap-2">
+      {!sansBarre && <div className="flex items-center justify-between mb-4 print:hidden flex-wrap gap-2">
         <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <div className="flex items-center gap-2">
           <button onClick={moisPrecedent} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronLeft size={16} /></button>
@@ -5254,7 +5329,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
           <button onClick={moisSuivant} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronRight size={16} /></button>
         </div>
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / PDF</Button>
-      </div>
+      </div>}
 
       <div className="bg-white rounded-xl border border-[var(--cadre)] p-6 sm:p-8">
         <div className="flex items-center justify-between mb-1">
@@ -5393,6 +5468,8 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
           </div>
         )}
 
+        {complements}
+
         <div className="mt-8 pt-4 border-t border-[var(--line)] grid grid-cols-2 gap-8">
           <div>
             <p className="text-xs text-[var(--steel)] mb-1">Responsable HACCP</p>
@@ -5410,7 +5487,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
   );
 }
 
-function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, today, onBack, relevesFroid, equipementsFroid, nomEtablissement }) {
+function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, today, onBack, relevesFroid, equipementsFroid, nomEtablissement, sansBarre, complements }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const tempsDuJour = tempLogs.filter((l) => l.date === today);
   const huileDuJour = huileTests.filter((h) => h.date === today);
@@ -5422,10 +5499,10 @@ function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissemen
 
   return (
     <div>
-      <div className="flex items-center justify-between mb-4 print:hidden">
+      {!sansBarre && <div className="flex items-center justify-between mb-4 print:hidden">
         <BoutonRetour onClick={onBack}>Retour au contrôle</BoutonRetour>
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / Exporter</Button>
-      </div>
+      </div>}
 
       <div className="bg-white rounded-xl border border-[var(--cadre)] p-6 sm:p-8">
         <div className="flex items-center gap-2 mb-1">
@@ -5615,6 +5692,19 @@ function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissemen
           </table>
           </div>
         )}
+
+        {complements}
+
+        <div className="mt-8 pt-4 border-t border-[var(--line)] grid grid-cols-2 gap-8">
+          <div>
+            <p className="text-xs text-[var(--steel)] mb-1">Responsable HACCP</p>
+            <div className="mt-6 border-t border-[var(--steel)] w-40 pt-1"><p className="text-xs text-[var(--steel)]">Nom et signature</p></div>
+          </div>
+          <div>
+            <p className="text-xs text-[var(--steel)] mb-1">Document généré le</p>
+            <p className="text-sm text-[var(--ink)]">{fmtLong(todayISO())}</p>
+          </div>
+        </div>
       </div>
     </div>
   );
