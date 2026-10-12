@@ -7108,7 +7108,7 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
           </span>
         </button>
       </div>
-      <p className="text-xs text-[var(--steel)]">Les protocoles et le planning se relient : un nettoyage planifié s'appuie sur son protocole. Les tâches faites restent barrées dans le planning des employés.</p>
+      <p className="text-xs text-[var(--steel)]">Les protocoles sont facultatifs : le planning suffit si le chef laisse ses employés nettoyer comme ils le font. Quand un protocole existe, le nettoyage planifié s'appuie dessus. Les tâches faites restent barrées dans le planning des employés.</p>
     </div>
   );
 }
@@ -7369,6 +7369,10 @@ function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNet
   const champ = `${inputCls} w-full min-w-0`;
   return (
     <div>
+      <div className="rounded-xl border-2 border-[var(--accent)] bg-[var(--accent-soft)] p-3 mb-3 text-sm text-[var(--ink)] space-y-1.5">
+        <p><strong>Important :</strong> le protocole ne peut se remplir automatiquement, avec le bon dosage et le bon temps de contact, que si chaque produit et sa fiche technique sont enregistrés dans le logiciel. Tant que ce n'est pas fait, les protocoles proposés ici sont des modèles généraux à vérifier et à adapter.</p>
+        <p><strong>Cette page est facultative.</strong> Elle sert au chef qui veut décrire précisément comment nettoyer. Le chef peut aussi se contenter du planning (page 2) et laisser ses employés nettoyer comme ils le font, avec les moyens déjà mis en place dans l'établissement.</p>
+      </div>
       <p className="text-sm text-[var(--steel)] mb-3">Cochez une ou plusieurs <strong>zones</strong>, puis des <strong>surfaces</strong> et/ou du <strong>matériel</strong>, puis choisissez le <strong>produit</strong> et le <strong>protocole</strong> : ils seront mis en place d'un seul coup sur toutes les combinaisons cochées. Tout est pré-rempli et modifiable.</p>
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(11rem,0.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.7fr)] gap-3 items-start">
         <ColonneMultiNet numero={1} titre="Zones de la cuisine" couleur="#34495E" onTout={() => setZSel(zones.map((z) => z.nom))} onAucun={() => setZSel([])} onAjouter={() => { setAjout("zone"); setNomAjout(""); }}>
