@@ -470,6 +470,7 @@ const COULEURS_FONCTION = {
   // Hygiène
   pms: degrade("#DB2777", "#831843"),
   pmsDossier: degrade("#DB2777", "#831843"),
+  dossierControle: degrade("#7C3AED", "#4C1D95"),
   pmsPrestataires: degrade("#DB2777", "#831843"),
   allergenes: degrade("#EAB308", "#A16207"),
   origine: degrade("#0EA5E9", "#075985"),
@@ -3863,6 +3864,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   const [remarqueEnCours, setRemarqueEnCours] = useState(null);
   const [sousEcran, setSousEcran] = useState(null);
   const [rechercheCG, setRechercheCG] = useState("");
+  const [impressionDossier, setImpressionDossier] = useState(null);
   const [suppRefroidId, setSuppRefroidId] = useState(null);
   const [nouveauMaintien, setNouveauMaintien] = useState("");
   // Doit rester avec les autres hooks, AVANT les retours anticipés plus bas (sinon React plante : « Rendered fewer hooks »).
@@ -3953,6 +3955,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
     { id: "modifierFiche", label: "Modifier ou dupliquer une fiche technique", icon: BookOpen, section: "cuisine" },
     { id: "carte", label: "Ma carte", icon: UtensilsCrossed, section: "cuisine" },
+    { id: "dossierControle", label: "Dossier de contrôle (inspection)", icon: ClipboardCheck, section: "hygiene" },
     { id: "pmsDossier", label: "PMS — dossier", icon: Building2, section: "hygiene" },
     { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
     { id: "pmsPrestataires", label: "Prestataires", icon: PhoneCall, section: "hygiene" },
@@ -4027,8 +4030,9 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     return <PmsDossierImprimable reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onBack={() => setPmsImpression(false)} />;
   }
 
-  if (releve) {
-    return <DossierControle onBack={() => setReleve(false)} employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} receptions={receptions} alertes={alertesControle} rappels={alertesRappelConso} declarationsTiac={declarationsTiac} pms={reglagesEtablissement && reglagesEtablissement.pms} fiches={fiches} allergenesPlats={allergenesPlats} stock={stock} origineProduits={origineProduits} />;
+  const donneesDossier = { employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, nomEtablissement: reglagesEtablissement && reglagesEtablissement.nom, receptions, alertes: alertesControle, rappels: alertesRappelConso, declarationsTiac, pms: reglagesEtablissement && reglagesEtablissement.pms, fiches, allergenesPlats, stock, origineProduits };
+  if (impressionDossier) {
+    return <DossierControle {...donneesDossier} modeInit={impressionDossier.mode} jourInit={impressionDossier.jour} moisInit={impressionDossier.mois} imprimerAuMontage onBack={() => setImpressionDossier(null)} />;
   }
 
   if (referentielActif) {
@@ -4043,7 +4047,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => setTracabiliteCompleteActif(false)} />;
   }
 
-  const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", comptes: "comptes", rappelconso: "rappelconso", alertes: "alertes", notifications: "notifications", appareilsFroid: "temperatures" })[sousEcran] || ({ equipe: "planningEmploye", controle: "controle", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "controle";
+  const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", dossierControle: "dossierControle", comptes: "comptes", rappelconso: "rappelconso", alertes: "alertes", notifications: "notifications", appareilsFroid: "temperatures" })[sousEcran] || ({ equipe: "planningEmploye", controle: "controle", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "controle";
   return (
     <ZoneContext.Provider value={zoneDepuisFonction(fonctionZoneControle)}>
     <div>
@@ -4270,6 +4274,13 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         )}
       </Card>
 
+        </div>
+      )}
+
+      {sousEcran === "dossierControle" && (
+        <div>
+          <SectionHeader title="Dossier de contrôle (inspection)" subtitle="Le document à présenter à l'inspecteur : journée ou mois au choix, avec tous les relevés et registres. Imprimable à volonté." fonction="dossierControle" icone={ClipboardCheck} />
+          <DossierControle {...donneesDossier} integre onImprimer={(etat) => setImpressionDossier(etat)} onBack={() => setSousEcran(null)} />
         </div>
       )}
 
@@ -4666,16 +4677,6 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         </div>
       )}
 
-      {!sousEcran && sectionActive === "controle" && (
-        <Card className="text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <ClipboardCheck size={20} className="text-[var(--accent)]" />
-            <h3 className="font-semibold text-[var(--ink)]">Contrôle du service d'hygiène</h3>
-          </div>
-          <p className="text-sm text-[var(--steel)] mb-4">Un seul document, pour la journée de votre choix ou pour un mois entier : équipe, températures, réceptions, huile, refroidissement, cuisson, traçabilité, DLC, nettoyage, alertes, rappels de produits, TIAC et PMS — prêt à présenter et à imprimer autant de fois que nécessaire.</p>
-          <Button onClick={() => setReleve(true)}><Printer size={16} /> Dossier de contrôle — imprimer</Button>
-        </Card>
-      )}
     </div>
     </ZoneContext.Provider>
   );
@@ -5271,10 +5272,11 @@ function ComplementsControle({ debut, fin, receptions, alertes, rappels, declara
   );
 }
 
-function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappels, declarationsTiac, pms, fiches, allergenesPlats, stock, origineProduits, ...donnees }) {
-  const [mode, setMode] = useState("jour");
-  const [jour, setJour] = useState(todayISO());
-  const [mois, setMois] = useState(todayISO().slice(0, 7));
+function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappels, declarationsTiac, pms, fiches, allergenesPlats, stock, origineProduits, integre, onImprimer, imprimerAuMontage, modeInit, jourInit, moisInit, ...donnees }) {
+  const [mode, setMode] = useState(modeInit || "jour");
+  const [jour, setJour] = useState(jourInit || todayISO());
+  const [mois, setMois] = useState(moisInit || todayISO().slice(0, 7));
+  useEffect(() => { if (imprimerAuMontage) { const t = setTimeout(() => window.print(), 600); return () => clearTimeout(t); } }, [imprimerAuMontage]);
   const debut = mode === "jour" ? jour : `${mois}-01`;
   const fin = mode === "jour" ? jour : `${mois}-31`;
   const complements = <ComplementsControle debut={debut} fin={fin} receptions={receptions} alertes={alertes} rappels={rappels} declarationsTiac={declarationsTiac} pms={pms} employees={donnees.employees} fiches={fiches} allergenesPlats={allergenesPlats} stock={stock} origineProduits={origineProduits} />;
@@ -5282,7 +5284,7 @@ function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappel
   return (
     <div>
       <div className="flex items-center justify-between mb-4 print:hidden flex-wrap gap-2">
-        <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
+        {integre ? <span /> : <BoutonRetour onClick={onBack}>Retour</BoutonRetour>}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="inline-flex rounded-lg border border-[var(--cadre)] overflow-hidden">
             {[["jour", "Journée"], ["mois", "Mois"]].map(([k, l]) => <button key={k} type="button" onClick={() => setMode(k)} className={`px-3 py-1.5 text-sm font-semibold ${mode === k ? "bg-[var(--accent)] text-white" : "bg-white text-[var(--ink)]"}`}>{l}</button>)}
@@ -5291,11 +5293,16 @@ function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappel
             ? <input type="date" className={inputCls} style={{ width: "auto" }} value={jour} max={todayISO()} onChange={(e) => e.target.value && setJour(e.target.value)} />
             : <div className="flex items-center gap-2"><button type="button" onClick={() => decalerMois(-1)} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronLeft size={16} /></button><span className="text-sm font-medium text-[var(--ink)] w-28 text-center">{mois}</span><button type="button" onClick={() => decalerMois(1)} className="w-8 h-8 rounded-md border border-[var(--cadre)] flex items-center justify-center"><ChevronRight size={16} /></button></div>}
         </div>
-        <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / PDF</Button>
+        {!integre && <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / PDF</Button>}
       </div>
       {mode === "jour"
         ? <ReleveControle {...donnees} today={jour} nomEtablissement={nomEtablissement} sansBarre complements={complements} onBack={onBack} />
         : <ReleveMensuelHACCP {...donnees} mois={mois} setMois={setMois} nomEtablissement={nomEtablissement} sansBarre complements={complements} onBack={onBack} />}
+      {integre && onImprimer && (
+        <div className="mt-6 flex justify-center print:hidden">
+          <Button onClick={() => onImprimer({ mode, jour, mois })}><Printer size={16} /> Imprimer les documents</Button>
+        </div>
+      )}
     </div>
   );
 }
