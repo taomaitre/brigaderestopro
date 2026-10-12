@@ -4246,11 +4246,9 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
       <Card className="mb-6">
         <div className="flex items-center justify-between gap-3 flex-wrap mb-1">
           <h3 className="font-semibold text-[var(--ink)]">Vérification RappelConso (DGCCRF)</h3>
-          <button onClick={onVerifierRappelConso} disabled={rappelConsoEnCours} className="text-xs text-[var(--accent)] font-medium disabled:opacity-50">
-            {rappelConsoEnCours ? "Vérification en cours..." : "Vérifier maintenant"}
-          </button>
         </div>
         <p className="text-xs text-[var(--steel)] mb-3">Croise automatiquement vos produits (stock + catalogue) avec la liste officielle des rappels sanitaires — automatique tous les jeudis et dimanches après les livraisons. Dernière vérification : {dernierControleRappelConso ? fmtLong(dernierControleRappelConso) : "jamais"}.</p>
+        <div className="mb-3"><Button onClick={onVerifierRappelConso} disabled={rappelConsoEnCours}>{rappelConsoEnCours ? "Vérification en cours..." : "Vérifier maintenant"}</Button></div>
         {alertesRappelConso.length === 0 ? (
           <p className="text-sm text-[var(--accent)]">Aucune correspondance avec un rappel officiel récent.</p>
         ) : (
