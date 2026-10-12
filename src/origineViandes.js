@@ -12,7 +12,7 @@ export const ESPECES_ORIGINE = [
 export function detecterEspece(nom = "", categorie = "") {
   const t = `${nom} ${categorie}`.toLowerCase();
   if (/(bœuf|boeuf|veau|bovin|entrecôte|entrecote|faux-filet|steak|bavette|onglet|rumsteck|hach)/.test(t)) return "bovin";
-  if (/(porc|jambon|lard|saucisse|chorizo|côte de porc|echine|échine)/.test(t)) return "porc";
+  if (/(porc|jambon|lard|bacon|saucisse|saucisson|chorizo|côte de porc|echine|échine|poitrine fum|pancetta|coppa|speck|rillette|andouille|travers)/.test(t)) return "porc";
   if (/(agneau|mouton|ovin|gigot)/.test(t)) return "ovin";
   if (/(poulet|volaille|dinde|canard|pintade|escalope)/.test(t)) return "volaille";
   return "autre";

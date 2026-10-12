@@ -4544,60 +4544,79 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
             <p className="text-xs text-[var(--steel)] mb-3">Pour les viandes, indiquez les pays selon le décret : si naissance, élevage et abattage sont dans le même pays, « Origine : pays » ; sinon bœuf « Né : …, élevé : … et abattu : … », porc, agneau/mouton et volaille « Élevé : … et abattu : … ». La mention se compose toute seule.</p>
             <p className="text-xs font-semibold text-[var(--ink)] mb-3">Cette information est obligatoire. Son absence peut être sanctionnée d'une contravention de 5ᵉ classe.</p>
             <BoutonsExport titre="Origine des produits" colonnes={["Produit", "Catégorie", "Mention à afficher"]} lignes={stock.map((x) => [x.nom, x.categorie || "", origineProduits[x.nom] || ""])} />
-            <div className="overflow-x-auto">
-              <table className="w-full text-sm">
-                <thead><tr className="text-left text-xs text-[var(--steel)] uppercase"><th className="py-1.5 pr-3">Produit</th><th className="py-1.5 pr-3">Espèce</th><th className="py-1.5 pr-3">Né en</th><th className="py-1.5 pr-3">Élevé en</th><th className="py-1.5 pr-3">Abattu en</th><th className="py-1.5">Mention à afficher</th></tr></thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {stock
-                    .filter((s) => {
-                      const q = rechOrigineProduit.trim().toLowerCase();
-                      if (!q) return true;
-                      return (s.nom || "").toLowerCase().includes(q) || (s.categorie || "").toLowerCase().includes(q);
-                    })
-                    .map((s) => {
-                      const espece = especesOrigine[s.nom] || detecterEspece(s.nom, s.categorie);
-                      const cfg = ESPECES_ORIGINE.find((e) => e.id === espece) || ESPECES_ORIGINE[4];
-                      const texte = origineProduits[s.nom] || "";
-                      const d = lireOrigine(texte);
-                      const enregistrer = (patch) => {
-                        const nouveau = { ...d, ...patch };
-                        const v = composerOrigine(espece, nouveau);
-                        setOrigineProduits({ ...origineProduits, [s.nom]: v });
-                        setOrigineStandard({ ...origineStandard, [s.nom]: v });
-                        if (produitsLotException[s.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[s.nom]; return n; });
-                      };
-                      const champ = (cle, placeholder) => (
-                        <input className={`${inputCls} text-xs w-28`} placeholder={placeholder} value={d[cle]} onChange={(e) => enregistrer({ [cle]: e.target.value })} />
-                      );
-                      return (
-                        <tr key={s.id}>
-                          <td className="py-1.5 pr-3 text-[var(--ink)]">{s.nom}<div className="text-[11px] text-[var(--steel)]">{s.categorie}</div></td>
-                          <td className="py-1.5 pr-3">
-                            <select className={`${inputCls} text-xs`} value={espece} onChange={(e) => setEspecesOrigine({ ...especesOrigine, [s.nom]: e.target.value })}>
-                              {ESPECES_ORIGINE.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
-                            </select>
-                          </td>
-                          {cfg.libre ? (
-                            <td className="py-1.5 pr-3" colSpan={3}>
-                              <input className={`${inputCls} text-xs`} placeholder="ex : France, Bretagne, UE..." value={texte} onChange={(e) => { const v = e.target.value; setOrigineProduits({ ...origineProduits, [s.nom]: v }); setOrigineStandard({ ...origineStandard, [s.nom]: v }); }} />
-                            </td>
-                          ) : (
-                            <>
-                              <td className="py-1.5 pr-3">{cfg.ne ? champ("ne", "pays") : <span className="text-xs text-[var(--steel)]">non demandé</span>}</td>
-                              <td className="py-1.5 pr-3">{champ("eleve", "pays")}</td>
-                              <td className="py-1.5 pr-3">{champ("abattu", "pays")}</td>
-                            </>
-                          )}
-                          <td className="py-1.5 text-xs">
-                            {texte ? <span className="text-[var(--ink)]">{texte}</span> : <span className="px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">À compléter</span>}
-                            {produitsLotException[s.nom] && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] whitespace-nowrap">variable selon le lot en cours</span>}
-                          </td>
-                        </tr>
-                      );
-                    })}
-                </tbody>
-              </table>
-            </div>
+            {(() => {
+              const COUL = { bovin: "#7B4B2A", porc: "#C0629A", ovin: "#16A085", volaille: "#D4A017", autre: "#5D6D7E" };
+              const GRILLE = "minmax(10rem,1.3fr) minmax(9rem,1fr) minmax(7rem,0.8fr) minmax(7rem,0.8fr) minmax(7rem,0.8fr) minmax(10rem,1.2fr)";
+              const q = rechOrigineProduit.trim().toLowerCase();
+              const lignes = stock.filter((x) => !q || (x.nom || "").toLowerCase().includes(q) || (x.categorie || "").toLowerCase().includes(q)).map((x) => {
+                const espece = especesOrigine[x.nom] || detecterEspece(x.nom, x.categorie);
+                return { s: x, espece, cfg: ESPECES_ORIGINE.find((e) => e.id === espece) || ESPECES_ORIGINE[4] };
+              });
+              const rendreLigne = ({ s: x, espece, cfg }) => {
+                const texte = origineProduits[x.nom] || "";
+                const d = lireOrigine(texte);
+                const col = COUL[espece] || COUL.autre;
+                const enregistrer = (patch) => {
+                  const v = composerOrigine(espece, { ...d, ...patch });
+                  setOrigineProduits({ ...origineProduits, [x.nom]: v });
+                  setOrigineStandard({ ...origineStandard, [x.nom]: v });
+                  if (produitsLotException[x.nom]) setProduitsLotException((prev) => { const n = { ...prev }; delete n[x.nom]; return n; });
+                };
+                const champ = (cle) => <input className={`${inputCls} text-xs w-full min-w-0`} placeholder="pays" value={d[cle]} onChange={(e) => enregistrer({ [cle]: e.target.value })} />;
+                const nonDemande = <div className="text-xs italic text-[var(--steel)] px-2 py-2 rounded-lg bg-[var(--bg)] text-center">non demandé</div>;
+                return (
+                  <div key={x.id} className="grid gap-2 items-center px-3 py-2 border-t border-[var(--cadre)]" style={{ gridTemplateColumns: GRILLE, minWidth: 820 }}>
+                    <div className="min-w-0 text-sm font-medium text-[var(--ink)] break-words">{x.nom}<div className="text-[11px] font-normal text-[var(--steel)]">{x.categorie}</div></div>
+                    <select className={`${inputCls} text-xs w-full min-w-0`} value={espece} onChange={(e) => setEspecesOrigine({ ...especesOrigine, [x.nom]: e.target.value })}>
+                      {ESPECES_ORIGINE.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
+                    </select>
+                    {cfg.libre ? (
+                      <div style={{ gridColumn: "span 3" }}><input className={`${inputCls} text-xs w-full min-w-0`} placeholder="ex : France, Bretagne, UE..." value={texte} onChange={(e) => { const v = e.target.value; setOrigineProduits({ ...origineProduits, [x.nom]: v }); setOrigineStandard({ ...origineStandard, [x.nom]: v }); }} /></div>
+                    ) : (<>
+                      <div>{cfg.ne ? champ("ne") : nonDemande}</div>
+                      <div>{champ("eleve")}</div>
+                      <div>{champ("abattu")}</div>
+                    </>)}
+                    <div className="text-xs min-w-0 break-words">
+                      {texte ? <span className="inline-block rounded-lg px-2 py-1 font-semibold text-white" style={{ background: col }}>{texte}</span> : <span className="px-2 py-1 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] font-medium">À compléter</span>}
+                      {produitsLotException[x.nom] && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">variable selon le lot en cours</span>}
+                    </div>
+                  </div>
+                );
+              };
+              const enteteCols = (col) => (
+                <div className="grid gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: GRILLE, minWidth: 820, background: col + "22", color: col }}>
+                  <div>Produit</div><div>Espèce</div><div>Né en</div><div>Élevé en</div><div>Abattu en</div><div>Mention à afficher</div>
+                </div>
+              );
+              const blocs = ESPECES_ORIGINE.filter((e) => e.id !== "autre").map((e) => ({ e, items: lignes.filter((l) => l.espece === e.id) }));
+              const autres = lignes.filter((l) => l.espece === "autre");
+              return (
+                <div className="space-y-4">
+                  {blocs.map(({ e, items }) => {
+                    const col = COUL[e.id];
+                    const manque = items.filter((l) => !origineProduits[l.s.nom]).length;
+                    return (
+                      <div key={e.id} className="rounded-xl overflow-hidden border-2" style={{ borderColor: col }}>
+                        <div className="px-3 py-2 text-white flex flex-wrap items-center gap-2" style={{ background: col }}>
+                          <span className="font-bold text-base">{e.label}</span>
+                          <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5">{items.length} produit(s)</span>
+                          {items.length > 0 && <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5">{manque ? `${manque} à compléter` : "tout renseigné"}</span>}
+                          <span className="text-xs opacity-90 ml-auto">{e.ne ? "Né, élevé et abattu" : "Élevé et abattu"}</span>
+                        </div>
+                        <div className="overflow-x-auto bg-white">
+                          {items.length === 0 ? <p className="px-3 py-3 text-sm text-[var(--steel)]">Aucun produit de cette catégorie dans votre liste.</p> : (<>{enteteCols(col)}{items.map(rendreLigne)}</>)}
+                        </div>
+                      </div>
+                    );
+                  })}
+                  <details className="rounded-xl overflow-hidden border-2" style={{ borderColor: COUL.autre }}>
+                    <summary className="px-3 py-2 text-white cursor-pointer font-bold" style={{ background: COUL.autre }}>Produits sans obligation d'origine ({autres.length}) <span className="text-xs font-normal opacity-90">— légumes, épicerie, produits laitiers… ouvrir si besoin</span></summary>
+                    <div className="overflow-x-auto bg-white">{autres.length === 0 ? <p className="px-3 py-3 text-sm text-[var(--steel)]">Aucun produit.</p> : (<>{enteteCols(COUL.autre)}{autres.map(rendreLigne)}</>)}</div>
+                  </details>
+                </div>
+              );
+            })()}
           </Card>
         </div>
       )}
