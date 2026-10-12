@@ -20942,6 +20942,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
   const [role, setRole] = useState("");
   const [code, setCode] = useState("");
   const [picker, setPicker] = useState(null); // { employeeId, jour, service }
+  const [vuePlanning, setVuePlanning] = useState("semaine"); // "semaine" (colonnes par jour) | "employe" (modifier)
 
   const addEmployee = () => {
     if (!name) return;
@@ -21087,6 +21088,74 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
     logActivity("Planning", "Semaine remplie avec les heures de service", emp.nom);
   };
   const viderSemaine = (emp) => { setShifts(shifts.filter((x) => x.employeeId !== emp.id)); logActivity("Planning", "Horaires effacés", emp.nom); };
+  const COULEURS_JOURS = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"];
+  const dureeH = (sh) => { if (!sh.debut || !sh.fin) return 0; const [h1, m1] = sh.debut.split(":").map(Number); const [h2, m2] = sh.fin.split(":").map(Number); return Math.max(0, (h2 * 60 + m2 - (h1 * 60 + m1)) / 60); };
+  const sectionSemaine = (
+    <div className="mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#8E44AD" }}><CalendarDays size={26} /></span>
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold text-[var(--ink)]">Planning de la semaine</h3>
+          <p className="text-xs text-[var(--steel)]">Qui travaille chaque jour, au service du midi et du soir. Pour changer un horaire, passez sur « Modifier par employé ».</p>
+        </div>
+      </div>
+      <div className="overflow-x-auto">
+        <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(7, minmax(11rem, 1fr))", minWidth: 1100 }}>
+          {JOURS.map((jour, ji) => {
+            const col = COULEURS_JOURS[ji];
+            const totalJour = shifts.filter((x) => x.jour === jour).reduce((t, x) => t + dureeH(x), 0);
+            return (
+              <div key={jour} className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: col }}>
+                <div className="px-3 py-2 text-white" style={{ background: col }}>
+                  <div className="font-bold text-base">{jour}</div>
+                  <div className="text-[11px] opacity-90">{totalJour.toFixed(1)} h au total</div>
+                </div>
+                {SERVICES.map((service) => {
+                  const ht = horaireType(jour, service.toLowerCase());
+                  const liste = shifts.filter((x) => x.jour === jour && String(x.service).toLowerCase() === service.toLowerCase())
+                    .map((x) => ({ x, emp: employees.find((e) => e.id === x.employeeId) })).filter((o) => o.emp)
+                    .sort((a, b) => (a.x.debut || "").localeCompare(b.x.debut || ""));
+                  return (
+                    <div key={service} className="p-2 border-t border-[var(--cadre)] flex-1" style={{ background: service === "Midi" ? "#FFFBEA" : "#F1F0FA" }}>
+                      <div className="flex items-center justify-between gap-1 mb-1.5">
+                        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: col }}>{service === "Midi" ? "☀️ Midi" : "🌙 Soir"}</span>
+                        <span className="text-[10px] text-[var(--steel)]">{ht.ferme ? "fermé" : `${ht.debut}–${ht.fin}`}</span>
+                      </div>
+                      {ht.ferme && liste.length === 0 ? <div className="text-[11px] italic text-[var(--steel)]">Service fermé</div> : liste.length === 0 ? (
+                        <div className="text-[11px] italic text-[var(--steel)]">Personne de prévu</div>
+                      ) : (
+                        <div className="space-y-1">
+                          {liste.map(({ x, emp }) => {
+                            const c = COULEURS_EMPLOYES[employees.indexOf(emp) % COULEURS_EMPLOYES.length];
+                            return (
+                              <div key={x.id} className="rounded-lg px-2 py-1 text-[11px] leading-tight border-l-4 bg-white" style={{ borderColor: c }}>
+                                <div className="font-semibold text-[var(--ink)] truncate">{emp.nom}</div>
+                                <div className="text-[var(--steel)]">{x.debut} – {x.fin}{emp.poste ? ` · ${emp.poste}` : ""}</div>
+                              </div>
+                            );
+                          })}
+                          <div className="text-[10px] font-semibold" style={{ color: col }}>{liste.length} personne(s)</div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    </div>
+  );
+  const ongletsPlanning = (
+    <div className="flex flex-wrap gap-2 mb-4">
+      {[["semaine", "📅 Planning de la semaine", "#8E44AD"], ["employe", "👤 Modifier par employé", "#0E7490"]].map(([v, l, c]) => (
+        <button key={v} type="button" onClick={() => setVuePlanning(v)} className="px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-bold border-2"
+          style={vuePlanning === v ? { background: c, color: "#fff", borderColor: c } : { background: "#fff", color: c, borderColor: c }}>{l}</button>
+      ))}
+    </div>
+  );
+
   const sectionEquipe = (
     <div className="mb-6">
       <div className="flex flex-wrap items-center gap-3 mb-3">
@@ -21160,7 +21229,8 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
 
       {setHoraires && <HeuresService horaires={horaires} setHoraires={setHoraires} logActivity={logActivity} />}
 
-      {sectionEquipe}
+      {ongletsPlanning}
+      {vuePlanning === "semaine" ? sectionSemaine : sectionEquipe}
 
       {!nouvelleBase && <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-4">Ajouter un employé</h3>
