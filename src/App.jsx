@@ -1576,87 +1576,135 @@ function ChipEcheance({ date }) {
   return <span className="text-xs text-[var(--steel)]">Prochaine échéance : {dateFr}</span>;
 }
 
+// Prestataires que le PMS attend (modèles pré-remplis : rien n'est inventé, seules les consignes et l'activité type sont proposées)
+const PRESTATAIRES_PMS = [
+  { cle: "antinuisibles", type: "antinuisibles", couleur: "#8D5A33", titre: "Lutte contre les nuisibles", activite: "Dératisation, désinsectisation et désinfection des locaux", role: "Passages réguliers sur contrat, avec un rapport d'intervention à conserver. Le PMS doit prouver la lutte contre les nuisibles.", freq: "trimestrielle" },
+  { cle: "froid", type: "maintenance_froid_sondes", couleur: "#1E88E5", titre: "Maintenance du froid et des sondes", activite: "Entretien des chambres froides, frigos et congélateurs ; vérification et étalonnage des sondes de température", role: "Garantit que le froid tient la température et que les sondes sont justes. Garder le rapport de passage.", freq: "annuelle" },
+  { cle: "hotte", type: "entretien_materiel", libelle: "Hotte et conduits de ventilation", couleur: "#D9691A", titre: "Hotte et ventilation", activite: "Nettoyage et dégraissage de la hotte et des conduits d'extraction", role: "Évite l'accumulation de graisse (hygiène et risque d'incendie). Garder l'attestation de nettoyage.", freq: "semestrielle" },
+  { cle: "extincteurs", type: "entretien_materiel", libelle: "Extincteurs et sécurité incendie", couleur: "#B58900", titre: "Extincteurs et sécurité incendie", activite: "Vérification annuelle des extincteurs et du matériel de sécurité incendie", role: "Vérification obligatoire, étiquette de contrôle sur chaque extincteur.", freq: "annuelle" },
+  { cle: "materiel", type: "entretien_materiel", libelle: "Lave-vaisselle, fours et matériel de cuisson", couleur: "#6D8B2F", titre: "Entretien du matériel de cuisine", activite: "Maintenance du lave-vaisselle, des fours et du matériel de cuisson", role: "Un matériel bien entretenu lave, chauffe et cuit correctement (températures, détartrage).", freq: "annuelle" },
+  { cle: "labo", type: "laboratoire", couleur: "#8E4FBF", titre: "Laboratoire d'analyses", activite: "Analyses microbiologiques (surfaces, plats, eau)", role: "Vérifie par des prélèvements que le nettoyage et les préparations sont sains. Garder les rapports.", freq: "semestrielle" },
+  { cle: "huiles", type: "huiles_usagees", couleur: "#17A2B8", titre: "Collecte des huiles usagées", activite: "Collecte et recyclage des huiles de friture", role: "Les huiles usagées ne vont jamais à l'évier. Garder les bordereaux de collecte.", freq: "trimestrielle" },
+  { cle: "dechets", type: "dechets", couleur: "#2F8F4E", titre: "Déchets et biodéchets", activite: "Collecte des déchets, du tri et des biodéchets", role: "Tri des déchets et des biodéchets obligatoire pour les restaurants. Garder les justificatifs de collecte.", freq: "mensuelle" },
+  { cle: "graisses", type: "autre", libelle: "Bac à graisses (séparateur)", couleur: "#C2549B", titre: "Bac à graisses", activite: "Vidange et nettoyage du bac à graisses", role: "Vidange régulière pour éviter odeurs et bouchons. Garder le bordereau de vidange.", freq: "trimestrielle" },
+];
+const normPrest = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+const LIGNES_NOTES_PREST = [["adresse", "Adresse"], ["contact", "Personne à contacter"], ["contrat", "N° de contrat"]];
+// Adresse, contact et n° de contrat sont gardés au début de la zone « notes » (la table n'a pas de colonne dédiée)
+function lireNotesPrest(notes) {
+  const o = { adresse: "", contact: "", contrat: "", libre: [] };
+  String(notes || "").split("\n").forEach((l) => {
+    const m = LIGNES_NOTES_PREST.find(([, lib]) => l.startsWith(`${lib} : `));
+    if (m) o[m[0]] = l.slice(m[1].length + 3); else if (l.trim()) o.libre.push(l);
+  });
+  return { ...o, libre: o.libre.join("\n") };
+}
+function ecrireNotesPrest(e) {
+  return [...LIGNES_NOTES_PREST.filter(([k]) => (e[k] || "").trim()).map(([k, lib]) => `${lib} : ${e[k].trim()}`), ...(e.libre || "").split("\n").filter((l) => l.trim())].join("\n");
+}
+
 function PmsPrestataires({ pms, editable }) {
-  const [edition, setEdition] = useState(null); // objet en cours (id absent = nouveau)
+  const [edition, setEdition] = useState(null); // { slot, ...champs } ; id absent = nouveau
   const [message, setMessage] = useState("");
   if (!pms) return <Card><p className="text-sm text-[var(--steel)]">Chargement…</p></Card>;
   const liste = pms.prestataires || [];
-  const absents = TYPES_PRESTATAIRE_ATTENDUS.filter((t) => !liste.some((p) => p.type === t));
-  const ouvrir = (p) => setEdition(p ? {
-    id: p.id, type: p.type, libelle: p.libelle || "", nom: p.nom || "", email: p.email || "", telephone: p.telephone || "",
-    dernierPassage: p.date_dernier_passage || "", prochaineEcheance: p.date_prochaine_echeance || "", frequence: p.frequence_rappel || "", notes: p.notes || "",
-  } : { type: "antinuisibles", libelle: "", nom: "", email: "", telephone: "", dernierPassage: "", prochaineEcheance: "", frequence: "", notes: "" });
+  const reserves = new Set();
+  const trouver = (s) => {
+    const p = liste.find((x) => !reserves.has(x.id) && x.type === s.type && (!s.libelle || normPrest(x.libelle) === normPrest(s.libelle) || (s.cle === "materiel" && x.type === "entretien_materiel" && !PRESTATAIRES_PMS.some((o) => o.cle !== "materiel" && o.type === "entretien_materiel" && normPrest(o.libelle) === normPrest(x.libelle)))));
+    if (p) reserves.add(p.id);
+    return p || null;
+  };
+  const lignesSlots = PRESTATAIRES_PMS.map((s) => ({ s, p: trouver(s) }));
+  const autres = liste.filter((x) => !reserves.has(x.id));
+  const champsDe = (p, s) => { const n = lireNotesPrest(p && p.notes); return { id: p && p.id, slot: s ? s.cle : "autres", type: p ? p.type : s.type, libelle: p ? (p.libelle || "") : (s.libelle || s.activite), nom: (p && p.nom) || "", email: (p && p.email) || "", telephone: (p && p.telephone) || "", adresse: n.adresse, contact: n.contact, contrat: n.contrat, dernierPassage: (p && p.date_dernier_passage) || "", prochaineEcheance: (p && p.date_prochaine_echeance) || "", frequence: p ? (p.frequence_rappel || "") : (s ? s.freq : ""), libre: n.libre }; };
+  const ouvrir = (p, s) => { setMessage(""); setEdition(champsDe(p, s)); };
   const valider = async () => {
-    const ok = await pms.enregistrerPrestataire(edition);
+    const ok = await pms.enregistrerPrestataire({ id: edition.id, type: edition.type, libelle: edition.libelle, nom: edition.nom, email: edition.email, telephone: edition.telephone, dernierPassage: edition.dernierPassage, prochaineEcheance: edition.prochaineEcheance, frequence: edition.frequence, notes: ecrireNotesPrest(edition) });
     setMessage(ok ? "" : "Non enregistré — réessayez.");
     if (ok) setEdition(null);
   };
   const passeAujourdhui = async (p) => {
-    await pms.enregistrerPrestataire({
-      id: p.id, type: p.type, libelle: p.libelle, nom: p.nom, email: p.email, telephone: p.telephone,
-      dernierPassage: todayISO(), prochaineEcheance: "", frequence: p.frequence_rappel, notes: p.notes,
-    });
+    await pms.enregistrerPrestataire({ id: p.id, type: p.type, libelle: p.libelle, nom: p.nom, email: p.email, telephone: p.telephone, dernierPassage: todayISO(), prochaineEcheance: "", frequence: p.frequence_rappel, notes: p.notes });
   };
   const maj = (k, v) => setEdition((e) => ({ ...e, [k]: v }));
+  const fmt = (d) => new Date(d + "T00:00:00").toLocaleDateString("fr-FR");
+  const ligne = (lib, val, vide) => (
+    <div className="grid grid-cols-[minmax(7rem,9.5rem)_minmax(0,1fr)] gap-2 text-sm py-0.5">
+      <span className="text-[var(--steel)]">{lib}</span>
+      <span className={`min-w-0 break-words ${val ? "text-[var(--ink)]" : "text-[var(--steel)] italic"}`}>{val || vide}</span>
+    </div>
+  );
+  const formulaire = (couleur) => (
+    <div className="border-t-2 p-3 bg-[var(--bg)]" style={{ borderColor: couleur }}>
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))" }}>
+        <Field label="Nom de la société"><input className={`${inputCls} w-full min-w-0`} value={edition.nom} onChange={(e) => maj("nom", e.target.value)} placeholder="Nom de l'entreprise" /></Field>
+        <Field label="Activité (ce que fait la société)"><input className={`${inputCls} w-full min-w-0`} value={edition.libelle} onChange={(e) => maj("libelle", e.target.value)} /></Field>
+        <Field label="Téléphone"><input type="tel" className={`${inputCls} w-full min-w-0`} value={edition.telephone} onChange={(e) => maj("telephone", e.target.value)} placeholder="06 00 00 00 00" /></Field>
+        <Field label="E-mail"><input type="email" className={`${inputCls} w-full min-w-0`} value={edition.email} onChange={(e) => maj("email", e.target.value)} placeholder="contact@entreprise.fr" /></Field>
+        <Field label="Adresse"><input className={`${inputCls} w-full min-w-0`} value={edition.adresse} onChange={(e) => maj("adresse", e.target.value)} placeholder="Numéro, rue, code postal, ville" /></Field>
+        <Field label="Personne à contacter"><input className={`${inputCls} w-full min-w-0`} value={edition.contact} onChange={(e) => maj("contact", e.target.value)} placeholder="Nom de votre interlocuteur" /></Field>
+        <Field label="N° de contrat"><input className={`${inputCls} w-full min-w-0`} value={edition.contrat} onChange={(e) => maj("contrat", e.target.value)} /></Field>
+        <Field label="Dernier passage"><input type="date" className={`${inputCls} w-full min-w-0`} value={edition.dernierPassage} onChange={(e) => maj("dernierPassage", e.target.value)} /></Field>
+        <Field label="Rappel (fréquence des passages)"><select className={`${inputCls} w-full min-w-0`} value={edition.frequence} onChange={(e) => maj("frequence", e.target.value)}><option value="">Aucun rappel</option>{FREQUENCES_RAPPEL.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}</select></Field>
+        <Field label="Prochain passage programmé (calculé si vide)"><input type="date" className={`${inputCls} w-full min-w-0`} value={edition.prochaineEcheance} onChange={(e) => maj("prochaineEcheance", e.target.value)} /></Field>
+      </div>
+      <div className="mt-3"><Field label="Notes"><textarea rows={2} className={`${inputCls} w-full min-w-0`} value={edition.libre} onChange={(e) => maj("libre", e.target.value)} placeholder="Ex. jour habituel de passage, horaires, remarques…" /></Field></div>
+      {message && <p className="text-xs text-[var(--warn)] mt-2">{message}</p>}
+      <div className="flex gap-2 mt-3"><Button onClick={valider}>Enregistrer</Button><Button variant="ghost" onClick={() => setEdition(null)}>Annuler</Button></div>
+    </div>
+  );
+  const carte = (s, p, cle, couleur, titre, role, activite) => {
+    const n = lireNotesPrest(p && p.notes);
+    const ouverte = edition && edition.slot === cle && ((p && edition.id === p.id) || (!p && !edition.id));
+    return (
+      <div key={cle} className="rounded-xl border border-[var(--cadre)] bg-white overflow-hidden min-w-0">
+        <div className="px-3 py-2 text-white flex flex-wrap items-center gap-2" style={{ background: couleur }}>
+          <div className="min-w-0 flex-1 basis-48 text-base font-bold leading-tight break-words">{titre}</div>
+          <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5">{p ? "Renseigné" : "À renseigner"}</span>
+        </div>
+        <div className="p-3">
+          {role && <p className="text-xs text-[var(--steel)] mb-2 break-words">{role}</p>}
+          {ligne("Société", p && p.nom, "Nom de la société à renseigner")}
+          {ligne("Activité", (p && p.libelle) || activite, "")}
+          {ligne("Téléphone", p && p.telephone ? <a href={`tel:${p.telephone}`} className="text-[var(--accent)] font-medium">{p.telephone}</a> : null, "À renseigner")}
+          {ligne("E-mail", p && p.email ? <a href={`mailto:${p.email}`} className="text-[var(--accent)] font-medium">{p.email}</a> : null, "À renseigner")}
+          {ligne("Adresse", n.adresse, "À renseigner")}
+          {ligne("Contact", n.contact, "À renseigner")}
+          {ligne("N° de contrat", n.contrat, "À renseigner")}
+          {ligne("Dernier passage", p && p.date_dernier_passage ? fmt(p.date_dernier_passage) : null, "Date à renseigner")}
+          {ligne("Prochain passage", p && p.date_prochaine_echeance ? <ChipEcheance date={p.date_prochaine_echeance} /> : null, s && s.freq ? `À programmer (conseillé : ${libelleDe(FREQUENCES_RAPPEL, s.freq).toLowerCase()})` : "À programmer")}
+          {n.libre && <p className="text-xs text-[var(--steel)] mt-1 break-words">{n.libre}</p>}
+          {editable && !ouverte && (
+            <div className="flex flex-wrap gap-2 mt-3">
+              {p ? (<>
+                <Button variant="ghost" onClick={() => passeAujourdhui(p)}><CheckCircle2 size={16} /> Passé aujourd'hui</Button>
+                <Button variant="ghost" onClick={() => ouvrir(p, s)}>Modifier</Button>
+                <Button variant="ghost" onClick={() => { if (window.confirm("Supprimer ce prestataire ?")) pms.supprimerPrestataire(p.id); }}><Trash2 size={16} /> Supprimer</Button>
+              </>) : <Button onClick={() => ouvrir(null, s)}><Plus size={16} /> Renseigner ce prestataire</Button>}
+            </div>
+          )}
+        </div>
+        {ouverte && formulaire(couleur)}
+      </div>
+    );
+  };
   return (
     <div>
-      {!editable && <p className="text-xs text-[var(--steel)] mb-3">Les coordonnées de vos prestataires, à portée de main. Seule la direction peut les modifier.</p>}
-      {TYPES_PRESTATAIRE.map((t) => {
-        const ceux = liste.filter((p) => p.type === t.value);
-        if (!ceux.length) return null;
-        return (
-          <div key={t.value} className="mb-4">
-            <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">{t.label}</h3>
-            {ceux.map((p) => (
-              <Card key={p.id} className="mb-2">
-                <div className="font-semibold text-[var(--ink)]">{p.nom || p.libelle || t.label}</div>
-                {p.libelle && p.nom && <div className="text-xs text-[var(--steel)]">{p.libelle}</div>}
-                <div className="flex flex-wrap gap-3 mt-2 text-sm">
-                  {p.telephone && <a href={`tel:${p.telephone}`} className="flex items-center gap-1.5 text-[var(--accent)] font-medium min-h-[44px]"><PhoneCall size={15} />{p.telephone}</a>}
-                  {p.email && <a href={`mailto:${p.email}`} className="flex items-center gap-1.5 text-[var(--accent)] font-medium min-h-[44px]"><Mail size={15} />{p.email}</a>}
-                </div>
-                {p.date_dernier_passage && <div className="text-xs text-[var(--steel)]">Dernier passage : {new Date(p.date_dernier_passage + "T00:00:00").toLocaleDateString("fr-FR")}</div>}
-                {(p.date_prochaine_echeance || p.frequence_rappel) && <div><ChipEcheance date={p.date_prochaine_echeance} /></div>}
-                {p.notes && <p className="text-xs text-[var(--steel)] mt-1">{p.notes}</p>}
-                {editable && (
-                  <div className="flex flex-wrap gap-2 mt-2">
-                    <Button variant="ghost" onClick={() => passeAujourdhui(p)}><CheckCircle2 size={16} /> Passé aujourd'hui</Button>
-                    <Button variant="ghost" onClick={() => ouvrir(p)}>Modifier</Button>
-                    <Button variant="ghost" onClick={() => { if (window.confirm("Supprimer ce prestataire ?")) pms.supprimerPrestataire(p.id); }}><Trash2 size={16} /> Supprimer</Button>
-                  </div>
-                )}
-              </Card>
-            ))}
-          </div>
-        );
-      })}
-      {liste.length === 0 && <Card className="mb-3"><p className="text-sm text-[var(--steel)]">Aucun prestataire renseigné pour l'instant.</p></Card>}
-      {editable && absents.length > 0 && (
-        <Card className="mb-3">
-          <p className="text-sm font-medium text-[var(--ink)] mb-2">À renseigner</p>
-          <div className="flex flex-wrap gap-2">
-            {absents.map((t) => (
-              <button key={t} type="button" onClick={() => { ouvrir(null); setEdition((e) => ({ ...e, type: t })); }} className="px-3 py-2 min-h-[44px] rounded-lg border border-[var(--cadre)] bg-white text-sm text-[var(--ink)]">+ {libelleDe(TYPES_PRESTATAIRE, t)}</button>
-            ))}
-          </div>
-        </Card>
+      <p className="text-xs text-[var(--steel)] mb-3">{editable ? "Les prestataires que le PMS demande, avec ce qu'ils font et pourquoi. Renseignez les coordonnées, le dernier passage et le prochain passage programmé : rien n'est obligatoire, et vous gardez la main sur tout." : "Les coordonnées de vos prestataires, à portée de main. Seule la direction peut les modifier."}</p>
+      <div className="grid gap-3 mb-4" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(21rem, 1fr))" }}>
+        {lignesSlots.map(({ s, p }) => carte(s, p, s.cle, s.couleur, s.titre, s.role, s.activite))}
+      </div>
+      {(autres.length > 0 || editable) && <h3 className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Autres prestataires</h3>}
+      {autres.length > 0 && (
+        <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(21rem, 1fr))" }}>
+          {autres.map((p) => carte(null, p, "autres", "#5B6B7A", p.nom || p.libelle || libelleDe(TYPES_PRESTATAIRE, p.type), libelleDe(TYPES_PRESTATAIRE, p.type), ""))}
+        </div>
       )}
-      {editable && !edition && <Button onClick={() => ouvrir(null)}><Plus size={16} /> Ajouter un prestataire</Button>}
-      {editable && edition && (
+      {editable && !edition && <Button onClick={() => setEdition({ ...champsDe(null, { cle: "autres", type: "autre", libelle: "", freq: "" }), slot: "nouveau" })}><Plus size={16} /> Ajouter un autre prestataire</Button>}
+      {editable && edition && edition.slot === "nouveau" && (
         <Card>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Field label="Type"><select className={inputCls} value={edition.type} onChange={(e) => maj("type", e.target.value)}>{TYPES_PRESTATAIRE.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
-            <Field label="Nom de la société"><input className={inputCls} value={edition.nom} onChange={(e) => maj("nom", e.target.value)} /></Field>
-            <Field label="Précision (facultatif)"><input className={inputCls} value={edition.libelle} onChange={(e) => maj("libelle", e.target.value)} placeholder="ex. hotte, extincteurs…" /></Field>
-            <Field label="Téléphone"><input type="tel" className={inputCls} value={edition.telephone} onChange={(e) => maj("telephone", e.target.value)} /></Field>
-            <Field label="E-mail"><input type="email" className={inputCls} value={edition.email} onChange={(e) => maj("email", e.target.value)} /></Field>
-            <Field label="Dernier passage"><input type="date" className={inputCls} value={edition.dernierPassage} onChange={(e) => maj("dernierPassage", e.target.value)} /></Field>
-            <Field label="Rappel"><select className={inputCls} value={edition.frequence} onChange={(e) => maj("frequence", e.target.value)}><option value="">Aucun rappel</option>{FREQUENCES_RAPPEL.map((f) => <option key={f.value} value={f.value}>{f.label}</option>)}</select></Field>
-            <Field label="Prochaine échéance (calculée si vide)"><input type="date" className={inputCls} value={edition.prochaineEcheance} onChange={(e) => maj("prochaineEcheance", e.target.value)} /></Field>
-            <div className="sm:col-span-2"><Field label="Notes"><input className={inputCls} value={edition.notes} onChange={(e) => maj("notes", e.target.value)} /></Field></div>
-          </div>
-          {message && <p className="text-xs text-[var(--warn)] mt-2">{message}</p>}
-          <div className="flex gap-2 mt-3"><Button onClick={valider}>Enregistrer</Button><Button variant="ghost" onClick={() => setEdition(null)}>Annuler</Button></div>
+          <Field label="Type"><select className={inputCls} value={edition.type} onChange={(e) => maj("type", e.target.value)}>{TYPES_PRESTATAIRE.map((t) => <option key={t.value} value={t.value}>{t.label}</option>)}</select></Field>
+          {formulaire("#5B6B7A")}
         </Card>
       )}
     </div>
