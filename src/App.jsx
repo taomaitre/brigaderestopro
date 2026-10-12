@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
-import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
+import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
@@ -7862,6 +7862,7 @@ function ColonneFrequenceNet({ f, maj }) {
           {FREQUENCES_MULTI_NET.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
         </select>
       </div>
+      {!aMoments && <p className="text-xs text-[var(--steel)] break-words">Ce nettoyage s'ajoute tout seul aux tâches du jour dès qu'une fiche technique qui cite cet appareil est utilisée (production, cuisson, refroidissement…). Le nom doit être le même que sur la fiche.</p>}
       {aMoments && (
         <div>
           <label className={libNet}>À quel moment ?</label>
@@ -8972,6 +8973,18 @@ const ALLERGENES_MOTS_CLES = [
 // Recharge une fiche enregistrée dans le questionnaire (modifier / dupliquer). Les fiches créées avec le
 // questionnaire gardent une copie exacte de leurs réponses (`formulaire`) ; pour les autres, on reconstitue
 // au mieux à partir des textes enregistrés.
+// Appareils et matériel que la fiche technique dit utiliser (matériel coché, appareils de cuisson / maintien / remise en température, cellule de refroidissement)
+function appareilsDeFicheNet(fiche) {
+  const f = fiche.formulaire || {};
+  const noms = [...(fiche.materiel || []), ...(f.appareils || []), ...(f.materiel || []), ...(f.ustensiles || [])];
+  const p = fiche.procedes || f.procedes || {};
+  if (p.cuisson && p.cuisson.on && p.cuisson.appareil) noms.push(p.cuisson.appareil);
+  if (p.maintien && p.maintien.on && p.maintien.appareil) noms.push(p.maintien.appareil);
+  if (p.remise && p.remise.on && p.remise.appareil) noms.push(p.remise.appareil);
+  if (p.refroid && p.refroid.on && (p.refroid.mode || "cellule") === "cellule") noms.push("Cellule de refroidissement");
+  return [...new Set(noms.filter((x) => typeof x === "string" && x.trim()))];
+}
+
 function ficheVersFormulaire(f, mode) {
   const base = ficheVideInit();
   let n;
@@ -21874,7 +21887,31 @@ function KitchenApp({ identiteExterne } = {}) {
     return entry;
   }, [produits, currentUserId, stock, setStock, setPreparations, logActivitySafe]);
 
+  // Quand on se sert d'une fiche technique (production, cuisson, refroidissement, maintien), les appareils qu'elle cite et qui ont
+  // une ligne « après chaque utilisation » dans le plan de nettoyage ajoutent leur nettoyage aux tâches du jour (fin du midi ou du soir).
+  // C'est une bonne pratique proposée : si la fiche ou le plan ne sont pas renseignés avec les mêmes noms, rien ne se déclenche.
+  const declencherNettoyagesRef = useRef(null);
+  declencherNettoyagesRef.current = (ficheOuNom) => {
+    if (!modeExterne) return;
+    const fiche = typeof ficheOuNom === "string" ? fiches.find((f) => f.nom === ficheOuNom) : ficheOuNom;
+    if (!fiche) return;
+    const appareils = appareilsDeFicheNet(fiche);
+    if (!appareils.length) return;
+    const date = todayISO();
+    const moment = new Date().getHours() < 16 ? "midi" : "soir";
+    const limite = ajouterJours(date, -14);
+    const noms = [];
+    const suite = cleaning.map((t) => {
+      if (!estPlanifieNet(t) || t.frequence !== "À chaque utilisation" || !appareils.some((a) => tacheCorrespondAppareilNet(t, a))) return t;
+      if ((t.declenchements || []).some((d) => d.date === date && d.moment === moment)) return t;
+      noms.push(t.tache);
+      return { ...t, declenchements: [...(t.declenchements || []).filter((d) => d.date >= limite), { date, moment, fiche: fiche.nom }] };
+    });
+    if (noms.length) { setCleaning(suite); logActivitySafe("Nettoyage", "Nettoyage après utilisation ajouté au planning", `${fiche.nom} → ${noms.join(", ")}`); }
+  };
+
   const demarrerRefroidissementDepuisFiche = useCallback((nom, mode) => {
+    if (declencherNettoyagesRef.current) declencherNettoyagesRef.current(nom);
     setRefroidissementSuggere(mode === "negatif" ? { nom, mode: "negatif" } : nom);
     memoriserFicheOrigine(nom);
     setTab("haccpRefroid");
@@ -21891,6 +21928,7 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [currentUserId, setRefroidissements, logActivitySafe]);
 
   const demarrerCuissonDepuisFiche = useCallback((nom, dureeMin, famille) => {
+    if (declencherNettoyagesRef.current) declencherNettoyagesRef.current(nom);
     setCuissonSuggere({ nom, dureeMin, famille });
     memoriserFicheOrigine(nom);
     setTab("haccpCuisson");
@@ -21919,6 +21957,7 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [setCuissons, setTab]);
 
   const demarrerMaintienChaudDepuisFiche = useCallback((nom) => {
+    if (declencherNettoyagesRef.current) declencherNettoyagesRef.current(nom);
     setMaintienChaudSuggere(nom);
     memoriserFicheOrigine(nom);
     setTab("haccpChaud");
@@ -21932,6 +21971,7 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [currentUserId, setPreparations, logActivitySafe]);
 
   const enregistrerTracabiliteFiche = useCallback((fiche, quantite, photo, ingredientsUtilises) => {
+    if (declencherNettoyagesRef.current) declencherNettoyagesRef.current(fiche);
     if (!quantite) return null;
     const dlcDate = addDays(todayISO(), fiche.dlcJours ?? 0);
     // Mêmes recherches que creerEtiquetteDlc, pour que les étiquettes/traçabilité créées depuis

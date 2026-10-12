@@ -122,7 +122,8 @@ export const MATERIELS_NETTOYAGE = [
   el("Machine sous vide", DESI, "appareil", "qs", 10),
   el("Balance", DESI, "desinfecter", "qs", 5),
   el("Four à pizza (sole et voûte)", FOUR, "chaud", "qs", 20),
-  el("Pétrin / batteur mélangeur et accessoires", DESI, "appareil", "qs", 15),
+  el("Pétrin", DESI, "appareil", "qs", 15),
+  el("Batteur mélangeur et accessoires", DESI, "appareil", "qs", 15),
   el("Laminoir / façonneuse à pâte", DESI, "appareil", "qs", 15),
   el("Four pâtissier", FOUR, "chaud", "h", 20, "Lundi"),
   el("Machine à glace / sorbetière", DESI, "appareil", "qs", 20),
@@ -130,7 +131,16 @@ export const MATERIELS_NETTOYAGE = [
   el("Filtres et bras de lavage du lave-vaisselle", DETA, "appareil", "h", 15, "Dimanche"),
 ].map((a) => ({ ...a, genre: "materiel" }));
 
-export const ARTICLES_NETTOYAGE = [...SURFACES_NETTOYAGE, ...MATERIELS_NETTOYAGE];
+// Autres façons courantes d'écrire le même appareil (pour reconnaître les noms des fiches techniques)
+const ALIAS_ARTICLES = {
+  "Batteur mélangeur et accessoires": ["batteur", "mixeur planétaire", "robot pâtissier"],
+  "Hachoir / machine à hacher": ["hachoir à viande"],
+  "Balance": ["balance électronique"],
+  "Robot / mixeur / cutter": ["robot-coupe"],
+  "Cellule de refroidissement": ["cellule"],
+  "Trancheur à jambon / charcuterie": ["trancheur", "trancheuse"],
+};
+export const ARTICLES_NETTOYAGE = [...SURFACES_NETTOYAGE, ...MATERIELS_NETTOYAGE].map((a) => ({ ...a, alias: ALIAS_ARTICLES[a.nom] || [] }));
 
 export const normaliserNomNet = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
 export const baseTacheNet = (t) => String(t || "").split(" — ")[0];
@@ -175,3 +185,27 @@ export const CATEGORIES_PRODUITS_NET = [
   { nom: "Lave-vaisselle", couleur: "#17A2B8", cle: "Produit lave-vaisselle et liquide de rinçage" },
   { nom: "Autre", couleur: "#B58900", cle: "Eau chaude et savon" },
 ];
+
+// ---- Reconnaissance d'un appareil écrit sur une fiche technique et d'une ligne du plan de nettoyage ----
+// On ignore majuscules, accents, pluriel et ce qui est entre parenthèses ; « / », « ou » séparent plusieurs façons de le nommer.
+const SYNONYMES_NET = { trancheuse: "trancheur", hachoire: "hachoir" };
+const sansPluriel = (w) => (w.length > 3 ? w.replace(/(s|x)$/, "") : w);
+export function variantesNomNet(nom) {
+  const brut = normaliserNomNet(nom);
+  const dansParentheses = [...brut.matchAll(/\(([^)]*)\)/g)].map((m) => m[1]);
+  const hors = brut.replace(/\([^)]*\)/g, " ");
+  return [hors, ...dansParentheses]
+    .flatMap((x) => x.split(/\s\/\s|\/|\sou\s|,/))
+    .map((x) => x.trim()).filter(Boolean)
+    .map((x) => x.split(/\s+/).map((w) => sansPluriel(SYNONYMES_NET[w] || w)).join(" "));
+}
+export function memeNomNet(a, b) {
+  const B = variantesNomNet(b);
+  return variantesNomNet(a).some((x) => B.includes(x));
+}
+// La ligne du plan (tâche) correspond-elle à cet appareil écrit sur une fiche ?
+export function tacheCorrespondAppareilNet(t, appareil) {
+  const nom = baseTacheNet(t.tache);
+  const art = trouverArticleNet(nom);
+  return memeNomNet(nom, appareil) || (art ? art.alias.some((al) => memeNomNet(al, appareil)) : false);
+}

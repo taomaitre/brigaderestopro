@@ -102,8 +102,11 @@ export function occurrencesDuJour(cleaning, executions, aujourdhui, fenetre = FE
     const date = ajouterJours(aujourdhui, -i);
     (cleaning || []).forEach((t) => {
       if (t.creeLe && date < t.creeLe) return; // pas de retard avant la création de la tâche
-      if (!tacheDueLe(t, date)) return;
-      momentsDeLaTache(t).forEach((moment) => {
+      // « Après chaque utilisation » : le nettoyage n'existe que les jours où l'appareil a servi (déclenché depuis une fiche technique)
+      const momentsDuJour = t.frequence === "À chaque utilisation"
+        ? [...new Set((t.declenchements || []).filter((d) => d.date === date).map((d) => d.moment))]
+        : (tacheDueLe(t, date) ? momentsDeLaTache(t) : []);
+      momentsDuJour.forEach((moment) => {
         const exec = parCle.get(cleOccurrence(t.id, date, moment)) || null;
         const statut = statutOccurrence(exec);
         const passee = date < aujourdhui;
