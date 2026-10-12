@@ -249,6 +249,7 @@ export default function ConnexionReelle() {
   const [session, setSession] = useState(null); // { token, etablissement: { id, nom } }
   const [code, setCode] = useState("");
   const [employeIdentifie, setEmployeIdentifie] = useState(null);
+  const [choixNoms, setChoixNoms] = useState(false); // après « Changer de compte » : liste des noms (sans code) pour le personnel
   const [voirAppliReelle, setVoirAppliReelle] = useState(false);
 
   const [equipe, setEquipe] = useState(null);
@@ -1088,9 +1089,17 @@ export default function ConnexionReelle() {
     }
   }
 
+  // Personnel (hors chef / direction) : un simple clic sur son nom, sans code. Le chef et le directeur gardent leur code.
+  function choisirEmploye(emp) {
+    setErreur("");
+    setEmployeIdentifie({ id: emp.id, nom: [emp.prenom, emp.nom].filter(Boolean).join(" "), poste: emp.poste || "", role: emp.role });
+    setChoixNoms(false);
+    setEtape("connecte");
+  }
+
   async function seDeconnecter() {
     try { await supabasePublic.auth.signOut(); } catch (e) { /* pas grave */ }
-    setSession(null); setEmployeIdentifie(null); setCode(""); setErreur("");
+    setSession(null); setEmployeIdentifie(null); setCode(""); setErreur(""); setChoixNoms(false);
     setEquipe(null); setAfficherAjout(false); setErreurEquipe("");
     setEtape("etablissement");
   }
@@ -1111,7 +1120,7 @@ export default function ConnexionReelle() {
       gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
       signalerAjout,
       // « Changer de compte » : on garde la connexion de l'établissement et on redemande un code personnel à 4 chiffres.
-      changerDeCompte: () => { setEmployeIdentifie(null); setCode(""); setErreur(""); setEquipe(null); setEtape("code"); },
+      changerDeCompte: () => { setEmployeIdentifie(null); setCode(""); setErreur(""); setChoixNoms(true); setEtape("code"); },
       // Autorisation ponctuelle : le responsable cuisine / directeur saisit son code pour débloquer une action réservée.
       verifierCodeChef: async (codeSaisi) => {
         const data = await appelerEmployes(session.token, "verifier", { code: codeSaisi });
@@ -1330,6 +1339,23 @@ export default function ConnexionReelle() {
       <EcranConnexion>
         <MarqueConnexion />
         <CarteConnexion titre="Votre code" sousTitre={`Établissement : ${session.etablissement.nom} — code personnel à 4 chiffres, donné par le chef ou le directeur.`}>
+          {choixNoms && (equipe || []).filter((e) => !estChefOuDirecteur(e.role)).length > 0 && (
+            <div className="mb-4">
+              <p className="text-sm font-semibold mb-2" style={{ color: "var(--ink)" }}>Qui êtes-vous ? Touchez votre nom</p>
+              <div className="grid grid-cols-2 gap-2">
+                {(equipe || []).filter((e) => !estChefOuDirecteur(e.role)).map((e, i) => {
+                  const col = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E", "#117A65"][i % 8];
+                  return (
+                    <button key={e.id} type="button" onClick={() => choisirEmploye(e)} className="rounded-xl px-3 py-3 text-left text-white font-semibold text-sm" style={{ background: col }}>
+                      {[e.prenom, e.nom].filter(Boolean).join(" ")}
+                      {e.poste && <span className="block text-[11px] font-normal opacity-90">{e.poste}</span>}
+                    </button>
+                  );
+                })}
+              </div>
+              <p className="text-xs mt-3 mb-1" style={{ color: "var(--steel)" }}>Chef ou direction : tapez votre code personnel ci-dessous.</p>
+            </div>
+          )}
           <form onSubmit={validerCode}>
             <ChampConnexion icone="lock">
               <input
