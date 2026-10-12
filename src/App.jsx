@@ -1360,7 +1360,7 @@ function TuilesResume({ fonction, items }) {
 const LOGOS_TITRE = [
   ["Températures", "temperatures", () => Thermometer], ["Refroidissement", "cellule", () => Snowflake], ["Huile", "huile", () => Droplets],
   ["Maintien au chaud", "maintien", () => Soup], ["Cuisson", "cuisson", () => Flame], ["Planning de nettoyage", "pms", () => SprayCan],
-  ["Protocoles de nettoyage", "pms", () => SprayCan], ["PMS — plan de nettoyage", "pms", () => SprayCan], ["PMS — dossier", "pmsDossier", () => Building2],
+  ["Protocoles de nettoyage", "pms", () => SprayCan], ["Plan de nettoyage", "pms", () => SprayCan], ["PMS — plan de nettoyage", "pms", () => SprayCan], ["PMS — dossier", "pmsDossier", () => Building2],
   ["Prestataires", "pmsPrestataires", () => PhoneCall], ["Ma carte", "carte", () => UtensilsCrossed], ["Fiches techniques", "creationFiche", () => Sparkles],
   ["Préparation culinaire", "creationFiche", () => Sparkles], ["Référentiel produits", "fournisseur", () => ShoppingCart], ["Livraisons reçues", "commandes", () => ClipboardList],
   ["Vérification des réceptions", "commandes", () => ClipboardList], ["Traçabilité", "tracabilite", () => Camera], ["Historique de la journée", "historiqueJour", () => ClipboardList],
@@ -7079,7 +7079,7 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
   return (
     <div>
       <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
-      <SectionHeader title="PMS — plan de nettoyage" subtitle="Deux étapes simples : d'abord définir comment nettoyer, ensuite planifier qui nettoie quoi et quand" />
+      <SectionHeader title="Plan de nettoyage" subtitle="Deux étapes simples : d'abord définir comment nettoyer, ensuite planifier qui nettoie quoi et quand" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
         <button onClick={() => setVue("protocoles")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-4 min-h-[120px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
           <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><SprayCan size={32} color="#ffffff" /></span>
