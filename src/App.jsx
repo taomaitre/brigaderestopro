@@ -11345,8 +11345,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                   </div>
                 </div>
                 {categories.length === 0 ? <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique de plat pour l'instant : créez d'abord vos plats dans « Créer une fiche technique ».</p> : (
-                  <div className="overflow-x-auto">
-                    <div className="grid gap-3 items-start" style={{ gridTemplateColumns: `minmax(15rem,1fr) ${avecJours ? "minmax(11rem,1fr) " : ""}repeat(${categories.length}, minmax(13rem,1fr)) minmax(14rem,1fr)`, minWidth: 280 + (avecJours ? 190 : 0) + categories.length * 220 + 240 }}>
+                  <div>
+                    <div className="grid gap-2 items-start" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(10.5rem, 1fr))" }}>
                       {colonne("1. ", "Type de carte", "#2E86D6", (
                         <div className="p-3 space-y-2">
                           <div className="grid gap-1.5">
@@ -11453,8 +11453,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                     <p className="text-xs text-[var(--steel)]">{estChef ? "Une colonne par jour. Ajoutez un plat avec le menu en bas de la colonne, retirez-le d'un jour avec ×. Un plat peut être sur plusieurs jours." : "Les plats proposés chaque jour de la semaine."}</p>
                   </div>
                 </div>
-                <div className="overflow-x-auto">
-                  <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(7, minmax(11rem, 1fr))", minWidth: 1100 }}>
+                <div>
+                  <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(9.5rem, 1fr))" }}>
                     {JOURS.map((j, ji) => {
                       const col = COUL_JOURS[ji];
                       const duJour = categories.map((c) => ({ c, items: [
