@@ -1061,6 +1061,8 @@ export default function ConnexionReelle() {
         etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" },
       });
       setEtape("code");
+      chargerEquipe(data.session.access_token, null);
+      setChoixNoms(true);
     } catch (e2) {
       setErreur("Connexion impossible : " + e2.message);
     } finally {
@@ -1124,7 +1126,10 @@ export default function ConnexionReelle() {
       // Autorisation ponctuelle : le responsable cuisine / directeur saisit son code pour débloquer une action réservée.
       verifierCodeChef: async (codeSaisi) => {
         const data = await appelerEmployes(session.token, "verifier", { code: codeSaisi });
-        return estChefOuDirecteur(data.employe.role) ? { ok: true, nom: data.employe.nom } : { ok: false };
+        if (!estChefOuDirecteur(data.employe.role)) return { ok: false };
+        setCode(codeSaisi); // gestion des comptes (inviter, supprimer) : réservée à ce code de chef / directeur
+        chargerEquipe(session.token, codeSaisi);
+        return { ok: true, nom: data.employe.nom };
       },
       reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
         suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
@@ -1157,7 +1162,7 @@ export default function ConnexionReelle() {
         estChef: estChefOuDirecteur(e.role), estDirection: e.role === "directeur",
       })),
       // Gestion des comptes (Contrôle & Gestion) : création, invitation par e-mail, suppression — réservée au chef / directeur.
-      gestionEquipe: estChefOuDirecteur(employeIdentifie.role) ? {
+      gestionEquipe: (estChefOuDirecteur(employeIdentifie.role) || code.length === 4) ? {
         creer: async (d) => {
           const rep = await appelerEmployes(session.token, "creer", { nom: d.nom, prenom: d.prenom, poste: d.poste, role: d.role, services: d.services, email: d.email });
           await chargerEquipe(session.token, code);
@@ -1339,11 +1344,11 @@ export default function ConnexionReelle() {
       <EcranConnexion>
         <MarqueConnexion />
         <CarteConnexion titre="Votre code" sousTitre={`Établissement : ${session.etablissement.nom} — code personnel à 4 chiffres, donné par le chef ou le directeur.`}>
-          {choixNoms && (equipe || []).filter((e) => !estChefOuDirecteur(e.role)).length > 0 && (
+          {choixNoms && (equipe || []).length > 0 && (
             <div className="mb-4">
               <p className="text-sm font-semibold mb-2" style={{ color: "var(--ink)" }}>Qui êtes-vous ? Touchez votre nom</p>
               <div className="grid grid-cols-2 gap-2">
-                {(equipe || []).filter((e) => !estChefOuDirecteur(e.role)).map((e, i) => {
+                {(equipe || []).map((e, i) => {
                   const col = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E", "#117A65"][i % 8];
                   return (
                     <button key={e.id} type="button" onClick={() => choisirEmploye(e)} className="rounded-xl px-3 py-3 text-left text-white font-semibold text-sm" style={{ background: col }}>
@@ -1353,7 +1358,7 @@ export default function ConnexionReelle() {
                   );
                 })}
               </div>
-              <p className="text-xs mt-3 mb-1" style={{ color: "var(--steel)" }}>Chef ou direction : tapez votre code personnel ci-dessous.</p>
+              <p className="text-xs mt-3 mb-1" style={{ color: "var(--steel)" }}>Vous pouvez aussi taper votre code personnel ci-dessous. Le code du chef ou du directeur sera demandé pour entrer dans Contrôle & Gestion.</p>
             </div>
           )}
           <form onSubmit={validerCode}>
