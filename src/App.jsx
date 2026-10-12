@@ -11109,7 +11109,8 @@ function ApercuCarte({ carte, plats, categories, onClose }) {
   const [avecPrix, setAvecPrix] = useState(true);
   const [message, setMessage] = useState("");
   const ids = platsAuCarte(carte, date);
-  const parCat = categories.map((c) => ({ c, items: plats.filter((f) => f.categorie === c && ids.includes(f.id)) })).filter((x) => x.items.length > 0);
+  const jourNomApercu = JOURS[(dateDepuisIso(date).getDay() + 6) % 7];
+  const parCat = categories.map((c) => ({ c, items: [...plats.filter((f) => f.categorie === c && ids.includes(f.id)), ...((carte && carte.platsLibres) || []).filter((l) => l.categorie === c && (l.jours || []).includes(jourNomApercu))] })).filter((x) => x.items.length > 0);
   const prixDe = (f) => (f.cout && f.cout.prixVente ? `${f.cout.prixVente} €` : "");
   const titre = (carte && carte.nom) || "Ma carte";
   const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
@@ -11201,11 +11202,13 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const [selAjout, setSelAjout] = useState([]);
   const [joursAjout, setJoursAjout] = useState([]);
   const [messageCarte, setMessageCarte] = useState("");
+  const [saisieLibre, setSaisieLibre] = useState({});
   const [jourApercu, setJourApercu] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
   const carte = triees.find((c) => c.id === choisieId) || enCours || triees[triees.length - 1] || null;
   const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
   const categories = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
   const idsCarte = (carte && carte.plats) || [];
+  const libres = (carte && carte.platsLibres) || []; // éléments ajoutés à la main (sans fiche technique)
   const idsAujourdhui = platsAuCarte(carte, aujourdhui);
   const nomDe = (id) => (plats.find((f) => f.id === id) || {}).nom;
   const majCarte = (patch) => setCartes(cartes.map((c) => (c.id === carte.id ? { ...c, ...patch } : c)));
@@ -11286,12 +11289,24 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             const joursDe = (id) => JOURS.filter((x) => idsCarte.includes(id) && platServiCeJour(carte, id, x));
             const valider = () => {
               const jp = { ...(carte.joursPlat || {}) };
-              selAjout.forEach((id) => { const u = [...new Set([...joursDe(id), ...joursChoisis])]; jp[id] = u.length === 7 ? { mode: "continu" } : { mode: "jours", jours: u }; });
-              majCarte({ plats: [...new Set([...idsCarte, ...selAjout])], datesAjout: marquerAjout(selAjout), joursPlat: jp });
+              const idsLibres = selAjout.filter((id) => libres.some((l) => l.id === id));
+              const idsFiches = selAjout.filter((id) => !idsLibres.includes(id));
+              idsFiches.forEach((id) => { const u = [...new Set([...joursDe(id), ...joursChoisis])]; jp[id] = u.length === 7 ? { mode: "continu" } : { mode: "jours", jours: u }; });
+              majCarte({ plats: [...new Set([...idsCarte, ...idsFiches])], datesAjout: marquerAjout(idsFiches), joursPlat: jp, platsLibres: libres.map((l) => (idsLibres.includes(l.id) ? { ...l, jours: [...new Set([...(l.jours || []), ...joursChoisis])] } : l)) });
               setMessageCarte(`Carte validée pour ${joursChoisis.join(", ")} : ${selAjout.length} plat${selAjout.length > 1 ? "s" : ""} ajouté${selAjout.length > 1 ? "s" : ""}.`);
               setSelAjout([]); setJoursAjout([]);
             };
-            const nbJour = (j) => idsCarte.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).length;
+            const nbJour = (j) => idsCarte.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).length + libres.filter((l) => (l.jours || []).includes(j)).length;
+            const ajouterLibre = (c) => {
+              const nom = (saisieLibre[c] || "").trim();
+              if (!nom || libres.some((l) => l.categorie === c && l.nom.toLowerCase() === nom.toLowerCase())) return;
+              const nouveau = { id: "libre-" + uid(), nom, categorie: c, jours: [] };
+              majCarte({ platsLibres: [...libres, nouveau] });
+              setSelAjout([...selAjout, nouveau.id]);
+              setSaisieLibre({ ...saisieLibre, [c]: "" });
+            };
+            const supprimerLibre = (l) => { if (!window.confirm(`Supprimer « ${l.nom} » de la carte ?`)) return; majCarte({ platsLibres: libres.filter((x) => x.id !== l.id) }); setSelAjout(selAjout.filter((x) => x !== l.id)); };
+            const retirerFiche = (f) => { if (!window.confirm(`Retirer « ${f.nom} » de la carte (tous les jours) ? La fiche technique est conservée.`)) return; const jp = { ...(carte.joursPlat || {}) }; delete jp[f.id]; majCarte({ plats: idsCarte.filter((x) => x !== f.id), joursPlat: jp }); };
             const colonne = (num, titre, couleur, corps, pied) => (
               <div className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: couleur }}>
                 <div className="px-3 py-2 text-white flex items-baseline justify-between gap-2" style={{ background: couleur }}>
@@ -11323,25 +11338,31 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                       ))}
                       {categories.map((c, ci) => {
                         const couleur = COUL_CAT[ci % COUL_CAT.length];
-                        const dispo = plats.filter((f) => f.categorie === c);
+                        const dispoFiches = plats.filter((f) => f.categorie === c);
+                        const dispo = [...dispoFiches, ...libres.filter((l) => l.categorie === c).map((l) => ({ id: l.id, nom: l.nom, libre: true, jours: l.jours || [] }))];
                         const cochees = dispo.filter((f) => selAjout.includes(f.id)).length;
                         const ids = dispo.map((f) => f.id);
                         return (
                           <div key={c}>{colonne(`${ci + 2}. `, c, couleur, (
                             <div className="p-2">
+                              <div className="flex gap-1 mb-2">
+                                <input className={`${inputCls} !min-h-[38px] !py-1 text-xs flex-1 min-w-0`} placeholder="+ Ajouter à la main…" value={saisieLibre[c] || ""} onChange={(e) => setSaisieLibre({ ...saisieLibre, [c]: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ajouterLibre(c); } }} />
+                                <button type="button" onClick={() => ajouterLibre(c)} disabled={!(saisieLibre[c] || "").trim()} className="px-2.5 rounded-lg text-white text-sm font-bold disabled:opacity-40 shrink-0" style={{ background: couleur }} aria-label={`Ajouter à ${c}`}>+</button>
+                              </div>
                               <div className="flex justify-between gap-2 text-xs mb-1.5">
                                 <button type="button" className="underline" style={{ color: couleur }} onClick={() => setSelAjout([...new Set([...selAjout, ...ids])])}>Tout cocher</button>
                                 <button type="button" className="underline text-[var(--steel)]" onClick={() => setSelAjout(selAjout.filter((x) => !ids.includes(x)))}>Tout décocher</button>
                               </div>
                               <ul className="space-y-1 overflow-y-auto" style={{ maxHeight: "20rem" }}>
                                 {dispo.map((f) => {
-                                  const sur = joursDe(f.id);
+                                  const sur = f.libre ? JOURS.filter((x) => (f.jours || []).includes(x)) : joursDe(f.id);
                                   const on = selAjout.includes(f.id);
                                   return (
                                     <li key={f.id}>
                                       <label className="flex items-start gap-2 text-sm text-[var(--ink)] rounded-lg px-2 py-1.5 border-2 cursor-pointer" style={on ? { background: couleur + "1F", borderColor: couleur } : { background: "#fff", borderColor: "var(--cadre)" }}>
                                         <input type="checkbox" className="w-5 h-5 mt-0.5 shrink-0" checked={on} onChange={() => setSelAjout(on ? selAjout.filter((x) => x !== f.id) : [...selAjout, f.id])} />
-                                        <span className="min-w-0 break-words">{f.nom}{sur.length > 0 && <span className="block text-[10px] text-[var(--steel)]">déjà : {sur.length === 7 ? "tous les jours" : sur.map((x) => x.slice(0, 3)).join(", ")}</span>}</span>
+                                        <span className="min-w-0 flex-1 break-words">{f.nom}{f.libre && <span className="ml-1 text-[10px] font-semibold rounded px-1 py-0.5 bg-[var(--bg)] text-[var(--steel)]">à la main</span>}{sur.length > 0 && <span className="block text-[10px] text-[var(--steel)]">déjà : {sur.length === 7 ? "tous les jours" : sur.map((x) => x.slice(0, 3)).join(", ")}</span>}</span>
+                                        {(f.libre || sur.length > 0) && <button type="button" onClick={(e) => { e.preventDefault(); if (f.libre) supprimerLibre({ id: f.id, nom: f.nom }); else retirerFiche(f); }} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title={f.libre ? "Supprimer cet élément" : "Retirer de la carte"}><X size={14} /></button>}
                                       </label>
                                     </li>
                                   );
@@ -11383,7 +11404,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             const COUL_CAT = ["#2874A6", "#D35400", "#8E44AD", "#16A085", "#B7950B", "#117A65", "#5D6D7E", "#C0629A"];
             const couleurCat = (c) => COUL_CAT[Math.max(0, categories.indexOf(c)) % COUL_CAT.length];
             const parCat = categories.map((c) => ({ c, ids: idsCarte.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
-            if (!parCat.length && !estChef) return null;
+            if (!parCat.length && !libres.length && !estChef) return null;
             const joursServis = (id) => JOURS.filter((x) => platServiCeJour(carte, id, x));
             const ecrireJours = (id, liste) => {
               const jp = { ...(carte.joursPlat || {}) };
@@ -11406,8 +11427,11 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                   <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(7, minmax(11rem, 1fr))", minWidth: 1100 }}>
                     {JOURS.map((j, ji) => {
                       const col = COUL_JOURS[ji];
-                      const duJour = parCat.map(({ c, ids }) => ({ c, ids: ids.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)) })).filter((x) => x.ids.length);
-                      const total = duJour.reduce((t, x) => t + x.ids.length, 0);
+                      const duJour = categories.map((c) => ({ c, items: [
+                        ...((parCat.find((x) => x.c === c) || { ids: [] }).ids.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).map((id) => ({ id, nom: nomDe(id), libre: false }))),
+                        ...libres.filter((l) => l.categorie === c && (l.jours || []).includes(j)).map((l) => ({ id: l.id, nom: l.nom, libre: true })),
+                      ] })).filter((x) => x.items.length);
+                      const total = duJour.reduce((t, x) => t + x.items.length, 0);
                       return (
                         <div key={j} className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: col }}>
                           <div className="px-3 py-2 text-white flex items-baseline justify-between gap-2" style={{ background: col }}>
@@ -11416,13 +11440,13 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                           </div>
                           <div className="p-2 flex-1 space-y-2">
                             {duJour.length === 0 && <div className="text-[11px] italic text-[var(--steel)]">Aucun plat ce jour-là</div>}
-                            {duJour.map(({ c, ids }) => (
+                            {duJour.map(({ c, items }) => (
                               <div key={c}>
                                 <div className="text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 mb-1 text-white inline-block" style={{ background: couleurCat(c) }}>{c}</div>
-                                {ids.map((id) => (
+                                {items.map(({ id, nom, libre }) => (
                                   <div key={id} className="flex items-start justify-between gap-1 rounded-lg border-l-4 bg-white border border-[var(--cadre)] px-1.5 py-1 mb-1 text-xs text-[var(--ink)]" style={{ borderLeftColor: couleurCat(c) }}>
-                                    <span className="font-medium break-words min-w-0">{nomDe(id)}</span>
-                                    {estChef && <button type="button" onClick={() => retirerDuJour(id, j)} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title={`Retirer du ${j.toLowerCase()}`}><X size={12} /></button>}
+                                    <span className="font-medium break-words min-w-0">{nom}</span>
+                                    {estChef && <button type="button" onClick={() => (libre ? majCarte({ platsLibres: libres.map((l) => (l.id === id ? { ...l, jours: (l.jours || []).filter((x) => x !== j) } : l)) }) : retirerDuJour(id, j))} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title={`Retirer du ${j.toLowerCase()}`}><X size={12} /></button>}
                                   </div>
                                 ))}
                               </div>
@@ -11447,8 +11471,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
               </div>
             );
           })()}
-          {idsCarte.length > 0 && (() => {
-            const parCatJ = categories.map((c) => ({ c, items: plats.filter((f) => f.categorie === c && idsCarte.includes(f.id) && platServiCeJour(carte, f.id, jourApercu)) })).filter((x) => x.items.length);
+          {(idsCarte.length > 0 || libres.length > 0) && (() => {
+            const parCatJ = categories.map((c) => ({ c, items: [...plats.filter((f) => f.categorie === c && idsCarte.includes(f.id) && platServiCeJour(carte, f.id, jourApercu)), ...libres.filter((l) => l.categorie === c && (l.jours || []).includes(jourApercu))] })).filter((x) => x.items.length);
             return (
               <div className="mb-4 rounded-xl overflow-hidden border-2" style={{ borderColor: "#6E36AE" }}>
                 <div className="px-3 py-2 text-white flex flex-wrap items-center gap-2" style={{ background: "#6E36AE" }}>
