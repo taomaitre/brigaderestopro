@@ -1110,6 +1110,8 @@ export default function ConnexionReelle() {
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
       gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
       signalerAjout,
+      // « Changer de compte » : on garde la connexion de l'établissement et on redemande un code personnel à 4 chiffres.
+      changerDeCompte: () => { setEmployeIdentifie(null); setCode(""); setErreur(""); setEquipe(null); setEtape("code"); },
       // Autorisation ponctuelle : le responsable cuisine / directeur saisit son code pour débloquer une action réservée.
       verifierCodeChef: async (codeSaisi) => {
         const data = await appelerEmployes(session.token, "verifier", { code: codeSaisi });

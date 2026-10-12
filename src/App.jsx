@@ -22624,7 +22624,8 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [stock, produits, fiches, setTab, mouvementStockShared, proposerEtiquetteRapide, demarrerCuissonDepuisFiche, demarrerRefroidissementDepuisFiche, demarrerMaintienChaudDepuisFiche]);
 
   const goToEmployee = (id) => { setSelectedEmployeeId(id); setTab("equipe"); };
-  const switchAccount = () => setSessionActive(false);
+  // Connexion réelle : « changer de compte » ramène à la saisie du code personnel (un autre employé tape son code). Ancien mode : liste des comptes.
+  const switchAccount = () => { if (modeExterne && identiteExterne.changerDeCompte) identiteExterne.changerDeCompte(); else setSessionActive(false); };
 
   // Verrouillage automatique (tablette commune uniquement) : voir le commentaire de
   // avertissementDeconnexion/verrouille plus haut pour le principe général. Tant que l'écran est
