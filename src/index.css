@@ -8,3 +8,10 @@
   input:not([type="checkbox"]):not([type="radio"]), select, textarea { min-width: 0; max-width: 100%; }
   .grid > *, .flex > input, .flex > select, .flex > textarea { min-width: 0; }
 }
+
+/* Impression d'une fiche technique : on n'imprime que la fiche */
+@media print {
+  body.impression-fiche * { visibility: hidden; }
+  body.impression-fiche #fiche-imprimable, body.impression-fiche #fiche-imprimable * { visibility: visible; }
+  body.impression-fiche #fiche-imprimable { position: absolute; left: 0; top: 0; width: 100%; }
+}

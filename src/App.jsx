@@ -3866,6 +3866,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   const [sousEcran, setSousEcran] = useState(null);
   const [rechercheCG, setRechercheCG] = useState("");
   const [impressionDossier, setImpressionDossier] = useState(null);
+  const [choixFiche, setChoixFiche] = useState(null); // création de fiche : null | "dupliquer" | "modifier"
   const [suppRefroidId, setSuppRefroidId] = useState(null);
   const [nouveauMaintien, setNouveauMaintien] = useState("");
   // Doit rester avec les autres hooks, AVANT les retours anticipés plus bas (sinon React plante : « Rendered fewer hooks »).
@@ -3954,7 +3955,6 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "reception" },
     { id: "notifications", label: "Notifications fournisseur", icon: Mail, section: "reception" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
-    { id: "modifierFiche", label: "Modifier ou dupliquer une fiche technique", icon: BookOpen, section: "cuisine" },
     { id: "carte", label: "Ma carte", icon: UtensilsCrossed, section: "cuisine" },
     { id: "dossierControle", label: "Dossier de contrôle (inspection)", icon: ClipboardCheck, section: "hygiene" },
     { id: "pmsDossier", label: "PMS — dossier", icon: Building2, section: "hygiene" },
@@ -3974,7 +3974,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const tuileVisible = (t) => (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "modifierFiche" || !!stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
+  const tuileVisible = (t) => (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
   const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && tuileVisible(t));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
@@ -4641,15 +4641,25 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         </div>
       )}
 
-      {sousEcran === "modifierFiche" && !!stockCatalogue && (
+      {sousEcran === "creationFiche" && !!stockCatalogue && choixFiche && (
         <div className="mb-6">
-          <FichesTechniques fiches={fiches} who={who} estChef avecModes
+          <div className="mb-3 flex items-center justify-between gap-2 flex-wrap">
+            <p className="text-sm font-semibold text-[var(--ink)]">{choixFiche === "dupliquer" ? "Choisissez la fiche à dupliquer" : "Choisissez la fiche à modifier"}</p>
+            <Button variant="ghost" onClick={() => setChoixFiche(null)}>Retour à la création</Button>
+          </div>
+          <FichesTechniques fiches={fiches} who={who} estChef avecModes modeDirect={choixFiche} onQuitter={() => setChoixFiche(null)}
             editionProps={{ stock, employees, currentUserId, logActivity, allergenesProduits, allergenesStandard, fichesCustom, setFichesCustom, reglagesEtablissement, demandesAjout, signalerAjout, gestionCatalogue, fournisseursCatalogue }} />
         </div>
       )}
 
-      {sousEcran === "creationFiche" && (
+      {sousEcran === "creationFiche" && !(stockCatalogue && choixFiche) && (
         <div className="mb-6">
+          {!!stockCatalogue && (
+            <div className="flex flex-wrap gap-2 mb-4">
+              <Button onClick={() => setChoixFiche("dupliquer")}>Dupliquer une fiche existante</Button>
+              <Button variant="ghost" onClick={() => setChoixFiche("modifier")}>Modifier une fiche existante</Button>
+            </div>
+          )}
           <CreationFicheTechniqueComplete
             fiches={fiches}
             fichesCustom={fichesCustom}
@@ -7870,9 +7880,16 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
     setNoteIngredients("");
   };
 
+  const imprimerFiche = () => {
+    document.body.classList.add("impression-fiche");
+    const fin = () => { document.body.classList.remove("impression-fiche"); window.removeEventListener("afterprint", fin); };
+    window.addEventListener("afterprint", fin);
+    setTimeout(() => window.print(), 50);
+  };
+
   return (
-    <div>
-      <div className="mb-3"><BoutonRetour onClick={onBack}>Retour fiches techniques</BoutonRetour></div>
+    <div id="fiche-imprimable">
+      <div className="mb-3 print:hidden"><BoutonRetour onClick={onBack}>Retour fiches techniques</BoutonRetour></div>
       <div className="flex items-center gap-2 min-w-0 flex-wrap mb-4">
         {fiche.code && <span className="text-xs font-bold px-2 py-1 rounded shrink-0" style={{ backgroundColor: "#C1432D", color: "#fff" }}>{fiche.code}</span>}
         <h2 className="text-lg font-semibold text-[var(--ink)] tracking-tight">{fiche.nom}</h2>
@@ -7910,7 +7927,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       })()}
 
       {avecModes && onModifier && (
-        <div className="flex flex-wrap gap-2 mb-4">
+        <div className="flex flex-wrap gap-2 mb-4 print:hidden">
           <Button variant="ghost" onClick={() => (estChef ? onModifier(fiche, "modifier") : setDemandeCode("modifier"))}>Modifier cette fiche</Button>
           <Button variant="ghost" onClick={() => (estChef ? onModifier(fiche, "dupliquer") : setDemandeCode("dupliquer"))}>Dupliquer</Button>
         </div>
@@ -8230,7 +8247,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </ZoneFiche>
       )}
       {estChef && fiche.cout && (fiche.cout.coutRecette || fiche.cout.prixVente) && (
-        <ZoneFiche icone={Package} bord="#9ca3af" fond="#eef0f2" texte="#4b5563" className="mb-5" titre={<>Coût matière <span className="ml-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--ink)] text-white">Chef / Directeur</span></>}>
+        <ZoneFiche icone={Package} bord="#9ca3af" fond="#eef0f2" texte="#4b5563" className="mb-5 print:hidden" titre={<>Coût matière <span className="ml-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--ink)] text-white">Chef / Directeur</span></>}>
           <p className="text-xs text-[var(--steel)] mb-3">Jamais affiché ni imprimé pour les employés.</p>
           <ul className="text-sm text-[var(--ink)] space-y-1">
             {fiche.cout.coutRecette && <li>Coût matière de la recette (calculé depuis le stock) : <strong>{fiche.cout.coutRecette} €</strong></li>}
@@ -8256,6 +8273,9 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </Card>
       )}
       </div>
+      <div className="mt-6 pt-4 border-t border-[var(--cadre)] print:hidden">
+        <Button onClick={imprimerFiche}><Printer size={16} /> Imprimer la fiche</Button>
+      </div>
     </div>
   );
 }
@@ -8276,7 +8296,7 @@ function couleurCategorieFiche(cat) {
   return PALETTE_AUTRES_FICHES[h % PALETTE_AUTRES_FICHES.length];
 }
 
-function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef }) {
+function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef, modeDirect, onQuitter }) {
   const [selectedId, setSelectedId] = useState(null);
   const [edition, setEdition] = useState(null);
   const [recherche, setRecherche] = useState("");
@@ -8321,7 +8341,7 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
           </button>
         </div>
         <CreationFicheTechniqueComplete {...editionProps} fiches={fiches} estChef={estChef} avecModes={avecModes}
-          ficheInitiale={edition.fiche} modeEdition={edition.mode} onTermine={() => { setEdition(null); setSelectedId(null); }} />
+          ficheInitiale={edition.fiche} modeEdition={edition.mode} onTermine={() => { setEdition(null); setSelectedId(null); if (modeDirect && onQuitter) onQuitter(); }} />
       </div>
     );
   }
@@ -8370,7 +8390,7 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
           <h3 className="text-sm font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block" style={{ background: doux, color: fort }}>{cat}</h3>
           <div className="space-y-2">
             {groupes[cat].map((f) => (
-              <button key={f.id} id={`fiche-${f.id}`} onClick={() => setSelectedId(f.id)} className="w-full text-left">
+              <button key={f.id} id={`fiche-${f.id}`} onClick={() => (modeDirect && editionProps ? setEdition({ fiche: f, mode: modeDirect }) : setSelectedId(f.id))} className="w-full text-left">
                 <Card className="border-l-4 hover:brightness-95 transition py-3.5" style={{ borderLeftColor: fort, background: doux }}>
                   <div className="flex items-center justify-between gap-3">
                     <div className="min-w-0">
