@@ -11203,13 +11203,14 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const [joursAjout, setJoursAjout] = useState([]);
   const [messageCarte, setMessageCarte] = useState("");
   const [saisieLibre, setSaisieLibre] = useState({});
+  const [repliees, setRepliees] = useState({});
   const [vueCarte, setVueCarte] = useState("creer");
   const [jourApercu, setJourApercu] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
   const carte = triees.find((c) => c.id === choisieId) || enCours || triees[triees.length - 1] || null;
   const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
   const categoriesFiches = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
   // Sans fiche technique, on garde quand même des colonnes (Entrée / Plat / Dessert) pour pouvoir ajouter à la main.
-  const categories = categoriesFiches.length ? categoriesFiches : ["Entrée", "Plat", "Dessert"];
+  const categories = [...categoriesFiches, ...["Entrée", "Plat", "Dessert"].filter((c) => !categoriesFiches.includes(c))];
   const idsCarte = (carte && carte.plats) || [];
   const libres = (carte && carte.platsLibres) || []; // éléments ajoutés à la main (sans fiche technique)
   const idsAujourdhui = platsAuCarte(carte, aujourdhui);
@@ -11373,14 +11374,23 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                           </div>
                         </div>
                       ))}
-                      {categories.map((c, ci) => {
-                        const couleur = COUL_CAT[ci % COUL_CAT.length];
-                        const dispoFiches = plats.filter((f) => f.categorie === c);
-                        const dispo = [...dispoFiches, ...libres.filter((l) => l.categorie === c).map((l) => ({ id: l.id, nom: l.nom, libre: true, jours: l.jours || [] }))];
-                        const cochees = dispo.filter((f) => selAjout.includes(f.id)).length;
-                        const ids = dispo.map((f) => f.id);
-                        return (
-                          <div key={c}>{colonne(`${ci + 2 + (avecJours ? 1 : 0)}. `, c, couleur, (
+                      {(() => {
+                        const estEntree = (c) => /^(Entrée|Potage)/i.test(c);
+                        const estDessert = (c) => /^(Dessert|Fromage)/i.test(c);
+                        const ordPlat = (c) => { const k = ["Plat", "Pizza", "Burger"].indexOf(c); return k < 0 ? 9 : k; };
+                        const groupes = [
+                          { titre: "Entrées", couleur: "#16A085", cats: categories.filter(estEntree) },
+                          { titre: "Plats", couleur: "#D35400", cats: categories.filter((c) => !estEntree(c) && !estDessert(c)).sort((a, b) => ordPlat(a) - ordPlat(b)) },
+                          { titre: "Desserts", couleur: "#8E44AD", cats: categories.filter(estDessert) },
+                        ];
+                        const infosCat = (c) => {
+                          const dispoFiches = plats.filter((f) => f.categorie === c);
+                          const dispo = [...dispoFiches, ...libres.filter((l) => l.categorie === c).map((l) => ({ id: l.id, nom: l.nom, libre: true, jours: l.jours || [] }))];
+                          return { dispo, ids: dispo.map((f) => f.id), cochees: dispo.filter((f) => selAjout.includes(f.id)).length };
+                        };
+                        const corpsCat = (c, couleur) => {
+                          const { dispo, ids } = infosCat(c);
+                          return (
                             <div className="p-2">
                               <div className="flex gap-1 mb-2">
                                 <input className={`${inputCls} !min-h-[38px] !py-1 text-xs flex-1 min-w-0`} placeholder="+ Ajouter à la main…" value={saisieLibre[c] || ""} onChange={(e) => setSaisieLibre({ ...saisieLibre, [c]: e.target.value })} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); ajouterLibre(c); } }} />
@@ -11390,7 +11400,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                                 <button type="button" className="underline" style={{ color: couleur }} onClick={() => setSelAjout([...new Set([...selAjout, ...ids])])}>Tout cocher</button>
                                 <button type="button" className="underline text-[var(--steel)]" onClick={() => setSelAjout(selAjout.filter((x) => !ids.includes(x)))}>Tout décocher</button>
                               </div>
-                              <ul className="space-y-1 overflow-y-auto" style={{ maxHeight: "20rem" }}>
+                              <ul className="space-y-1 overflow-y-auto" style={{ maxHeight: "18rem" }}>
+                                {dispo.length === 0 && <li className="text-[11px] italic text-[var(--steel)]">Aucun plat — ajoutez-en à la main ci-dessus.</li>}
                                 {dispo.map((f) => {
                                   const sur = f.libre ? JOURS.filter((x) => (f.jours || []).includes(x)) : joursDe(f.id);
                                   const on = selAjout.includes(f.id);
@@ -11406,10 +11417,37 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                                 })}
                               </ul>
                             </div>
-                          ), <span className="text-[11px] opacity-90">{cochees}/{dispo.length}</span>)}</div>
-                        );
-                      })}
-                      {colonne(`${categories.length + 2 + (avecJours ? 1 : 0)}. `, "Validation", "#D9691A", (
+                          );
+                        };
+                        return groupes.map((g, gi) => {
+                          const num = `${gi + 2 + (avecJours ? 1 : 0)}. `;
+                          const total = g.cats.reduce((t, c) => t + infosCat(c).dispo.length, 0);
+                          const coch = g.cats.reduce((t, c) => t + infosCat(c).cochees, 0);
+                          const pied = <span className="text-[11px] opacity-90">{coch}/{total}</span>;
+                          if (g.cats.length === 1) return <div key={g.titre}>{colonne(num, g.titre, g.couleur, corpsCat(g.cats[0], g.couleur), pied)}</div>;
+                          return (
+                            <div key={g.titre}>{colonne(num, g.titre, g.couleur, (
+                              <div className="p-2 space-y-2">
+                                {g.cats.map((c) => {
+                                  const couleur = COUL_CAT[Math.max(0, categories.indexOf(c)) % COUL_CAT.length];
+                                  const info = infosCat(c);
+                                  const replie = !!repliees[c];
+                                  return (
+                                    <div key={c} className="rounded-lg overflow-hidden border-2" style={{ borderColor: couleur }}>
+                                      <button type="button" onClick={() => setRepliees({ ...repliees, [c]: !replie })} className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-white text-sm font-bold" style={{ background: couleur }} aria-expanded={!replie}>
+                                        <span className="flex items-center gap-1.5">{replie ? <ChevronRight size={16} /> : <ChevronDown size={16} />}{c}</span>
+                                        <span className="text-[11px] font-semibold opacity-90">{info.cochees}/{info.dispo.length}</span>
+                                      </button>
+                                      {!replie && corpsCat(c, couleur)}
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            ), pied)}</div>
+                          );
+                        });
+                      })()}
+                      {colonne(`${4 + (avecJours ? 1 : 0)}. `, "Validation", "#D9691A", (
                         <div className="p-3">
                           {typeJour && <p className="text-sm text-[var(--ink)] mb-2">Menu du <b>{joliDate(carte.debut || aujourdhui, { weekday: "long", day: "numeric", month: "long" })}</b>.</p>}
                           {type === "fixe" && <p className="text-sm text-[var(--ink)] mb-2">Carte fixe : les plats cochés sont proposés tous les jours.</p>}
