@@ -11439,19 +11439,11 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                           );
                         });
                       })()}
-                      {colonne(`${4 + (avecJours ? 1 : 0)}. `, "Validation", "#D9691A", (
-                        <div className="p-3">
-                          {typeJour && <p className="text-sm text-[var(--ink)] mb-2">Menu du <b>{joliDate(carte.debut || aujourdhui, { weekday: "long", day: "numeric", month: "long" })}</b>.</p>}
-                          {type === "fixe" && <p className="text-sm text-[var(--ink)] mb-2">Carte fixe : les plats cochés sont proposés tous les jours.</p>}
-                          <p className="text-xs text-[var(--steel)] mb-2">{selAjout.length} plat{selAjout.length > 1 ? "s" : ""} coché{selAjout.length > 1 ? "s" : ""}{avecJours ? ` · ${joursChoisis.length} jour${joursChoisis.length > 1 ? "s" : ""}` : ""}</p>
-                          <Button disabled={!selAjout.length || !joursChoisis.length} onClick={valider}>✓ Valider{avecJours ? " pour ces jours" : ""}</Button>
-                          {messageCarte && <p className="text-xs font-semibold mt-2" style={{ color: "#15803D" }}>{messageCarte}</p>}
-                          <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--steel)] mt-3 mb-1">Jours déjà validés</p>
-                          <div className="flex flex-wrap gap-1">
-                            {JOURS.map((j) => <span key={j} className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={nbJour(j) ? { background: "#E4F4EA", color: "#15803D" } : { background: "#EEF1F5", color: "#657069" }}>{j.slice(0, 3)} {nbJour(j) ? `· ${nbJour(j)}` : "· —"}</span>)}
-                          </div>
-                        </div>
-                      ))}
+                    </div>
+                    <div className="sticky bottom-2 z-30 mt-3 rounded-xl border-2 shadow-lg px-4 py-3 flex flex-wrap items-center gap-3" style={{ background: "#FFF7ED", borderColor: "#D9691A" }}>
+                      <span className="text-sm font-semibold text-[var(--ink)]">{selAjout.length} plat{selAjout.length > 1 ? "s" : ""} coché{selAjout.length > 1 ? "s" : ""}{avecJours ? ` · ${joursChoisis.length} jour${joursChoisis.length > 1 ? "s" : ""}` : typeJour ? " · ce jour" : " · tous les jours"}</span>
+                      {messageCarte && <span className="text-sm font-semibold" style={{ color: "#15803D" }}>{messageCarte}</span>}
+                      <button type="button" disabled={!selAjout.length || !joursChoisis.length} onClick={valider} className="ml-auto px-6 py-3 rounded-xl text-white text-base font-bold disabled:opacity-40" style={{ background: "#D9691A" }}>✓ Valider</button>
                     </div>
                   </div>
                 )}
