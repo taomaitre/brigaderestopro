@@ -10945,17 +10945,20 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
           </select>
         </div>
         <div className="flex flex-wrap items-center gap-1.5 mt-3">
-          <span className="text-xs font-semibold text-[var(--steel)] mr-1">Filtrer par allergène</span>
+          <span className="text-xs font-semibold text-[var(--steel)] mr-1 w-full">Filtrer par allergène (un clic : sans · deux clics : avec)</span>
+          <div className="w-full grid gap-2 mt-1" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(8.5rem, 1fr))" }}>
           {ALLERGENES_14.map((a, i) => {
             const f = filtres[i];
+            const c = COULEURS_ALLERGENES_COL[i];
             return (
               <button key={a} type="button" onClick={() => nouveauFiltre(i)}
-                className="px-2.5 py-1 rounded-full border text-xs"
-                style={f === "sans" ? { background: "#DCF3E4", borderColor: "#8FD0A8", color: "#17663A", fontWeight: 600 } : f === "avec" ? { background: "#FDECEC", borderColor: "#EBA3A3", color: "#A61B1B", fontWeight: 600 } : { background: "#fff", borderColor: "var(--cadre)", color: "var(--ink)" }}>
-                {ICONES_ALLERGENES[a]} {a}{f === "sans" ? " · sans" : f === "avec" ? " · avec" : ""}
+                className="flex items-center justify-center gap-1.5 px-2 py-1.5 min-h-[40px] rounded-lg border-2 text-xs text-center leading-tight"
+                style={f === "sans" ? { background: "#DCF3E4", borderColor: "#17663A", color: "#17663A", fontWeight: 700 } : f === "avec" ? { background: "#FDECEC", borderColor: "#A61B1B", color: "#A61B1B", fontWeight: 700 } : { background: c + "14", borderColor: c, color: "var(--ink)", fontWeight: 600 }}>
+                <span className="shrink-0">{ICONES_ALLERGENES[a]}</span><span className="min-w-0">{a}{f === "sans" ? " · sans" : f === "avec" ? " · avec" : ""}</span>
               </button>
             );
           })}
+          </div>
           {filtresActifs && <button type="button" onClick={() => { setFiltres({}); setRecherche(""); setCategorie(""); setStatut(""); }} className="px-3 py-1.5 rounded-lg border border-[var(--cadre)] bg-white text-xs font-medium text-[var(--ink)]">Effacer les filtres</button>}
         </div>
         <div className="flex flex-wrap gap-2 mt-3 text-xs text-[var(--steel)]">
@@ -10970,13 +10973,16 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
       <div className="mb-2"><BoutonsExport titre={mode === "plats" ? "Allergènes — plats" : "Allergènes — produits"} colonnes={[mode === "plats" ? "Plat" : "Produit", "Catégorie", "Allergènes"]} lignes={visibles.map((x) => [x.nom, x.categorie, x.texte || ""])} /></div>
 
       <div className="bg-white border border-[var(--cadre)] rounded-xl overflow-auto" style={{ maxHeight: "72vh" }}>
-        <table className="text-sm" style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: 1050, width: "100%" }}>
+        <table className="text-sm" style={{ borderCollapse: "separate", borderSpacing: 0, minWidth: 1230, width: "100%" }}>
           <thead>
             <tr>
-              <th className="text-left px-3 py-2 text-xs font-semibold bg-white" style={{ position: "sticky", top: 0, left: 0, zIndex: 4, minWidth: 190, borderBottom: "2px solid var(--cadre)", borderRight: "1px solid var(--cadre)" }}>{mode === "plats" ? "Nom du plat" : "Produit"}</th>
-              {ALLERGENES_14.map((a) => (
-                <th key={a} className="px-1 py-2 text-[11px] font-semibold bg-white text-center" style={{ position: "sticky", top: 0, zIndex: 3, borderBottom: "2px solid var(--cadre)", minWidth: 62 }}>
-                  <span className="block text-lg leading-none">{ICONES_ALLERGENES[a]}</span>{a}
+              <th className="text-left px-3 py-2 text-xs font-semibold bg-white" style={{ position: "sticky", top: 0, left: 0, zIndex: 4, minWidth: 200, color: "#fff", background: "#34495E", borderBottom: "2px solid var(--cadre)", borderRight: "1px solid var(--cadre)" }}>{mode === "plats" ? "Nom du plat" : "Produit"}</th>
+              {ALLERGENES_14.map((a, i) => (
+                <th key={a} className="px-1 py-1.5 bg-white text-center align-top" style={{ position: "sticky", top: 0, zIndex: 3, borderBottom: "2px solid var(--cadre)", width: 74, minWidth: 74 }}>
+                  <div className="rounded-lg px-1 py-1 flex flex-col items-center justify-start gap-0.5 text-white" style={{ background: COULEURS_ALLERGENES_COL[i], height: 62 }}>
+                    <span className="block text-lg leading-none bg-white/90 rounded-full w-7 h-7 flex items-center justify-center">{ICONES_ALLERGENES[a]}</span>
+                    <span className="block text-[10px] font-bold leading-[1.1] break-words">{a}</span>
+                  </div>
                 </th>
               ))}
             </tr>
@@ -10989,7 +10995,7 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
                 <React.Fragment key={g || "tous"}>
                   {regrouper && (
                     <tr onClick={() => setFermes((f) => ({ ...f, [g]: !f[g] }))} className="cursor-pointer">
-                      <td colSpan={15} className="px-3 py-1.5 text-xs font-bold uppercase tracking-wide text-[var(--ink)]" style={{ background: "#F1F3F6" }}>{fermes[g] ? "▸" : "▾"} {g} ({liste.length})</td>
+                      <td colSpan={15} className="px-3 py-2 text-xs font-bold uppercase tracking-wide text-white" style={{ background: COULEURS_CATEGORIES_ALLG[Math.max(0, groupes.indexOf(g)) % 8] }}>{fermes[g] ? "▸" : "▾"} {g} ({liste.length})</td>
                     </tr>
                   )}
                   {(!regrouper || !fermes[g]) && liste.map((x) => {
@@ -11042,6 +11048,9 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
     </div>
   );
 }
+
+const COULEURS_ALLERGENES_COL = ["#B7791F", "#D35400", "#C9A227", "#2874A6", "#8D6E4B", "#6B8E23", "#5B7DB1", "#A0522D", "#16A085", "#B8A100", "#7D9B3A", "#8E7CC3", "#8E44AD", "#117A65"];
+const COULEURS_CATEGORIES_ALLG = ["#2874A6", "#16A085", "#D35400", "#8E44AD", "#B7950B", "#117A65", "#5D6D7E", "#0E7490"];
 
 function BoutonsExport({ titre, colonnes, lignes }) {
   const [message, setMessage] = useState("");
