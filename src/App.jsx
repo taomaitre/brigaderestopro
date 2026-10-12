@@ -5771,7 +5771,7 @@ function HuileSaisie({ onEnregistrerTest }) {
   );
 }
 
-function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMaintienChaud, setCatalogueMaintienChaud, entriesMaintienChaud, setEntriesMaintienChaud, refroidissements, setRefroidissements, ajouterAlerteControle, maintienChaudSuggere, setMaintienChaudSuggere, onLancerRefroidissement }) {
+function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMaintienChaud, setCatalogueMaintienChaud, entriesMaintienChaud, setEntriesMaintienChaud, refroidissements, setRefroidissements, ajouterAlerteControle, maintienChaudSuggere, setMaintienChaudSuggere, onLancerRefroidissement, proposerEtiquetteRapide }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -5780,13 +5780,13 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
       <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire les règles officielles : 63 °C minimum en permanence, une seule régénération à 65 °C ou plus." />
       <SectionHeader title="Maintien au chaud" subtitle="Suivi des produits maintenus au chaud" />
       <TuilesResume fonction="maintien" items={[[Soup, entriesMaintienChaud.filter((e) => e.statut === "en-cours").length, "en cours"], [CheckCircle2, entriesMaintienChaud.filter((e) => e.date === todayISO() && e.statut === "termine").length, "terminés aujourd'hui"]]} />
-      <MaintienChaud currentUserId={currentUserId} logActivity={logActivity} who={who} catalogue={catalogueMaintienChaud} setCatalogue={setCatalogueMaintienChaud} entries={entriesMaintienChaud} setEntries={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} produitSuggere={maintienChaudSuggere} setProduitSuggere={setMaintienChaudSuggere} onLancerRefroidissement={onLancerRefroidissement} />
+      <MaintienChaud currentUserId={currentUserId} logActivity={logActivity} who={who} catalogue={catalogueMaintienChaud} setCatalogue={setCatalogueMaintienChaud} entries={entriesMaintienChaud} setEntries={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} produitSuggere={maintienChaudSuggere} setProduitSuggere={setMaintienChaudSuggere} onLancerRefroidissement={onLancerRefroidissement} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
 }
 
-function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement }) {
+function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -5795,7 +5795,7 @@ function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId,
       <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" texte="Cliquez pour lire les règles officielles : température à cœur à atteindre selon le produit (63 °C en général, 71 °C viande hachée, 74 °C volaille hachée…)." />
       <SectionHeader title="Cuisson" subtitle="Lancer une cuisson selon les fiches techniques ou créer une cuisson personnalisée" />
       <TuilesResume fonction="cuisson" items={[[Flame, cuissons.filter((c) => c.statut === "en-cours").length, "en cours"], [CheckCircle2, cuissons.filter((c) => c.date === todayISO() && c.statut === "termine").length, "terminées aujourd'hui"], [AlertTriangle, cuissons.filter((c) => c.date === todayISO() && c.conforme === false).length, "non conformes", cuissons.some((c) => c.date === todayISO() && c.conforme === false)]]} />
-      <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={onLancerRefroidissement} />
+      <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={onLancerRefroidissement} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -10789,7 +10789,7 @@ const DEFAULT_PRODUITS_MAINTIEN_CHAUD = ["Sauce champignons & parmesan", "Sauce 
 // Le maintien se termine par un geste volontaire (fin de service) qui bascule directement en
 // refroidissement rapide, où l'alarme de durée s'applique (normes propres à ce module).
 
-function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, ajouterAlerteControle, produitSuggere, setProduitSuggere, onLancerRefroidissement }) {
+function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, ajouterAlerteControle, produitSuggere, setProduitSuggere, onLancerRefroidissement, proposerEtiquetteRapide }) {
   const [selection, setSelection] = useState([]);
   const [appareil, setAppareil] = useState("Bain-marie");
   const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
@@ -10865,6 +10865,8 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
     if (!e.arrete) verifierTemp(e, t);
     maj(e.id, { statut: "termine", heureFin: new Date().toTimeString().slice(0, 5), tempFin: t });
     logActivity("HACCP", "Maintien au chaud terminé", `${e.nom} — ${t}°C${e.refroidissementFait ? " — refroidi ensuite" : ""}`);
+    // Étiquette DLC proposée tout de suite, déjà remplie (sauf si un refroidissement a pris le relais : c'est lui qui la proposera)
+    if (proposerEtiquetteRapide && !e.refroidissementLance) proposerEtiquetteRapide(e.nom);
   };
 
   return (
@@ -11396,7 +11398,7 @@ function modeCuissonDepuisAppareil(app) {
 }
 const APPAREILS_CUISSON = ["Four à pizza", "Four Rational", "Four Atoll Speed / Mery Chef", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
 
-function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement }) {
+function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
   const [selection, setSelection] = useState([]);
   const [recherche, setRecherche] = useState("");
   const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
@@ -11479,6 +11481,8 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   const valider = (c) => {
     maj(c.id, { statut: "termine", heureFin: c.heureFin || new Date().toTimeString().slice(0, 5), ...(c.refroidissementLance ? { pretPourRefroidissement: false } : {}) });
     logActivity("HACCP", "Cuisson terminée", `${c.produit}${c.refroidissementLance ? " — refroidie ensuite" : ""}`);
+    // Étiquette DLC proposée tout de suite, déjà remplie (sauf si un refroidissement a pris le relais : c'est lui qui la proposera)
+    if (proposerEtiquetteRapide && !c.refroidissementLance) proposerEtiquetteRapide(c.produit);
   };
 
   // Une fois la cuisson terminée (temp à cœur enregistrée) pour un plat venant du catalogue
@@ -11991,8 +11995,15 @@ function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, em
 // toujours être saisi par l'employé, jamais déduit automatiquement d'une quantité — un même lot
 // préparé (ex. 8 Saint-Marcellin) peut très bien finir stocké dans une seule boîte et n'avoir
 // besoin que d'une seule étiquette, donc on ne devine jamais, on demande toujours.
-function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDlc, employees, onClose }) {
+function SelectionEtiquettesModal({ produitsInitiaux, produits, fiches = [], creerEtiquetteDlc, employees, onClose }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
+  // Tout ce qui est déjà connu est pré-rempli : durée de conservation (fiche technique) et 1 étiquette par défaut,
+  // modifiables. Le chef/employé n'a plus qu'à vérifier et imprimer.
+  const preRemplir = (nom) => {
+    const fiche = trouverFicheCorrespondante(nom, fiches);
+    const j = fiche && fiche.dlcJours != null && fiche.dlcJours !== "" ? String(fiche.dlcJours) : "";
+    return { nom, nbEtiquettes: "1", jours: j, depuisFiche: j !== "" };
+  };
   const [panier, setPanier] = useState(() => {
     const vus = new Set();
     return (produitsInitiaux || []).filter((nom) => {
@@ -12000,7 +12011,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
       if (!clef || vus.has(clef)) return false;
       vus.add(clef);
       return true;
-    }).map((nom) => ({ nom, nbEtiquettes: "" }));
+    }).map(preRemplir);
   });
   const [rechercheAjout, setRechercheAjout] = useState("");
   const [entreesCreees, setEntreesCreees] = useState(null);
@@ -12014,7 +12025,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
     if (!trouve) return;
     setPanier((prev) => {
       if (prev.some((it) => it.nom.trim().toLowerCase() === trouve.nom.trim().toLowerCase())) return prev;
-      return [...prev, { nom: trouve.nom, nbEtiquettes: "" }];
+      return [...prev, preRemplir(trouve.nom)];
     });
     setRechercheAjout("");
   };
@@ -12025,6 +12036,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
 
   // Produit absent du catalogue (préparation maison, par ex.) : la durée de conservation est saisie ici.
   const dlcDuProduit = (it) => {
+    if (it.depuisFiche) { const jf = parseInt(it.jours, 10); if (!Number.isNaN(jf) && jf >= 0) return addDays(todayISO(), jf); }
     const pc = trouverCorrespondance(it.nom, produits, (p) => p.nom);
     const calc = pc ? dlcCalculeeProduit(pc) : null;
     if (calc) return calc;
@@ -12082,7 +12094,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
         <div className="space-y-2 mb-3">
           {panier.map((it) => {
             const produitCatalogue = trouverCorrespondance(it.nom, produits, (p) => p.nom);
-            const connu = !!(produitCatalogue && dlcCalculeeProduit(produitCatalogue));
+            const connu = !it.depuisFiche && !!(produitCatalogue && dlcCalculeeProduit(produitCatalogue));
             const dlcDate = dlcDuProduit(it);
             return (
               <div key={it.nom} className="flex items-center gap-2 px-3 py-2 rounded-lg border border-[var(--cadre)]">
@@ -12090,7 +12102,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, produits, creerEtiquetteDl
                   <div className="text-sm font-medium text-[var(--ink)] truncate">{it.nom}</div>
                   {connu
                     ? <div className="text-[10px] text-[var(--steel)]">DLC/DDM {dlcDate}</div>
-                    : <div className="flex items-center gap-1 text-[10px] text-[var(--steel)]">Pas dans le catalogue — conservation :
+                    : <div className="flex items-center gap-1 text-[10px] text-[var(--steel)]">{it.depuisFiche ? "Conservation (fiche technique) :" : "Pas dans le catalogue — conservation :"}
                         <input type="number" min="0" className={`${inputCls} w-14 text-center !py-0.5`} placeholder="jours" value={it.jours || ""} onChange={(e) => majJours(it.nom, e.target.value)} /> j{dlcDate ? ` → DLC ${dlcDate}` : ""}
                       </div>}
                 </div>
@@ -21496,10 +21508,10 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onEnregistrerTest={modeExterne ? confirmerTestHuile : undefined} />
         )}
         {tab === "haccpChaud" && (
-          <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} onLancerRefroidissement={lancerRefroidissementDepuisMaintien} />
+          <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} onLancerRefroidissement={lancerRefroidissementDepuisMaintien} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpCuisson" && (
-          <HaccpCuissonPage signalerAjout={identiteExterne && identiteExterne.signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={lancerRefroidissementDepuisCuissonEnCours} />
+          <HaccpCuissonPage signalerAjout={identiteExterne && identiteExterne.signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={lancerRefroidissementDepuisCuissonEnCours} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
@@ -21539,6 +21551,7 @@ function KitchenApp({ identiteExterne } = {}) {
         <SelectionEtiquettesModal
           produitsInitiaux={etiquetteRapideDemandee}
           produits={produits}
+          fiches={fiches}
           creerEtiquetteDlc={creerEtiquetteDlc}
           employees={employees}
           onClose={() => setEtiquetteRapideDemandee(null)}
