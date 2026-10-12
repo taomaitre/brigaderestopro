@@ -11200,6 +11200,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const [apercuOuvert, setApercuOuvert] = useState(false);
   const [selAjout, setSelAjout] = useState([]);
   const [joursAjout, setJoursAjout] = useState([]);
+  const [messageCarte, setMessageCarte] = useState("");
+  const [jourApercu, setJourApercu] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
   const carte = triees.find((c) => c.id === choisieId) || enCours || triees[triees.length - 1] || null;
   const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
   const categories = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
@@ -11275,58 +11277,106 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
       {carte && estChef && <ChangerCarte carte={carte} majCarte={majCarte} plats={plats} categories={categories} nomDe={nomDe} aujourdhui={aujourdhui} />}
       {carte && (
         <PanneauStyle titre="Plats de la carte" aide="Ajoutez des plats depuis les fiches techniques, choisissez leurs jours de service" couleur="#D9691A" teinte="#FDF3E7">
-          {estChef ? (
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-4">
-              <div className={periodique ? "sm:col-span-1" : "sm:col-span-3"}><label className={libNet}>Nom de la carte</label><ChampTexteDiffere value={carte.nom} onCommit={(v) => v.trim() && majCarte({ nom: v.trim() })} className={`${champNet}`} /></div>
-              {periodique && <div><label className={libNet}>Du</label><input type="date" className={champNet} value={carte.debut || ""} onChange={(e) => e.target.value && majCarte({ debut: e.target.value })} /></div>}
-              {periodique && <div><label className={libNet}>Au</label><input type="date" className={champNet} value={carte.fin || ""} onChange={(e) => e.target.value && majCarte({ fin: e.target.value })} /></div>}
-            </div>
-          ) : <h3 className="font-semibold text-[var(--ink)] mb-3">{carte.nom}</h3>}
+          {!estChef && <h3 className="font-semibold text-[var(--ink)] mb-3">{carte.nom}</h3>}
 
-          {estChef && (
-            <div className="rounded-xl p-3 mb-4" style={{ backgroundColor: "#EAF6EE", border: "1px solid #CFE8D8" }}>
-              <p className="text-sm font-bold text-[var(--ink)] mb-2">Ajouter des plats depuis les fiches techniques : choisissez une catégorie</p>
-              {categories.length === 0 ? <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique de plat pour l'instant : créez d'abord vos plats dans « Créer une fiche technique ».</p> : (
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mb-3">
-                  {categories.map((c) => {
-                    const dispo = plats.filter((f) => f.categorie === c); const prises = dispo.filter((f) => idsCarte.includes(f.id)).length; const ouverte = categorieOuverte === c;
-                    const ic = /pizza/i.test(c) ? Flame : /dessert/i.test(c) ? ChefHat : /entr|salade|potage/i.test(c) ? Soup : UtensilsCrossed;
-                    return <TuileStyle key={c} degrade={DEGRADES_CARTE[categories.indexOf(c) % DEGRADES_CARTE.length]} icone={ic} titre={c} detail={`${prises} sur la carte / ${dispo.length} fiches`} actif={ouverte} onClick={() => setCategorieOuverte(ouverte ? null : c)} />;
-                  })}
+          {estChef && (() => {
+            const COUL_CAT = ["#2874A6", "#D35400", "#8E44AD", "#16A085", "#B7950B", "#117A65", "#5D6D7E", "#C0629A"];
+            const typeJour = type === "jour";
+            const joursChoisis = typeJour ? [JOURS[(dateDepuisIso(carte.debut || aujourdhui).getDay() + 6) % 7]] : joursAjout;
+            const joursDe = (id) => JOURS.filter((x) => idsCarte.includes(id) && platServiCeJour(carte, id, x));
+            const valider = () => {
+              const jp = { ...(carte.joursPlat || {}) };
+              selAjout.forEach((id) => { const u = [...new Set([...joursDe(id), ...joursChoisis])]; jp[id] = u.length === 7 ? { mode: "continu" } : { mode: "jours", jours: u }; });
+              majCarte({ plats: [...new Set([...idsCarte, ...selAjout])], datesAjout: marquerAjout(selAjout), joursPlat: jp });
+              setMessageCarte(`Carte validée pour ${joursChoisis.join(", ")} : ${selAjout.length} plat${selAjout.length > 1 ? "s" : ""} ajouté${selAjout.length > 1 ? "s" : ""}.`);
+              setSelAjout([]); setJoursAjout([]);
+            };
+            const nbJour = (j) => idsCarte.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).length;
+            const colonne = (num, titre, couleur, corps, pied) => (
+              <div className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: couleur }}>
+                <div className="px-3 py-2 text-white flex items-baseline justify-between gap-2" style={{ background: couleur }}>
+                  <span className="font-bold text-sm">{num}{titre}</span>
+                  {pied}
                 </div>
-              )}
-              {categorieOuverte && (
-                <div className="border-2 border-[var(--cadre)] rounded-xl p-3 mb-3 bg-white">
-                  <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
-                    <p className="text-sm font-semibold text-[var(--ink)]">{categorieOuverte} — cochez les plats à ajouter (la sélection est gardée d'une catégorie à l'autre)</p>
-                    <div className="flex gap-3 text-sm">
-                      <button type="button" className="text-[var(--accent)] underline" onClick={() => { const ids = plats.filter((f) => f.categorie === categorieOuverte).map((f) => f.id); setSelAjout([...new Set([...selAjout, ...ids])]); }}>Tout cocher</button>
-                      <button type="button" className="text-[var(--steel)] underline" onClick={() => { const ids = plats.filter((f) => f.categorie === categorieOuverte).map((f) => f.id); setSelAjout(selAjout.filter((x) => !ids.includes(x))); }}>Tout décocher</button>
+                {corps}
+              </div>
+            );
+            return (
+              <div className="mb-5">
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                  <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#2E86D6" }}><ClipboardList size={26} /></span>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-bold text-[var(--ink)]">Créer la carte</h3>
+                    <p className="text-xs text-[var(--steel)]">Cochez vos plats dans une ou plusieurs catégories, choisissez les jours, puis validez. Recommencez pour les autres jours.</p>
+                  </div>
+                </div>
+                {categories.length === 0 ? <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique de plat pour l'instant : créez d'abord vos plats dans « Créer une fiche technique ».</p> : (
+                  <div className="overflow-x-auto">
+                    <div className="grid gap-3 items-start" style={{ gridTemplateColumns: `minmax(14rem,1fr) repeat(${categories.length}, minmax(13rem,1fr)) minmax(14rem,1fr)`, minWidth: 260 + categories.length * 220 + 240 }}>
+                      {colonne("1. ", "Période", "#2E86D6", (
+                        <div className="p-3 space-y-2">
+                          <div><label className={libNet}>Nom de la carte</label><ChampTexteDiffere value={carte.nom} onCommit={(v) => v.trim() && majCarte({ nom: v.trim() })} className={champNet} /></div>
+                          <p className="text-xs text-[var(--steel)]">Type : <b className="text-[var(--ink)]">{libType}</b></p>
+                          {periodique && <div className="grid grid-cols-2 gap-2"><div><label className={libNet}>Du</label><input type="date" className={champNet} value={carte.debut || ""} onChange={(e) => e.target.value && majCarte({ debut: e.target.value })} /></div><div><label className={libNet}>Au</label><input type="date" className={champNet} value={carte.fin || ""} onChange={(e) => e.target.value && majCarte({ fin: e.target.value })} /></div></div>}
+                          <p className="text-xs text-[var(--steel)]">Les listes à droite viennent de vos fiches techniques.</p>
+                        </div>
+                      ))}
+                      {categories.map((c, ci) => {
+                        const couleur = COUL_CAT[ci % COUL_CAT.length];
+                        const dispo = plats.filter((f) => f.categorie === c);
+                        const cochees = dispo.filter((f) => selAjout.includes(f.id)).length;
+                        const ids = dispo.map((f) => f.id);
+                        return (
+                          <div key={c}>{colonne(`${ci + 2}. `, c, couleur, (
+                            <div className="p-2">
+                              <div className="flex justify-between gap-2 text-xs mb-1.5">
+                                <button type="button" className="underline" style={{ color: couleur }} onClick={() => setSelAjout([...new Set([...selAjout, ...ids])])}>Tout cocher</button>
+                                <button type="button" className="underline text-[var(--steel)]" onClick={() => setSelAjout(selAjout.filter((x) => !ids.includes(x)))}>Tout décocher</button>
+                              </div>
+                              <ul className="space-y-1 overflow-y-auto" style={{ maxHeight: "20rem" }}>
+                                {dispo.map((f) => {
+                                  const sur = joursDe(f.id);
+                                  const on = selAjout.includes(f.id);
+                                  return (
+                                    <li key={f.id}>
+                                      <label className="flex items-start gap-2 text-sm text-[var(--ink)] rounded-lg px-2 py-1.5 border-2 cursor-pointer" style={on ? { background: couleur + "1F", borderColor: couleur } : { background: "#fff", borderColor: "var(--cadre)" }}>
+                                        <input type="checkbox" className="w-5 h-5 mt-0.5 shrink-0" checked={on} onChange={() => setSelAjout(on ? selAjout.filter((x) => x !== f.id) : [...selAjout, f.id])} />
+                                        <span className="min-w-0 break-words">{f.nom}{sur.length > 0 && <span className="block text-[10px] text-[var(--steel)]">déjà : {sur.length === 7 ? "tous les jours" : sur.map((x) => x.slice(0, 3)).join(", ")}</span>}</span>
+                                      </label>
+                                    </li>
+                                  );
+                                })}
+                              </ul>
+                            </div>
+                          ), <span className="text-[11px] opacity-90">{cochees}/{dispo.length}</span>)}</div>
+                        );
+                      })}
+                      {colonne(`${categories.length + 2}. `, "Jours et validation", "#D9691A", (
+                        <div className="p-3">
+                          {typeJour ? <p className="text-sm text-[var(--ink)] mb-2">Carte du <b>{joliDate(carte.debut || aujourdhui, { weekday: "long", day: "numeric", month: "long" })}</b> : le jour est fixé par la période.</p> : (
+                            <>
+                              <p className="text-xs text-[var(--steel)] mb-1.5">Pour quels jours ?</p>
+                              <div className="flex flex-wrap gap-1.5 mb-2">
+                                {JOURS.map((j) => <button key={j} type="button" onClick={() => setJoursAjout(joursAjout.includes(j) ? joursAjout.filter((x) => x !== j) : [...joursAjout, j])} className="px-2.5 py-1.5 rounded-md text-xs font-semibold border-2" style={joursAjout.includes(j) ? { background: "#D9691A", color: "#fff", borderColor: "#D9691A" } : { background: "#fff", color: "var(--ink)", borderColor: "var(--cadre)" }}>{j.slice(0, 3)}</button>)}
+                                <button type="button" onClick={() => setJoursAjout(joursAjout.length === 7 ? [] : [...JOURS])} className="px-2.5 py-1.5 rounded-md text-xs font-semibold border-2 bg-white text-[var(--ink)] border-[var(--cadre)]">Tous</button>
+                              </div>
+                            </>
+                          )}
+                          <p className="text-xs text-[var(--steel)] mb-2">{selAjout.length} plat{selAjout.length > 1 ? "s" : ""} coché{selAjout.length > 1 ? "s" : ""} · {joursChoisis.length} jour{joursChoisis.length > 1 ? "s" : ""}</p>
+                          <Button disabled={!selAjout.length || !joursChoisis.length} onClick={valider}>✓ Valider la carte pour {typeJour ? "ce jour" : "ces jours"}</Button>
+                          {messageCarte && <p className="text-xs font-semibold mt-2" style={{ color: "#15803D" }}>{messageCarte}</p>}
+                          <p className="text-[11px] font-bold uppercase tracking-wide text-[var(--steel)] mt-3 mb-1">Jours déjà validés</p>
+                          <div className="flex flex-wrap gap-1">
+                            {JOURS.map((j) => <span key={j} className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={nbJour(j) ? { background: "#E4F4EA", color: "#15803D" } : { background: "#EEF1F5", color: "#657069" }}>{j.slice(0, 3)} {nbJour(j) ? `· ${nbJour(j)}` : "· —"}</span>)}
+                          </div>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                  <ul className="space-y-1.5">
-                    {plats.filter((f) => f.categorie === categorieOuverte).map((f) => (
-                      <li key={f.id}><label className="flex items-center gap-3 text-sm text-[var(--ink)] bg-white border border-[var(--cadre)] rounded-lg px-3 py-2"><input type="checkbox" className="w-5 h-5" checked={selAjout.includes(f.id)} onChange={() => setSelAjout(selAjout.includes(f.id) ? selAjout.filter((x) => x !== f.id) : [...selAjout, f.id])} /><span className="flex-1">{f.nom}</span>{idsCarte.includes(f.id) && <span className="text-xs text-[var(--steel)]">déjà sur la carte</span>}</label></li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              <div className="rounded-lg bg-white border border-[var(--cadre)] p-3">
-                <p className="text-sm font-semibold text-[var(--ink)] mb-2">Ajouter aux jours : <span className="font-normal text-[var(--steel)]">({selAjout.length} plat{selAjout.length > 1 ? "s" : ""} sélectionné{selAjout.length > 1 ? "s" : ""})</span></p>
-                <div className="flex flex-wrap gap-1.5 mb-2">
-                  {JOURS.map((j) => <button key={j} type="button" onClick={() => setJoursAjout(joursAjout.includes(j) ? joursAjout.filter((x) => x !== j) : [...joursAjout, j])} className={`px-2.5 py-1.5 rounded-md text-xs font-medium border-2 ${joursAjout.includes(j) ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{j.slice(0, 3)}</button>)}
-                  <button type="button" onClick={() => setJoursAjout(joursAjout.length === 7 ? [] : [...JOURS])} className="px-2.5 py-1.5 rounded-md text-xs font-medium border-2 bg-white text-[var(--ink)] border-[var(--cadre)]">Tous les jours</button>
-                </div>
-                <Button disabled={!selAjout.length || !joursAjout.length} onClick={() => {
-                  const cfg = joursAjout.length === 7 ? { mode: "continu" } : { mode: "jours", jours: [...joursAjout] };
-                  const jp = { ...(carte.joursPlat || {}) }; selAjout.forEach((id) => { jp[id] = cfg; });
-                  majCarte({ plats: [...new Set([...idsCarte, ...selAjout])], datesAjout: marquerAjout(selAjout), joursPlat: jp });
-                  setSelAjout([]);
-                }}>Ajouter à la carte</Button>
-                {(!selAjout.length || !joursAjout.length) && <p className="text-xs text-[var(--steel)] mt-1.5">Cochez au moins un plat et un jour.</p>}
+                )}
               </div>
-            </div>
-          )}
+            );
+          })()}
 
           {(() => {
             const COUL_JOURS = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"];
@@ -11392,6 +11442,34 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                         </div>
                       );
                     })}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+          {idsCarte.length > 0 && (() => {
+            const parCatJ = categories.map((c) => ({ c, items: plats.filter((f) => f.categorie === c && idsCarte.includes(f.id) && platServiCeJour(carte, f.id, jourApercu)) })).filter((x) => x.items.length);
+            return (
+              <div className="mb-4 rounded-xl overflow-hidden border-2" style={{ borderColor: "#6E36AE" }}>
+                <div className="px-3 py-2 text-white flex flex-wrap items-center gap-2" style={{ background: "#6E36AE" }}>
+                  <span className="font-bold text-base">Aperçu de la carte</span>
+                  <span className="text-xs opacity-90">comme la verrait un client</span>
+                  <button type="button" onClick={() => setApercuOuvert(true)} className="ml-auto text-xs font-semibold rounded-lg bg-white px-2.5 py-1" style={{ color: "#6E36AE" }}>Imprimer / PDF</button>
+                </div>
+                <div className="p-3" style={{ background: "#F3ECFB" }}>
+                  <div className="flex flex-wrap gap-1.5 mb-3">
+                    {JOURS.map((j) => <button key={j} type="button" onClick={() => setJourApercu(j)} className="px-2.5 py-1.5 rounded-md text-xs font-semibold border-2" style={jourApercu === j ? { background: "#6E36AE", color: "#fff", borderColor: "#6E36AE" } : { background: "#fff", color: "var(--ink)", borderColor: "var(--cadre)" }}>{j}</button>)}
+                  </div>
+                  <div className="bg-white rounded-xl border border-[var(--cadre)] p-5 max-w-xl mx-auto" style={{ fontFamily: "Georgia, serif" }}>
+                    <h4 className="text-xl font-bold text-center text-[var(--ink)]">{carte.nom}</h4>
+                    <p className="text-center text-xs text-[var(--steel)] mb-4">{jourApercu}</p>
+                    {parCatJ.length === 0 && <p className="text-sm text-center text-[var(--steel)]">Aucun plat ce jour-là.</p>}
+                    {parCatJ.map(({ c, items }) => (
+                      <div key={c} className="mb-4">
+                        <h5 className="text-xs font-bold uppercase tracking-widest text-[var(--ink)] border-b border-[var(--cadre)] pb-1 mb-2">{c}</h5>
+                        {items.map((f) => <div key={f.id} className="flex justify-between gap-3 text-sm text-[var(--ink)] mb-1.5"><span className="font-semibold">{f.nom}</span>{estChef && f.cout && f.cout.prixVente ? <span>{f.cout.prixVente} €</span> : null}</div>)}
+                      </div>
+                    ))}
                   </div>
                 </div>
               </div>
