@@ -85,7 +85,7 @@ export function statutOccurrence(exec) {
 export function noteComposee(t) {
   const lignes = [];
   if (t.note) lignes.push(String(t.note));
-  if (t.produit && t.produit !== "Aucun") lignes.push(`Produit : ${t.produit}`);
+  if (t.produit && t.produit !== "Aucun") lignes.push(`Produit : ${t.produit}${t.dosage ? ` — ${t.dosage}` : ""}`);
   const etapes = (Array.isArray(t.etapes) ? t.etapes : []).filter(Boolean);
   if (etapes.length) lignes.push(`Protocole :\n${etapes.map((e, i) => `${i + 1}. ${e}`).join("\n")}`);
   return lignes.join("\n");

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
-import { CATALOGUE_NETTOYAGE, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
+import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
@@ -7122,49 +7122,25 @@ const estPlanifieNet = (t) => !!t && !t.masque && t.planifie !== false;
 function construireZonesNet(cleaning, zonesStockees) {
   const noms = [];
   const ajout = (n) => { const z = n || "Tous"; if (!noms.some((x) => normaliserNomNet(x) === normaliserNomNet(z))) noms.push(z); };
-  CATALOGUE_NETTOYAGE.forEach((z) => ajout(z.nom));
+  ZONES_CUISINE.forEach((z) => ajout(z.nom));
   (zonesStockees || []).forEach(ajout);
   (cleaning || []).forEach((t) => ajout(t.poste));
   let extra = 0;
   return noms.map((nom) => {
-    const cat = CATALOGUE_NETTOYAGE.find((z) => normaliserNomNet(z.nom) === normaliserNomNet(nom));
+    const cat = ZONES_CUISINE.find((z) => normaliserNomNet(z.nom) === normaliserNomNet(nom));
     const couleur = cat ? cat.couleur : COULEURS_ZONES_EXTRA[extra++ % COULEURS_ZONES_EXTRA.length];
-    const taches = (cleaning || []).filter((t) => normaliserNomNet(t.poste || "Tous") === normaliserNomNet(nom));
-    const lignes = [];
-    const utilisees = new Set();
-    if (cat) {
-      cat.elements.forEach((e) => {
-        const cible = normaliserNomNet(e.nom);
-        const liees = taches.filter((t) => normaliserNomNet(baseTacheNet(t.tache)) === cible);
-        liees.forEach((t) => utilisees.add(t.id));
-        const visibles = liees.filter((t) => !t.masque);
-        if (visibles.length) visibles.forEach((t) => lignes.push({ cle: t.id, nom: t.tache, tache: t, cat: e }));
-        else if (!liees.length) lignes.push({ cle: `cat|${nom}|${e.nom}`, nom: e.nom, tache: null, cat: e });
-      });
-    }
-    taches.filter((t) => !utilisees.has(t.id) && !t.masque).forEach((t) => lignes.push({ cle: t.id, nom: t.tache, tache: t, cat: null }));
+    const lignes = (cleaning || [])
+      .filter((t) => !t.masque && normaliserNomNet(t.poste || "Tous") === normaliserNomNet(nom))
+      .map((t) => ({ cle: t.id, nom: t.tache, tache: t, art: trouverArticleNet(t.tache) }));
     return { nom, couleur, lignes, nbPlanifiees: lignes.filter((l) => estPlanifieNet(l.tache)).length };
   });
 }
 
 function outilsLignesNet(cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity) {
   const nouvelle = (zone, nom, patch) => normaliserTacheNet({ id: uid(), tache: nom, poste: zone, frequence: "À chaque utilisation", planifie: false, ligneZone: true, creeLe: todayISO(), fait: false, date: null, employeeId: null, ...patch });
-  const enregistrer = (zone, ligne, patch) => {
-    if (ligne.tache) setCleaning(cleaning.map((t) => (t.id === ligne.tache.id ? normaliserTacheNet({ ...t, ...patch }) : t)));
-    else setCleaning([...cleaning, nouvelle(zone, ligne.nom, { duree: ligne.cat ? ligne.cat.duree : undefined, ...patch })]);
-  };
-  const validerPropositions = (zone) => {
-    const virtuelles = zone.lignes.filter((l) => !l.tache && l.cat);
-    if (!virtuelles.length) return;
-    setCleaning([...cleaning, ...virtuelles.map((l) => nouvelle(zone.nom, l.nom, { produit: l.cat.produit, etapes: l.cat.etapes, duree: l.cat.duree }))]);
-    logActivity("Nettoyage", "Propositions de protocoles validées", `${zone.nom} : ${virtuelles.length} éléments`);
-  };
+  const enregistrer = (zone, ligne, patch) => setCleaning(cleaning.map((t) => (t.id === ligne.tache.id ? normaliserTacheNet({ ...t, ...patch }) : t)));
   const retirer = (zone, ligne) => {
-    if (ligne.cat) {
-      const patch = { masque: true, planifie: false, frequence: "À chaque utilisation" };
-      if (ligne.tache) setCleaning(cleaning.map((t) => (t.id === ligne.tache.id ? normaliserTacheNet({ ...t, ...patch }) : t)));
-      else setCleaning([...cleaning, nouvelle(zone, ligne.nom, patch)]);
-    } else if (ligne.tache) setCleaning(cleaning.filter((t) => t.id !== ligne.tache.id));
+    setCleaning(cleaning.filter((t) => t.id !== ligne.tache.id));
     logActivity("Nettoyage", "Élément retiré du plan de nettoyage", `${zone} — ${ligne.nom}`);
   };
   const ajouterElement = (zone, nom) => {
@@ -7181,7 +7157,22 @@ function outilsLignesNet(cleaning, setCleaning, zonesNettoyage, setZonesNettoyag
     logActivity("Nettoyage", "Zone ajoutée au plan de nettoyage", nom.trim());
     return null;
   };
-  return { enregistrer, validerPropositions, retirer, ajouterElement, ajouterZone };
+  // Même produit et même protocole pour plusieurs zones × plusieurs éléments d'un coup
+  const appliquerMulti = (zonesChoisies, elements, valeurs) => {
+    let liste = [...cleaning];
+    let nb = 0;
+    zonesChoisies.forEach((zone) => elements.forEach((el) => {
+      const cible = normaliserNomNet(el.nom);
+      const idx = liste.findIndex((t) => normaliserNomNet(t.poste || "Tous") === normaliserNomNet(zone) && normaliserNomNet(baseTacheNet(t.tache)) === cible);
+      const patch = { ...valeurs, genre: el.genre, masque: undefined };
+      if (idx >= 0) liste[idx] = normaliserTacheNet({ ...liste[idx], ...patch }); else liste.push(nouvelle(zone, el.nom, { ...patch, duree: el.duree }));
+      nb++;
+    }));
+    setCleaning(liste);
+    logActivity("Nettoyage", "Protocole mis en place sur plusieurs lignes", `${valeurs.produit || "sans produit"} — ${nb} lignes`);
+    return nb;
+  };
+  return { enregistrer, retirer, ajouterElement, ajouterZone, appliquerMulti };
 }
 
 function ListeZonesNet({ zones, sel, onSel, compte }) {
@@ -7254,99 +7245,222 @@ function EnteteZoneNet({ zone, soustitre, noms, onAjouterElement, onAjouterZone,
   );
 }
 
-function EditeurLigneProtocoleNet({ ligne, onSave, onRetirer, onCancel }) {
-  const t = ligne.tache;
-  const [produit, setProduit] = useState(t && t.produit != null ? t.produit : (ligne.cat ? ligne.cat.produit : ""));
-  const [etapes, setEtapes] = useState(() => { const e = t && t.etapes && t.etapes.length ? t.etapes : (ligne.cat ? ligne.cat.etapes : []); return e.length ? [...e] : [""]; });
-  const [note, setNote] = useState((t && t.note) || "");
-  const [confirmer, setConfirmer] = useState(false);
-  const listeId = "produits-net-" + ligne.cle;
+function ChoixMultiNet({ actif, onClick, texte, badge }) {
   return (
-    <div className="border-t border-[var(--cadre)] bg-[var(--bg)] p-3 space-y-3">
-      <div>
-        <label className={libNet}>Produit utilisé</label>
-        <input className={champNet} list={listeId} value={produit} onChange={(e) => setProduit(e.target.value)} placeholder="Choisissez ou écrivez le produit de votre cuisine" />
-        <datalist id={listeId}>{PRODUITS_NETTOYAGE_SUGGERES.map((p) => <option key={p} value={p} />)}</datalist>
-        <p className="text-xs text-[var(--steel)] mt-1">Dosage et temps de contact : selon la fiche technique du produit que vous utilisez.</p>
+    <button type="button" onClick={onClick} className={`w-full text-left flex items-start gap-2 rounded-lg border px-2.5 py-2 ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
+      <span className={`mt-0.5 w-5 h-5 shrink-0 rounded border-2 flex items-center justify-center text-xs font-bold ${actif ? "bg-[var(--accent)] border-[var(--accent)] text-white" : "border-[var(--steel)] text-transparent"}`}>✓</span>
+      <span className="min-w-0 flex-1 text-sm text-[var(--ink)] break-words leading-snug">{texte}</span>
+      {badge ? <span className="shrink-0 text-[10px] font-bold rounded-full bg-[var(--cadre)] px-1.5 py-0.5 text-[var(--steel)]" title="Déjà en place dans ce nombre de zones">{badge}</span> : null}
+    </button>
+  );
+}
+
+function ColonneMultiNet({ numero, titre, couleur, onTout, onAucun, onAjouter, children }) {
+  return (
+    <div className="min-w-0 rounded-xl border border-[var(--cadre)] bg-white overflow-hidden flex flex-col">
+      <div className="px-3 py-2 text-white" style={{ background: couleur }}>
+        <div className="text-sm font-bold leading-tight break-words">{numero}. {titre}</div>
+        {(onTout || onAjouter) && (
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 mt-1 text-xs">
+            {onTout && <button type="button" className="underline" onClick={onTout}>Tout cocher</button>}
+            {onAucun && <button type="button" className="underline" onClick={onAucun}>Aucun</button>}
+            {onAjouter && <button type="button" className="underline font-semibold ml-auto" onClick={onAjouter}>+ Ajouter</button>}
+          </div>
+        )}
       </div>
-      <div>
-        <div className="flex items-center justify-between gap-2 mb-1.5">
-          <span className={`${libNet} !mb-0`}>Protocole (étapes)</span>
-          <Button variant="ghost" onClick={() => setEtapes([...etapes, ""])}><Plus size={14} /> Étape</Button>
-        </div>
-        <div className="space-y-2">
-          {etapes.map((e, i) => (
-            <div key={i} className="flex items-start gap-2">
-              <span className="w-6 h-10 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
-              <textarea rows={2} className={`${inputCls} flex-1 min-w-0 text-sm`} value={e} onChange={(ev) => setEtapes(etapes.map((x, j) => (j === i ? ev.target.value : x)))} placeholder="Décrire l'étape" />
-              <button type="button" onClick={() => setEtapes(etapes.filter((_, j) => j !== i))} className="h-10 px-1 text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title="Retirer l'étape"><X size={14} /></button>
-            </div>
-          ))}
-        </div>
-      </div>
-      <div>
-        <label className={libNet}>Précisions (facultatif)</label>
-        <textarea rows={2} className={`${inputCls} w-full text-sm`} value={note} onChange={(e) => setNote(e.target.value)} placeholder="Ex. repère officiel, précaution particulière…" />
-      </div>
-      <div className="flex flex-wrap items-center gap-2">
-        <Button onClick={() => onSave({ produit: produit.trim(), etapes: etapes.map((x) => x.trim()).filter(Boolean), note: note.trim() })}>Valider</Button>
-        <Button variant="ghost" onClick={onCancel}>Annuler</Button>
-        {confirmer
-          ? <span className="inline-flex flex-wrap items-center gap-2 text-xs"><span className="text-[var(--warn)] font-medium">Retirer « {ligne.nom} » du plan, planning compris ?</span><Button variant="danger" onClick={onRetirer}>Oui</Button><Button variant="ghost" onClick={() => setConfirmer(false)}>Non</Button></span>
-          : <button type="button" className="ml-auto text-xs text-[var(--steel)] underline" onClick={() => setConfirmer(true)}>Retirer cet élément</button>}
-      </div>
+      {children}
     </div>
   );
 }
 
-// Page 1 : par zone, quel appareil ou quelle surface est nettoyé avec quel produit et quel protocole
-function ProtocolesParZone({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity }) {
+// Page 1 : 4 colonnes (zones, surfaces, matériel, produit et protocole) avec sélection multiple
+function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity }) {
   const zones = construireZonesNet(cleaning, zonesNettoyage);
-  const [sel, setSel] = useState("Poste Chaud");
-  const [ouverte, setOuverte] = useState(null);
-  const zone = zones.find((z) => z.nom === sel) || zones[0];
+  const [zSel, setZSel] = useState([]);
+  const [sSel, setSSel] = useState([]);
+  const [mSel, setMSel] = useState([]);
+  const [persos, setPersos] = useState([]);
+  const formVide = { produit: "", dosage: "", etapes: [""], note: "" };
+  const [form, setForm] = useState(formVide);
+  const [touche, setTouche] = useState(false);
+  const [origine, setOrigine] = useState("");
+  const [ajout, setAjout] = useState(null);
+  const [nomAjout, setNomAjout] = useState("");
+  const [message, setMessage] = useState("");
   const o = outilsLignesNet(cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity);
-  const nbPropositions = zone.lignes.filter((l) => !l.tache && l.cat).length;
+
+  // Éléments ajoutés par l'établissement (retrouvés dans les lignes déjà enregistrées) + ceux ajoutés à l'instant
+  const perso = [...persos];
+  cleaning.forEach((t) => { if (!t.masque && t.genre && !trouverArticleNet(t.tache) && !perso.some((p) => normaliserNomNet(p.nom) === normaliserNomNet(baseTacheNet(t.tache)))) perso.push({ nom: baseTacheNet(t.tache), genre: t.genre }); });
+  const surfaces = [...SURFACES_NETTOYAGE, ...perso.filter((p) => p.genre === "surface")];
+  const materiels = [...MATERIELS_NETTOYAGE, ...perso.filter((p) => p.genre === "materiel")];
+  const elements = [...surfaces.filter((x) => sSel.includes(x.nom)), ...materiels.filter((x) => mSel.includes(x.nom))];
+  const nbLignes = zSel.length * elements.length;
+  const nbZonesOu = (nom) => new Set(cleaning.filter((t) => !t.masque && (t.produit || (t.etapes || []).length) && normaliserNomNet(baseTacheNet(t.tache)) === normaliserNomNet(nom)).map((t) => normaliserNomNet(t.poste || "Tous"))).size;
+
+  const produitsConnus = [...new Set([...PRODUITS_NETTOYAGE_SUGGERES, ...cleaning.map((t) => t.produit).filter((p) => p && p !== "Aucun")])];
+  const protocoleConnu = (nomProduit) => {
+    const n = normaliserNomNet(nomProduit);
+    if (!n) return null;
+    const propre = cleaning.find((t) => t.produit && normaliserNomNet(t.produit) === n && (t.etapes || []).length);
+    if (propre) return { dosage: propre.dosage || "", etapes: propre.etapes, origine: "enregistre" };
+    const cle = Object.keys(PROTOCOLES_PAR_PRODUIT).find((k) => normaliserNomNet(k) === n);
+    return cle ? { dosage: PROTOCOLES_PAR_PRODUIT[cle].dosage, etapes: PROTOCOLES_PAR_PRODUIT[cle].etapes, origine: "produit" } : null;
+  };
+
+  // Pré-remplissage : valeurs déjà enregistrées pour la sélection, sinon proposition de l'appareil ou de la surface choisi(e)
+  const signature = `${zSel.join("|")}#${sSel.join("|")}#${mSel.join("|")}`;
+  useEffect(() => {
+    if (touche) return;
+    if (!elements.length) { setForm(formVide); setOrigine(""); return; }
+    const existant = cleaning.find((t) => !t.masque && (t.produit || (t.etapes || []).length) && zSel.some((z) => normaliserNomNet(t.poste || "Tous") === normaliserNomNet(z)) && elements.some((e) => normaliserNomNet(e.nom) === normaliserNomNet(baseTacheNet(t.tache))));
+    if (existant) { setForm({ produit: existant.produit || "", dosage: existant.dosage || "", etapes: (existant.etapes || []).length ? [...existant.etapes] : [""], note: "" }); setOrigine("enregistre"); return; }
+    const art = trouverArticleNet(elements[0].nom);
+    if (art) { const connu = protocoleConnu(art.produit); setForm({ produit: art.produit, dosage: connu ? connu.dosage : "", etapes: [...art.etapes], note: "" }); setOrigine("article"); }
+    else { setForm(formVide); setOrigine(""); }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [signature]);
+
+  const basculer = (liste, setListe, v) => { setListe(liste.includes(v) ? liste.filter((x) => x !== v) : [...liste, v]); setMessage(""); };
+  const changerProduit = (v) => {
+    const connu = protocoleConnu(v);
+    setTouche(true); setMessage("");
+    setForm((f) => ({ ...f, produit: v, ...(connu && !f.etapesModifiees ? { dosage: connu.dosage, etapes: [...connu.etapes] } : {}) }));
+    if (connu && !form.etapesModifiees) setOrigine(connu.origine === "enregistre" ? "enregistre" : "produit");
+  };
+  const majEtapes = (etapes) => { setTouche(true); setOrigine(""); setForm((f) => ({ ...f, etapes, etapesModifiees: true })); };
+  const validerAjout = () => {
+    const nom = nomAjout.trim();
+    if (!nom) return;
+    if (ajout === "zone") {
+      if (zones.some((z) => normaliserNomNet(z.nom) === normaliserNomNet(nom))) { setMessage("Cette zone existe déjà."); return; }
+      setZonesNettoyage([...zonesNettoyage, nom]); setZSel([...zSel, nom]);
+    } else {
+      const genre = ajout;
+      if ([...surfaces, ...materiels].some((x) => normaliserNomNet(x.nom) === normaliserNomNet(nom))) { setMessage("Cet élément existe déjà dans la liste."); return; }
+      setPersos([...persos, { nom, genre }]);
+      if (genre === "surface") setSSel([...sSel, nom]); else setMSel([...mSel, nom]);
+    }
+    setAjout(null); setNomAjout(""); setMessage("");
+  };
+  const peutAppliquer = zSel.length > 0 && elements.length > 0 && (form.produit.trim() || form.etapes.some((e) => e.trim()));
+  const appliquer = () => {
+    const valeurs = { produit: form.produit.trim(), dosage: form.dosage.trim(), etapes: form.etapes.map((e) => e.trim()).filter(Boolean) };
+    if (form.note.trim()) valeurs.note = form.note.trim();
+    const nb = o.appliquerMulti(zSel, elements, valeurs);
+    setMessage(`C'est en place : ${valeurs.produit || "protocole"} sur ${nb} ligne${nb > 1 ? "s" : ""} (${zSel.length} zone${zSel.length > 1 ? "s" : ""} × ${elements.length} élément${elements.length > 1 ? "s" : ""}). Il reste visible en bas, à modifier si besoin.`);
+    setZSel([]); setSSel([]); setMSel([]); setForm(formVide); setTouche(false); setOrigine("");
+  };
+  const recharger = (t, zone) => {
+    const nom = baseTacheNet(t.tache);
+    setZSel([zone]);
+    const estSurface = surfaces.some((x) => normaliserNomNet(x.nom) === normaliserNomNet(nom));
+    setSSel(estSurface ? [surfaces.find((x) => normaliserNomNet(x.nom) === normaliserNomNet(nom)).nom] : []);
+    setMSel(!estSurface && materiels.some((x) => normaliserNomNet(x.nom) === normaliserNomNet(nom)) ? [materiels.find((x) => normaliserNomNet(x.nom) === normaliserNomNet(nom)).nom] : []);
+    setTouche(true); setOrigine("enregistre"); setMessage("");
+    setForm({ produit: t.produit || "", dosage: t.dosage || "", etapes: (t.etapes || []).length ? [...t.etapes] : [""], note: t.note || "", etapesModifiees: true });
+  };
+  const enPlace = zones
+    .filter((z) => !zSel.length || zSel.includes(z.nom))
+    .map((z) => ({ z, lignes: z.lignes.filter((l) => l.tache.produit || (l.tache.etapes || []).length) }))
+    .filter((x) => x.lignes.length);
+  const rose = COULEURS_FONCTION.pms;
+  const corps = "p-2 space-y-1.5 max-h-[34rem] overflow-y-auto";
+  const champ = `${inputCls} w-full min-w-0`;
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4">
-      <ListeZonesNet zones={zones} sel={zone.nom} onSel={(n) => { setSel(n); setOuverte(null); }} compte={(z) => z.lignes.length} />
-      <div className="min-w-0">
-        <EnteteZoneNet zone={zone} soustitre={`${zone.lignes.length} élément${zone.lignes.length > 1 ? "s" : ""} — produit et protocole de chacun`} noms={zone.lignes.map((l) => l.nom)}
-          onAjouterElement={(nom) => setOuverte(o.ajouterElement(zone.nom, nom))}
-          onAjouterZone={(nom, premier) => { const r = o.ajouterZone(nom, premier); if (!r) setSel(nom.trim()); return r; }}>
-          {nbPropositions > 0 && (
-            <div className="rounded-lg border border-[var(--cadre)] bg-white p-2.5 mt-2 flex flex-wrap items-center gap-2">
-              <p className="text-xs text-[var(--steel)] flex-1 basis-56 min-w-0">{nbPropositions} ligne{nbPropositions > 1 ? "s" : ""} proposée{nbPropositions > 1 ? "s" : ""} (produit et protocole types). Ouvrez une ligne pour l'adapter à vos produits, ou validez tout d'un coup.</p>
-              <Button variant="ghost" onClick={() => o.validerPropositions(zone)}>Valider toutes les propositions</Button>
-            </div>
-          )}
-        </EnteteZoneNet>
-        <div className="hidden sm:grid grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-3 px-3 pb-1 text-xs font-bold uppercase tracking-wide text-[var(--steel)]">
-          <span>Appareil ou surface</span><span>Produit</span><span>Protocole</span>
-        </div>
-        <div className="space-y-2">
-          {zone.lignes.map((l) => {
-            const t = l.tache;
-            const produit = t && t.produit != null ? t.produit : (l.cat ? l.cat.produit : "");
-            const nbEtapes = t && t.etapes && t.etapes.length ? t.etapes.length : (l.cat && !(t && t.ligneZone && t.etapes) ? l.cat.etapes.length : 0);
-            const ouvert = ouverte === l.cle;
-            return (
-              <div key={l.cle} className="rounded-xl border border-[var(--cadre)] bg-white overflow-hidden" style={{ borderLeft: `6px solid ${zone.couleur}` }}>
-                <button type="button" onClick={() => setOuverte(ouvert ? null : l.cle)} className="w-full text-left p-3 grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_minmax(0,1fr)] gap-1 sm:gap-3 items-start">
-                  <span className="min-w-0 font-medium text-[var(--ink)] break-words">{l.nom}</span>
-                  <span className="min-w-0 text-sm text-[var(--ink)] break-words">{produit || <em className="text-[var(--steel)]">Produit à choisir</em>}</span>
-                  <span className="min-w-0 text-sm flex items-start justify-between gap-2">
-                    <span className="min-w-0 break-words text-[var(--ink)]">{nbEtapes ? `${nbEtapes} étape${nbEtapes > 1 ? "s" : ""}` : <em className="text-[var(--steel)]">Protocole à définir</em>}{t ? "" : " · proposé"}</span>
-                    {ouvert ? <ChevronUp size={16} className="shrink-0 text-[var(--steel)]" /> : <ChevronDown size={16} className="shrink-0 text-[var(--steel)]" />}
-                  </span>
+    <div>
+      <p className="text-sm text-[var(--steel)] mb-3">Cochez une ou plusieurs <strong>zones</strong>, puis des <strong>surfaces</strong> et/ou du <strong>matériel</strong>, puis choisissez le <strong>produit</strong> et le <strong>protocole</strong> : ils seront mis en place d'un seul coup sur toutes les combinaisons cochées. Tout est pré-rempli et modifiable.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-[minmax(11rem,0.8fr)_minmax(0,1fr)_minmax(0,1fr)_minmax(0,1.7fr)] gap-3 items-start">
+        <ColonneMultiNet numero={1} titre="Zones de la cuisine" couleur="#34495E" onTout={() => setZSel(zones.map((z) => z.nom))} onAucun={() => setZSel([])} onAjouter={() => { setAjout("zone"); setNomAjout(""); }}>
+          <div className={corps}>
+            {zones.map((z) => {
+              const actif = zSel.includes(z.nom);
+              return (
+                <button key={z.nom} type="button" onClick={() => basculer(zSel, setZSel, z.nom)} style={{ background: z.couleur }} className={`w-full rounded-lg px-2.5 py-2 min-h-[44px] text-left flex items-center gap-2 ${actif ? "ring-2 ring-offset-2 ring-[var(--ink)]" : "opacity-90"}`}>
+                  <span className="w-5 h-5 shrink-0 rounded border-2 border-white flex items-center justify-center text-xs font-bold" style={{ background: actif ? "#fff" : "transparent", color: z.couleur }}>{actif ? "✓" : ""}</span>
+                  <span className="min-w-0 text-sm font-semibold text-white break-words leading-tight">{libelleZone(z.nom)}</span>
                 </button>
-                {ouvert && <EditeurLigneProtocoleNet key={l.cle} ligne={l} onCancel={() => setOuverte(null)} onSave={(patch) => { o.enregistrer(zone.nom, l, patch); setOuverte(null); }} onRetirer={() => { o.retirer(zone.nom, l); setOuverte(null); }} />}
+              );
+            })}
+          </div>
+        </ColonneMultiNet>
+        <ColonneMultiNet numero={2} titre="Surfaces" couleur="#2E7D6B" onTout={() => setSSel(surfaces.map((x) => x.nom))} onAucun={() => setSSel([])} onAjouter={() => { setAjout("surface"); setNomAjout(""); }}>
+          <div className={corps}>{surfaces.map((x) => <ChoixMultiNet key={x.nom} texte={x.nom} actif={sSel.includes(x.nom)} badge={nbZonesOu(x.nom) || null} onClick={() => basculer(sSel, setSSel, x.nom)} />)}</div>
+        </ColonneMultiNet>
+        <ColonneMultiNet numero={3} titre="Matériel" couleur="#6A4FB3" onTout={() => setMSel(materiels.map((x) => x.nom))} onAucun={() => setMSel([])} onAjouter={() => { setAjout("materiel"); setNomAjout(""); }}>
+          <div className={corps}>{materiels.map((x) => <ChoixMultiNet key={x.nom} texte={x.nom} actif={mSel.includes(x.nom)} badge={nbZonesOu(x.nom) || null} onClick={() => basculer(mSel, setMSel, x.nom)} />)}</div>
+        </ColonneMultiNet>
+        <div className="md:col-span-2 lg:col-span-1 min-w-0">
+          <ColonneMultiNet numero={4} titre="Produit et protocole" couleur={rose.fond}>
+            <div className="p-3 space-y-3">
+              {ajout && (
+                <div className="rounded-lg border-2 border-[var(--accent)] p-2.5 bg-[var(--bg)]">
+                  <label className={libNet}>{ajout === "zone" ? "Nom de la nouvelle zone" : ajout === "surface" ? "Nouvelle surface" : "Nouveau matériel"}</label>
+                  <input className={champNet} value={nomAjout} onChange={(e) => setNomAjout(e.target.value)} autoFocus />
+                  <div className="flex gap-2 mt-2"><Button onClick={validerAjout} disabled={!nomAjout.trim()}>Ajouter</Button><Button variant="ghost" onClick={() => { setAjout(null); setNomAjout(""); }}>Annuler</Button></div>
+                </div>
+              )}
+              <div className="rounded-lg bg-[var(--bg)] border border-[var(--cadre)] p-2.5 text-sm text-[var(--ink)] break-words">
+                {nbLignes ? (<><strong>{nbLignes} ligne{nbLignes > 1 ? "s" : ""}</strong> : {zSel.map(libelleZone).join(", ")} — {elements.map((e) => e.nom).join(", ")}</>) : <span className="text-[var(--steel)]">Cochez au moins une zone et un élément (surface ou matériel).</span>}
               </div>
-            );
-          })}
-          {!zone.lignes.length && <p className="text-sm text-[var(--steel)]">Aucun élément dans cette zone. Utilisez « Ajouter un élément ».</p>}
+              <div>
+                <label className={libNet}>Produit utilisé</label>
+                <input className={champ} list="produits-nettoyage-multi" value={form.produit} onChange={(e) => changerProduit(e.target.value)} placeholder="Choisissez ou écrivez le produit" />
+                <datalist id="produits-nettoyage-multi">{produitsConnus.map((p) => <option key={p} value={p} />)}</datalist>
+              </div>
+              <div>
+                <label className={libNet}>Dosage, température, temps de contact</label>
+                <input className={champ} value={form.dosage} onChange={(e) => { setTouche(true); setForm((f) => ({ ...f, dosage: e.target.value })); }} placeholder="Selon la fiche technique du produit" />
+              </div>
+              {origine && <p className="text-xs text-[var(--accent)] font-medium">{origine === "enregistre" ? "Protocole déjà enregistré pour cette sélection ou ce produit." : origine === "produit" ? "Protocole proposé pour ce produit (proposition générale : vérifiez avec la fiche technique de votre produit)." : "Protocole proposé pour cet élément."} Modifiable.</p>}
+              <div>
+                <div className="flex items-center justify-between gap-2 mb-1.5">
+                  <span className={`${libNet} !mb-0`}>Protocole (étapes)</span>
+                  <Button variant="ghost" onClick={() => majEtapes([...form.etapes, ""])}><Plus size={14} /> Étape</Button>
+                </div>
+                <div className="space-y-2">
+                  {form.etapes.map((e, i) => (
+                    <div key={i} className="flex items-start gap-2">
+                      <span className="w-6 h-10 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
+                      <textarea rows={2} className={`${inputCls} flex-1 min-w-0 text-sm`} value={e} onChange={(ev) => majEtapes(form.etapes.map((x, j) => (j === i ? ev.target.value : x)))} placeholder="Décrire l'étape" />
+                      <button type="button" onClick={() => majEtapes(form.etapes.length > 1 ? form.etapes.filter((_, j) => j !== i) : [""])} className="h-10 px-1 text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title="Retirer l'étape"><X size={14} /></button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div>
+                <label className={libNet}>Précisions (facultatif)</label>
+                <textarea rows={2} className={`${inputCls} w-full text-sm`} value={form.note} onChange={(e) => { setTouche(true); setForm((f) => ({ ...f, note: e.target.value })); }} placeholder="Ex. précaution particulière…" />
+              </div>
+              <Button onClick={appliquer} disabled={!peutAppliquer}>Mettre en place{nbLignes > 1 ? ` sur ${nbLignes} lignes` : ""}</Button>
+              {message && <p className="text-sm text-[var(--accent)] font-medium break-words">{message}</p>}
+            </div>
+          </ColonneMultiNet>
         </div>
       </div>
+
+      <h3 className="font-semibold text-[var(--ink)] mt-6 mb-2">Déjà en place{zSel.length ? " dans les zones cochées" : ""}</h3>
+      {!enPlace.length ? <p className="text-sm text-[var(--steel)]">Rien n'est encore en place{zSel.length ? " pour ces zones" : ""}.</p> : (
+        <div className="space-y-3">
+          {enPlace.map(({ z, lignes }) => (
+            <div key={z.nom} className="rounded-xl border border-[var(--cadre)] bg-white overflow-hidden" style={{ borderLeft: `6px solid ${z.couleur}` }}>
+              <div className="px-3 py-1.5 text-sm font-bold text-[var(--ink)] break-words">{libelleZone(z.nom)}</div>
+              <div className="divide-y divide-[var(--cadre)]">
+                {lignes.map((l) => (
+                  <div key={l.cle} className="px-3 py-2 grid grid-cols-1 sm:grid-cols-[minmax(0,1.2fr)_minmax(0,1fr)_auto] gap-1 sm:gap-3 items-center">
+                    <span className="min-w-0 text-sm font-medium text-[var(--ink)] break-words">{l.nom}</span>
+                    <span className="min-w-0 text-sm text-[var(--steel)] break-words">{l.tache.produit || "Produit à choisir"} · {(l.tache.etapes || []).length} étape{(l.tache.etapes || []).length > 1 ? "s" : ""}</span>
+                    <span className="flex items-center gap-3">
+                      <button type="button" className="text-xs text-[var(--accent)] underline" onClick={() => recharger(l.tache, z.nom)}>Modifier</button>
+                      <BoutonSupprimer onConfirm={() => o.retirer(z.nom, l)} size={15} libelle={l.nom} />
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -7369,8 +7483,8 @@ function resumeQuiNet(t, employees) {
 function EditeurLignePlanningNet({ ligne, employees, onSave, onArreter, onCancel }) {
   const t = ligne.tache;
   const [v, setV] = useState(() => {
-    const base = estPlanifieNet(t) ? t : { ...(ligne.cat ? ligne.cat.planning : { frequence: "Quotidienne", moments: ["soir"] }), ...(t ? { assigneA: t.assigneA, personnes: t.personnes } : {}) };
-    const x = { frequence: "Quotidienne", ...base, duree: (t && t.duree) || (ligne.cat && ligne.cat.duree) || 10 };
+    const base = estPlanifieNet(t) ? t : { ...(ligne.art ? ligne.art.planning : { frequence: "Quotidienne", moments: ["soir"] }), ...(t ? { assigneA: t.assigneA, personnes: t.personnes } : {}) };
+    const x = { frequence: "Quotidienne", ...base, duree: (t && t.duree) || (ligne.art && ligne.art.duree) || 10 };
     if ((x.frequence === "Hebdomadaire" || x.frequence === "Toutes les 2 semaines") && !joursDeLaTache(x).length) x.jours = ["Lundi"];
     if (x.frequence === "Toutes les 2 semaines" && !x.semaineRef) x.semaineRef = todayISO();
     return x;
@@ -7379,7 +7493,7 @@ function EditeurLignePlanningNet({ ligne, employees, onSave, onArreter, onCancel
   const sansPersonne = (v.assigneA || "tous") === "personnes" && !(v.personnes || []).length;
   return (
     <div className="border-t border-[var(--cadre)] bg-[var(--bg)] p-3 space-y-3">
-      {!estPlanifieNet(t) && ligne.cat && <p className="text-xs text-[var(--steel)]">Fréquence proposée d'après le guide de bonnes pratiques : modifiez-la si besoin, puis validez.</p>}
+      {!estPlanifieNet(t) && ligne.art && <p className="text-xs text-[var(--steel)]">Fréquence proposée d'après le guide de bonnes pratiques : modifiez-la si besoin, puis validez.</p>}
       <ChampsFrequenceNettoyage v={v} maj={maj} />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         <QuiCompactNettoyage v={v} maj={maj} employees={employees} />
@@ -7435,7 +7549,7 @@ function PlanificationParZone({ cleaning, setCleaning, zonesNettoyage, setZonesN
               </div>
             );
           })}
-          {!zone.lignes.length && <p className="text-sm text-[var(--steel)]">Aucun élément dans cette zone. Utilisez « Ajouter un élément ».</p>}
+          {!zone.lignes.length && <p className="text-sm text-[var(--steel)]">Aucun élément dans cette zone. Mettez-les en place dans « 1. Protocoles de nettoyage » (cochez la zone, les surfaces et le matériel), ou utilisez « Ajouter un élément ».</p>}
         </div>
       </div>
     </div>
@@ -7565,7 +7679,7 @@ function ProtocolesNettoyageZones({ cleaning, setCleaning, zonesNettoyage, setZo
           <button key={k} type="button" onClick={() => setOnglet(k)} className={`px-3 py-2 rounded-full text-sm font-medium border ${onglet === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
         ))}
       </div>
-      {onglet === "zones" && <ProtocolesParZone cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} logActivity={logActivity} />}
+      {onglet === "zones" && <ProtocolesMultiNet cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} logActivity={logActivity} />}
       {onglet === "libres" && <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />}
     </div>
   );

@@ -48,128 +48,118 @@ const DEG = "Dégraissant alimentaire";
 const DESI = "Nettoyant désinfectant alimentaire";
 const DETE = "Détergent alimentaire";
 const DETA = "Détartrant alimentaire";
+const FOUR = "Nettoyant four et grill (usage alimentaire)";
+const SOLP = "Désinfectant sols";
+const LAVE = "Produit lave-vaisselle et liquide de rinçage";
 
-export const CATALOGUE_NETTOYAGE = [
-  { nom: "Tous", couleur: "#5B6B7A", elements: [
-    el("Sols de la cuisine", "Désinfectant sols", "sol", "qms", 20),
-    el("Murs et carrelage (zones de projection)", DEG, "degraisser", "h", 20, "Samedi"),
-    el("Plafond et bouches d'aération", DETE, "simple", "m", 30),
-    el("Poignées de portes et interrupteurs", DESI, "desinfecter", "qms", 5),
-    el("Lave-mains (robinet, bac, distributeurs)", DESI, "desinfecter", "qms", 5),
-    el("Poubelles de cuisine", DESI, "poubelle", "qs", 10),
-    el("Siphons et bouches d'évacuation", DESI, "desinfecter", "h", 10, "Mercredi"),
-    el("Chiffons, éponges et balais", DESI, "desinfecter", "qs", 5),
-    el("Pièges et dispositifs anti-nuisibles (contrôle visuel)", "Aucun", "simple", "h", 5, "Lundi"),
-  ] },
-  { nom: "Poste Chaud", couleur: "#D9691A", elements: [
-    el("Piano / plaques de cuisson", DEG, "chaud", "qs", 15),
-    el("Four (mixte ou statique)", "Nettoyant four et grill (usage alimentaire)", "chaud", "qs", 20),
-    el("Friteuse", DEG, "chaud", "h", 30, "Vendredi"),
-    el("Plancha / gril", "Nettoyant four et grill (usage alimentaire)", "chaud", "qs", 15),
-    el("Salamandre", "Nettoyant four et grill (usage alimentaire)", "chaud", "h", 15, "Mardi"),
-    el("Marmite / sauteuse / bain-marie", DEG, "degraisser", "qs", 10),
-    el("Hotte et filtres", DEG, "degraisser", "h", 30, "Dimanche"),
-    el("Plans de travail inox", DESI, "desinfecter", "qms", 10),
-    el("Étagères et supports", DETE, "simple", "h", 10, "Jeudi"),
-    el("Plonge de poste et évier", DESI, "desinfecter", "qs", 10),
-  ] },
-  { nom: "Poste Froid", couleur: "#2B6FD1", elements: [
-    el("Plan de travail réfrigéré (saladette)", DESI, "frigo", "qs", 15),
-    el("Plans de travail inox", DESI, "desinfecter", "qms", 10),
-    el("Trancheur à jambon / charcuterie", DESI, "appareil", "qs", 15),
-    el("Robot / mixeur / cutter", DESI, "appareil", "qs", 10),
-    el("Planches à découper", DESI, "desinfecter", "qms", 5),
-    el("Frigo de poste", DESI, "frigo", "h", 20, "Lundi"),
-    el("Étagères et supports", DETE, "simple", "h", 10, "Jeudi"),
-    el("Évier de poste", DESI, "desinfecter", "qs", 10),
-  ] },
-  { nom: "Poste Pizza", couleur: "#8D5A33", elements: [
-    el("Four à pizza (sole et voûte)", "Nettoyant four et grill (usage alimentaire)", "chaud", "qs", 20),
-    el("Pétrin / batteur", DESI, "appareil", "qs", 15),
-    el("Laminoir / façonneuse à pâte", DESI, "appareil", "qs", 15),
-    el("Plan de travail pizza", DESI, "desinfecter", "qms", 10),
-    el("Tour réfrigérée", DESI, "frigo", "h", 20, "Mardi"),
-    el("Pelles, grilles et plaques", DETE, "simple", "qs", 10),
-  ] },
-  { nom: "Pâtisserie", couleur: "#C2549B", elements: [
-    el("Four pâtissier", "Nettoyant four et grill (usage alimentaire)", "chaud", "h", 20, "Lundi"),
-    el("Batteur mélangeur et accessoires", DESI, "appareil", "qs", 15),
-    el("Laminoir à pâte", DESI, "appareil", "qs", 15),
-    el("Plan de travail (inox, marbre)", DESI, "desinfecter", "qms", 10),
-    el("Machine à glace / sorbetière", DESI, "appareil", "qs", 20),
-    el("Moules, cadres et poches", DETE, "simple", "qs", 10),
-    el("Frigo de pâtisserie", DESI, "frigo", "h", 20, "Jeudi"),
-  ] },
-  { nom: "Préparation viandes et poissons", couleur: "#B58900", elements: [
-    el("Plans de travail viande", DESI, "desinfecter", "qms", 10),
-    el("Plans de travail poisson", DESI, "desinfecter", "qms", 10),
-    el("Hachoir / machine à hacher", DESI, "appareil", "qs", 20),
-    el("Planches à découper (codées par couleur)", DESI, "desinfecter", "qms", 5),
-    el("Couteaux et ustensiles", DESI, "desinfecter", "qms", 5),
-    el("Machine sous vide", DESI, "appareil", "qs", 10),
-  ] },
-  { nom: "Chambres froides", couleur: "#4A56C9", elements: [
-    el("Chambre froide positive", DESI, "frigo", "h", 40, "Lundi"),
-    el("Chambre froide négative / congélateur", DESI, "frigo", "m", 60),
-    el("Cellule de refroidissement", DESI, "frigo", "h", 20, "Mercredi"),
-    el("Frigos armoires", DESI, "frigo", "h", 20, "Mardi"),
-    el("Joints et poignées de portes", DESI, "desinfecter", "h", 10, "Vendredi"),
-    el("Sol de la chambre froide", "Désinfectant sols", "sol", "h", 15, "Lundi"),
-  ] },
-  { nom: "Réserves sèches", couleur: "#7C8B1F", elements: [
-    el("Étagères de stockage", DETE, "simple", "h", 20, "Samedi"),
-    el("Sol de la réserve", "Désinfectant sols", "sol", "h", 15, "Samedi"),
-    el("Bacs et contenants de stockage", DETE, "simple", "m", 30),
-    el("Local produits d'entretien", DETE, "simple", "m", 15),
-  ] },
-  { nom: "Réception", couleur: "#8E4FBF", elements: [
-    el("Zone de réception des marchandises", DESI, "desinfecter", "qs", 10),
-    el("Balance de réception", DESI, "desinfecter", "qs", 5),
-    el("Chariots et diables", DETE, "simple", "h", 10, "Vendredi"),
-    el("Sol de la zone de réception", "Désinfectant sols", "sol", "qs", 10),
-  ] },
-  { nom: "Plonge", couleur: "#12877A", elements: [
-    el("Lave-vaisselle / lave-batterie", "Produit lave-vaisselle et liquide de rinçage", "appareil", "qs", 15),
-    el("Filtres et bras de lavage du lave-vaisselle", DETA, "appareil", "h", 15, "Dimanche"),
-    el("Bacs de plonge", DESI, "desinfecter", "qs", 10),
-    el("Égouttoirs et paillasses", DESI, "desinfecter", "qs", 10),
-    el("Poubelles de tri", DESI, "poubelle", "qs", 10),
-    el("Sol et siphon de plonge", "Désinfectant sols", "sol", "qs", 10),
-  ] },
-  { nom: "Bar", couleur: "#1F3A5F", elements: [
-    el("Plan de bar et comptoir", DESI, "desinfecter", "qms", 10),
-    el("Machine à café", "Produit spécifique machine (pastilles, cartouche…)", "appareil", "qs", 15),
-    el("Tireuse à bière (circuit et becs)", "Produit spécifique machine (pastilles, cartouche…)", "appareil", "h", 20, "Lundi"),
-    el("Machine à glaçons", DESI, "appareil", "m", 30),
-    el("Lave-verres", "Produit lave-vaisselle et liquide de rinçage", "appareil", "qs", 10),
-    el("Frigos de bar", DESI, "frigo", "h", 20, "Mercredi"),
-  ] },
-  { nom: "Salle", couleur: "#2F8F4E", elements: [
-    el("Tables et chaises", DESI, "desinfecter", "qms", 20),
-    el("Banquettes", DETE, "simple", "h", 20, "Lundi"),
-    el("Sol de la salle", "Détergent sols", "sol", "qs", 20),
-    el("Vitres et baies vitrées", "Nettoyant vitres et surfaces", "simple", "h", 20, "Mardi"),
-    el("Cartes et menus", DESI, "desinfecter", "qs", 5),
-    el("Terrasse (tables, chaises, sol)", DETE, "simple", "qs", 20),
-  ] },
-  { nom: "Sanitaires et vestiaires", couleur: "#17A2B8", elements: [
-    el("Sanitaires clients", "Nettoyant désinfectant sanitaires", "sanitaires", "qms", 20),
-    el("Sanitaires du personnel", "Nettoyant désinfectant sanitaires", "sanitaires", "qs", 15),
-    el("Vestiaires et casiers", DETE, "simple", "h", 15, "Vendredi"),
-    el("Lave-mains du personnel", DESI, "desinfecter", "qs", 5),
-  ] },
-  { nom: "Poubelles et extérieur", couleur: "#9C6B98", elements: [
-    el("Local poubelles", DESI, "sol", "h", 20, "Mardi"),
-    el("Conteneurs et bacs extérieurs", DESI, "poubelle", "h", 15, "Jeudi"),
-    el("Bac à graisses", "Produit spécifique machine (pastilles, cartouche…)", "simple", "m", 40),
-    el("Abords et accès livraison", DETE, "simple", "h", 10, "Samedi"),
-  ] },
+// Zones de la CUISINE uniquement (pas de salle, bar ni sanitaires)
+export const ZONES_CUISINE = [
+  { nom: "Tous", couleur: "#5B6B7A" },
+  { nom: "Poste Chaud", couleur: "#D9691A" },
+  { nom: "Poste Froid", couleur: "#1E88E5" },
+  { nom: "Poste Pizza", couleur: "#8D5A33" },
+  { nom: "Pâtisserie", couleur: "#C2549B" },
+  { nom: "Préparation viandes et poissons", couleur: "#B58900" },
+  { nom: "Chambres froides", couleur: "#283593" },
+  { nom: "Réserves sèches", couleur: "#6D8B2F" },
+  { nom: "Réception", couleur: "#8E4FBF" },
+  { nom: "Plonge", couleur: "#17A2B8" },
 ];
+
+// Surfaces à nettoyer dans une cuisine professionnelle (indépendantes de la zone : on les rattache aux zones où elles existent)
+export const SURFACES_NETTOYAGE = [
+  el("Sols", SOLP, "sol", "qms", 20),
+  el("Murs et carrelage (zones de projection)", DEG, "degraisser", "h", 20, "Samedi"),
+  el("Crédence derrière les cuissons", DEG, "degraisser", "h", 15, "Samedi"),
+  el("Plafond et bouches d'aération", DETE, "simple", "m", 30),
+  el("Plans de travail inox", DESI, "desinfecter", "qms", 10),
+  el("Plans de travail marbre ou résine", DESI, "desinfecter", "qms", 10),
+  el("Planches à découper", DESI, "desinfecter", "qms", 5),
+  el("Étagères et supports", DETE, "simple", "h", 10, "Jeudi"),
+  el("Portes et poignées", DESI, "desinfecter", "qms", 5),
+  el("Interrupteurs et télécommandes", DESI, "desinfecter", "qms", 5),
+  el("Lave-mains (robinet, bac, distributeurs)", DESI, "desinfecter", "qms", 5),
+  el("Éviers et bacs de plonge", DESI, "desinfecter", "qs", 10),
+  el("Égouttoirs et paillasses", DESI, "desinfecter", "qs", 10),
+  el("Siphons et bouches d'évacuation", DESI, "desinfecter", "h", 10, "Mercredi"),
+  el("Intérieur des frigos et chambres froides (parois, clayettes)", DESI, "frigo", "h", 25, "Lundi"),
+  el("Joints de portes froides", DESI, "desinfecter", "h", 10, "Vendredi"),
+  el("Poubelles de cuisine et de tri", DESI, "poubelle", "qs", 10),
+  el("Zone de réception des marchandises", DESI, "desinfecter", "qs", 10),
+  el("Bacs et contenants de stockage", DETE, "simple", "m", 30),
+  el("Couteaux et ustensiles", DESI, "desinfecter", "qms", 5),
+  el("Pelles, grilles et plaques", DETE, "simple", "qs", 10),
+  el("Moules, cadres et poches", DETE, "simple", "qs", 10),
+  el("Chariots et diables", DETE, "simple", "h", 10, "Vendredi"),
+  el("Chiffons, éponges et balais", DESI, "desinfecter", "qs", 5),
+  el("Local produits d'entretien", DETE, "simple", "m", 15),
+].map((a) => ({ ...a, genre: "surface" }));
+
+// Matériel et appareils d'une cuisine professionnelle
+export const MATERIELS_NETTOYAGE = [
+  el("Piano / plaques de cuisson", DEG, "chaud", "qs", 15),
+  el("Four mixte ou statique", FOUR, "chaud", "qs", 20),
+  el("Friteuse", DEG, "chaud", "h", 30, "Vendredi"),
+  el("Plancha / gril", FOUR, "chaud", "qs", 15),
+  el("Salamandre", FOUR, "chaud", "h", 15, "Mardi"),
+  el("Marmite / sauteuse / bain-marie", DEG, "degraisser", "qs", 10),
+  el("Cuiseur à pâtes ou à riz", DEG, "degraisser", "qs", 10),
+  el("Cuiseur vapeur", DETA, "appareil", "h", 15, "Mercredi"),
+  el("Micro-ondes", DESI, "desinfecter", "qs", 5),
+  el("Bain-marie / chauffe-plats (maintien au chaud)", DEG, "degraisser", "qs", 10),
+  el("Hotte et filtres", DEG, "degraisser", "h", 30, "Dimanche"),
+  el("Plan de travail réfrigéré (saladette)", DESI, "frigo", "qs", 15),
+  el("Frigo / armoire réfrigérée", DESI, "frigo", "h", 20, "Mardi"),
+  el("Tour réfrigérée", DESI, "frigo", "h", 20, "Mardi"),
+  el("Chambre froide positive", DESI, "frigo", "h", 40, "Lundi"),
+  el("Chambre froide négative / congélateur", DESI, "frigo", "m", 60),
+  el("Cellule de refroidissement", DESI, "frigo", "h", 20, "Mercredi"),
+  el("Trancheur à jambon / charcuterie", DESI, "appareil", "qs", 15),
+  el("Robot / mixeur / cutter", DESI, "appareil", "qs", 10),
+  el("Mixeur plongeant", DESI, "appareil", "qs", 5),
+  el("Coupe-légumes et éplucheuse", DESI, "appareil", "qs", 15),
+  el("Hachoir / machine à hacher", DESI, "appareil", "qs", 20),
+  el("Machine sous vide", DESI, "appareil", "qs", 10),
+  el("Balance", DESI, "desinfecter", "qs", 5),
+  el("Four à pizza (sole et voûte)", FOUR, "chaud", "qs", 20),
+  el("Pétrin / batteur mélangeur et accessoires", DESI, "appareil", "qs", 15),
+  el("Laminoir / façonneuse à pâte", DESI, "appareil", "qs", 15),
+  el("Four pâtissier", FOUR, "chaud", "h", 20, "Lundi"),
+  el("Machine à glace / sorbetière", DESI, "appareil", "qs", 20),
+  el("Lave-vaisselle / lave-batterie", LAVE, "appareil", "qs", 15),
+  el("Filtres et bras de lavage du lave-vaisselle", DETA, "appareil", "h", 15, "Dimanche"),
+].map((a) => ({ ...a, genre: "materiel" }));
+
+export const ARTICLES_NETTOYAGE = [...SURFACES_NETTOYAGE, ...MATERIELS_NETTOYAGE];
+
+export const normaliserNomNet = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
+export const baseTacheNet = (t) => String(t || "").split(" — ")[0];
+export const trouverArticleNet = (nom) => {
+  const n = normaliserNomNet(baseTacheNet(nom));
+  return ARTICLES_NETTOYAGE.find((a) => normaliserNomNet(a.nom) === n) || null;
+};
+
+// Protocole type d'un produit (propositions générales, à vérifier avec la fiche technique du produit réellement utilisé)
+const DOSAGE_STD = "Selon la fiche technique du produit";
+const PRO = (etapes) => ({ dosage: DOSAGE_STD, etapes });
+export const PROTOCOLES_PAR_PRODUIT = {
+  "Dégraissant alimentaire": PRO(P.degraisser),
+  "Nettoyant désinfectant alimentaire": PRO(P.desinfecter),
+  "Détergent alimentaire": PRO(P.simple),
+  "Désinfectant alimentaire": PRO(P.desinfecter),
+  "Détartrant alimentaire": PRO(["Retirer les denrées et protéger les surfaces sensibles", "Appliquer le détartrant à la dilution de la fiche technique", "Laisser agir le temps indiqué", "Rincer abondamment à l'eau claire", "Essuyer ou laisser sécher"]),
+  "Nettoyant four et grill (usage alimentaire)": PRO(P.chaud),
+  "Détergent sols": PRO(P.sol),
+  "Désinfectant sols": PRO(P.sol),
+  "Produit lave-vaisselle et liquide de rinçage": PRO(["Vidanger et nettoyer les filtres", "Contrôler le niveau de produit lessiviel et de rinçage", "Nettoyer les bras de lavage", "Essuyer l'intérieur et laisser la porte ouverte"]),
+  "Nettoyant désinfectant sanitaires": PRO(P.sanitaires),
+  "Nettoyant vitres et surfaces": PRO(P.simple),
+  "Produit spécifique machine (pastilles, cartouche…)": PRO(["Suivre la notice du fabricant de la machine", "Lancer le programme de nettoyage", "Rincer", "Noter la date du nettoyage"]),
+  "Eau chaude et savon": PRO(["Mouiller à l'eau chaude", "Laver au savon", "Rincer à l'eau claire", "Laisser sécher"]),
+};
 
 // Couleurs des zones ajoutées par l'établissement (jamais de rouge : réservé aux alertes)
 export const COULEURS_ZONES_EXTRA = ["#0F766E", "#B45309", "#6D28D9", "#0369A1", "#4D7C0F", "#A21CAF", "#9A3412", "#1D4ED8"];
 
-export const normaliserNomNet = (s) => String(s || "").normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().trim();
-export const baseTacheNet = (t) => String(t || "").split(" — ")[0];
 
 export const JOURS_COURTS_NET = { Lundi: "Lun", Mardi: "Mar", Mercredi: "Mer", Jeudi: "Jeu", Vendredi: "Ven", Samedi: "Sam", Dimanche: "Dim" };
