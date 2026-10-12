@@ -4028,7 +4028,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
   }
 
   if (releve) {
-    return <DossierControle onBack={() => setReleve(false)} employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} receptions={receptions} alertes={alertesControle} rappels={alertesRappelConso} declarationsTiac={declarationsTiac} pms={reglagesEtablissement && reglagesEtablissement.pms} />;
+    return <DossierControle onBack={() => setReleve(false)} employees={employees} tasks={tasks} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} shifts={shifts} reservations={reservations} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} nomEtablissement={reglagesEtablissement && reglagesEtablissement.nom} receptions={receptions} alertes={alertesControle} rappels={alertesRappelConso} declarationsTiac={declarationsTiac} pms={reglagesEtablissement && reglagesEtablissement.pms} fiches={fiches} allergenesPlats={allergenesPlats} stock={stock} origineProduits={origineProduits} />;
   }
 
   if (referentielActif) {
@@ -5213,7 +5213,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
 }
 
 // ---- Dossier de contrôle : UN SEUL document imprimable (journée ou mois), qui regroupe tout ce que l'inspecteur peut demander ----
-function ComplementsControle({ debut, fin, receptions, alertes, rappels, declarationsTiac, pms, employees }) {
+function ComplementsControle({ debut, fin, receptions, alertes, rappels, declarationsTiac, pms, employees, fiches, allergenesPlats, stock, origineProduits }) {
   const dansPeriode = (d) => !!d && d >= debut && d <= fin;
   const fr = (iso) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || "—");
   const recep = (receptions || []).filter((r) => dansPeriode(r.date) && r.produit && r.produit !== "(aucun produit détaillé)").sort((a, b) => `${a.date} ${a.heure}`.localeCompare(`${b.date} ${b.heure}`));
@@ -5253,6 +5253,14 @@ function ComplementsControle({ debut, fin, receptions, alertes, rappels, declara
       <Tab cols={["Symptômes signalés le", "Enregistrée le", "Malades recensés"]} vide="Aucune déclaration sur la période."
         lignes={tiacP.map((d) => [fr(d.dateDebut), fr(d.dateCreation), String(d.nbMalades != null ? d.nbMalades : "—")])} />
 
+      <Titre>Allergènes déclarés par plat (14 allergènes réglementaires)</Titre>
+      <Tab cols={["Plat", "Allergènes présents"]} vide="Aucune fiche technique."
+        lignes={(fiches || []).map((f) => [f.nom, (allergenesPlats && allergenesPlats[f.nom]) || "À renseigner"])} />
+
+      <Titre>Origine des viandes et produits</Titre>
+      <Tab cols={["Produit", "Mention d'origine"]} vide="Aucun produit en stock."
+        lignes={(stock || []).filter((x) => /viande|boeuf|bœuf|porc|poulet|volaille|veau|agneau|steak|jambon|lard/i.test(`${x.categorie || ""} ${x.nom || ""}`)).map((x) => [x.nom, (origineProduits && origineProduits[x.nom]) || "À renseigner"])} />
+
       <Titre>Plan de maîtrise sanitaire — prestataires, formations et pièces</Titre>
       <Tab cols={["Prestataire / pièce", "Prochaine échéance", "État"]} vide="Aucun prestataire ni pièce renseigné dans le dossier PMS."
         lignes={[...prest.map((p) => [nomPrest(p), fr(p.date_prochaine_echeance), etat(p.date_prochaine_echeance)]), ...docs.map((d) => [d.titre || libelleDe(CATEGORIES_DOCUMENT, d.categorie), fr(d.date_echeance), etat(d.date_echeance)])]} />
@@ -5263,13 +5271,13 @@ function ComplementsControle({ debut, fin, receptions, alertes, rappels, declara
   );
 }
 
-function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappels, declarationsTiac, pms, ...donnees }) {
+function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappels, declarationsTiac, pms, fiches, allergenesPlats, stock, origineProduits, ...donnees }) {
   const [mode, setMode] = useState("jour");
   const [jour, setJour] = useState(todayISO());
   const [mois, setMois] = useState(todayISO().slice(0, 7));
   const debut = mode === "jour" ? jour : `${mois}-01`;
   const fin = mode === "jour" ? jour : `${mois}-31`;
-  const complements = <ComplementsControle debut={debut} fin={fin} receptions={receptions} alertes={alertes} rappels={rappels} declarationsTiac={declarationsTiac} pms={pms} employees={donnees.employees} />;
+  const complements = <ComplementsControle debut={debut} fin={fin} receptions={receptions} alertes={alertes} rappels={rappels} declarationsTiac={declarationsTiac} pms={pms} employees={donnees.employees} fiches={fiches} allergenesPlats={allergenesPlats} stock={stock} origineProduits={origineProduits} />;
   const decalerMois = (n) => { const d = new Date(mois + "-01T12:00:00"); d.setMonth(d.getMonth() + n); setMois(d.toISOString().slice(0, 7)); };
   return (
     <div>
@@ -16533,21 +16541,21 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
 
   const blocs = [
     { id: "dlc", cle: "dlc", icone: AlertTriangle, titre: "DLC", n: dlcJour.length, texte: dlcJour.length ? `${dlcJour.length} à traiter` : "Rien à traiter", rouge: dlcJour.length > 0,
-      colonnes: ["Produit", "N° de lot", "Quantité", "Statut"], lignes: dlcJour.map((d) => [d.nom, d.lot, d.qte, "À utiliser aujourd'hui"]) },
+      colonnes: ["Produit", "N° de lot", "DLC", "Quantité restante", "Statut"], lignes: dlcJour.map((d) => [d.nom, d.lot, fmtShort(jour), d.qte, "À utiliser aujourd'hui"]) },
     { id: "tracabilite", cle: "tracabilite", ouvrir: "tracabilite", icone: Camera, titre: "Traçabilité", n: traces.length, texte: `${traces.length} enregistrée(s)`,
-      colonnes: ["Produit", "N° de lot", "Heure", "Responsable"], lignes: traces.map((p) => [p.typeEntree === "photo-simple" ? "Traçabilité par photo" : nomProduit(p), p.lot || "—", H(p.heure), who(p.employeeId)]) },
+      colonnes: ["Produit", "Action", "N° de lot", "Heure", "Responsable", "Statut"], lignes: traces.map((p) => [p.typeEntree === "photo-simple" ? "Traçabilité par photo" : nomProduit(p), p.typeEntree === "photo-simple" ? "Photo" : p.dlcDate === null ? "Ingrédients" : "Préparation", p.lot || "—", H(p.heure), who(p.employeeId), "Enregistré"]) },
     { id: "nettoyages", cle: "pms", ouvrir: "pms", icone: SprayCan, titre: "Nettoyages", n: nettoyages.length, texte: nettoyagesAttendus.length ? `${pct(nettoyages.length, nettoyagesAttendus.length)} fait · ${Math.max(0, nettoyagesAttendus.length - nettoyages.length)} à faire` : `${nettoyages.length} fait(s)`,
-      colonnes: ["Zone / matériel", "Poste", "Responsable", "Statut"], lignes: nettoyages.map((c) => [c.tache, c.poste || "—", who(c.employeeId), "Fait"]) },
+      colonnes: ["Zone / matériel", "Poste", "Heure", "Responsable", "Statut"], lignes: nettoyages.map((c) => [c.tache, c.poste || "—", H(c.heure || c.heureFait), who(c.employeeId), "Fait"]) },
     { id: "temperatures", cle: "temperatures", ouvrir: "temperatures", icone: Thermometer, titre: "Températures", n: releves.length, texte: releves.length ? `${pct(tempsOk, releves.length)} conforme` : "Aucun relevé",
       colonnes: ["Équipement", "Température", "Heure", "Responsable", "Statut"], lignes: releves.map((r) => [nomEq(r.equipementId), `${r.valeur} °C`, H(r.heure), who(r.employeeId), statutTemp(r)]), alerteCol: 4 },
     { id: "refroidissements", cle: "cellule", ouvrir: "cellule", icone: Snowflake, titre: "Refroidissements", n: refr.length, texte: refr.length ? `${pct(refrFinis, refr.length)} · ${refr.length - refrFinis} en cours` : "Aucun",
-      colonnes: ["Produit", "Départ", "Fin", "Statut"], lignes: refr.map((r) => [r.produit, H(r.heureDebut), H(r.heureFin), r.statut === "termine" ? (r.conforme === false ? "Terminé — non conforme" : "Terminé") : "En cours"]) },
+      colonnes: ["Produit", "Départ", "Fin", "Durée", "Responsable", "Statut"], lignes: refr.map((r) => [r.produit, H(r.heureDebut), H(r.heureFin), r.dureeMin != null ? `${Math.floor(r.dureeMin / 60)} h ${String(r.dureeMin % 60).padStart(2, "0")}` : "—", who(r.employeeId), r.statut === "termine" ? (r.conforme === false ? "Terminé — non conforme" : "Terminé") : "En cours"]) },
     { id: "cuissons", cle: "cuisson", ouvrir: "cuisson", icone: Flame, titre: "Cuissons", n: cuis.length, texte: cuis.length ? `${pct(cuisFinies, cuis.length)} · ${cuis.length - cuisFinies} en cours` : "Aucune",
-      colonnes: ["Produit", "Heure", "Appareil", "Statut"], lignes: cuis.map((c) => [c.produit, H(c.heureDebut), c.appareil || "—", c.statut === "termine" || c.finie ? (c.conforme === false ? "Terminé — non conforme" : "Terminé") : "En cours"]) },
+      colonnes: ["Produit", "Heure", "Appareil", "T° à cœur", "Responsable", "Statut"], lignes: cuis.map((c) => [c.produit, H(c.heureDebut), c.appareil || "—", c.temperature !== undefined && c.temperature !== null && c.temperature !== "" ? `${c.temperature} °C` : "—", who(c.employeeId), c.statut === "termine" || c.finie ? (c.conforme === false ? "Terminé — non conforme" : "Terminé") : "En cours"]) },
     { id: "maintien", cle: "maintien", ouvrir: "maintien", icone: Soup, titre: "Maintien au chaud", n: maint.length, texte: maint.length ? `${pct(maintFinis, maint.length)} · ${maint.length - maintFinis} en cours` : "Aucun",
-      colonnes: ["Produit", "Début", "Fin", "Statut"], lignes: maint.map((m) => [m.nom, H(m.heureDebut), H(m.heureFin), m.statut === "termine" ? "Terminé" : "En cours"]) },
+      colonnes: ["Produit", "Appareil", "Début", "Fin", "Responsable", "Statut"], lignes: maint.map((m) => [m.nom, m.appareil || "—", H(m.heureDebut), H(m.heureFin), who(m.employeeId), m.statut === "termine" ? "Terminé" : "En cours"]) },
     { id: "huiles", cle: "huile", ouvrir: "huile", icone: Droplets, titre: "Huiles de friture", n: huiles.length, texte: huiles.length ? `${pct(huilesOk, huiles.length)} conforme` : "Aucun test",
-      colonnes: ["Bain", "Heure", "Résultat"], lignes: huiles.map((h) => [h.bain || "—", H(h.heure), h.resultat || "—"]) },
+      colonnes: ["Bain", "Heure", "Responsable", "Résultat"], lignes: huiles.map((h) => [h.bain || "—", H(h.heure), who(h.employeeId), h.resultat || "—"]) },
     { id: "receptions", cle: "reception", ouvrir: "commandes", icone: Truck, titre: "Réceptions", n: recepJour.length, texte: recepJour.length ? `${pct(recepOk, recepJour.length)} conforme` : "Aucune livraison",
       colonnes: ["Produit", "Fournisseur", "Quantité", "Heure", "Statut"], lignes: recepJour.map((r) => [r.produit, r.fournisseur || "—", r.quantite != null ? String(r.quantite) : "—", H(r.heure), r.conforme === false ? (r.raison || "Non conforme") : "Conforme"]) },
     { id: "preparations", cle: "preparations", icone: UtensilsCrossed, titre: "Préparations", n: preps.length, texte: `${preps.length} préparée(s)`,
