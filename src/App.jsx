@@ -18756,29 +18756,66 @@ Une entrée par réservation visible. Si une information est illisible ou absent
         </>
       )}
 
-      {viewMode === "semaine" && (
-        <Card className="mb-6">
-          <div className="grid grid-cols-1 sm:grid-cols-7 gap-3">
-            {Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(selectedDate), i)).map((d) => {
-              const list = reservationsDuJour(d);
-              const isToday = d === todayISO();
-              return (
-                <button key={d} onClick={() => { goDate(d); setViewMode("jour"); }} className="text-left">
-                  <div className={`rounded-lg border p-2.5 h-full ${isToday ? "border-[var(--accent)]" : "border-[var(--line)]"}`}>
-                    <div className="text-xs text-[var(--steel)] mb-1 capitalize">{JOURS[(new Date(d + "T00:00:00").getDay() + 6) % 7].slice(0, 3)} {d.slice(8, 10)}</div>
-                    {list.length === 0 ? <div className="text-xs text-[var(--steel)]">—</div> : (
-                      <div className="space-y-1">
-                        {list.slice(0, 3).map((r) => <div key={r.id} className="text-xs text-[var(--ink)] truncate">{r.heure} {r.nom}</div>)}
-                        {list.length > 3 && <div className="text-xs text-[var(--accent)]">+{list.length - 3} autres</div>}
+      {viewMode === "semaine" && (() => {
+        const COUL_JOURS = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"];
+        const jours = Array.from({ length: 7 }, (_, i) => addDays(startOfWeek(selectedDate), i));
+        const totalSemaine = jours.reduce((t, d) => t + reservationsDuJour(d).reduce((n, r) => n + (Number(r.personnes) || 0), 0), 0);
+        const nouvelleLe = (d) => { setEdition(null); setForm({ ...RESA_VIDE, date: d }); setCommande([""]); setFormOuvert(true); };
+        return (
+          <div className="mb-6">
+            <div className="flex flex-wrap items-center gap-3 mb-3">
+              <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#8E44AD" }}><CalendarDays size={26} /></span>
+              <div className="min-w-0">
+                <h3 className="text-lg font-bold text-[var(--ink)]">Réservations de la semaine</h3>
+                <p className="text-xs text-[var(--steel)]">{totalSemaine} couvert(s) cette semaine. Touchez une réservation pour ouvrir son détail, ou « + Ajouter » pour en créer une ce jour-là.</p>
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(7, minmax(11rem, 1fr))", minWidth: 1100 }}>
+                {jours.map((d, ji) => {
+                  const col = COUL_JOURS[ji];
+                  const liste = reservationsDuJour(d);
+                  const lim = limiteMidiSoir(horaires, d);
+                  const couverts = liste.reduce((n, r) => n + (Number(r.personnes) || 0), 0);
+                  const estAuj = d === todayISO();
+                  return (
+                    <div key={d} className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: col, boxShadow: estAuj ? `0 0 0 3px ${col}33` : undefined }}>
+                      <div className="px-3 py-2 text-white" style={{ background: col }}>
+                        <div className="flex items-baseline justify-between gap-2"><span className="font-bold text-base">{JOURS[ji]}</span><span className="text-[11px] opacity-90">{d.slice(8, 10)}/{d.slice(5, 7)}{estAuj ? " · aujourd'hui" : ""}</span></div>
+                        <div className="text-[11px] opacity-90">{liste.length} réservation{liste.length > 1 ? "s" : ""} · {couverts} couvert{couverts > 1 ? "s" : ""}</div>
                       </div>
-                    )}
-                  </div>
-                </button>
-              );
-            })}
+                      {[["midi", "☀️ Midi", liste.filter((r) => r.heure < lim), "#FFFBEA"], ["soir", "🌙 Soir", liste.filter((r) => r.heure >= lim), "#F1F0FA"]].map(([k, lib, l, fond]) => (
+                        <div key={k} className="p-2 border-t border-[var(--cadre)] flex-1" style={{ background: fond }}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: col }}>{lib}</span>
+                            <span className="text-[10px] text-[var(--steel)]">{l.reduce((n, r) => n + (Number(r.personnes) || 0), 0)} couv.</span>
+                          </div>
+                          {l.length === 0 ? <div className="text-[11px] italic text-[var(--steel)]">Aucune réservation</div> : (
+                            <div className="space-y-1">
+                              {l.map((r) => {
+                                const st = TYPE_RESA_STYLE[typeResa(r)];
+                                return (
+                                  <button key={r.id} type="button" onClick={() => { setSelectedDate(d); setSelId(r.id); setDetailMobile(true); setViewMode("jour"); }} className="w-full text-left rounded-lg px-2 py-1 text-[11px] leading-tight border-l-4 bg-white border border-[var(--cadre)]" style={{ borderLeftColor: st.barre }}>
+                                    <span className="font-semibold text-[var(--ink)] block truncate">{r.heure} · {r.nom}</span>
+                                    <span className="text-[var(--steel)]">{r.personnes || "?"} pers.{r.table ? ` · table ${r.table}` : ""}</span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                      <div className="p-2 border-t border-[var(--cadre)]" style={{ background: col + "14" }}>
+                        <button type="button" onClick={() => nouvelleLe(d)} className="w-full h-10 rounded-lg text-xs font-bold border-2" style={{ color: col, borderColor: col, background: "#fff" }}>+ Ajouter</button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
-        </Card>
-      )}
+        );
+      })()}
 
       {viewMode === "mois" && (() => {
         const start = startOfMonth(selectedDate);
