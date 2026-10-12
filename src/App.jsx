@@ -11328,37 +11328,70 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
           )}
 
           {(() => {
+            const COUL_JOURS = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"];
+            const COUL_CAT = ["#2874A6", "#D35400", "#8E44AD", "#16A085", "#B7950B", "#117A65", "#5D6D7E", "#C0629A"];
+            const couleurCat = (c) => COUL_CAT[Math.max(0, categories.indexOf(c)) % COUL_CAT.length];
             const parCat = categories.map((c) => ({ c, ids: idsCarte.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
-            if (!parCat.length) return null;
-            const retirerDuJour = (id, j) => {
-              const reste = JOURS.filter((x) => x !== j && platServiCeJour(carte, id, x));
-              if (!reste.length) { const jp = { ...(carte.joursPlat || {}) }; delete jp[id]; majCarte({ plats: idsCarte.filter((x) => x !== id), joursPlat: jp }); return; }
-              majCarte({ joursPlat: { ...(carte.joursPlat || {}), [id]: { mode: "jours", jours: reste } } });
+            if (!parCat.length && !estChef) return null;
+            const joursServis = (id) => JOURS.filter((x) => platServiCeJour(carte, id, x));
+            const ecrireJours = (id, liste) => {
+              const jp = { ...(carte.joursPlat || {}) };
+              if (!liste.length) { delete jp[id]; majCarte({ plats: idsCarte.filter((x) => x !== id), joursPlat: jp }); return; }
+              jp[id] = liste.length === 7 ? { mode: "continu" } : { mode: "jours", jours: liste };
+              majCarte({ plats: idsCarte.includes(id) ? idsCarte : [...idsCarte, id], datesAjout: idsCarte.includes(id) ? datesAjout : marquerAjout([id]), joursPlat: jp });
             };
+            const retirerDuJour = (id, j) => ecrireJours(id, joursServis(id).filter((x) => x !== j));
+            const ajouterAuJour = (id, j) => ecrireJours(id, [...new Set([...(idsCarte.includes(id) ? joursServis(id) : []), j])]);
             return (
-              <div className="mb-4 rounded-xl overflow-hidden border border-[var(--line)]" style={{ borderTop: "3px solid #D9691A" }}>
-                <div className="px-4 py-2.5" style={{ backgroundColor: "#FDF3E7" }}><span className="font-bold text-sm text-[var(--ink)]">Carte de la semaine</span> <span className="text-xs text-[var(--steel)]">Un plat peut être sur un ou plusieurs jours ; retirez-le d'un jour avec ×</span></div>
+              <div className="mb-4">
+                <div className="flex flex-wrap items-center gap-3 mb-3">
+                  <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#D9691A" }}><UtensilsCrossed size={26} /></span>
+                  <div className="min-w-0">
+                    <h3 className="text-lg font-bold text-[var(--ink)]">Carte de la semaine</h3>
+                    <p className="text-xs text-[var(--steel)]">{estChef ? "Une colonne par jour. Ajoutez un plat avec le menu en bas de la colonne, retirez-le d'un jour avec ×. Un plat peut être sur plusieurs jours." : "Les plats proposés chaque jour de la semaine."}</p>
+                  </div>
+                </div>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-sm border-collapse" style={{ minWidth: 760 }}>
-                    <thead><tr className="text-xs text-[var(--steel)]"><th className="p-2 text-left w-28"></th>{JOURS.map((j) => <th key={j} className="p-2 text-center font-semibold text-[var(--ink)]">{j}</th>)}</tr></thead>
-                    <tbody>
-                      {parCat.map(({ c, ids }) => (
-                        <tr key={c} className="border-t border-[var(--line)] align-top">
-                          <th className="p-2 text-left text-xs uppercase tracking-wide text-[var(--steel)]">{c}</th>
-                          {JOURS.map((j) => (
-                            <td key={j} className="p-1">
-                              {ids.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).map((id) => (
-                                <div key={id} className="flex items-start justify-between gap-1 rounded-md border border-[var(--cadre)] bg-white px-1.5 py-1 mb-1 text-xs text-[var(--ink)]">
-                                  <span className="font-medium break-words min-w-0">{nomDe(id)}</span>
-                                  {estChef && <button type="button" onClick={() => retirerDuJour(id, j)} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title={`Retirer du ${j.toLowerCase()}`}><X size={12} /></button>}
-                                </div>
-                              ))}
-                            </td>
-                          ))}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
+                  <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(7, minmax(11rem, 1fr))", minWidth: 1100 }}>
+                    {JOURS.map((j, ji) => {
+                      const col = COUL_JOURS[ji];
+                      const duJour = parCat.map(({ c, ids }) => ({ c, ids: ids.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)) })).filter((x) => x.ids.length);
+                      const total = duJour.reduce((t, x) => t + x.ids.length, 0);
+                      return (
+                        <div key={j} className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: col }}>
+                          <div className="px-3 py-2 text-white flex items-baseline justify-between gap-2" style={{ background: col }}>
+                            <span className="font-bold text-base">{j}</span>
+                            <span className="text-[11px] opacity-90">{total} plat{total > 1 ? "s" : ""}</span>
+                          </div>
+                          <div className="p-2 flex-1 space-y-2">
+                            {duJour.length === 0 && <div className="text-[11px] italic text-[var(--steel)]">Aucun plat ce jour-là</div>}
+                            {duJour.map(({ c, ids }) => (
+                              <div key={c}>
+                                <div className="text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 mb-1 text-white inline-block" style={{ background: couleurCat(c) }}>{c}</div>
+                                {ids.map((id) => (
+                                  <div key={id} className="flex items-start justify-between gap-1 rounded-lg border-l-4 bg-white border border-[var(--cadre)] px-1.5 py-1 mb-1 text-xs text-[var(--ink)]" style={{ borderLeftColor: couleurCat(c) }}>
+                                    <span className="font-medium break-words min-w-0">{nomDe(id)}</span>
+                                    {estChef && <button type="button" onClick={() => retirerDuJour(id, j)} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title={`Retirer du ${j.toLowerCase()}`}><X size={12} /></button>}
+                                  </div>
+                                ))}
+                              </div>
+                            ))}
+                          </div>
+                          {estChef && categories.length > 0 && (
+                            <div className="p-2 border-t border-[var(--cadre)]" style={{ background: col + "14" }}>
+                              <select className={`${inputCls} !min-h-[40px] !py-1.5 text-xs w-full min-w-0`} value="" onChange={(e) => { if (e.target.value) ajouterAuJour(e.target.value, j); }}>
+                                <option value="">+ Ajouter un plat…</option>
+                                {categories.map((c) => {
+                                  const dispo = plats.filter((f) => f.categorie === c && !(idsCarte.includes(f.id) && platServiCeJour(carte, f.id, j)));
+                                  return dispo.length ? <optgroup key={c} label={c}>{dispo.map((f) => <option key={f.id} value={f.id}>{f.nom}</option>)}</optgroup> : null;
+                                })}
+                              </select>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
                 </div>
               </div>
             );
