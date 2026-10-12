@@ -3957,7 +3957,7 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
     { id: "carte", label: "Ma carte", icon: UtensilsCrossed, section: "cuisine" },
     { id: "dossierControle", label: "Dossier de contrôle (inspection)", icon: ClipboardCheck, section: "hygiene" },
     { id: "pmsDossier", label: "PMS — dossier", icon: Building2, section: "hygiene" },
-    { id: "pms", label: "PMS — plan de nettoyage", icon: SprayCan, section: "hygiene" },
+    { id: "pms", label: "Plan de nettoyage", icon: SprayCan, section: "hygiene" },
     { id: "pmsPrestataires", label: "Prestataires", icon: PhoneCall, section: "hygiene" },
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
