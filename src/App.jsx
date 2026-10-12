@@ -11104,6 +11104,10 @@ function BoutonsExport({ titre, colonnes, lignes }) {
   );
 }
 
+const ingredientsDefaut = (f) => ((f && f.ingredients) || []).map((i) => (i && i.nom) || "").filter(Boolean).join(", ");
+const descriptionPlat = (carte, f) => { const d = (carte && carte.descriptions) || {}; return d[f.id] !== undefined ? d[f.id] : ingredientsDefaut(f); };
+const suggestionPourJour = (carte, id, jourNom) => ((carte && carte.suggestions) || []).some((s) => s.id === id && (s.jours || []).includes(jourNom));
+
 function ApercuCarte({ carte, plats, categories, onClose }) {
   const [date, setDate] = useState(todayISO());
   const [avecPrix, setAvecPrix] = useState(true);
@@ -11115,8 +11119,9 @@ function ApercuCarte({ carte, plats, categories, onClose }) {
   const titre = (carte && carte.nom) || "Ma carte";
   const esc = (t) => String(t == null ? "" : t).replace(/&/g, "&amp;").replace(/</g, "&lt;");
   const html = () => {
-    const corps = parCat.map(({ c, items }) => `<h2>${esc(c)}</h2>` + items.map((f) => `<p class="plat"><b>${esc(f.nom)}</b>${avecPrix && prixDe(f) ? ` <span class="prix">${esc(prixDe(f))}</span>` : ""}</p>`).join("")).join("");
-    return `<html><head><meta charset="utf-8"><title>${esc(titre)}</title><style>body{font-family:Georgia,serif;padding:32px;color:#1D2321;max-width:720px;margin:auto}h1{text-align:center;margin-bottom:4px}.sous{text-align:center;color:#657069;margin-bottom:24px}h2{border-bottom:1px solid #ccc;padding-bottom:4px;margin-top:24px;text-transform:uppercase;font-size:15px;letter-spacing:1px}.plat{margin:8px 0}.prix{float:right}.all{font-size:12px;color:#657069}</style></head><body><h1>${esc(titre)}</h1><div class="sous">Carte du ${esc(joliDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}</div>${corps || "<p>Aucun plat sur la carte ce jour-là.</p>"}</body></html>`;
+    const lignePlat = (f) => `<p class="plat"><b>${esc(f.nom)}</b>${avecPrix && prixDe(f) ? ` <span class="prix">${esc(prixDe(f))}</span>` : ""}${descriptionPlat(carte, f) ? `<br><span class="desc">${esc(descriptionPlat(carte, f))}</span>` : ""}</p>`;
+    const corps = parCat.map(({ c, items }) => { const norm = items.filter((f) => !suggestionPourJour(carte, f.id, jourNomApercu)); const sug = items.filter((f) => suggestionPourJour(carte, f.id, jourNomApercu)); return `<h2>${esc(c)}</h2>` + norm.map(lignePlat).join("") + (sug.length ? `<h3>Suggestion du chef</h3>` + sug.map(lignePlat).join("") : ""); }).join("");
+    return `<html><head><meta charset="utf-8"><title>${esc(titre)}</title><style>body{font-family:Georgia,serif;padding:32px;color:#1D2321;max-width:720px;margin:auto}h1{text-align:center;margin-bottom:4px}.sous{text-align:center;color:#657069;margin-bottom:24px}h2{border-bottom:1px solid #ccc;padding-bottom:4px;margin-top:24px;text-transform:uppercase;font-size:15px;letter-spacing:1px}.plat{margin:8px 0}.prix{float:right}.desc{font-size:12px;color:#657069;font-style:italic}h3{font-size:12px;font-style:italic;margin:14px 0 4px}.all{font-size:12px;color:#657069}</style></head><body><h1>${esc(titre)}</h1><div class="sous">Carte du ${esc(joliDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" }))}</div>${corps || "<p>Aucun plat sur la carte ce jour-là.</p>"}</body></html>`;
   };
   const imprimer = () => {
     const fr = document.createElement("iframe");
@@ -11131,8 +11136,8 @@ function ApercuCarte({ carte, plats, categories, onClose }) {
   const excel = async () => {
     try {
       const XLSX = await import("xlsx");
-      const lignes = [["Catégorie", "Plat", ...(avecPrix ? ["Prix"] : [])]];
-      parCat.forEach(({ c, items }) => items.forEach((f) => lignes.push([c, f.nom, ...(avecPrix ? [prixDe(f)] : [])])));
+      const lignes = [["Catégorie", "Plat", ...(avecPrix ? ["Prix"] : []), "Ingrédients"]];
+      parCat.forEach(({ c, items }) => items.forEach((f) => lignes.push([suggestionPourJour(carte, f.id, jourNomApercu) ? `${c} — Suggestion du chef` : c, f.nom, ...(avecPrix ? [prixDe(f)] : []), descriptionPlat(carte, f)])));
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lignes), "Carte");
       XLSX.writeFile(wb, `${nomFichier}.xlsx`); setMessage("Fichier Excel téléchargé.");
     } catch (e) { setMessage("Le fichier Excel n'a pas pu être créé."); }
@@ -11157,16 +11162,23 @@ function ApercuCarte({ carte, plats, categories, onClose }) {
           <h2 className="text-xl font-bold text-center text-[var(--ink)]">{titre}</h2>
           <p className="text-center text-xs text-[var(--steel)] mb-4">Carte du {joliDate(date, { weekday: "long", day: "numeric", month: "long", year: "numeric" })}</p>
           {parCat.length === 0 && <p className="text-sm text-[var(--steel)] text-center">Aucun plat sur la carte ce jour-là.</p>}
-          {parCat.map(({ c, items }) => (
-            <div key={c} className="mb-4">
-              <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--ink)] border-b border-[var(--cadre)] pb-1 mb-2">{c}</h3>
-              {items.map((f) => (
-                <div key={f.id} className="mb-2">
-                  <div className="flex justify-between gap-3 text-sm text-[var(--ink)]"><span className="font-semibold">{f.nom}</span>{avecPrix && prixDe(f) && <span>{prixDe(f)}</span>}</div>
-                </div>
-              ))}
-            </div>
-          ))}
+          {parCat.map(({ c, items }) => {
+            const norm = items.filter((f) => !suggestionPourJour(carte, f.id, jourNomApercu));
+            const sug = items.filter((f) => suggestionPourJour(carte, f.id, jourNomApercu));
+            const ligne = (f) => (
+              <div key={f.id} className="mb-2">
+                <div className="flex justify-between gap-3 text-sm text-[var(--ink)]"><span className="font-semibold">{f.nom}</span>{avecPrix && prixDe(f) && <span>{prixDe(f)}</span>}</div>
+                {descriptionPlat(carte, f) && <div className="text-xs italic text-[var(--steel)]">{descriptionPlat(carte, f)}</div>}
+              </div>
+            );
+            return (
+              <div key={c} className="mb-4">
+                <h3 className="text-xs font-bold uppercase tracking-widest text-[var(--ink)] border-b border-[var(--cadre)] pb-1 mb-2">{c}</h3>
+                {norm.map(ligne)}
+                {sug.length > 0 && <><div className="text-xs font-bold italic text-[var(--ink)] mt-2 mb-1">★ Suggestion du chef</div>{sug.map(ligne)}</>}
+              </div>
+            );
+          })}
         </div>
       </div>
     </div>
@@ -11204,6 +11216,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const [messageCarte, setMessageCarte] = useState("");
   const [saisieLibre, setSaisieLibre] = useState({});
   const [repliees, setRepliees] = useState({});
+  const [selSugg, setSelSugg] = useState([]);
+  const [suggOuvert, setSuggOuvert] = useState({});
   const [vueCarte, setVueCarte] = useState("creer");
   const [jourApercu, setJourApercu] = useState(() => JOURS[(new Date().getDay() + 6) % 7]);
   const carte = triees.find((c) => c.id === choisieId) || enCours || triees[triees.length - 1] || null;
@@ -11291,22 +11305,27 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             const typeJour = type === "jour";
             const joursChoisis = typeJour ? [JOURS[(dateDepuisIso(carte.debut || aujourdhui).getDay() + 6) % 7]] : type === "fixe" ? [...JOURS] : joursAjout;
             const avecJours = !typeJour && type !== "fixe";
-            const COUL_TYPES = ["#2E86D6", "#D9691A", "#16A085", "#8E44AD", "#B7950B", "#C0629A"];
-            const changerType = (t) => {
+                        const changerType = (t) => {
               if (t === type) return;
               if (cartes.length === 1 && !idsCarte.length && !libres.length) { setCartes([{ ...carte, typeCarte: t, ...periodeCarte(t, aujourdhui) }]); setChoisieId(carte.id); }
               else { if (!window.confirm(`Créer une nouvelle carte « ${(TYPES_CARTE.find((x) => x[0] === t) || [])[1]} » ? Votre carte actuelle est conservée.`)) return; choisirType(t); }
               setSelAjout([]); setJoursAjout([]);
             };
             const joursDe = (id) => JOURS.filter((x) => idsCarte.includes(id) && platServiCeJour(carte, id, x));
+            const nbCoches = new Set([...selAjout, ...selSugg]).size;
             const valider = () => {
               const jp = { ...(carte.joursPlat || {}) };
-              const idsLibres = selAjout.filter((id) => libres.some((l) => l.id === id));
-              const idsFiches = selAjout.filter((id) => !idsLibres.includes(id));
+              const tous = [...new Set([...selAjout, ...selSugg])];
+              const idsLibres = tous.filter((id) => libres.some((l) => l.id === id));
+              const idsFiches = tous.filter((id) => !idsLibres.includes(id));
               idsFiches.forEach((id) => { const u = [...new Set([...joursDe(id), ...joursChoisis])]; jp[id] = u.length === 7 ? { mode: "continu" } : { mode: "jours", jours: u }; });
-              majCarte({ plats: [...new Set([...idsCarte, ...idsFiches])], datesAjout: marquerAjout(idsFiches), joursPlat: jp, platsLibres: libres.map((l) => (idsLibres.includes(l.id) ? { ...l, jours: [...new Set([...(l.jours || []), ...joursChoisis])] } : l)) });
-              setMessageCarte(`Carte validée pour ${joursChoisis.join(", ")} : ${selAjout.length} plat${selAjout.length > 1 ? "s" : ""} ajouté${selAjout.length > 1 ? "s" : ""}.`);
-              setSelAjout([]); setJoursAjout([]);
+              const m = {}; (carte.suggestions || []).forEach((x) => { m[x.id] = [...(x.jours || [])]; });
+              selSugg.forEach((id) => { m[id] = [...new Set([...(m[id] || []), ...joursChoisis])]; });
+              selAjout.filter((id) => !selSugg.includes(id)).forEach((id) => { if (m[id]) m[id] = m[id].filter((x) => !joursChoisis.includes(x)); });
+              const suggestions = Object.entries(m).filter(([, js]) => js.length).map(([id, jours]) => ({ id, jours }));
+              majCarte({ plats: [...new Set([...idsCarte, ...idsFiches])], datesAjout: marquerAjout(idsFiches), joursPlat: jp, suggestions, platsLibres: libres.map((l) => (idsLibres.includes(l.id) ? { ...l, jours: [...new Set([...(l.jours || []), ...joursChoisis])] } : l)) });
+              setMessageCarte(`Carte validée pour ${joursChoisis.join(", ")} : ${tous.length} plat${tous.length > 1 ? "s" : ""} ajouté${tous.length > 1 ? "s" : ""}.`);
+              setSelAjout([]); setSelSugg([]); setJoursAjout([]);
             };
             const nbJour = (j) => idsCarte.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).length + libres.filter((l) => (l.jours || []).includes(j)).length;
             const ajouterLibre = (c) => {
@@ -11339,21 +11358,17 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                 </div>
                 {categories.length === 0 ? <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique de plat pour l'instant : créez d'abord vos plats dans « Créer une fiche technique ».</p> : (
                   <div>
-                    <div className="grid gap-2 items-start" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(10.5rem, 1fr))" }}>
-                      {colonne("1. ", "Type de carte", "#2E86D6", (
-                        <div className="p-3 space-y-2">
-                          <div className="grid gap-1.5">
-                            {TYPES_CARTE.map(([k, lib], ti) => (
-                              <button key={k} type="button" onClick={() => changerType(k)} className="text-left rounded-lg px-3 py-2 text-sm font-semibold border-2" style={type === k ? { background: COUL_TYPES[ti], color: "#fff", borderColor: COUL_TYPES[ti] } : { background: "#fff", color: COUL_TYPES[ti], borderColor: COUL_TYPES[ti] }}>{lib}</button>
-                            ))}
-                          </div>
-                          {periodique && triees.length > 1 && <div><label className={libNet}>Carte à construire</label><select className={champNet} value={carte.id} onChange={(e) => { setChoisieId(e.target.value); setSelAjout([]); }}>{triees.map((x) => <option key={x.id} value={x.id}>{x.nom}</option>)}</select></div>}
-                          <div><label className={libNet}>Nom de la carte</label><ChampTexteDiffere value={carte.nom} onCommit={(v) => v.trim() && majCarte({ nom: v.trim() })} className={champNet} /></div>
-                          {periodique && <div className="grid grid-cols-2 gap-2"><div><label className={libNet}>Du</label><input type="date" className={champNet} value={carte.debut || ""} onChange={(e) => e.target.value && majCarte({ debut: e.target.value })} /></div><div><label className={libNet}>Au</label><input type="date" className={champNet} value={carte.fin || ""} onChange={(e) => e.target.value && majCarte({ fin: e.target.value })} /></div></div>}
-                          <p className="text-xs text-[var(--steel)]">{categoriesFiches.length ? "Les colonnes suivantes viennent de vos fiches techniques." : "Aucune fiche technique de plat trouvée pour l'instant : ajoutez vos plats à la main dans les colonnes, ou créez-les dans « Créer une fiche technique »."}</p>
-                        </div>
+                    <div className="flex flex-wrap items-end gap-2 mb-3">
+                      {[["fixe", "Carte fixe", "#2E86D6", type === "fixe"], ["semaine", "Carte à la semaine", "#D9691A", type !== "fixe"]].map(([k, lib, col, actif]) => (
+                        <button key={k} type="button" onClick={() => { if (k === "semaine" && type !== "fixe") return; changerType(k); }} className="px-5 py-2.5 rounded-xl text-sm font-bold border-2" style={actif ? { background: col, color: "#fff", borderColor: col } : { background: "#fff", color: col, borderColor: col }}>{lib}</button>
                       ))}
-                      {avecJours && colonne("2. ", "Jours", "#16A085", (
+                      {periodique && triees.length > 1 && <div className="min-w-[10rem]"><label className={libNet}>Carte à construire</label><select className={champNet} value={carte.id} onChange={(e) => { setChoisieId(e.target.value); setSelAjout([]); setSelSugg([]); }}>{triees.map((x) => <option key={x.id} value={x.id}>{x.nom}</option>)}</select></div>}
+                      <div className="min-w-[10rem]"><label className={libNet}>Nom de la carte</label><ChampTexteDiffere value={carte.nom} onCommit={(v) => v.trim() && majCarte({ nom: v.trim() })} className={champNet} /></div>
+                      {periodique && <><div><label className={libNet}>Du</label><input type="date" className={champNet} value={carte.debut || ""} onChange={(e) => e.target.value && majCarte({ debut: e.target.value })} /></div><div><label className={libNet}>Au</label><input type="date" className={champNet} value={carte.fin || ""} onChange={(e) => e.target.value && majCarte({ fin: e.target.value })} /></div></>}
+                    </div>
+                    {categoriesFiches.length === 0 && <p className="text-xs text-[var(--steel)] mb-2">Aucune fiche technique de plat trouvée pour l'instant : ajoutez vos plats à la main dans les colonnes, ou créez-les dans « Créer une fiche technique ».</p>}
+                    <div className="grid gap-2 items-start" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(10.5rem, 1fr))" }}>
+                      {avecJours && colonne("1. ", "Jours", "#16A085", (
                         <div className="p-3">
                           <p className="text-xs text-[var(--steel)] mb-2">Cochez un ou plusieurs jours.</p>
                           <div className="grid gap-1.5">
@@ -11408,11 +11423,32 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                                   );
                                 })}
                               </ul>
+                              <div className="mt-2 pt-2 border-t-2 border-dashed" style={{ borderColor: couleur }}>
+                                <button type="button" onClick={() => setSuggOuvert({ ...suggOuvert, [c]: !suggOuvert[c] })} className="w-full rounded-lg px-2 py-1.5 text-xs font-bold border-2 flex items-center justify-between gap-2" style={suggOuvert[c] ? { background: couleur, color: "#fff", borderColor: couleur } : { background: "#fff", color: couleur, borderColor: couleur }} aria-expanded={!!suggOuvert[c]}>
+                                  <span>★ Suggestion du chef</span><span className="text-[10px] opacity-90">{ids.filter((x) => selSugg.includes(x)).length || ""}</span>
+                                </button>
+                                {suggOuvert[c] && (
+                                  <ul className="space-y-1 mt-1.5 overflow-y-auto" style={{ maxHeight: "12rem" }}>
+                                    {dispo.length === 0 && <li className="text-[11px] italic text-[var(--steel)]">Aucun plat à proposer.</li>}
+                                    {dispo.map((f) => {
+                                      const on = selSugg.includes(f.id);
+                                      return (
+                                        <li key={f.id}>
+                                          <label className="flex items-start gap-2 text-sm text-[var(--ink)] rounded-lg px-2 py-1.5 border-2 cursor-pointer" style={on ? { background: couleur + "1F", borderColor: couleur } : { background: "#fff", borderColor: "var(--cadre)" }}>
+                                            <input type="checkbox" className="w-5 h-5 mt-0.5 shrink-0" checked={on} onChange={() => setSelSugg(on ? selSugg.filter((x) => x !== f.id) : [...selSugg, f.id])} />
+                                            <span className="min-w-0 flex-1 break-words">{f.nom}</span>
+                                          </label>
+                                        </li>
+                                      );
+                                    })}
+                                  </ul>
+                                )}
+                              </div>
                             </div>
                           );
                         };
                         return groupes.map((g, gi) => {
-                          const num = `${gi + 2 + (avecJours ? 1 : 0)}. `;
+                          const num = `${gi + 1 + (avecJours ? 1 : 0)}. `;
                           const total = g.cats.reduce((t, c) => t + infosCat(c).dispo.length, 0);
                           const coch = g.cats.reduce((t, c) => t + infosCat(c).cochees, 0);
                           const pied = <span className="text-[11px] opacity-90">{coch}/{total}</span>;
@@ -11441,9 +11477,9 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                       })()}
                     </div>
                     <div className="sticky bottom-2 z-30 mt-3 rounded-xl border-2 shadow-lg px-4 py-3 flex flex-wrap items-center gap-3" style={{ background: "#FFF7ED", borderColor: "#D9691A" }}>
-                      <span className="text-sm font-semibold text-[var(--ink)]">{selAjout.length} plat{selAjout.length > 1 ? "s" : ""} coché{selAjout.length > 1 ? "s" : ""}{avecJours ? ` · ${joursChoisis.length} jour${joursChoisis.length > 1 ? "s" : ""}` : typeJour ? " · ce jour" : " · tous les jours"}</span>
+                      <span className="text-sm font-semibold text-[var(--ink)]">{nbCoches} plat{nbCoches > 1 ? "s" : ""} coché{nbCoches > 1 ? "s" : ""}{avecJours ? ` · ${joursChoisis.length} jour${joursChoisis.length > 1 ? "s" : ""}` : typeJour ? " · ce jour" : " · tous les jours"}</span>
                       {messageCarte && <span className="text-sm font-semibold" style={{ color: "#15803D" }}>{messageCarte}</span>}
-                      <button type="button" disabled={!selAjout.length || !joursChoisis.length} onClick={valider} className="ml-auto px-6 py-3 rounded-xl text-white text-base font-bold disabled:opacity-40" style={{ background: "#D9691A" }}>✓ Valider</button>
+                      <button type="button" disabled={!nbCoches || !joursChoisis.length} onClick={valider} className="ml-auto px-6 py-3 rounded-xl text-white text-base font-bold disabled:opacity-40" style={{ background: "#D9691A" }}>✓ Valider</button>
                     </div>
                   </div>
                 )}
@@ -11480,9 +11516,9 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                     {JOURS.map((j, ji) => {
                       const col = COUL_JOURS[ji];
                       const duJour = categories.map((c) => ({ c, items: [
-                        ...((parCat.find((x) => x.c === c) || { ids: [] }).ids.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).map((id) => ({ id, nom: nomDe(id), libre: false }))),
-                        ...libres.filter((l) => l.categorie === c && (l.jours || []).includes(j)).map((l) => ({ id: l.id, nom: l.nom, libre: true })),
-                      ] })).filter((x) => x.items.length);
+                        ...((parCat.find((x) => x.c === c) || { ids: [] }).ids.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).map((id) => ({ id, nom: nomDe(id), libre: false, sugg: suggestionPourJour(carte, id, j) }))),
+                        ...libres.filter((l) => l.categorie === c && (l.jours || []).includes(j)).map((l) => ({ id: l.id, nom: l.nom, libre: true, sugg: suggestionPourJour(carte, l.id, j) })),
+                      ].sort((a, b) => Number(!!a.sugg) - Number(!!b.sugg)) })).filter((x) => x.items.length);
                       const total = duJour.reduce((t, x) => t + x.items.length, 0);
                       return (
                         <div key={j} className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: col }}>
@@ -11495,11 +11531,14 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                             {duJour.map(({ c, items }) => (
                               <div key={c}>
                                 <div className="text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 mb-1 text-white inline-block" style={{ background: couleurCat(c) }}>{c}</div>
-                                {items.map(({ id, nom, libre }) => (
-                                  <div key={id} className="flex items-start justify-between gap-1 rounded-lg border-l-4 bg-white border border-[var(--cadre)] px-1.5 py-1 mb-1 text-xs text-[var(--ink)]" style={{ borderLeftColor: couleurCat(c) }}>
+                                {items.map(({ id, nom, libre, sugg }, ix) => (
+                                  <React.Fragment key={id}>
+                                  {sugg && (ix === 0 || !items[ix - 1].sugg) && <div className="text-[10px] font-bold italic text-[var(--ink)] mt-1 mb-0.5">★ Suggestion du chef</div>}
+                                  <div className="flex items-start justify-between gap-1 rounded-lg border-l-4 bg-white border border-[var(--cadre)] px-1.5 py-1 mb-1 text-xs text-[var(--ink)]" style={{ borderLeftColor: couleurCat(c) }}>
                                     <span className="font-medium break-words min-w-0">{nom}</span>
                                     {estChef && <button type="button" onClick={() => (libre ? majCarte({ platsLibres: libres.map((l) => (l.id === id ? { ...l, jours: (l.jours || []).filter((x) => x !== j) } : l)) }) : retirerDuJour(id, j))} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title={`Retirer du ${j.toLowerCase()}`}><X size={12} /></button>}
                                   </div>
+                                  </React.Fragment>
                                 ))}
                               </div>
                             ))}
@@ -11540,12 +11579,25 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                     <h4 className="text-xl font-bold text-center text-[var(--ink)]">{carte.nom}</h4>
                     <p className="text-center text-xs text-[var(--steel)] mb-4">{jourApercu}</p>
                     {parCatJ.length === 0 && <p className="text-sm text-center text-[var(--steel)]">Aucun plat ce jour-là.</p>}
-                    {parCatJ.map(({ c, items }) => (
-                      <div key={c} className="mb-4">
-                        <h5 className="text-xs font-bold uppercase tracking-widest text-[var(--ink)] border-b border-[var(--cadre)] pb-1 mb-2">{c}</h5>
-                        {items.map((f) => <div key={f.id} className="flex justify-between gap-3 text-sm text-[var(--ink)] mb-1.5"><span className="font-semibold">{f.nom}</span>{estChef && f.cout && f.cout.prixVente ? <span>{f.cout.prixVente} €</span> : null}</div>)}
-                      </div>
-                    ))}
+                    {parCatJ.map(({ c, items }) => {
+                      const norm = items.filter((f) => !suggestionPourJour(carte, f.id, jourApercu));
+                      const sug = items.filter((f) => suggestionPourJour(carte, f.id, jourApercu));
+                      const ligne = (f) => (
+                        <div key={f.id} className="mb-2">
+                          <div className="flex justify-between gap-3 text-sm text-[var(--ink)]"><span className="font-semibold">{f.nom}</span>{estChef && f.cout && f.cout.prixVente ? <span>{f.cout.prixVente} €</span> : null}</div>
+                          {estChef
+                            ? <ChampTexteDiffere key={f.id + jourApercu} value={descriptionPlat(carte, f)} onCommit={(v) => majCarte({ descriptions: { ...(carte.descriptions || {}), [f.id]: v } })} placeholder="Ingrédients ou description du plat…" className="w-full text-xs italic text-[var(--steel)] border-b border-dashed border-[var(--cadre)] bg-transparent py-0.5 outline-none focus:border-[var(--accent)]" />
+                            : descriptionPlat(carte, f) && <div className="text-xs italic text-[var(--steel)]">{descriptionPlat(carte, f)}</div>}
+                        </div>
+                      );
+                      return (
+                        <div key={c} className="mb-4">
+                          <h5 className="text-xs font-bold uppercase tracking-widest text-[var(--ink)] border-b border-[var(--cadre)] pb-1 mb-2">{c}</h5>
+                          {norm.map(ligne)}
+                          {sug.length > 0 && <><div className="text-xs font-bold italic text-[var(--ink)] mt-2 mb-1">★ Suggestion du chef</div>{sug.map(ligne)}</>}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>
