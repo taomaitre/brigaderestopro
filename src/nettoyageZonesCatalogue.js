@@ -163,3 +163,15 @@ export const COULEURS_ZONES_EXTRA = ["#0F766E", "#B45309", "#6D28D9", "#0369A1",
 
 
 export const JOURS_COURTS_NET = { Lundi: "Lun", Mardi: "Mar", Mercredi: "Mer", Jeudi: "Jeu", Vendredi: "Ven", Samedi: "Sam", Dimanche: "Dim" };
+
+// Types de produits de nettoyage (une couleur par type) ; « cle » = protocole type proposé pour ce type
+export const CATEGORIES_PRODUITS_NET = [
+  { nom: "Dégraissant", couleur: "#D9691A", cle: "Dégraissant alimentaire" },
+  { nom: "Désinfectant", couleur: "#1E88E5", cle: "Désinfectant alimentaire" },
+  { nom: "Détergent", couleur: "#2F8F4E", cle: "Détergent alimentaire" },
+  { nom: "Détartrant", couleur: "#8E4FBF", cle: "Détartrant alimentaire" },
+  { nom: "Four et grill", couleur: "#8D5A33", cle: "Nettoyant four et grill (usage alimentaire)" },
+  { nom: "Sols", couleur: "#5B6B7A", cle: "Désinfectant sols" },
+  { nom: "Lave-vaisselle", couleur: "#17A2B8", cle: "Produit lave-vaisselle et liquide de rinçage" },
+  { nom: "Autre", couleur: "#B58900", cle: "Eau chaude et savon" },
+];

@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
-import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
+import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
 import { CATEGORIES_FICHE_GENERALES, APPAREILS_CUISSON_GENERAUX, APPAREILS_MAINTIEN_GENERAUX, MATERIEL_GENERAL, USTENSILES_GENERAUX, PARAMETRES_APPAREIL, resumeParametresAppareil } from './listesFiches.js';
@@ -6777,7 +6777,7 @@ function PlanNettoyageTableau({ cleaning, setCleaning, zones, employees, logActi
 }
 
 function HaccpNettoyage({ chargerPlanDepart, cleaning, setCleaning, currentUserId, logActivity, who, zonesNettoyage: zonesStockees, setZonesNettoyage, employees, demandesAjout, signalerAjout }) {
-  const zonesNettoyage = [...new Set([...zonesStockees, ...cleaning.map((t) => t.poste || "Tous")])];
+  const zonesNettoyage = [...new Set([...zonesStockees, ...cleaning.filter((t) => !t.produitNettoyage).map((t) => t.poste || "Tous")])];
   const [infosFicheNettoyage, setInfosFicheNettoyage] = useState(null);
   const [nouveau, setNouveau] = useState({ tache: "", frequence: "Quotidienne", poste: "Tous" });
   const [noteOuverte, setNoteOuverte] = useState(null);
@@ -7124,7 +7124,7 @@ function construireZonesNet(cleaning, zonesStockees) {
   const ajout = (n) => { const z = n || "Tous"; if (!noms.some((x) => normaliserNomNet(x) === normaliserNomNet(z))) noms.push(z); };
   ZONES_CUISINE.forEach((z) => ajout(z.nom));
   (zonesStockees || []).forEach(ajout);
-  (cleaning || []).forEach((t) => ajout(t.poste));
+  (cleaning || []).filter((t) => !t.produitNettoyage).forEach((t) => ajout(t.poste));
   let extra = 0;
   return noms.map((nom) => {
     const cat = ZONES_CUISINE.find((z) => normaliserNomNet(z.nom) === normaliserNomNet(nom));
@@ -7163,7 +7163,7 @@ function outilsLignesNet(cleaning, setCleaning, zonesNettoyage, setZonesNettoyag
     let nb = 0;
     zonesChoisies.forEach((zone) => elements.forEach((el) => {
       const cible = normaliserNomNet(el.nom);
-      const idx = liste.findIndex((t) => normaliserNomNet(t.poste || "Tous") === normaliserNomNet(zone) && normaliserNomNet(baseTacheNet(t.tache)) === cible);
+      const idx = liste.findIndex((t) => !t.produitNettoyage && normaliserNomNet(t.poste || "Tous") === normaliserNomNet(zone) && normaliserNomNet(baseTacheNet(t.tache)) === cible);
       const patch = { ...valeurs, genre: el.genre, masque: undefined };
       if (idx >= 0) liste[idx] = normaliserTacheNet({ ...liste[idx], ...patch }); else liste.push(nouvelle(zone, el.nom, { ...patch, duree: el.duree }));
       nb++;
@@ -7245,6 +7245,126 @@ function EnteteZoneNet({ zone, soustitre, noms, onAjouterElement, onAjouterZone,
   );
 }
 
+const estProduitNet = (t) => !!t && !!t.produitNettoyage;
+// Texte « dosage, température, temps de contact » d'une fiche produit
+const dosageDeProduitNet = (p) => [p.dosage, p.temperature && `eau ${p.temperature}`, p.contact && `contact ${p.contact}`, p.rincage && `rinçage : ${p.rincage}`].filter(Boolean).join(" · ");
+
+const PRODUIT_NET_VIDE = { id: null, nom: "", marque: "", categorie: "Désinfectant", dosage: "", temperature: "", contact: "", rincage: "", precautions: "", fiche: "", etapes: [""], zones: [] };
+
+// Onglet « Mes produits » : chaque produit de nettoyage avec sa fiche technique (dosage, contact, rinçage, protocole type)
+function ProduitsNettoyageNet({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity }) {
+  const produits = cleaning.filter(estProduitNet);
+  const zones = construireZonesNet(cleaning, zonesNettoyage);
+  const [form, setForm] = useState(null);
+  const [etapesTouchees, setEtapesTouchees] = useState(false);
+  const [message, setMessage] = useState("");
+  const couleurCat = (nom) => (CATEGORIES_PRODUITS_NET.find((c) => c.nom === nom) || CATEGORIES_PRODUITS_NET[7]).couleur;
+  const protocoleType = (categorie) => { const c = CATEGORIES_PRODUITS_NET.find((x) => x.nom === categorie); const p = c && PROTOCOLES_PAR_PRODUIT[c.cle]; return p ? [...p.etapes] : [""]; };
+  const ouvrir = (p) => {
+    setMessage("");
+    if (p) { setForm({ id: p.id, nom: p.tache, marque: p.marque || "", categorie: p.categorie || "Autre", dosage: p.dosage || "", temperature: p.temperature || "", contact: p.contact || "", rincage: p.rincage || "", precautions: p.precautions || "", fiche: p.fiche || "", etapes: (p.etapes || []).length ? [...p.etapes] : [""], zones: p.zonesUsage || [] }); setEtapesTouchees(true); }
+    else { setForm({ ...PRODUIT_NET_VIDE, etapes: protocoleType(PRODUIT_NET_VIDE.categorie) }); setEtapesTouchees(false); }
+  };
+  const maj = (p) => setForm((f) => ({ ...f, ...p }));
+  const changerCategorie = (c) => setForm((f) => ({ ...f, categorie: c, ...(etapesTouchees ? {} : { etapes: protocoleType(c) }) }));
+  const enregistrer = () => {
+    const nom = form.nom.trim();
+    if (!nom) return;
+    if (produits.some((p) => p.id !== form.id && normaliserNomNet(p.tache) === normaliserNomNet(nom))) { setMessage("Ce produit existe déjà."); return; }
+    const champs = { tache: nom, marque: form.marque.trim(), categorie: form.categorie, dosage: form.dosage.trim(), temperature: form.temperature.trim(), contact: form.contact.trim(), rincage: form.rincage, precautions: form.precautions.trim(), fiche: form.fiche.trim(), etapes: form.etapes.map((e) => e.trim()).filter(Boolean), zonesUsage: form.zones };
+    if (form.id) setCleaning(cleaning.map((t) => (t.id === form.id ? { ...t, ...champs } : t)));
+    else setCleaning([...cleaning, { id: uid(), poste: "Tous", frequence: "À chaque utilisation", planifie: false, masque: true, produitNettoyage: true, creeLe: todayISO(), fait: false, date: null, employeeId: null, ...champs }]);
+    logActivity("Nettoyage", form.id ? "Fiche produit de nettoyage modifiée" : "Produit de nettoyage ajouté", nom);
+    setForm(null);
+  };
+  const supprimer = (p) => { setCleaning(cleaning.filter((t) => t.id !== p.id)); logActivity("Nettoyage", "Produit de nettoyage supprimé", p.tache); };
+  const champ = `${inputCls} w-full min-w-0`;
+  return (
+    <div>
+      <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 mb-3 flex flex-wrap items-center gap-3">
+        <p className="flex-1 basis-72 min-w-0 text-sm text-[var(--ink)]">Enregistrez ici chaque produit de nettoyage utilisé dans la cuisine avec les informations de sa <strong>fiche technique</strong> (dosage, température, temps de contact, rinçage). Dans « Par zone », dès que vous choisissez un de ces produits, <strong>le protocole se remplit automatiquement</strong> (vous pouvez toujours le modifier).</p>
+        <Button onClick={() => ouvrir(null)}><Plus size={16} /> Ajouter un produit</Button>
+      </div>
+      {form && (
+        <Card className="mb-4">
+          <h3 className="font-semibold text-[var(--ink)] mb-3">{form.id ? "Modifier le produit" : "Nouveau produit de nettoyage"}</h3>
+          <div className="mb-3">
+            <label className={libNet}>Type de produit</label>
+            <div className="flex flex-wrap gap-2">
+              {CATEGORIES_PRODUITS_NET.map((c) => (
+                <button key={c.nom} type="button" onClick={() => changerCategorie(c.nom)} style={{ background: form.categorie === c.nom ? c.couleur : "#fff", color: form.categorie === c.nom ? "#fff" : c.couleur, borderColor: c.couleur }} className="px-3 py-1.5 rounded-full text-sm font-semibold border-2 min-h-[38px]">{c.nom}</button>
+              ))}
+            </div>
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))" }}>
+            <div><label className={libNet}>Nom du produit</label><input className={champ} value={form.nom} onChange={(e) => maj({ nom: e.target.value })} placeholder="Nom écrit sur l'étiquette" autoFocus /></div>
+            <div><label className={libNet}>Marque ou fournisseur</label><input className={champ} value={form.marque} onChange={(e) => maj({ marque: e.target.value })} /></div>
+            <div><label className={libNet}>Dosage</label><input className={champ} value={form.dosage} onChange={(e) => maj({ dosage: e.target.value })} placeholder="Ex. 20 ml pour 1 L d'eau" /></div>
+            <div><label className={libNet}>Température de l'eau</label><input className={champ} value={form.temperature} onChange={(e) => maj({ temperature: e.target.value })} placeholder="Ex. eau chaude (moins de 60 °C)" /></div>
+            <div><label className={libNet}>Temps de contact</label><input className={champ} value={form.contact} onChange={(e) => maj({ contact: e.target.value })} placeholder="Ex. 5 minutes" /></div>
+            <div><label className={libNet}>Rinçage</label>
+              <select className={champNet} value={form.rincage} onChange={(e) => maj({ rincage: e.target.value })}><option value="">À préciser</option><option value="à l'eau claire obligatoire">Obligatoire, à l'eau claire</option><option value="sans rinçage">Sans rinçage</option><option value="à l'eau claire si contact alimentaire">Si contact avec les aliments</option></select>
+            </div>
+            <div><label className={libNet}>Précautions</label><input className={champ} value={form.precautions} onChange={(e) => maj({ precautions: e.target.value })} placeholder="Ex. gants et lunettes, ne pas mélanger" /></div>
+            <div><label className={libNet}>Fiche technique (référence ou lien)</label><input className={champ} value={form.fiche} onChange={(e) => maj({ fiche: e.target.value })} placeholder="Ex. adresse web de la fiche, ou « classeur, onglet 3 »" /></div>
+          </div>
+          <div className="mt-3">
+            <label className={libNet}>Utilisé dans quelles zones ?</label>
+            <div className="flex flex-wrap gap-2">
+              {zones.map((z) => { const on = form.zones.includes(z.nom); return (
+                <button key={z.nom} type="button" onClick={() => maj({ zones: on ? form.zones.filter((x) => x !== z.nom) : [...form.zones, z.nom] })} style={{ background: on ? z.couleur : "#fff", color: on ? "#fff" : z.couleur, borderColor: z.couleur }} className="px-3 py-1.5 rounded-full text-xs font-semibold border-2 min-h-[36px] break-words text-left">{on ? "✓ " : ""}{libelleZone(z.nom)}</button>
+              ); })}
+            </div>
+          </div>
+          <div className="mt-3">
+            <div className="flex items-center justify-between gap-2 mb-1.5">
+              <span className={`${libNet} !mb-0`}>Protocole type avec ce produit (étapes)</span>
+              <Button variant="ghost" onClick={() => { setEtapesTouchees(true); maj({ etapes: [...form.etapes, ""] }); }}><Plus size={14} /> Étape</Button>
+            </div>
+            <div className="space-y-2">
+              {form.etapes.map((e, i) => (
+                <div key={i} className="flex items-start gap-2">
+                  <span className="w-6 h-10 flex items-center justify-center text-xs text-[var(--steel)] shrink-0">{i + 1}.</span>
+                  <textarea rows={2} className={`${inputCls} flex-1 min-w-0 text-sm`} value={e} onChange={(ev) => { setEtapesTouchees(true); maj({ etapes: form.etapes.map((x, j) => (j === i ? ev.target.value : x)) }); }} placeholder="Décrire l'étape" />
+                  <button type="button" onClick={() => { setEtapesTouchees(true); maj({ etapes: form.etapes.length > 1 ? form.etapes.filter((_, j) => j !== i) : [""] }); }} className="h-10 px-1 text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title="Retirer l'étape"><X size={14} /></button>
+                </div>
+              ))}
+            </div>
+            <p className="text-xs text-[var(--steel)] mt-1">Proposition générale selon le type de produit : adaptez-la à la fiche technique de votre produit.</p>
+          </div>
+          {message && <p className="text-sm text-[var(--warn)] mt-2">{message}</p>}
+          <div className="flex flex-wrap gap-2 mt-4"><Button onClick={enregistrer} disabled={!form.nom.trim()}>Enregistrer le produit</Button><Button variant="ghost" onClick={() => setForm(null)}>Annuler</Button></div>
+        </Card>
+      )}
+      {!produits.length && !form && <p className="text-sm text-[var(--steel)]">Aucun produit enregistré pour l'instant. Ajoutez le premier avec « Ajouter un produit ».</p>}
+      <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(18rem, 1fr))" }}>
+        {produits.map((p) => (
+          <div key={p.id} className="rounded-xl border border-[var(--cadre)] bg-white overflow-hidden min-w-0 flex flex-col">
+            <div className="px-3 py-2 text-white" style={{ background: couleurCat(p.categorie) }}>
+              <div className="text-xs font-semibold uppercase tracking-wide opacity-90">{p.categorie || "Autre"}</div>
+              <div className="text-base font-bold leading-tight break-words">{p.tache}</div>
+              {p.marque && <div className="text-xs opacity-90 break-words">{p.marque}</div>}
+            </div>
+            <div className="p-3 space-y-1 text-sm flex-1">
+              {[["Dosage", p.dosage], ["Eau", p.temperature], ["Contact", p.contact], ["Rinçage", p.rincage], ["Précautions", p.precautions], ["Fiche", p.fiche]].filter(([, v]) => v).map(([l, v]) => <p key={l} className="break-words"><span className="text-[var(--steel)]">{l} : </span><span className="text-[var(--ink)]">{v}</span></p>)}
+              <p className="text-[var(--steel)]">{(p.etapes || []).length} étape{(p.etapes || []).length > 1 ? "s" : ""} de protocole</p>
+              {(p.zonesUsage || []).length > 0 && (
+                <div className="flex flex-wrap gap-1 pt-1">
+                  {p.zonesUsage.map((n) => { const z = zones.find((x) => x.nom === n); return <span key={n} className="text-[11px] font-semibold text-white rounded-full px-2 py-0.5 break-words" style={{ background: z ? z.couleur : "#9AA3AD" }}>{libelleZone(n)}</span>; })}
+                </div>
+              )}
+            </div>
+            <div className="px-3 py-2 border-t border-[var(--cadre)] flex items-center gap-3">
+              <button type="button" className="text-xs text-[var(--accent)] underline" onClick={() => ouvrir(p)}>Modifier</button>
+              <BoutonSupprimer onConfirm={() => supprimer(p)} size={15} libelle={p.tache} />
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ChoixMultiNet({ actif, onClick, texte, badge }) {
   return (
     <button type="button" onClick={onClick} className={`w-full text-left flex items-start gap-2 rounded-lg border px-2.5 py-2 ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
@@ -7274,7 +7394,7 @@ function ColonneMultiNet({ numero, titre, couleur, onTout, onAucun, onAjouter, c
 }
 
 // Page 1 : 4 colonnes (zones, surfaces, matériel, produit et protocole) avec sélection multiple
-function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity }) {
+function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNettoyage, logActivity, onOuvrirProduits }) {
   const zones = construireZonesNet(cleaning, zonesNettoyage);
   const [zSel, setZSel] = useState([]);
   const [sSel, setSSel] = useState([]);
@@ -7298,11 +7418,17 @@ function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNet
   const nbLignes = zSel.length * elements.length;
   const nbZonesOu = (nom) => new Set(cleaning.filter((t) => !t.masque && (t.produit || (t.etapes || []).length) && normaliserNomNet(baseTacheNet(t.tache)) === normaliserNomNet(nom)).map((t) => normaliserNomNet(t.poste || "Tous"))).size;
 
-  const produitsConnus = [...new Set([...PRODUITS_NETTOYAGE_SUGGERES, ...cleaning.map((t) => t.produit).filter((p) => p && p !== "Aucun")])];
+  const produitsConnus = [...new Set([...cleaning.filter(estProduitNet).map((t) => t.tache), ...PRODUITS_NETTOYAGE_SUGGERES, ...cleaning.filter((t) => !t.produitNettoyage).map((t) => t.produit).filter((p) => p && p !== "Aucun")])];
   const protocoleConnu = (nomProduit) => {
     const n = normaliserNomNet(nomProduit);
     if (!n) return null;
-    const propre = cleaning.find((t) => t.produit && normaliserNomNet(t.produit) === n && (t.etapes || []).length);
+    const fiche = cleaning.find((t) => estProduitNet(t) && normaliserNomNet(t.tache) === n);
+    if (fiche) {
+      const cat = CATEGORIES_PRODUITS_NET.find((c) => c.nom === fiche.categorie);
+      const type = cat && PROTOCOLES_PAR_PRODUIT[cat.cle];
+      return { dosage: dosageDeProduitNet(fiche) || "Selon la fiche technique du produit", etapes: (fiche.etapes || []).length ? fiche.etapes : (type ? type.etapes : [""]), origine: "fiche" };
+    }
+    const propre = cleaning.find((t) => !t.produitNettoyage && t.produit && normaliserNomNet(t.produit) === n && (t.etapes || []).length);
     if (propre) return { dosage: propre.dosage || "", etapes: propre.etapes, origine: "enregistre" };
     const cle = Object.keys(PROTOCOLES_PAR_PRODUIT).find((k) => normaliserNomNet(k) === n);
     return cle ? { dosage: PROTOCOLES_PAR_PRODUIT[cle].dosage, etapes: PROTOCOLES_PAR_PRODUIT[cle].etapes, origine: "produit" } : null;
@@ -7326,7 +7452,7 @@ function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNet
     const connu = protocoleConnu(v);
     setTouche(true); setMessage("");
     setForm((f) => ({ ...f, produit: v, ...(connu && !f.etapesModifiees ? { dosage: connu.dosage, etapes: [...connu.etapes] } : {}) }));
-    if (connu && !form.etapesModifiees) setOrigine(connu.origine === "enregistre" ? "enregistre" : "produit");
+    if (connu && !form.etapesModifiees) setOrigine(connu.origine);
   };
   const majEtapes = (etapes) => { setTouche(true); setOrigine(""); setForm((f) => ({ ...f, etapes, etapesModifiees: true })); };
   const validerAjout = () => {
@@ -7370,7 +7496,7 @@ function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNet
   return (
     <div>
       <div className="rounded-xl border-2 border-[var(--accent)] bg-[var(--accent-soft)] p-3 mb-3 text-sm text-[var(--ink)] space-y-1.5">
-        <p><strong>Important :</strong> le protocole ne peut se remplir automatiquement, avec le bon dosage et le bon temps de contact, que si chaque produit et sa fiche technique sont enregistrés dans le logiciel. Tant que ce n'est pas fait, les protocoles proposés ici sont des modèles généraux à vérifier et à adapter.</p>
+        <p><strong>Important :</strong> le protocole ne peut se remplir automatiquement, avec le bon dosage et le bon temps de contact, que si chaque produit et sa fiche technique sont enregistrés dans l'onglet <button type="button" className="underline font-semibold text-[var(--accent)]" onClick={onOuvrirProduits}>Mes produits et fiches techniques</button>. Tant que ce n'est pas fait, les protocoles proposés ici sont des modèles généraux à vérifier et à adapter.</p>
         <p><strong>Cette page est facultative.</strong> Elle sert au chef qui veut décrire précisément comment nettoyer. Le chef peut aussi se contenter du planning (page 2) et laisser ses employés nettoyer comme ils le font, avec les moyens déjà mis en place dans l'établissement.</p>
       </div>
       <p className="text-sm text-[var(--steel)] mb-3">Cochez une ou plusieurs <strong>zones</strong>, puis des <strong>surfaces</strong> et/ou du <strong>matériel</strong>, puis choisissez le <strong>produit</strong> et le <strong>protocole</strong> : ils seront mis en place d'un seul coup sur toutes les combinaisons cochées. Tout est pré-rempli et modifiable.</p>
@@ -7416,7 +7542,7 @@ function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNet
                 <label className={libNet}>Dosage, température, temps de contact</label>
                 <input className={champ} value={form.dosage} onChange={(e) => { setTouche(true); setForm((f) => ({ ...f, dosage: e.target.value })); }} placeholder="Selon la fiche technique du produit" />
               </div>
-              {origine && <p className="text-xs text-[var(--accent)] font-medium">{origine === "enregistre" ? "Protocole déjà enregistré pour cette sélection ou ce produit." : origine === "produit" ? "Protocole proposé pour ce produit (proposition générale : vérifiez avec la fiche technique de votre produit)." : "Protocole proposé pour cet élément."} Modifiable.</p>}
+              {origine && <p className="text-xs text-[var(--accent)] font-medium">{origine === "fiche" ? "Protocole rempli d'après la fiche technique du produit enregistrée dans « Mes produits »." : origine === "enregistre" ? "Protocole déjà enregistré pour cette sélection ou ce produit." : origine === "produit" ? "Protocole proposé pour ce produit (proposition générale : vérifiez avec la fiche technique de votre produit)." : "Protocole proposé pour cet élément."} Modifiable.</p>}
               <div>
                 <div className="flex items-center justify-between gap-2 mb-1.5">
                   <span className={`${libNet} !mb-0`}>Protocole (étapes)</span>
@@ -7957,11 +8083,12 @@ function ProtocolesNettoyageZones({ cleaning, setCleaning, zonesNettoyage, setZo
   return (
     <div>
       <div className="flex flex-wrap gap-1.5 mb-4">
-        {[["zones", "Par zone : produit et protocole"], ["libres", "Protocoles libres"]].map(([k, lib]) => (
+        {[["zones", "Par zone : produit et protocole"], ["produits", "Mes produits et fiches techniques"], ["libres", "Protocoles libres"]].map(([k, lib]) => (
           <button key={k} type="button" onClick={() => setOnglet(k)} className={`px-3 py-2 rounded-full text-sm font-medium border ${onglet === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
         ))}
       </div>
-      {onglet === "zones" && <ProtocolesMultiNet cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} logActivity={logActivity} />}
+      {onglet === "zones" && <ProtocolesMultiNet cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} logActivity={logActivity} onOuvrirProduits={() => setOnglet("produits")} />}
+      {onglet === "produits" && <ProduitsNettoyageNet cleaning={cleaning} setCleaning={setCleaning} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} logActivity={logActivity} />}
       {onglet === "libres" && <ProtocolesNettoyage protocoles={protocolesNettoyage} setProtocoles={setProtocolesNettoyage} logActivity={logActivity} />}
     </div>
   );
