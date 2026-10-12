@@ -21074,6 +21074,79 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
     }
   };
 
+  const COULEURS_EMPLOYES = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E", "#117A65", "#6C5CE7", "#C0629A"];
+  const horaireType = (jour, sv) => {
+    const h = (horaires || []).find((x) => !x.date && x.jour === jour && x.service === sv);
+    return { ferme: !!(h && h.ferme), debut: (h && h.debut) || SERVICES_DEFAUT[sv].debut, fin: (h && h.fin) || SERVICES_DEFAUT[sv].fin };
+  };
+  const remplirSemaine = (emp) => {
+    const autres = shifts.filter((x) => x.employeeId !== emp.id);
+    const nouveaux = [];
+    JOURS.forEach((jour) => SERVICES.forEach((service) => { const h = horaireType(jour, service.toLowerCase()); if (!h.ferme) nouveaux.push({ id: uid(), employeeId: emp.id, jour, service, debut: h.debut, fin: h.fin }); }));
+    setShifts([...autres, ...nouveaux]);
+    logActivity("Planning", "Semaine remplie avec les heures de service", emp.nom);
+  };
+  const viderSemaine = (emp) => { setShifts(shifts.filter((x) => x.employeeId !== emp.id)); logActivity("Planning", "Horaires effacés", emp.nom); };
+  const sectionEquipe = (
+    <div className="mb-6">
+      <div className="flex flex-wrap items-center gap-3 mb-3">
+        <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#0E7490" }}><CalendarDays size={26} /></span>
+        <div className="min-w-0">
+          <h3 className="text-lg font-bold text-[var(--ink)]">Jours et heures de travail de chaque employé</h3>
+          <p className="text-xs text-[var(--steel)]">Un clic sur « Repos » fait travailler l'employé ce service, aux heures de service. Un clic sur un créneau vert permet de changer les heures ou de remettre en repos. Seuls les employés présents se voient confier les tâches du jour.</p>
+        </div>
+      </div>
+      {employees.length === 0 ? (
+        <Card><p className="text-sm text-[var(--steel)]">Aucun employé enregistré pour l'instant. Créez les comptes de l'équipe dans Contrôle &amp; Gestion → Comptes : ils apparaîtront ici automatiquement.</p></Card>
+      ) : (
+        <div className="space-y-3">
+          {employees.map((emp, idx) => {
+            const col = COULEURS_EMPLOYES[idx % COULEURS_EMPLOYES.length];
+            return (
+              <div key={emp.id} className="rounded-xl overflow-hidden border-2 bg-white" style={{ borderColor: col }}>
+                <div className="px-3 py-2 text-white flex flex-wrap items-center gap-2" style={{ background: col }}>
+                  <span className="font-bold text-base">{emp.nom}</span>
+                  {emp.poste && <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5">{emp.poste}</span>}
+                  <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5">{totalHeures(emp.id).toFixed(1)} h / semaine</span>
+                  <span className="ml-auto flex flex-wrap gap-2">
+                    <button type="button" onClick={() => remplirSemaine(emp)} className="text-xs font-semibold rounded-lg bg-white px-2.5 py-1" style={{ color: col }}>Tous les services ouverts</button>
+                    <button type="button" onClick={() => viderSemaine(emp)} className="text-xs font-semibold rounded-lg bg-white/25 px-2.5 py-1">Tout en repos</button>
+                  </span>
+                </div>
+                <div className="overflow-x-auto">
+                  <div className="grid gap-2 p-3" style={{ gridTemplateColumns: "repeat(7, minmax(7.5rem, 1fr))", minWidth: 760 }}>
+                    {JOURS.map((jour) => (
+                      <div key={jour} className="min-w-0">
+                        <div className="text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: col }}>{jour}</div>
+                        <div className="space-y-1.5">
+                          {SERVICES.map((service) => {
+                            const sh = shiftFor(emp.id, jour, service);
+                            const ht = horaireType(jour, service.toLowerCase());
+                            const edition = picker && picker.employeeId === emp.id && picker.jour === jour && picker.service === service;
+                            if (edition) return <ShiftEditor key={service} initial={sh || { debut: ht.debut, fin: ht.fin }} onSave={(d, f) => saveShift(emp.id, jour, service, d, f)} onCancel={() => setPicker(null)} onDelete={sh ? () => saveShift(emp.id, jour, service, "", "") : null} />;
+                            return (
+                              <button key={service} type="button"
+                                onClick={() => (sh ? setPicker({ employeeId: emp.id, jour, service }) : saveShift(emp.id, jour, service, ht.debut, ht.fin))}
+                                className="w-full text-left rounded-lg px-2 py-1.5 text-[11px] leading-tight border-2 min-h-[44px]"
+                                style={sh ? { background: col + "1F", borderColor: col, color: "var(--ink)" } : { background: "#F5F6F4", borderColor: "var(--cadre)", color: "var(--steel)" }}>
+                                <span className="font-bold block">{service}</span>
+                                {sh ? <span>{sh.debut} – {sh.fin}</span> : <span>{ht.ferme ? "Service fermé" : "Repos"}</span>}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+
   return (
     <div>
       {onBack && (
@@ -21086,6 +21159,8 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
       />
 
       {setHoraires && <HeuresService horaires={horaires} setHoraires={setHoraires} logActivity={logActivity} />}
+
+      {sectionEquipe}
 
       {!nouvelleBase && <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-4">Ajouter un employé</h3>
@@ -21132,73 +21207,11 @@ Une entrée par créneau de travail visible — si un même employé travaille m
         }}
       />
 
-      <Card className="overflow-x-auto">
-        {employees.length === 0 ? (
-          <p className="text-sm text-[var(--steel)]">Aucun employé enregistré.</p>
-        ) : (
-          <table className="w-full text-sm min-w-[820px]">
-            <thead>
-              <tr className="text-left text-[var(--steel)] border-b border-[var(--line)]">
-                <th className="py-2 pr-3 font-medium">Employé</th>
-                {JOURS.map((j) => <th key={j} className="py-2 px-2 font-medium">{j.slice(0, 3)}</th>)}
-                <th className="py-2 pl-2 font-medium">Total</th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              {employees.map((emp) => (
-                <tr key={emp.id} className="border-b border-[var(--line)] last:border-0">
-                  <td className="py-2.5 pr-3 align-top">
-                    <div className="font-medium text-[var(--ink)]">{emp.nom}</div>
-                    <div className="text-xs text-[var(--steel)]">{emp.poste}</div>
-                    {!nouvelleBase && <button onClick={() => applyStandard(emp.id)} className="text-[10px] text-[var(--accent)] font-medium mt-1">Appliquer standard</button>}
-                    {!nouvelleBase && <div className="mt-1.5 flex items-center gap-1">
-                      <label className="text-[10px] text-[var(--steel)]">Code tel.</label>
-                      <input
-                        className="text-[11px] border border-[var(--cadre)] rounded px-1.5 py-1 w-16 min-h-[28px]"
-                        placeholder="—"
-                        defaultValue={emp.code || ""}
-                        onBlur={(e) => setEmployeeCode(emp.id, e.target.value)}
-                      />
-                    </div>}
-                  </td>
-                  {JOURS.map((jour) => (
-                    <td key={jour} className="py-2 px-2 align-top space-y-1">
-                      {SERVICES.map((service) => {
-                        const s = shiftFor(emp.id, jour, service);
-                        const isPicking = picker && picker.employeeId === emp.id && picker.jour === jour && picker.service === service;
-                        return isPicking ? (
-                          <ShiftEditor
-                            key={service}
-                            initial={s}
-                            onSave={(debut, fin) => saveShift(emp.id, jour, service, debut, fin)}
-                            onCancel={() => setPicker(null)}
-                          />
-                        ) : (
-                          <button
-                            key={service}
-                            onClick={() => setPicker({ employeeId: emp.id, jour, service })}
-                            className={`w-full text-[11px] rounded-md px-1.5 py-1 border ${s ? "bg-[var(--gold-soft)] text-[var(--ink)] border-[var(--gold)]/30" : "border-dashed border-[var(--cadre)] text-[var(--steel)]"}`}
-                          >
-                            {s ? `${service} ${s.debut}–${s.fin}` : `${service} —`}
-                          </button>
-                        );
-                      })}
-                    </td>
-                  ))}
-                  <td className="py-2.5 pl-2 font-medium text-[var(--ink)] align-top">{totalHeures(emp.id).toFixed(1)}h</td>
-                  <td className="align-top">{!nouvelleBase && <BoutonSupprimer onConfirm={() => removeEmployee(emp.id)} size={15} libelle={emp.nom} />}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </Card>
     </div>
   );
 }
 
-function ShiftEditor({ initial, onSave, onCancel }) {
+function ShiftEditor({ initial, onSave, onCancel, onDelete }) {
   const [debut, setDebut] = useState(initial?.debut || "");
   const [fin, setFin] = useState(initial?.fin || "");
   return (
@@ -21209,6 +21222,7 @@ function ShiftEditor({ initial, onSave, onCancel }) {
         <button onClick={() => onSave(debut, fin)} style={{ backgroundColor: "#2F6B4F", color: "#ffffff" }} className="flex-1 text-xs rounded px-1.5 py-1">OK</button>
         <button onClick={onCancel} className="text-xs text-[var(--steel)] px-1.5"><X size={12} /></button>
       </div>
+      {onDelete && <button onClick={onDelete} className="w-full text-xs font-semibold rounded px-1.5 py-1 border border-[var(--cadre)] text-[var(--ink)]">Mettre en repos</button>}
     </div>
   );
 }
