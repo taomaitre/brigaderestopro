@@ -4176,7 +4176,10 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         return t ? <SectionHeader title={t.label} subtitle={sous} fonction={sousEcran} icone={t.icon} /> : null;
       })()}
 
-      {!sousEcran && (
+      {!sousEcran && sectionActive === "controle" && (
+        <HistoriqueJournee integre receptions={receptions} alertes={alertesControle} onOuvrir={(id) => { const t = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id); if (t) setSectionActive(t.section); ouvrirSousTuile(id); }} employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
+      )}
+      {!sousEcran && sectionActive !== "controle" && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
           {SOUS_TUILES_CONTROLE.map((t) => {
             const Icon = t.icon;
@@ -16399,10 +16402,11 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
 // ---- Historique de la journée (chef et direction) : vue d'ensemble de tous les autocontrôles d'un jour ----
 // Lecture seule. Les pourcentages sont de simples informations (jamais bloquants). Chaque fonction
 // garde sa couleur et son logo (couleurSousTuile). Le texte « à utiliser aujourd'hui » est en rouge : c'est une alerte.
-function HistoriqueJournee({ integre, receptions = [], employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
+function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, tableauDeBord, employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
   const aujourdhui = todayISO();
   const [jour, setJour] = useState(aujourdhui);
   const [etendus, setEtendus] = useState({});
+  const [agrandi, setAgrandi] = useState(null);
   const who = (id) => (employees.find((e) => e.id === id) || {}).nom || "—";
   const decaler = (n) => { const d = new Date(jour + "T00:00:00"); d.setDate(d.getDate() + n); setJour(d.toISOString().slice(0, 10)); };
   const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)} %` : "—");
@@ -16419,7 +16423,10 @@ function HistoriqueJournee({ integre, receptions = [], employees, relevesFroid, 
   const traces = preparations.filter((p) => p.date === jour);
   const nettoyages = cleaning.filter((c) => c.fait && c.date === jour);
   const nettoyagesAttendus = cleaning.filter((c) => c.frequence === "Quotidienne");
-  const tachesFaites = tasks.filter((t) => t.completions && t.completions[jour] && Object.keys(t.completions[jour]).length > 0);
+  const tachesDuJour = tasks.filter((t) => isTaskActive(t, jour) && t.categorie !== "Nettoyage");
+  const tacheFaite = (t) => !!(t.completions && t.completions[jour] && Object.keys(t.completions[jour]).length > 0);
+  const tachesFaites = tachesDuJour.filter(tacheFaite);
+  const alertesJour = (alertes || []).filter((a) => a.date === jour);
   const dlcJour = [
     ...preparations.filter((p) => p.dlcDate === jour && !p.jete).map((p) => ({ nom: nomProduit(p), lot: p.lot || "—", qte: p.quantite != null ? String(p.quantite) : "—" })),
     ...stock.filter((s) => s.dlc === jour && Number(s.quantite) > 0).map((s) => ({ nom: s.nom, lot: s.lot || "—", qte: `${s.quantite}` })),
@@ -16437,26 +16444,28 @@ function HistoriqueJournee({ integre, receptions = [], employees, relevesFroid, 
   const blocs = [
     { id: "dlc", cle: "dlc", icone: AlertTriangle, titre: "DLC", n: dlcJour.length, texte: dlcJour.length ? `${dlcJour.length} à traiter` : "Rien à traiter", rouge: dlcJour.length > 0,
       colonnes: ["Produit", "N° de lot", "Quantité", "Statut"], lignes: dlcJour.map((d) => [d.nom, d.lot, d.qte, "À utiliser aujourd'hui"]) },
-    { id: "tracabilite", cle: "tracabilite", icone: Camera, titre: "Traçabilité", n: traces.length, texte: `${traces.length} enregistrée(s)`,
+    { id: "tracabilite", cle: "tracabilite", ouvrir: "tracabilite", icone: Camera, titre: "Traçabilité", n: traces.length, texte: `${traces.length} enregistrée(s)`,
       colonnes: ["Produit", "N° de lot", "Heure", "Responsable"], lignes: traces.map((p) => [p.typeEntree === "photo-simple" ? "Traçabilité par photo" : nomProduit(p), p.lot || "—", H(p.heure), who(p.employeeId)]) },
-    { id: "nettoyages", cle: "pms", icone: SprayCan, titre: "Nettoyages", n: nettoyages.length, texte: nettoyagesAttendus.length ? `${pct(nettoyages.length, nettoyagesAttendus.length)} fait · ${Math.max(0, nettoyagesAttendus.length - nettoyages.length)} à faire` : `${nettoyages.length} fait(s)`,
+    { id: "nettoyages", cle: "pms", ouvrir: "pms", icone: SprayCan, titre: "Nettoyages", n: nettoyages.length, texte: nettoyagesAttendus.length ? `${pct(nettoyages.length, nettoyagesAttendus.length)} fait · ${Math.max(0, nettoyagesAttendus.length - nettoyages.length)} à faire` : `${nettoyages.length} fait(s)`,
       colonnes: ["Zone / matériel", "Poste", "Responsable", "Statut"], lignes: nettoyages.map((c) => [c.tache, c.poste || "—", who(c.employeeId), "Fait"]) },
-    { id: "temperatures", cle: "temperatures", icone: Thermometer, titre: "Températures", n: releves.length, texte: releves.length ? `${pct(tempsOk, releves.length)} conforme` : "Aucun relevé",
+    { id: "temperatures", cle: "temperatures", ouvrir: "temperatures", icone: Thermometer, titre: "Températures", n: releves.length, texte: releves.length ? `${pct(tempsOk, releves.length)} conforme` : "Aucun relevé",
       colonnes: ["Équipement", "Température", "Heure", "Responsable", "Statut"], lignes: releves.map((r) => [nomEq(r.equipementId), `${r.valeur} °C`, H(r.heure), who(r.employeeId), statutTemp(r)]), alerteCol: 4 },
-    { id: "refroidissements", cle: "cellule", icone: Snowflake, titre: "Refroidissements", n: refr.length, texte: refr.length ? `${pct(refrFinis, refr.length)} · ${refr.length - refrFinis} en cours` : "Aucun",
+    { id: "refroidissements", cle: "cellule", ouvrir: "cellule", icone: Snowflake, titre: "Refroidissements", n: refr.length, texte: refr.length ? `${pct(refrFinis, refr.length)} · ${refr.length - refrFinis} en cours` : "Aucun",
       colonnes: ["Produit", "Départ", "Fin", "Statut"], lignes: refr.map((r) => [r.produit, H(r.heureDebut), H(r.heureFin), r.statut === "termine" ? (r.conforme === false ? "Terminé — non conforme" : "Terminé") : "En cours"]) },
-    { id: "cuissons", cle: "cuisson", icone: Flame, titre: "Cuissons", n: cuis.length, texte: cuis.length ? `${pct(cuisFinies, cuis.length)} · ${cuis.length - cuisFinies} en cours` : "Aucune",
+    { id: "cuissons", cle: "cuisson", ouvrir: "cuisson", icone: Flame, titre: "Cuissons", n: cuis.length, texte: cuis.length ? `${pct(cuisFinies, cuis.length)} · ${cuis.length - cuisFinies} en cours` : "Aucune",
       colonnes: ["Produit", "Heure", "Appareil", "Statut"], lignes: cuis.map((c) => [c.produit, H(c.heureDebut), c.appareil || "—", c.statut === "termine" || c.finie ? (c.conforme === false ? "Terminé — non conforme" : "Terminé") : "En cours"]) },
-    { id: "maintien", cle: "maintien", icone: Soup, titre: "Maintien au chaud", n: maint.length, texte: maint.length ? `${pct(maintFinis, maint.length)} · ${maint.length - maintFinis} en cours` : "Aucun",
+    { id: "maintien", cle: "maintien", ouvrir: "maintien", icone: Soup, titre: "Maintien au chaud", n: maint.length, texte: maint.length ? `${pct(maintFinis, maint.length)} · ${maint.length - maintFinis} en cours` : "Aucun",
       colonnes: ["Produit", "Début", "Fin", "Statut"], lignes: maint.map((m) => [m.nom, H(m.heureDebut), H(m.heureFin), m.statut === "termine" ? "Terminé" : "En cours"]) },
-    { id: "huiles", cle: "huile", icone: Droplets, titre: "Huiles de friture", n: huiles.length, texte: huiles.length ? `${pct(huilesOk, huiles.length)} conforme` : "Aucun test",
+    { id: "huiles", cle: "huile", ouvrir: "huile", icone: Droplets, titre: "Huiles de friture", n: huiles.length, texte: huiles.length ? `${pct(huilesOk, huiles.length)} conforme` : "Aucun test",
       colonnes: ["Bain", "Heure", "Résultat"], lignes: huiles.map((h) => [h.bain || "—", H(h.heure), h.resultat || "—"]) },
-    { id: "receptions", cle: "reception", icone: Truck, titre: "Réceptions", n: recepJour.length, texte: recepJour.length ? `${pct(recepOk, recepJour.length)} conforme` : "Aucune livraison",
+    { id: "receptions", cle: "reception", ouvrir: "commandes", icone: Truck, titre: "Réceptions", n: recepJour.length, texte: recepJour.length ? `${pct(recepOk, recepJour.length)} conforme` : "Aucune livraison",
       colonnes: ["Produit", "Fournisseur", "Quantité", "Heure", "Statut"], lignes: recepJour.map((r) => [r.produit, r.fournisseur || "—", r.quantite != null ? String(r.quantite) : "—", H(r.heure), r.conforme === false ? (r.raison || "Non conforme") : "Conforme"]) },
     { id: "preparations", cle: "preparations", icone: UtensilsCrossed, titre: "Préparations", n: preps.length, texte: `${preps.length} préparée(s)`,
       colonnes: ["Préparation", "Quantité", "Heure", "Responsable"], lignes: preps.map((p) => [nomProduit(p), p.quantite != null ? String(p.quantite) : "—", H(p.heure), who(p.employeeId)]) },
-    { id: "taches", cle: "planning", icone: ListChecks, titre: "Autres tâches", n: tachesFaites.length, texte: `${tachesFaites.length} faite(s)`,
-      colonnes: ["Tâche", "Fait par"], lignes: tachesFaites.map((t) => [t.titre || t.nom || t.label || "Tâche", Object.keys(t.completions[jour]).map(who).join(", ")]) },
+    { id: "taches", cle: "planning", ouvrir: "planning", icone: ListChecks, titre: "Tâches du jour", n: tachesDuJour.length, texte: tachesDuJour.length ? `${tachesFaites.length} faite${tachesFaites.length > 1 ? "s" : ""} · ${tachesDuJour.length - tachesFaites.length} à faire` : "Aucune tâche",
+      colonnes: ["Tâche", "Heure", "Fait par", "Statut"], lignes: [...tachesDuJour].sort((a, b) => (tacheFaite(a) ? 1 : 0) - (tacheFaite(b) ? 1 : 0) || String(a.heure || "").localeCompare(String(b.heure || ""))).map((t) => [t.titre || t.nom || t.label || "Tâche", H(t.heure), tacheFaite(t) ? Object.keys(t.completions[jour]).map(who).join(", ") : "—", tacheFaite(t) ? "Fait" : "À faire"]) },
+    { id: "alertes", cle: "alertes", ouvrir: "alertes", icone: Bell, titre: "Alertes qualité", n: alertesJour.length, rouge: alertesJour.some((a) => !a.vue), texte: alertesJour.length ? `${alertesJour.filter((a) => !a.vue).length} à lire` : "Aucune alerte",
+      colonnes: ["Alerte", "Heure", "Type", "Statut"], lignes: alertesJour.map((a) => [a.titre, H(a.heure), a.type || "—", a.vue ? "Lue" : "À lire"]) },
   ];
   const exportLignes = blocs.flatMap((b) => b.lignes.map((l) => [b.titre, ...l.map(String)]));
   const libelleJour = new Date(jour + "T00:00:00").toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
@@ -16466,9 +16475,11 @@ function HistoriqueJournee({ integre, receptions = [], employees, relevesFroid, 
   // Pastille de statut : rouge = à regarder, vert = bon, bleu = en cours
   const pastille = (v) => {
     const t = String(v);
-    if (/non conforme|à utiliser|refus|manquant|inférieure|résolu|remplac/i.test(t)) return { fond: "#FDE2E0", texte: "#B42318" };
+    if (/non conforme|à utiliser|refus|manquant|inférieure|remplac/i.test(t)) return { fond: "#FDE2E0", texte: "#B42318" };
     if (/^(conforme|fait|terminé|accepté|enregistré)$/i.test(t)) return { fond: "#DDF5E7", texte: "#157347" };
     if (/en cours/i.test(t)) return { fond: "#DCEBFB", texte: "#1D5FA8" };
+    if (/^à faire$|^à lire$/i.test(t)) return { fond: "#FFF1D6", texte: "#9A5B00" };
+    if (/^lue$/i.test(t)) return { fond: "#DDF5E7", texte: "#157347" };
     return null;
   };
   const estStatut = (b, j) => (b.colonnes[j] || "") === "Statut" || b.colonnes[j] === "Résultat";
@@ -16512,6 +16523,7 @@ function HistoriqueJournee({ integre, receptions = [], employees, relevesFroid, 
                 <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: z.bord }}><Ic size={18} color="#fff" /></span>
                 <h3 className="font-bold text-sm sm:text-base" style={{ color: b.rouge ? "#B42318" : z.texte }}>{b.titre} ({b.n})</h3>
                 <span className="ml-auto text-xs text-[var(--steel)] text-right">{b.texte}</span>
+                <button type="button" onClick={() => setAgrandi(b.id)} title="Agrandir cette zone" aria-label="Agrandir cette zone" className="shrink-0 w-8 h-8 rounded-lg bg-white/80 border flex items-center justify-center text-base font-bold" style={{ borderColor: z.bord, color: z.texte }}>⤢</button>
               </div>
               <div className="bg-white/80 px-3 py-2">
                 {b.lignes.length === 0 ? <p className="text-sm text-[var(--steel)] py-2">Rien d'enregistré ce jour-là.</p> : (
@@ -16533,6 +16545,39 @@ function HistoriqueJournee({ integre, receptions = [], employees, relevesFroid, 
           );
         })}
       </div>
+
+      {/* Zone agrandie : tout le détail, avec une flèche et une croix pour revenir au tableau */}
+      {(() => {
+        const b = blocs.find((x) => x.id === agrandi); if (!b) return null;
+        const Ic = b.icone; const z = zoneDe(b);
+        return (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6" style={{ backgroundColor: "rgba(20,20,30,0.55)" }} onClick={() => setAgrandi(null)}>
+            <div className="w-full max-w-5xl max-h-full flex flex-col rounded-2xl overflow-hidden bg-white" style={{ border: `2px solid ${z.bord}` }} onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-2 px-4 py-3" style={{ background: z.fond, borderBottom: `2px solid ${z.bord}` }}>
+                <button type="button" onClick={() => setAgrandi(null)} className="px-2.5 py-1.5 rounded-lg bg-white border text-sm font-semibold shrink-0" style={{ borderColor: z.bord, color: z.texte }}>← Retour au tableau</button>
+                <span className="w-8 h-8 rounded-lg flex items-center justify-center shrink-0" style={{ background: z.bord }}><Ic size={18} color="#fff" /></span>
+                <h3 className="font-bold text-base sm:text-lg min-w-0" style={{ color: z.texte }}>{b.titre} ({b.n})</h3>
+                <span className="ml-auto text-xs text-[var(--steel)] hidden sm:block">{b.texte}</span>
+                <button type="button" onClick={() => setAgrandi(null)} aria-label="Fermer" className="shrink-0 w-9 h-9 rounded-lg bg-white border flex items-center justify-center text-lg font-bold" style={{ borderColor: z.bord, color: z.texte }}>✕</button>
+              </div>
+              <div className="overflow-auto p-4">
+                {b.lignes.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien d'enregistré ce jour-là.</p> : (
+                  <table className="w-full text-sm">
+                    <thead><tr className="text-left text-xs text-[var(--steel)]">{b.colonnes.map((c) => <th key={c} className="py-1.5 pr-3 font-semibold">{c}</th>)}</tr></thead>
+                    <tbody>{b.lignes.map((l, i) => <tr key={i} className="border-t border-[var(--line)]">{l.map((v, j) => {
+                      const ch = (estStatut(b, j) || (b.id === "dlc" && j === l.length - 1)) ? pastille(v) : null;
+                      return <td key={j} className="py-2 pr-3 align-middle">{ch ? <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold" style={{ background: ch.fond, color: ch.texte }}>{v}</span> : v}</td>;
+                    })}</tr>)}</tbody>
+                  </table>
+                )}
+                {onOuvrir && b.ouvrir && (
+                  <button type="button" onClick={() => { setAgrandi(null); onOuvrir(b.ouvrir); }} className="mt-4 px-4 py-2.5 rounded-xl text-sm font-bold text-white" style={{ background: z.bord }}>Ouvrir l'écran complet « {b.titre} » →</button>
+                )}
+              </div>
+            </div>
+          </div>
+        );
+      })()}
     </div>
   );
 }
