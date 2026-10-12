@@ -11224,7 +11224,10 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
   const categoriesFiches = [...ORDRE_CATEGORIES_FICHES.filter((c) => plats.some((f) => f.categorie === c)), ...[...new Set(plats.map((f) => f.categorie).filter((c) => c && !ORDRE_CATEGORIES_FICHES.includes(c)))].sort((a, b) => a.localeCompare(b, "fr"))];
   // Sans fiche technique, on garde quand même des colonnes (Entrée / Plat / Dessert) pour pouvoir ajouter à la main.
-  const categories = [...categoriesFiches, ...["Entrée", "Plat", "Dessert"].filter((c) => !categoriesFiches.includes(c))];
+  // Ordre d'une carte : entrées, puis plats (Plat, Pizza, Burger…), puis desserts.
+  const rangCarte = (c) => (/^(Entrée|Potage)/i.test(c) ? 0 : /^(Dessert|Fromage)/i.test(c) ? 2 : 1);
+  const rangPlat = (c) => { const k = ["Plat", "Pizza", "Burger"].indexOf(c); return k < 0 ? 9 : k; };
+  const categories = [...categoriesFiches, ...["Entrée", "Plat", "Dessert"].filter((c) => !categoriesFiches.includes(c))].sort((a, b) => rangCarte(a) - rangCarte(b) || (rangCarte(a) === 1 ? rangPlat(a) - rangPlat(b) : 0));
   const idsCarte = (carte && carte.plats) || [];
   const libres = (carte && carte.platsLibres) || []; // éléments ajoutés à la main (sans fiche technique)
   const idsAujourdhui = platsAuCarte(carte, aujourdhui);
@@ -11313,18 +11316,36 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             };
             const joursDe = (id) => JOURS.filter((x) => idsCarte.includes(id) && platServiCeJour(carte, id, x));
             const nbCoches = new Set([...selAjout, ...selSugg]).size;
+            // Carte à la semaine : valider pour un ou plusieurs jours REMPLACE les plats de ces jours par la sélection.
+            const remplace = avecJours;
+            const platsDuJour = (jr) => ({
+              n: [...idsCarte.filter((id) => platServiCeJour(carte, id, jr) && nomDe(id)), ...libres.filter((l) => (l.jours || []).includes(jr)).map((l) => l.id)],
+              s: (carte.suggestions || []).filter((x) => (x.jours || []).includes(jr)).map((x) => x.id),
+            });
+            const choisirJours = (liste) => {
+              setJoursAjout(liste);
+              if (liste.length === 1) { const d = platsDuJour(liste[0]); setSelAjout(d.n); setSelSugg(d.s); }
+              else if (liste.length === 0) { setSelAjout([]); setSelSugg([]); }
+            };
             const valider = () => {
               const jp = { ...(carte.joursPlat || {}) };
               const tous = [...new Set([...selAjout, ...selSugg])];
-              const idsLibres = tous.filter((id) => libres.some((l) => l.id === id));
-              const idsFiches = tous.filter((id) => !idsLibres.includes(id));
-              idsFiches.forEach((id) => { const u = [...new Set([...joursDe(id), ...joursChoisis])]; jp[id] = u.length === 7 ? { mode: "continu" } : { mode: "jours", jours: u }; });
+              const idsFichesSel = tous.filter((id) => !libres.some((l) => l.id === id));
+              const concernees = remplace ? [...new Set([...idsCarte, ...idsFichesSel])] : idsFichesSel;
+              let nouvPlats = [...idsCarte];
+              concernees.forEach((id) => {
+                const exist = joursDe(id);
+                const u = idsFichesSel.includes(id) ? [...new Set([...exist, ...joursChoisis])] : exist.filter((x) => !joursChoisis.includes(x));
+                if (!u.length) { delete jp[id]; nouvPlats = nouvPlats.filter((x) => x !== id); }
+                else { jp[id] = u.length === 7 ? { mode: "continu" } : { mode: "jours", jours: u }; if (!nouvPlats.includes(id)) nouvPlats.push(id); }
+              });
               const m = {}; (carte.suggestions || []).forEach((x) => { m[x.id] = [...(x.jours || [])]; });
+              Object.keys(m).forEach((id) => { if (!selSugg.includes(id) && (remplace || selAjout.includes(id))) m[id] = m[id].filter((x) => !joursChoisis.includes(x)); });
               selSugg.forEach((id) => { m[id] = [...new Set([...(m[id] || []), ...joursChoisis])]; });
-              selAjout.filter((id) => !selSugg.includes(id)).forEach((id) => { if (m[id]) m[id] = m[id].filter((x) => !joursChoisis.includes(x)); });
               const suggestions = Object.entries(m).filter(([, js]) => js.length).map(([id, jours]) => ({ id, jours }));
-              majCarte({ plats: [...new Set([...idsCarte, ...idsFiches])], datesAjout: marquerAjout(idsFiches), joursPlat: jp, suggestions, platsLibres: libres.map((l) => (idsLibres.includes(l.id) ? { ...l, jours: [...new Set([...(l.jours || []), ...joursChoisis])] } : l)) });
-              setMessageCarte(`Carte validée pour ${joursChoisis.join(", ")} : ${tous.length} plat${tous.length > 1 ? "s" : ""} ajouté${tous.length > 1 ? "s" : ""}.`);
+              const platsLibres = libres.map((l) => (tous.includes(l.id) ? { ...l, jours: [...new Set([...(l.jours || []), ...joursChoisis])] } : remplace ? { ...l, jours: (l.jours || []).filter((x) => !joursChoisis.includes(x)) } : l));
+              majCarte({ plats: nouvPlats, datesAjout: marquerAjout(idsFichesSel), joursPlat: jp, suggestions, platsLibres });
+              setMessageCarte(`Carte validée pour ${joursChoisis.join(", ")} : ${tous.length} plat${tous.length > 1 ? "s" : ""}.`);
               setSelAjout([]); setSelSugg([]); setJoursAjout([]);
             };
             const nbJour = (j) => idsCarte.filter((id) => platServiCeJour(carte, id, j) && nomDe(id)).length + libres.filter((l) => (l.jours || []).includes(j)).length;
@@ -11370,14 +11391,14 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                     <div className="grid gap-2 items-start" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(10.5rem, 1fr))" }}>
                       {avecJours && colonne("1. ", "Jours", "#16A085", (
                         <div className="p-3">
-                          <p className="text-xs text-[var(--steel)] mb-2">Cochez un ou plusieurs jours.</p>
+                          <p className="text-xs text-[var(--steel)] mb-2">Choisissez un jour : ses plats se cochent. Modifiez, puis validez. Plusieurs jours = même sélection pour chacun.</p>
                           <div className="grid gap-1.5">
                             {JOURS.map((j) => { const on = joursAjout.includes(j); return (
-                              <button key={j} type="button" onClick={() => setJoursAjout(on ? joursAjout.filter((x) => x !== j) : [...joursAjout, j])} className="flex items-center gap-2 text-left rounded-lg px-3 py-2 text-sm font-semibold border-2" style={on ? { background: "#16A085", color: "#fff", borderColor: "#16A085" } : { background: "#fff", color: "var(--ink)", borderColor: "var(--cadre)" }}>
+                              <button key={j} type="button" onClick={() => choisirJours(on ? joursAjout.filter((x) => x !== j) : [...joursAjout, j])} className="flex items-center gap-2 text-left rounded-lg px-3 py-2 text-sm font-semibold border-2" style={on ? { background: "#16A085", color: "#fff", borderColor: "#16A085" } : { background: "#fff", color: "var(--ink)", borderColor: "var(--cadre)" }}>
                                 <span className="w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center text-[10px]" style={{ borderColor: on ? "#fff" : "var(--cadre)" }}>{on ? "✓" : ""}</span>{j}<span className="ml-auto text-[10px] opacity-80">{nbJour(j) ? `${nbJour(j)} plat${nbJour(j) > 1 ? "s" : ""}` : "—"}</span>
                               </button>
                             ); })}
-                            <button type="button" onClick={() => setJoursAjout(joursAjout.length === 7 ? [] : [...JOURS])} className="rounded-lg px-3 py-2 text-sm font-semibold border-2 bg-white text-[var(--ink)] border-[var(--cadre)]">{joursAjout.length === 7 ? "Aucun jour" : "Toute la semaine"}</button>
+                            <button type="button" onClick={() => choisirJours(joursAjout.length === 7 ? [] : [...JOURS])} className="rounded-lg px-3 py-2 text-sm font-semibold border-2 bg-white text-[var(--ink)] border-[var(--cadre)]">{joursAjout.length === 7 ? "Aucun jour" : "Toute la semaine"}</button>
                           </div>
                         </div>
                       ))}
