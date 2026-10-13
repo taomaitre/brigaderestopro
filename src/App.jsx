@@ -3937,7 +3937,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
   );
 }
 
-function Controle({ remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -3945,8 +3945,9 @@ function Controle({ remplacantsChef, setRemplacantsChef, commandesHistorique, se
   const [pmsImpression, setPmsImpression] = useState(false);
   const [releveMensuel, setReleveMensuel] = useState(false);
   const [moisReleve, setMoisReleve] = useState(todayISO().slice(0, 7));
-  const [referentielActif, setReferentielActif] = useState(false);
-  const [produitAOuvrir, setProduitAOuvrir] = useState(null); // { id, focus } : ouvre directement la fiche d'un produit à compléter
+  const [referentielActif, setReferentielActif] = useState(!!produitAOuvrirInit);
+  const [produitAOuvrir, setProduitAOuvrir] = useState(produitAOuvrirInit || null);
+  useEffect(() => { if (produitAOuvrirInit && onProduitOuvert) onProduitOuvert(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const ctxNettoyageCG = React.useContext(NettoyageContext);
   const [verifReceptionsActif, setVerifReceptionsActif] = useState(false);
   const [tracabiliteCompleteActif, setTracabiliteCompleteActif] = useState(false);
@@ -5156,7 +5157,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
                           <button type="button" onClick={() => { if (gestion) { setRefusProduit(null); setEdition({ table: "produits", id: s.id, valeurs: s.brut, focus: !s.prixUnitaire ? "prix_achat" : "reference" }); } else setRefusProduit(s.id); }} className="min-h-[44px] px-5 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Compléter</button>
                         </div>
                       )}
-                      {refusProduit === s.id && !gestion && <div className="mt-1 rounded-lg px-3 py-2 text-sm font-bold" style={{ backgroundColor: "#FFF4CC", color: "#6B4A00" }}>Vous n'êtes pas en mesure de le faire : demandez à vos supérieurs (chef ou direction).</div>}
+                      {refusProduit === s.id && !gestion && <BlocPasDeDroit sujet={`produit « ${s.nom} » à compléter`} onFermer={() => setRefusProduit(null)} />}
                       {gestion && s.brut && <button onClick={() => setEdition({ table: "produits", id: s.id, valeurs: s.brut })} className="mt-1 text-xs font-medium text-[var(--accent)]">Modifier ce produit</button>}
                     </li>
                   ))}
@@ -8470,6 +8471,57 @@ function DemandeCodeChef({ action, onAutorise, onAnnuler, verifierCodeChef }) {
           <Button type="submit" disabled={code.length !== 4 || enCours}>{enCours ? "Vérification…" : "Débloquer"}</Button>
         </div>
       </form>
+    </div>
+  );
+}
+
+// Message unique quand quelqu'un n'a pas le droit de corriger : explication, « Signaler au chef » (la demande arrive dans
+// « À traiter » du chef) ou code du chef pour débloquer tout de suite. Réutilisé partout où l'on corrige « sur place ».
+function BlocPasDeDroit({ sujet, onDebloque, onFermer }) {
+  const rapide = React.useContext(RapideContext);
+  const [envoye, setEnvoye] = useState(false);
+  const [saisieCode, setSaisieCode] = useState(false);
+  const [code, setCode] = useState("");
+  const [erreur, setErreur] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const signaler = () => {
+    if (rapide && rapide.ajouterAlerteControle) {
+      const d = new Date();
+      rapide.ajouterAlerteControle({ id: uid(), date: todayISO(), heure: d.toTimeString().slice(0, 5), type: "Demande à un supérieur", employeeId: rapide.currentUserId, titre: `À corriger : ${sujet}`, detail: "Demande envoyée par un employé qui n'a pas le droit de modifier." });
+    }
+    setEnvoye(true);
+  };
+  const verifier = async (e) => {
+    e.preventDefault();
+    if (code.length !== 4) return;
+    setEnCours(true); setErreur("");
+    try {
+      const r = rapide && rapide.verifierCodeChef
+        ? await rapide.verifierCodeChef(code)
+        : { ok: !!(rapide && (rapide.employees || []).some((x) => (x.estChef || x.estDirection) && x.code && String(x.code) === code)) };
+      if (r && r.ok) { setEnCours(false); onDebloque && onDebloque(); return; }
+      setErreur("Ce code n'appartient pas à un responsable cuisine ou à un directeur.");
+    } catch (err) { setErreur("Code incorrect."); }
+    setCode(""); setEnCours(false);
+  };
+  return (
+    <div className="rounded-xl border-2 px-3 py-3 mt-2" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
+      <p className="text-sm font-bold" style={{ color: "#6B4A00" }}>Vous n'êtes pas en mesure de le faire : demandez à vos supérieurs.</p>
+      {envoye ? (
+        <p className="text-sm font-semibold mt-2" style={{ color: "#146B45" }}>✓ Demande envoyée au chef.</p>
+      ) : saisieCode ? (
+        <form onSubmit={verifier} className="mt-2 flex flex-wrap items-center gap-2">
+          <input autoFocus type="password" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Code du chef (4 chiffres)" className={`${inputCls} !w-52 text-center tracking-widest`} />
+          <button type="submit" disabled={code.length !== 4 || enCours} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white bg-[var(--accent)] disabled:opacity-50">{enCours ? "Vérification…" : "Débloquer"}</button>
+          {erreur && <span className="text-xs text-[var(--warn)] w-full">{erreur}</span>}
+        </form>
+      ) : (
+        <div className="flex flex-wrap gap-2 mt-2">
+          <button type="button" onClick={signaler} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Signaler au chef</button>
+          <button type="button" onClick={() => setSaisieCode(true)} className="min-h-[44px] px-4 rounded-xl text-sm font-bold border-2 bg-white" style={{ borderColor: "#6B4A00", color: "#6B4A00" }}>Je suis le chef : mon code</button>
+          {onFermer && <button type="button" onClick={onFermer} className="min-h-[44px] px-3 text-sm text-[var(--steel)] underline">Fermer</button>}
+        </div>
+      )}
     </div>
   );
 }
@@ -14845,6 +14897,9 @@ function CelluleQuantite({ valeur, pas, onSet, fond, texte, label }) {
 }
 
 function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle }) {
+  const acces = useAcces();
+  const rapideStock = React.useContext(RapideContext);
+  const [produitSansDroit, setProduitSansDroit] = useState(null);
   const [infosStockage, setInfosStockage] = useState(null);
   const [item, setItem] = useState({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" });
   const [panier, setPanier] = useState({}); // { idProduit: quantité à commander (unité du produit) }
@@ -15072,9 +15127,16 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                 <div className="col-span-2 lg:col-span-1 min-w-0">
                   <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
-                  <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference || "—"}</div>
+                  {s.reference ? <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference}</div> : null}
+                  {estAValider(s.note) && (
+                    <div className="mt-1">
+                      <button type="button" onClick={() => { if (acces.estResponsable && rapideStock && rapideStock.ouvrirProduitAcompleter) rapideStock.ouvrirProduitAcompleter(s.id, "reference"); else setProduitSansDroit(s.id); }}
+                        className="min-h-[36px] px-3 rounded-lg text-xs font-bold text-white" style={{ background: "#B7791F" }}>Nouveau produit : Compléter</button>
+                      {produitSansDroit === s.id && !acces.estResponsable && <BlocPasDeDroit sujet={`produit « ${s.nom} » à compléter`} onFermer={() => setProduitSansDroit(null)} onDebloque={() => rapideStock && rapideStock.ouvrirProduitAcompleter && rapideStock.ouvrirProduitAcompleter(s.id, "reference")} />}
+                    </div>
+                  )}
                 </div>
-                <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>DLC : {s.dlc || "—"}<br />Lot : {s.lot || "—"}</div>
+                <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>{s.dlc ? <>DLC : {s.dlc}<br /></> : null}{s.lot ? <>Lot : {s.lot}</> : null}{!s.dlc && !s.lot ? <span className="opacity-40">—</span> : null}</div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div><CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{libelleQte(s, s.quantite)}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div><CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} /></div>
                 <div className="text-sm text-[var(--ink)] leading-tight"><b>{s.unite || "—"}</b><div className="text-[11px] text-[var(--steel)]">{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `+1 = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `+1 = 1 ${s.unite || ""}`))}</div></div>
@@ -22370,6 +22432,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const [huileTestActif, setHuileTestActif] = useState(null);
   const [huileMatinActif, setHuileMatinActif] = useState(null);
   const [etiquetteRapideNb, setEtiquetteRapideNb] = useState({});
+  const [produitAOuvrirApp, setProduitAOuvrirApp] = useState(null); // produit à compléter à ouvrir directement dans Contrôle & Gestion
   const [etiquetteRapideDemandee, setEtiquetteRapideDemandee] = useState(null); // tableau de noms de produits — voir proposerEtiquetteRapide
 
   const [employeesStockes, setEmployeesStockes] = useStored("planning-employees", DEFAULT_EMPLOYEES);
@@ -23601,7 +23664,7 @@ function KitchenApp({ identiteExterne } = {}) {
     .sort((a, b) => a.debutTs - b.debutTs)[0];
 
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
-  const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule };
+  const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule, employees, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, ouvrirProduitAcompleter: (id, focus) => { setProduitAOuvrirApp({ id, focus }); setTab("controle"); } };
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
     <AccesContext.Provider value={{ estResponsable: chefAcces || currentUserId === "direction" }}>
@@ -23970,7 +24033,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {tab === "controle" && !bloqueChef && (
-          <Controle remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
