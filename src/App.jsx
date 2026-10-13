@@ -622,6 +622,13 @@ const CONSERVATION_DONNEES_TRACABILITE_MOIS = 60;
 // officielle (règlement 852/2004 art. 5(4)(c) : « durée appropriée »). Décision de Loïc (10/10) : l'année précédente
 // complète plus l'année en cours. Tout ce qui est daté avant le 1er janvier de l'année précédente est supprimé.
 const debutConservationEnregistrements = (dateStr) => `${Number(dateStr.slice(0, 4)) - 1}-01-01`;
+// Décision de Loïc (13/10) — NOUVEAU MODE UNIQUEMENT (l'ancien mode garde les règles ci-dessus) :
+// - les enregistrements sans durée légale (températures, cuissons, refroidissements, maintiens au chaud, huile,
+//   nettoyage, journal) sont gardés 6 mois ;
+// - les photos de traçabilité sont retirées après 6 mois, le texte (nom, lot, DLC…) reste 5 ans.
+// À faire confirmer par le juriste (voir « questions à valider par un juriste »).
+const CONSERVATION_ENREGISTREMENTS_MOIS = 6;
+const CONSERVATION_PHOTOS_TRACABILITE_MOIS = 6;
 const startOfWeek = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); const dow = (d.getDay() + 6) % 7; d.setDate(d.getDate() - dow); return toISO(d); };
 const startOfMonth = (dateStr) => dateStr.slice(0, 7) + "-01";
 const daysInMonth = (dateStr) => { const d = new Date(dateStr + "T00:00:00"); return new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate(); };
@@ -2149,7 +2156,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
         <SousTitrePms>7 — Traçabilité amont et conservation</SousTitrePms>
         <Card>
           <h3 className="font-semibold">Bons de livraison, étiquettes, lots, factures</h3>
-          <p className="text-sm text-[var(--ink)]">À conserver au moins 6 mois pour les produits périssables (date limite de moins de 3 mois ou sans date) et 5 ans pour les autres. Le logiciel conserve la traçabilité 5 ans. Pour les autres enregistrements (températures, cuissons, refroidissements, maintiens au chaud, tests d'huile), les textes ne fixent aucune durée : le logiciel garde l'année précédente complète et l'année en cours.</p>
+          <p className="text-sm text-[var(--ink)]">À conserver au moins 6 mois pour les produits périssables (date limite de moins de 3 mois ou sans date) et 5 ans pour les autres. Le logiciel conserve la traçabilité 5 ans. Pour les autres enregistrements (températures, cuissons, refroidissements, maintiens au chaud, tests d'huile), les textes ne fixent aucune durée : le logiciel les garde 6 mois (nouveau mode). Les photos de traçabilité sont retirées après 6 mois, le texte reste 5 ans.</p>
         </Card>
       </BandePms>
 
@@ -14003,9 +14010,9 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
   const confirmer = () => {
     if (!pretAConfirmer) return;
     const entry = creerEtiquetteDlc({
-      // Décision de Loïc (10/10) : en mode IA, les photos servent seulement à lire l'étiquette puis sont abandonnées —
-      // seul le texte confirmé (nom, lot, DLC, allergènes…) est conservé. Seule la traçabilité sans IA garde ses photos.
-      produitNom: nom, lot, dlcDate, photos: [], quantiteUtilisee, nbEtiquettes,
+      // Décision de Loïc (13/10, annule celle du 10/10) : en mode IA, la photo (allégée) est gardée avec le texte confirmé,
+      // pour pouvoir vérifier une éventuelle erreur de lecture de l'IA. Elle est retirée après 6 mois (nouveau mode).
+      produitNom: nom, lot, dlcDate, photos, quantiteUtilisee, nbEtiquettes,
       allergenes, origine, codeUsine, delaiApresOuvertureJours,
     });
     // Mise à jour en temps réel de la fiche produit (allergènes/origine/délai après ouverture) —
@@ -15129,9 +15136,10 @@ const RAISONS_NON_CONFORMITE = ["Produit abîmé à la livraison", "DLC trop cou
 // Redimensionne et compresse automatiquement toute photo prise dans le logiciel avant de la
 // transformer en data URL : réduit la taille du fichier (donc le coût d'analyse par l'IA et
 // l'espace de stockage) sans perte visible pour la lecture d'un bon de livraison ou d'une étiquette.
-// Limite la plus grande dimension à 1280px et compresse en JPEG qualité 0.75.
+// Limite la plus grande dimension à 1280px et recompresse TOUJOURS en JPEG qualité 0.6 (décision du 13/10 : photos
+// allégées dès la prise, environ 100 à 150 Ko, puisqu'elles sont désormais gardées avec la traçabilité IA).
 const PHOTO_TAILLE_MAX_PX = 1280;
-const PHOTO_QUALITE_JPEG = 0.75;
+const PHOTO_QUALITE_JPEG = 0.6;
 
 function fileToDataURL(file) {
   return new Promise((resolve, reject) => {
@@ -15147,11 +15155,7 @@ function redimensionnerPhoto(dataUrlOriginal) {
     const img = new Image();
     img.onload = () => {
       let { width, height } = img;
-      if (width <= PHOTO_TAILLE_MAX_PX && height <= PHOTO_TAILLE_MAX_PX) {
-        resolve(dataUrlOriginal);
-        return;
-      }
-      const ratio = Math.min(PHOTO_TAILLE_MAX_PX / width, PHOTO_TAILLE_MAX_PX / height);
+      const ratio = Math.min(1, PHOTO_TAILLE_MAX_PX / width, PHOTO_TAILLE_MAX_PX / height);
       width = Math.round(width * ratio);
       height = Math.round(height * ratio);
       const canvas = document.createElement("canvas");
@@ -15159,7 +15163,8 @@ function redimensionnerPhoto(dataUrlOriginal) {
       canvas.height = height;
       const ctx = canvas.getContext("2d");
       ctx.drawImage(img, 0, 0, width, height);
-      resolve(canvas.toDataURL("image/jpeg", PHOTO_QUALITE_JPEG));
+      const allegee = canvas.toDataURL("image/jpeg", PHOTO_QUALITE_JPEG);
+      resolve(allegee.length < dataUrlOriginal.length ? allegee : dataUrlOriginal);
     };
     img.onerror = reject;
     img.src = dataUrlOriginal;
@@ -18383,7 +18388,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
         <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <span className="text-xs text-[var(--steel)]">{tracabiliteFiltree.length} entrée(s)</span>
       </div>
-      <SectionHeader title="Traçabilité" subtitle="Historique complet — toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) photos comprises, puis supprimées automatiquement après 5 ans." />
+      <SectionHeader title="Traçabilité" subtitle="Historique complet — toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) photos comprises (les photos sont retirées après 6 mois, le texte est supprimé après 5 ans)." />
       <Card>
         <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Rechercher (produit, lot ou date)" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
         <div className="divide-y divide-[var(--line)] mt-3">
@@ -22654,9 +22659,16 @@ function KitchenApp({ identiteExterne } = {}) {
     // Décision de Loïc (10/10) : les photos de traçabilité sont gardées aussi longtemps que les données (5 ans),
     // sans les retirer avant. Les traçabilités de plus de 5 ans sont supprimées.
     const seuilDonnees = subMonths(todayISO(), CONSERVATION_DONNEES_TRACABILITE_MOIS);
+    const seuilPhotos = subMonths(todayISO(), CONSERVATION_PHOTOS_TRACABILITE_MOIS);
     setPreparations((prev) => {
-      const conservees = prev.filter((p) => p.date >= seuilDonnees);
-      if (conservees.length === prev.length) return prev;
+      let conservees = prev.filter((p) => p.date >= seuilDonnees);
+      // Nouveau mode seulement : photos retirées après 6 mois, texte conservé.
+      if (modeExterne && conservees.some((p) => p.date < seuilPhotos && (p.photo || p.photoEtiquette || (p.photos && p.photos.length > 0)))) {
+        conservees = conservees.map((p) => (p.date < seuilPhotos && (p.photo || p.photoEtiquette || (p.photos && p.photos.length > 0)) ? { ...p, photo: null, photoEtiquette: null, photos: [] } : p));
+        logActivitySafe("HACCP", "Purge automatique des photos de traçabilité", `photos de plus de ${CONSERVATION_PHOTOS_TRACABILITE_MOIS} mois retirées (texte conservé)`);
+      }
+      if (conservees.length === prev.length && !modeExterne) return prev;
+      if (conservees.length === prev.length) return conservees.some((c, i) => c !== prev[i]) ? conservees : prev;
       logActivitySafe("HACCP", "Purge automatique de la traçabilité", `${prev.length - conservees.length} entrée(s) de plus de ${CONSERVATION_DONNEES_TRACABILITE_MOIS / 12} ans supprimée(s)`);
       return conservees;
     });
@@ -22666,7 +22678,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // Purge automatique des autres enregistrements (voir debutConservationEnregistrements). Ne déclenche l'écriture
   // que si au moins une ligne est trop ancienne, et se relance quand les listes finissent de se charger.
   useEffect(() => {
-    const seuil = debutConservationEnregistrements(todayISO());
+    const seuil = modeExterne ? subMonths(todayISO(), CONSERVATION_ENREGISTREMENTS_MOIS) : debutConservationEnregistrements(todayISO());
     const trop = (liste) => (liste || []).some((x) => x && x.date && x.date < seuil);
     const garder = (setter, liste, nom) => {
       if (!trop(liste)) return;
