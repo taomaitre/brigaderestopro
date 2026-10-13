@@ -15,3 +15,16 @@
   body.impression-fiche #fiche-imprimable, body.impression-fiche #fiche-imprimable * { visibility: visible; }
   body.impression-fiche #fiche-imprimable { position: absolute; left: 0; top: 0; width: 100%; }
 }
+
+/* Pages de contrôles de cuisine : champs et marges resserrés pour tenir dans une fenêtre. */
+.hc-compact label.flex-col { gap: 2px; }
+.hc-compact label.flex-col > span:first-child { font-size: 12px; line-height: 1.15; }
+.hc-compact input:not([type="checkbox"]):not([type="radio"]), .hc-compact select { padding-top: 0.4rem; padding-bottom: 0.4rem; }
+.hc-compact .grid.gap-3 { gap: 0.5rem; }
+@media (min-width: 1024px) { .hc-compact input:not([type="checkbox"]):not([type="radio"]), .hc-compact select { min-height: 38px; } }
+@media (min-width: 1024px) { .hc-compact .p-5 { padding: 0.75rem 1rem; } .hc-compact .mb-6 { margin-bottom: 0.75rem; } .hc-compact .mb-4 { margin-bottom: 0.5rem; } }
+@media (max-width: 639px) {
+  .hc-compact .grid.grid-cols-1.sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .hc-compact .grid.grid-cols-1.sm\:grid-cols-2 > label:has(input:not([type="number"]):not([type="time"])),
+  .hc-compact .grid.grid-cols-1.sm\:grid-cols-2 > label:has(select) { grid-column: 1 / -1; }
+}

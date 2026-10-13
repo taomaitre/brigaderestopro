@@ -5834,10 +5834,12 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
-    <div>
+    <div className="hc-compact">
       <BoutonInfosNormes ficheKey="temperatureFrigo" onClick={ouvrirNormes} label="Températures & rangement — Normes HACCP" />
-      <SectionHeader title="Températures frigos et congélateurs" subtitle="Relevés de température et alertes" />
-      <TuilesResume fonction="temperatures" items={[[Thermometer, equipementsFroid.length, "équipements suivis"], [ClipboardCheck, relevesFroid.filter((r) => r.date === todayISO()).length, "relevés aujourd'hui"], [AlertTriangle, relevesFroid.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", relevesFroid.some((r) => r.date === todayISO() && r.conforme === false)]]} />
+      <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
+        <div className="lg:shrink-0"><SectionHeader title="Températures frigos et congélateurs" subtitle="Relevés de température et alertes" /></div>
+        <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="temperatures" items={[[Thermometer, equipementsFroid.length, "équipements suivis"], [ClipboardCheck, relevesFroid.filter((r) => r.date === todayISO()).length, "relevés aujourd'hui"], [AlertTriangle, relevesFroid.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", relevesFroid.some((r) => r.date === todayISO() && r.conforme === false)]]} /></div>
+      </div>
       <HaccpTemperatures tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} logActivity={logActivity} who={who} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -5849,11 +5851,15 @@ function HaccpRefroidPage({ fiches, onCuissonRefroidie, onMaintienRefroidi, cuis
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
-    <div>
+    <div className="hc-compact">
+      <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-2">
       <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire les règles officielles : de +63 °C à +10 °C en moins de 2 h." />
       <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire les règles officielles : passer sous −18 °C en moins de 4 h 30." />
-      <SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" />
-      <TuilesResume fonction="cellule" items={[[Clock, refroidissements.filter((r) => r.statut === "en-cours").length, "en cours"], [CheckCircle2, refroidissements.filter((r) => r.statut === "termine" && r.date === todayISO()).length, "terminés aujourd'hui"], [AlertTriangle, refroidissements.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", refroidissements.some((r) => r.date === todayISO() && r.conforme === false)]]} />
+      </div>
+      <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
+        <div className="lg:shrink-0"><SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" /></div>
+        <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="cellule" items={[[Clock, refroidissements.filter((r) => r.statut === "en-cours").length, "en cours"], [CheckCircle2, refroidissements.filter((r) => r.statut === "termine" && r.date === todayISO()).length, "terminés aujourd'hui"], [AlertTriangle, refroidissements.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", refroidissements.some((r) => r.date === todayISO() && r.conforme === false)]]} /></div>
+      </div>
       <HaccpRefroidissement fiches={fiches} onCuissonRefroidie={onCuissonRefroidie} onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -5865,7 +5871,7 @@ function HaccpHuilePage({ huileTests, employees, onEnregistrerTest }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
-    <div>
+    <div className="hc-compact">
       <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Normes HACCP" texte="Cliquez pour lire les règles officielles : test de l'huile après chaque utilisation, voyant vert = huile bonne, voyant jaune = à changer." />
       <SectionHeader title="Huile de friture" subtitle="Tests et suivi des bains d'huile" />
       <TuilesResume fonction="huile" items={[[Droplets, huileTests.filter((h) => h.date === todayISO()).length, "tests aujourd'hui"], [CheckCircle2, huileTests.length ? (huileTests[0].resultat || "—") : "—", "dernier résultat", false, (() => { const r = huileTests.length ? (huileTests[0].resultat || "") : ""; if (/non conforme|à changer|mauvaise/i.test(r)) return { fond: "#FDE4E8", couleur: "#B4233A" }; if (/limite/i.test(r)) return { fond: "#FDEBD3", couleur: "#B8620B" }; if (r) return { fond: "#EAF6EF", couleur: "#14653A" }; return undefined; })()]]} />
@@ -5986,10 +5992,12 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
-    <div>
+    <div className="hc-compact">
       <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire les règles officielles : 63 °C minimum en permanence, une seule régénération à 65 °C ou plus." />
-      <SectionHeader title="Maintien au chaud" subtitle="Suivi des produits maintenus au chaud" />
-      <TuilesResume fonction="maintien" items={[[Soup, entriesMaintienChaud.filter((e) => e.statut === "en-cours").length, "en cours"], [CheckCircle2, entriesMaintienChaud.filter((e) => e.date === todayISO() && e.statut === "termine").length, "terminés aujourd'hui"]]} />
+      <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
+        <div className="lg:shrink-0"><SectionHeader title="Maintien au chaud" subtitle="Suivi des produits maintenus au chaud" /></div>
+        <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="maintien" items={[[Soup, entriesMaintienChaud.filter((e) => e.statut === "en-cours").length, "en cours"], [CheckCircle2, entriesMaintienChaud.filter((e) => e.date === todayISO() && e.statut === "termine").length, "terminés aujourd'hui"]]} /></div>
+      </div>
       <MaintienChaud currentUserId={currentUserId} logActivity={logActivity} who={who} catalogue={catalogueMaintienChaud} setCatalogue={setCatalogueMaintienChaud} entries={entriesMaintienChaud} setEntries={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} produitSuggere={maintienChaudSuggere} setProduitSuggere={setMaintienChaudSuggere} onLancerRefroidissement={onLancerRefroidissement} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -6001,10 +6009,12 @@ function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId,
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
-    <div>
+    <div className="hc-compact">
       <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" texte="Cliquez pour lire les règles officielles : température à cœur à atteindre selon le produit (63 °C en général, 71 °C viande hachée, 74 °C volaille hachée…)." />
-      <SectionHeader title="Cuisson" subtitle="Lancer une cuisson selon les fiches techniques ou créer une cuisson personnalisée" />
-      <TuilesResume fonction="cuisson" items={[[Flame, cuissons.filter((c) => c.statut === "en-cours").length, "en cours"], [CheckCircle2, cuissons.filter((c) => c.date === todayISO() && c.statut === "termine").length, "terminées aujourd'hui"], [AlertTriangle, cuissons.filter((c) => c.date === todayISO() && c.conforme === false).length, "non conformes", cuissons.some((c) => c.date === todayISO() && c.conforme === false)]]} />
+      <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
+        <div className="lg:shrink-0"><SectionHeader title="Cuisson" subtitle="Lancer une cuisson selon les fiches techniques ou créer une cuisson personnalisée" /></div>
+        <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="cuisson" items={[[Flame, cuissons.filter((c) => c.statut === "en-cours").length, "en cours"], [CheckCircle2, cuissons.filter((c) => c.date === todayISO() && c.statut === "termine").length, "terminées aujourd'hui"], [AlertTriangle, cuissons.filter((c) => c.date === todayISO() && c.conforme === false).length, "non conformes", cuissons.some((c) => c.date === todayISO() && c.conforme === false)]]} /></div>
+      </div>
       <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={onLancerRefroidissement} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -12206,7 +12216,7 @@ function HaccpTemperatures({
       const cle = `${eq.id}|${creneau}`;
       const sv = saisieManuelle[cle] || {};
       return (
-        <div className="rounded-lg p-2 h-full" style={{ background: r ? (r.conforme === false ? "#FFF4E5" : "#F1FAF4") : "#fff", border: `1px solid ${couleur}55` }}>
+        <div className="rounded-lg p-1.5 h-full" style={{ background: r ? (r.conforme === false ? "#FFF4E5" : "#F1FAF4") : "#fff", border: `1px solid ${couleur}55` }}>
           {r && (
             <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
               <span className="text-base font-bold" style={{ color: r.conforme === false ? "var(--warn)" : "#15803D" }}>{r.valeur} °C</span>
@@ -12214,32 +12224,33 @@ function HaccpTemperatures({
               <span className="text-[11px] text-[var(--steel)]">à {r.heure}</span>
             </div>
           )}
-          <div className="flex flex-wrap items-center gap-1.5">
-            <input className={`${inputCls} !w-20 !py-1.5 min-w-0`} type="number" step="0.1" placeholder="°C" value={sv.valeur ?? ""} onChange={(e) => majSaisie(cle, "valeur", e.target.value)} />
-            <Button variant="ghost" onClick={() => enregistrerReleveCreneau(eq, creneau)} disabled={sv.valeur === undefined || sv.valeur === ""}>{r ? "Corriger / ajouter" : "Enregistrer"}</Button>
+          <div className="flex flex-wrap xl:flex-nowrap items-center gap-1.5">
+            <input className={`${inputCls} !w-16 xl:!w-[3.75rem] !py-1.5 !px-2 min-w-0`} type="number" step="0.1" placeholder="°C" value={sv.valeur ?? ""} onChange={(e) => majSaisie(cle, "valeur", e.target.value)} />
+            <Button variant="ghost" className="!px-2 !text-xs" onClick={() => enregistrerReleveCreneau(eq, creneau)} disabled={sv.valeur === undefined || sv.valeur === ""}>{r ? "Corriger" : "Enregistrer"}</Button>
           </div>
         </div>
       );
     };
     return (
-      <div className="space-y-4 mb-6">
-        <div className="rounded-xl p-3 text-xs leading-snug text-[var(--ink)]" style={{ background: "#FFF8E1", border: "1px solid #E0C46B" }}>
+      <div className="space-y-2 mb-4">
+        <div className="rounded-xl px-3 py-1.5 text-[11px] leading-snug text-[var(--ink)]" style={{ background: "#FFF8E1", border: "1px solid #E0C46B" }}>
           <b>Relevé à la main, matin et soir.</b> Notez la température de chaque appareil avec un thermomètre. Conseil : un petit thermomètre posé à l'intérieur de l'appareil donne la température de l'air ; un thermomètre laser ne mesure que la surface. Tout relevé hors norme est enregistré comme non conforme, avec votre nom, la date et l'heure.
         </div>
         {sansSonde.length === 0 && <Card><p className="text-sm text-[var(--steel)]">Tous vos appareils sont suivis par sonde. Pour relever un appareil à la main, passez-le en « relevé à la main » dans Contrôle &amp; Gestion → Appareils de froid.</p></Card>}
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
         {familles.filter((f) => f.liste.length > 0).map((f) => (
           <div key={f.cle} className="rounded-xl overflow-hidden border-2 bg-white" style={{ borderColor: f.couleur }}>
             <div className="px-3 py-2 text-white flex flex-wrap items-center gap-2" style={{ background: f.couleur }}>
               <span className="font-bold text-base">{f.titre}</span>
               <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5">{f.sous}</span>
-              <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5 ml-auto">{f.liste.length} appareil(s)</span>
+              <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5 ml-auto xl:hidden 2xl:inline">{f.liste.length} appareil(s)</span>
             </div>
             <div className="overflow-x-auto">
-              <div className="grid gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: "minmax(10rem,1.2fr) minmax(11rem,1fr) minmax(11rem,1fr)", minWidth: 520, background: f.fond, color: f.couleur }}>
+              <div className="grid gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: "minmax(7rem,1fr) minmax(8rem,1fr) minmax(8rem,1fr)", minWidth: 440, background: f.fond, color: f.couleur }}>
                 <div>Appareil</div><div>☀️ Matin</div><div>🌙 Soir</div>
               </div>
               {f.liste.map((eq) => (
-                <div key={eq.id} className="grid gap-2 items-stretch px-3 py-2 border-t border-[var(--cadre)]" style={{ gridTemplateColumns: "minmax(10rem,1.2fr) minmax(11rem,1fr) minmax(11rem,1fr)", minWidth: 520 }}>
+                <div key={eq.id} className="grid gap-2 items-stretch px-3 py-1 border-t border-[var(--cadre)]" style={{ gridTemplateColumns: "minmax(7rem,1fr) minmax(8rem,1fr) minmax(8rem,1fr)", minWidth: 440 }}>
                   <div className="min-w-0 self-center">
                     <div className="text-sm font-semibold text-[var(--ink)] break-words">{eq.nom}</div>
                     <div className="text-xs text-[var(--steel)]">Norme : {eq.type === "congelateur" ? `≤ ${eq.max} °C` : `${eq.min} à ${eq.max} °C`}</div>
@@ -12251,6 +12262,7 @@ function HaccpTemperatures({
             </div>
           </div>
         ))}
+        </div>
         {avecSonde.length > 0 && <p className="text-xs text-[var(--steel)]">{avecSonde.length} appareil(s) suivi(s) par sonde ne figurent pas ici : voir l'onglet « Températures avec sonde ».</p>}
       </div>
     );
@@ -12467,12 +12479,12 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
       <Card className="xl:col-span-8 !mb-0">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Play size={16} /></span> Démarrer un maintien au chaud</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits proposés (fiches techniques avec maintien au chaud) : cochez-en un ou plusieurs. Sans produit coché, saisissez le produit à la main à droite.</p>
+        <p className="hidden text-xs text-[var(--steel)] mb-4">À gauche, les produits proposés (fiches techniques avec maintien au chaud) : cochez-en un ou plusieurs. Sans produit coché, saisissez le produit à la main à droite.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${catalogue.length})`} sous="Produits ayant un maintien au chaud">
             <input className={`${inputCls} mb-2`} value={rechercheFiche} onChange={(ev) => setRechercheFiche(ev.target.value)} placeholder="Rechercher un produit…" />
             {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun produit dans la liste pour le moment : ils apparaîtront ici dès que vos fiches seront enregistrées (le chef peut aussi en ajouter dans Contrôle & Gestion). En attendant, saisissez le produit à droite.</p>}
-            <div className="space-y-1.5 max-h-[26rem] overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-[26rem] lg:max-h-[calc(100vh-30rem)] overflow-y-auto pr-1">
               {catalogue.filter((nom) => nom.toLowerCase().includes(rechercheFiche.trim().toLowerCase())).map((nom) => (
                 <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[#1E7B4B] bg-[#EAF6EF] text-[#14653A] font-medium" : "border-[var(--line)] text-[var(--ink)] bg-white"}`}>
                   <input type="checkbox" checked={selection.includes(nom)} onChange={() => toggleSelection(nom)} />
@@ -12775,12 +12787,12 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
       <Card className="xl:col-span-8 !mb-0">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Snowflake size={18} /></span> {neg ? "Démarrer une congélation" : "Démarrer un refroidissement"}</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont {neg ? "une congélation" : "un refroidissement"} : touchez-en un, il est rempli tout seul. Sinon, saisissez le produit à la main à droite. L'heure de départ est pré-remplie, modifiable si vous démarrez avec un léger décalage.</p>
+        <p className="hidden text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont {neg ? "une congélation" : "un refroidissement"} : touchez-en un, il est rempli tout seul. Sinon, saisissez le produit à la main à droite. L'heure de départ est pré-remplie, modifiable si vous démarrez avec un léger décalage.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${produitsFiches.length})`} sous={neg ? "Produits ayant une congélation" : "Produits ayant un refroidissement"}>
             <input className={`${inputCls} mb-2`} value={rechercheFiche} onChange={(e) => setRechercheFiche(e.target.value)} placeholder="Rechercher un produit…" />
             {produitsFiches.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune fiche technique avec {neg ? "une congélation" : "un refroidissement"} pour l'instant : elles apparaîtront ici dès que vos fiches seront enregistrées. En attendant, saisissez le produit à droite.</p>}
-            <div className="space-y-1.5 max-h-[26rem] overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-[26rem] lg:max-h-[calc(100vh-30rem)] overflow-y-auto pr-1">
               {produitsFiches.filter((n) => n.toLowerCase().includes(rechercheFiche.trim().toLowerCase())).map((n) => {
                 const coche = produit.trim().toLowerCase() === n.trim().toLowerCase();
                 return (
@@ -13132,12 +13144,12 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
       <Card className="xl:col-span-8 !mb-0">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Flame size={18} /></span> Démarrer une cuisson</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont une cuisson : cochez-en un ou plusieurs, les indications de la fiche sont remplies toutes seules. Sans produit coché, remplissez la cuisson à la main à droite.</p>
+        <p className="hidden text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont une cuisson : cochez-en un ou plusieurs, les indications de la fiche sont remplies toutes seules. Sans produit coché, remplissez la cuisson à la main à droite.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${catalogue.length})`} sous="Produits ayant une cuisson">
             <input className={`${inputCls} mb-2`} value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Rechercher un produit…" />
             {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune fiche technique avec une cuisson pour l'instant : elles apparaîtront ici dès que vos fiches seront enregistrées. En attendant, utilisez la cuisson manuelle.</p>}
-            <div className="space-y-1.5 max-h-[26rem] overflow-y-auto pr-1">
+            <div className="space-y-1.5 max-h-[26rem] lg:max-h-[calc(100vh-30rem)] overflow-y-auto pr-1">
               {produitsFiltres.map((p) => {
                 const coche = selection.includes(p.nom);
                 const mode = modeCuissonDepuisAppareil(p.appareil);
@@ -13203,8 +13215,9 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                     </select>
                   </Field>
                   <Field label="Heure de départ *"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
+                  <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : quantité, préparation, observations…" /></Field>
                 </div>
-                <div className="mb-3"><Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : quantité, préparation, observations…" /></Field></div>
+                <div className="mb-3"></div>
                 <button onClick={demarrerManuelle} disabled={!mNom.trim() || !(Number(mDuree) > 0) || (mAppareil === "Autre appareil" && !mAppareilAutre.trim())}
                   className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
                   <Play size={16} /> Démarrer la cuisson
@@ -14551,7 +14564,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                 </span>
                 <span className="col-start-2 md:col-start-auto min-w-0 text-sm text-[var(--ink)] space-y-0.5">
                   <span className="block break-all"><span className="text-xs text-[var(--steel)]">Réf. : </span>{p.reference || "—"}</span>
-                  <span className="block break-all"><span className="text-xs text-[var(--steel)]">Lot actuel : </span>{lotActuel || "—"}</span>
+                  <span className="block"><span className="block text-xs text-[var(--steel)]">Lot actuel :</span><span className="block break-all">{lotActuel || "—"}</span></span>
                 </span>
                 <span className="col-start-2 md:col-start-auto text-sm font-semibold text-[var(--ink)]"><span className="md:hidden text-xs font-normal text-[var(--steel)]">DLC après ouverture : </span>
                   {ie.ddm ? (ie.dlcDate ? `DDM ${ie.dlcDate.split("-").reverse().join("/")}` : "DDM à réception") : (ie.jours == null ? <span className="font-normal text-[var(--steel)]">à renseigner</span> : <>{`${ie.jours} j`}{ie.source === "haccp" && <span className="block text-[11px] font-normal text-[var(--steel)]">repère HACCP</span>}</>)}
@@ -14950,7 +14963,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
             <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
-              <span className="flex-1 min-w-0 text-sm font-semibold truncate">Tous les produits <span className="font-normal opacity-80">({stock.length})</span></span>
+              <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Tous les produits <span className="font-normal opacity-80">({stock.length})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
             {CATEGORIES_STOCK.map((c) => {
@@ -14958,7 +14971,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               return (
                 <button key={c.nom} type="button" onClick={() => choisirCat(c.nom)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: actif ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
                   <Package size={20} className="shrink-0" />
-                  <span className="flex-1 min-w-0 text-sm font-semibold truncate">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.nom)})</span></span>
+                  <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.nom)})</span></span>
                   <ChevronRight size={16} className="shrink-0 hidden lg:block" />
                 </button>
               );
@@ -15829,15 +15842,17 @@ function ModalInfosNormes({ fiche, onClose }) {
 }
 
 function BoutonInfosNormes({ ficheKey, onClick, label, texte }) {
+  // Bandeau réglementaire compact : une seule ligne sur grand écran, le titre seul sur téléphone (le texte complet s'ouvre au clic).
   return (
     <button onClick={() => onClick(ficheKey)}
-      className="mb-4 w-full flex items-center gap-3 px-4 py-3.5 rounded-xl text-left border-2 shadow-sm"
+      className="mb-2 w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left border-2 shadow-sm"
       style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
-      <BookOpen size={24} className="shrink-0" style={{ color: "#c0392b" }} />
-      <span className="min-w-0">
-        <span className="block text-sm font-bold uppercase tracking-wide">⚠ {label || "Informations importantes — Normes HACCP"}</span>
-        <span className="block text-xs font-normal mt-0.5">{texte || "Cliquez pour lire les règles officielles et les points de contrôle à respecter."}</span>
+      <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
+      <span className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-2">
+        <span className="text-xs font-bold uppercase tracking-wide">⚠ {label || "Informations importantes — Normes HACCP"}</span>
+        <span className="hidden lg:inline text-xs font-normal">{texte ? texte.replace(/^Cliquez pour lire les règles officielles : /, "") : "Cliquez pour lire les règles officielles."}</span>
       </span>
+      <span className="shrink-0 text-xs font-bold underline">Lire</span>
     </button>
   );
 }
@@ -15878,7 +15893,7 @@ function PhotoInput({ value, onChange, label = "Prendre la photo", small = false
           <label htmlFor={inputId} className="text-xs text-[var(--accent)] font-medium cursor-pointer">Reprendre</label>
         </div>
       ) : rond ? (
-        <label htmlFor={inputId} aria-label={label} title={label} className={`${geant ? "w-40 h-40" : "w-16 h-16"} rounded-full flex items-center justify-center text-white cursor-pointer shadow-md hover:opacity-90`} style={geant ? { backgroundColor: "#1E7B4B", boxShadow: "0 0 0 8px #E7F1EB" } : { backgroundColor: "#1B4F9C" }}>
+        <label htmlFor={inputId} aria-label={label} title={label} className={`${geant ? "w-40 h-40 lg:w-28 lg:h-28" : "w-16 h-16"} rounded-full flex items-center justify-center text-white cursor-pointer shadow-md hover:opacity-90`} style={geant ? { backgroundColor: "#1E7B4B", boxShadow: "0 0 0 8px #E7F1EB" } : { backgroundColor: "#1B4F9C" }}>
           <Camera size={geant ? 68 : 30} />
         </label>
       ) : (
@@ -23578,7 +23593,7 @@ function KitchenApp({ identiteExterne } = {}) {
           </div>
         )}
         {NAV_HACCP.some((n) => n.id === tab) && (
-          <div className="mb-4"><BoutonRetour onClick={retourPagePrecedente}>Retour</BoutonRetour></div>
+          <div className="mb-2"><BoutonRetour onClick={retourPagePrecedente} className="!h-9">Retour</BoutonRetour></div>
         )}
         {tab === "taches" && (
           <>
