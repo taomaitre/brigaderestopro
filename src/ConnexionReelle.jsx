@@ -23,6 +23,8 @@ import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois } from './ficheEtabli
 
 const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
 const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
+// Tables de l'établissement incluses dans la sauvegarde (la table des comptes n'est lisible que par les fonctions du serveur).
+const TABLES_SAUVEGARDE = ["etablissements", "fournisseurs", "prestataires", "produits", "lots_produits", "receptions", "receptions_photos_bon", "receptions_lignes", "notifications_fournisseurs", "fiches_techniques", "fiches_techniques_ingredients", "fiches_techniques_procedes", "fiches_techniques_allergenes", "fiches_techniques_etapes", "fiches_techniques_materiel", "cuissons", "maintiens_chaud", "refroidissements", "etiquettes", "tracabilites", "tracabilites_photos", "appareils", "releves_temperature", "huile_friture_tests", "allergenes_reference", "rappelconso_alertes", "tiac_declarations", "planning_creneaux", "taches", "reservations", "pms_taches", "pms_executions", "journal_activite", "inventaires_mensuels", "inventaires_lignes", "alertes_ia", "surveillances_temperature", "demandes_ajout", "cartes", "horaires_service", "pms_formations", "pms_documents"];
 const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
 const URL_FONCTION_IA = `${URL_PROJET}/functions/v1/ia-gemini`;
 const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`;
@@ -1166,6 +1168,26 @@ export default function ConnexionReelle() {
       employeRole: employeIdentifie.role,
       estChef: estChefOuDirecteur(employeIdentifie.role),
       estSecond: employeIdentifie.role === "second_cuisine",
+      // Sauvegarde complète des données de l'établissement (fichier JSON à copier sur clé USB). Lecture seule : seules les
+      // lignes que la sécurité (RLS) autorise ce compte à voir sont exportées.
+      exporterSauvegarde: estChefOuDirecteur(employeIdentifie.role) ? async () => {
+        const tables = TABLES_SAUVEGARDE;
+        const donnees = {}; const erreurs = {}; let nbLignes = 0;
+        for (const t of tables) {
+          let tout = []; let debut = 0;
+          for (;;) {
+            const { data, error } = await supabasePublic.from(t).select("*").range(debut, debut + 999);
+            if (error) { erreurs[t] = error.message; break; }
+            tout = tout.concat(data || []);
+            if (!data || data.length < 1000) break;
+            debut += 1000;
+          }
+          donnees[t] = tout; nbLignes += tout.length;
+        }
+        const contenu = { application: "BrigadeRestoPro", exporte_le: new Date().toISOString(), etablissement: session.etablissement, nb_lignes: nbLignes, erreurs, tables: donnees };
+        return { nbTables: tables.length, nbLignes, erreurs, json: JSON.stringify(contenu), nomFichier: `sauvegarde-brigaderestopro-${new Date().toISOString().slice(0, 10)}.json` };
+      } : undefined,
+
       catalogue: catalogue || undefined,
       fournisseurs: fournisseursCat || undefined,
       gestionCatalogue: catalogue ? { enregistrer: enregistrerCatalogue } : undefined,

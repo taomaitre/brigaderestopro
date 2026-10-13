@@ -3995,7 +3995,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
   );
 }
 
-function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -4079,6 +4079,7 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
 
   // Grandes rubriques par métier, chacune avec sa couleur. « Urgence sanitaire » (TIAC + rappels de produit)
   // est toujours en rouge, en haut et en pleine largeur : c'est la seule qu'on doit trouver sans réfléchir.
+  const identiteExterneCG = exporterSauvegarde ? { exporterSauvegarde } : null;
   const SECTIONS_CG = [
     { id: "urgence", label: "Urgence sanitaire", desc: "Intoxication alimentaire (TIAC) ou rappel de produit : que faire, que déclarer", icon: AlertTriangle, urgence: true, couleur: { fond: "linear-gradient(160deg, #DC2626 0%, #7F1D1D 100%)", ombre: "rgba(127,29,29,0.4)" } },
     { id: "controle", label: "Contrôles du jour", desc: "Tâches, températures, huiles, cuissons, refroidissements, maintien au chaud, traçabilité", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
@@ -4116,6 +4117,7 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
     { id: "comptes", label: "Gestion des comptes", icon: Users, section: "reglages" },
     { id: "appareilsFroid", label: "Appareils de froid (ajout, modification)", icon: Thermometer, section: "reglages" },
     { id: "catalogueDlc", label: "Produits des étiquettes DLC", icon: Printer, section: "reglages" },
+    ...(identiteExterneCG && identiteExterneCG.exporterSauvegarde ? [{ id: "sauvegarde", label: "Sauvegarde des données", icon: Download, section: "reglages" }] : []),
   ];
   const sectionInfo = SECTIONS_CG.find((x) => x.id === sectionActive);
   // "Planning employé" et "Réservation client" sont réservées à la direction : elles ne sont
@@ -4239,6 +4241,7 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
         const nettoAValider = ctxNettoyageCG && ctxNettoyageCG.executions ? ctxNettoyageCG.executions.filter((x) => x.date === auj && x.statut === "fait" && !x.valideChef).length : 0;
         const fournisseursIncomplets = (fournisseursCatalogue || []).filter((f) => f && !planningRenseigne(f.planning_commande) && !planningRenseigne(f.planning_livraison) && !f.jours_livraison);
         const sansPoste = accesPlanningReservations ? (employees || []).filter((e) => e.id !== "direction" && !e.estDirection && !String(e.poste || "").trim()) : [];
+        const sauvegardeDue = (() => { if (!(identiteExterneCG && identiteExterneCG.exporterSauvegarde)) return false; try { const d = localStorage.getItem(CLE_DERNIERE_SAUVEGARDE); return !d || Date.now() - new Date(d).getTime() > 7 * 86400000; } catch (e) { return false; } })();
         const pl = (n, un, plus) => `${n} ${n > 1 ? plus : un}`;
         // Par ordre de priorité : le plus urgent en haut, chaque ligne a son bouton d'action.
         const aTraiter = [
@@ -4252,6 +4255,7 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
           { n: nettoAValider, texte: pl(nettoAValider, "nettoyage à valider", "nettoyages à valider"), bouton: "Valider", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("planning"); } },
           { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } },
           { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => setReferentielActif(true) },
+          { n: sauvegardeDue ? 1 : 0, texte: "sauvegarde hebdomadaire à faire (copie sur clé USB)", bouton: "Sauvegarder", niveau: 1, agir: () => { setSectionActive("reglages"); setSousEcran("sauvegarde"); } },
           { n: sansPoste.length, texte: pl(sansPoste.length, "employé sans poste", "employés sans poste"), bouton: "Corriger", niveau: 2, agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); } },
         ].filter((x) => x.n > 0);
         const coulNiveau = ["#B42318", "#B7791F", "#1D4ED8"];
@@ -4759,6 +4763,7 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
         <DeclarationTiac employees={employees} activityLog={activityLog} receptions={receptions} preparations={preparations} produits={produits} reservations={reservations} currentUserId={currentUserId} logActivity={logActivity} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} />
       </>)}
 
+      {sousEcran === "sauvegarde" && identiteExterneCG && identiteExterneCG.exporterSauvegarde && <EcranSauvegarde exporter={identiteExterneCG.exporterSauvegarde} />}
       {sousEcran === "comptes" && setRemplacantsChef && (
         <CarteRemplacantChef employees={employees} remplacants={remplacantsChef || []} setRemplacants={setRemplacantsChef} logActivity={logActivity} persiste={!gestionComptes} />
       )}
@@ -8539,6 +8544,40 @@ function DemandeCodeChef({ action, onAutorise, onAnnuler, verifierCodeChef }) {
 
 // Message unique quand quelqu'un n'a pas le droit de corriger : explication, « Signaler au chef » (la demande arrive dans
 // « À traiter » du chef). La correction se fait ensuite dans Contrôle & Gestion, côté chef / directeur. Réutilisé partout où l'on corrige « sur place ».
+// Sauvegarde complète : un fichier à copier sur clé USB (une fois par semaine pendant le test). Lecture seule.
+const CLE_DERNIERE_SAUVEGARDE = "mc-derniere-sauvegarde";
+function EcranSauvegarde({ exporter }) {
+  const [etat, setEtat] = useState({ phase: "repos" });
+  const derniere = (() => { try { return localStorage.getItem(CLE_DERNIERE_SAUVEGARDE); } catch (e) { return null; } })();
+  const lancer = async () => {
+    setEtat({ phase: "encours" });
+    try {
+      const r = await exporter();
+      const blob = new Blob([r.json], { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a"); a.href = url; a.download = r.nomFichier; document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      try { localStorage.setItem(CLE_DERNIERE_SAUVEGARDE, new Date().toISOString()); } catch (e) { /* stockage indisponible */ }
+      setEtat({ phase: "fait", r });
+    } catch (e) { setEtat({ phase: "erreur", message: String((e && e.message) || e) }); }
+  };
+  return (
+    <div>
+      <SectionHeader title="Sauvegarde des données" subtitle="Un fichier complet à copier sur clé USB" fonction="comptes" icone={Download} permanent />
+      <Card className="mb-4">
+        <p className="text-sm text-[var(--ink)] mb-2">Ce bouton télécharge <b>toutes les données de l'établissement</b> (réceptions, fiches, relevés, cartes, planning…) dans un seul fichier. Il ne modifie rien.</p>
+        <p className="text-sm text-[var(--ink)] mb-3">À faire <b>une fois par semaine</b> pendant le test, puis à copier sur 2 clés USB. Le fichier contient des informations de l'équipe : rangez les clés en lieu sûr.</p>
+        <p className="text-xs text-[var(--steel)] mb-3">{derniere ? `Dernière sauvegarde sur cet appareil : ${new Date(derniere).toLocaleString("fr-FR", { dateStyle: "long", timeStyle: "short" })}` : "Aucune sauvegarde faite sur cet appareil."}</p>
+        <button type="button" onClick={lancer} disabled={etat.phase === "encours"} className="min-h-[52px] px-6 rounded-xl text-base font-bold text-white disabled:opacity-60" style={{ background: "#146B45" }}>
+          {etat.phase === "encours" ? "Sauvegarde en cours…" : "Télécharger la sauvegarde"}
+        </button>
+        {etat.phase === "fait" && <p className="text-sm font-semibold mt-3" style={{ color: "#146B45" }}>✓ Fichier téléchargé : {etat.r.nbLignes} lignes dans {etat.r.nbTables} tables.{Object.keys(etat.r.erreurs).length > 0 ? ` (${Object.keys(etat.r.erreurs).length} table(s) non lisibles par ce compte.)` : ""}</p>}
+        {etat.phase === "erreur" && <p className="text-sm font-semibold mt-3 text-[var(--warn)]">La sauvegarde a échoué : {etat.message}</p>}
+      </Card>
+    </div>
+  );
+}
+
 function BlocPasDeDroit({ sujet, onDebloque, onFermer }) {
   const rapide = React.useContext(RapideContext);
   const [envoye, setEnvoye] = useState(false);
@@ -24178,7 +24217,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {tab === "controle" && !bloqueChef && (
-          <Controle produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
