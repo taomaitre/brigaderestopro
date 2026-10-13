@@ -14715,7 +14715,11 @@ function categorieStock(s) {
 }
 // Quantité (dans l'unité du produit) qu'ajoute « +1 conditionnement » : « Carton 6 x 1 L » → 6 L, « 1 x 6 litres » → 6 L, « Sac 25 kg » → 25 kg.
 // Affichage clair d'une quantité en stock : « 3 × 300 g » (nombre × format d'une unité) et, si on sait le calculer, le total (« = 900 g »).
-const UNITES_PIECE = ["pièce", "piece", "pièces", "pieces", "pc", "u", "paquet", "paquets", "unité", "unités"];
+const UNITES_PIECE = ["pièce", "piece", "pièces", "pieces", "pc", "u", "paquet", "paquets", "unité", "unités", "sachet", "sachets", "boîte", "boîtes", "barquette", "barquettes", "bouteille", "bouteilles", "pot", "pots"];
+// Unité d'un produit créé à la réception : un produit avec un format (« 300 g ») se compte en pièces (3 × 300 g, jamais « 3 kg »).
+// Sans format connu, seuls les produits vendus au poids (viande, poisson, fruits et légumes) restent en kg ; tous les autres
+// se comptent en pièces avec « format à préciser », plutôt que d'afficher un poids faux.
+const uniteProduitCree = (conditionnement, conservation) => (conditionnement ? "pièce" : (["viande", "poisson", "legume"].includes(conservation) ? "kg" : "pièce"));
 function formatTotal(cond, n) {
   const m = String(cond || "").trim().toLowerCase().replace(",", ".").match(/^(?:(\d+(?:\.\d+)?)\s*[x×]\s*)?(\d+(?:\.\d+)?)\s*(kg|g|l|cl|ml)$/);
   if (!m) return null;
@@ -16565,7 +16569,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         } else if (nomPropre) {
           // Aucun article existant ne correspond (ni par référence, ni par nom) : on crée l'article
           // plutôt que de perdre silencieusement la quantité réceptionnée.
-          const nouvelArticle = { id: uid(), reference: refPropre, nom: nomPropre, categorie: "", fournisseur, quantite: qteAcceptee, unite: "kg", cible: 0, lot: p.lot || "", dlc: p.dlc || "", allergenes: p.allergenes || "", origine: p.origine || "", agrementSanitaire: p.agrementSanitaire || "" };
+          const nouvelArticle = { id: uid(), reference: refPropre, nom: nomPropre, categorie: "", fournisseur, quantite: qteAcceptee, unite: uniteProduitCree(p.poidsNet, p.conservation), conditionnement: p.poidsNet || "", cible: 0, lot: p.lot || "", dlc: p.dlc || "", allergenes: p.allergenes || "", origine: p.origine || "", agrementSanitaire: p.agrementSanitaire || "" };
           stockCourant = [...stockCourant, nouvelArticle];
           articlesCrees.push(nomPropre);
         }

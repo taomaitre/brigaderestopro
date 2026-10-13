@@ -931,7 +931,7 @@ export default function ConnexionReelle() {
         if (!c.conservation && e.conservation) { c.conservation = e.conservation; adoptions.set(c.id, e.conservation); }
       } else {
         const { data, error } = await supabasePublic.from("produits").insert({
-          etablissement_id: etab, nom: String(e.produit).trim(), reference: e.reference || null, unite: e.conditionnement ? "pièce" : "kg",
+          etablissement_id: etab, nom: String(e.produit).trim(), reference: e.reference || null, unite: e.conditionnement ? "pièce" : (["viande", "poisson", "legume"].includes(e.conservation) ? "kg" : "pièce"),
           conditionnement: e.conditionnement || null, type_date: e.typeDate === "DDM" || e.typeDate === "DLC" ? e.typeDate : null,
           allergenes_norme: allergenesVersListe(e.allergenes).length ? allergenesVersListe(e.allergenes) : null, origine_norme: e.origine || null,
           fournisseur_id: idFournisseur, quantite_stock: qte, quantite_cible: 0,
