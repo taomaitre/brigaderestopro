@@ -12327,6 +12327,7 @@ function HaccpTemperatures({
   const sansSonde = equipementsFroid.filter((e) => !e.sonde);
   const vue = vueReleves || (avecSonde.length > 0 ? "sonde" : "manuel");
 
+  const [creneauMobile, setCreneauMobile] = useState(() => (new Date().getHours() < 15 ? "matin" : "soir"));
   const vueManuelle = () => {
     const auj = todayISO();
     const familles = [
@@ -12348,7 +12349,8 @@ function HaccpTemperatures({
             </div>
           )}
           <div className="flex flex-wrap xl:flex-nowrap items-center gap-1.5">
-            <input className={`${inputCls} !w-16 xl:!w-[3.75rem] !py-1.5 !px-2 min-w-0`} type="number" step="0.1" placeholder="°C" value={sv.valeur ?? ""} onChange={(e) => majSaisie(cle, "valeur", e.target.value)} />
+            <input data-releve-creneau={creneau} className={`${inputCls} !w-16 xl:!w-[3.75rem] !py-1.5 !px-2 min-w-0`} type="number" step="0.1" inputMode="decimal" enterKeyHint="next" placeholder="°C" value={sv.valeur ?? ""} onChange={(e) => majSaisie(cle, "valeur", e.target.value)}
+              onKeyDown={(e) => { if (e.key !== "Enter" || sv.valeur === undefined || sv.valeur === "") return; e.preventDefault(); enregistrerReleveCreneau(eq, creneau); const champs = Array.from(document.querySelectorAll(`input[data-releve-creneau="${creneau}"]`)); const suivant = champs[champs.indexOf(e.currentTarget) + 1]; if (suivant) suivant.focus(); }} />
             <Button variant="ghost" className="!px-2 !text-xs" onClick={() => enregistrerReleveCreneau(eq, creneau)} disabled={sv.valeur === undefined || sv.valeur === ""}>{r ? "Corriger" : "Enregistrer"}</Button>
           </div>
         </div>
@@ -12369,17 +12371,22 @@ function HaccpTemperatures({
               <span className="text-xs font-semibold rounded-full bg-white/25 px-2 py-0.5 ml-auto xl:hidden 2xl:inline">{f.liste.length} appareil(s)</span>
             </div>
             <div className="overflow-x-auto">
-              <div className="grid gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: "minmax(7rem,1fr) minmax(8rem,1fr) minmax(8rem,1fr)", minWidth: 440, background: f.fond, color: f.couleur }}>
-                <div>Appareil</div><div>☀️ Matin</div><div>🌙 Soir</div>
+              <div className="md:hidden flex gap-2 px-3 py-2" style={{ background: f.fond }}>
+                {[["matin", "☀️ Matin"], ["soir", "🌙 Soir"]].map(([k, l]) => (
+                  <button key={k} type="button" onClick={() => setCreneauMobile(k)} className="flex-1 min-h-[44px] rounded-xl text-sm font-bold border-2" style={creneauMobile === k ? { background: f.couleur, color: "#fff", borderColor: f.couleur } : { background: "#fff", color: f.couleur, borderColor: f.couleur }}>{l}</button>
+                ))}
+              </div>
+              <div className="grid gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide grid-cols-[minmax(6rem,1fr)_minmax(8rem,1.2fr)] md:grid-cols-[minmax(7rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)] md:min-w-[440px]" style={{ background: f.fond, color: f.couleur }}>
+                <div>Appareil</div><div className={creneauMobile === "matin" ? "" : "hidden md:block"}>☀️ Matin</div><div className={creneauMobile === "soir" ? "" : "hidden md:block"}>🌙 Soir</div>
               </div>
               {f.liste.map((eq) => (
-                <div key={eq.id} className="grid gap-2 items-stretch px-3 py-1 border-t border-[var(--cadre)]" style={{ gridTemplateColumns: "minmax(7rem,1fr) minmax(8rem,1fr) minmax(8rem,1fr)", minWidth: 440 }}>
+                <div key={eq.id} className="grid gap-2 items-stretch px-3 py-1 border-t border-[var(--cadre)] grid-cols-[minmax(6rem,1fr)_minmax(8rem,1.2fr)] md:grid-cols-[minmax(7rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)] md:min-w-[440px]">
                   <div className="min-w-0 self-center">
                     <div className="text-sm font-semibold text-[var(--ink)] break-words">{eq.nom}</div>
                     <div className="text-xs text-[var(--steel)]">Norme : {eq.type === "congelateur" ? `≤ ${eq.max} °C` : `${eq.min} à ${eq.max} °C`}</div>
                   </div>
-                  {cellule(eq, "matin", f.couleur)}
-                  {cellule(eq, "soir", f.couleur)}
+                  <div className={creneauMobile === "matin" ? "" : "hidden md:block"}>{cellule(eq, "matin", f.couleur)}</div>
+                  <div className={creneauMobile === "soir" ? "" : "hidden md:block"}>{cellule(eq, "soir", f.couleur)}</div>
                 </div>
               ))}
             </div>
@@ -23876,7 +23883,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
       </header>
 
-      {tab !== "accueil" && tab !== "fiches" && (
+      {tab !== "accueil" && tab !== "fiches" && !NAV_HACCP.some((n) => n.id === tab) && (
         <div className="md:hidden px-4 pt-3 bg-white">
           <BoutonRetour onClick={() => setTab("accueil")}>Retour Accueil</BoutonRetour>
         </div>
