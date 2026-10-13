@@ -1,0 +1,29 @@
+# Garde le projet Supabase (offre gratuite) actif pendant la période de test : il se met en pause après ~7 jours
+# sans activité. Ce travail envoie chaque jour quelques lectures sans risque (aucune écriture, aucune donnée sensible).
+# Si le projet ne répond plus (pause, panne), le travail échoue : GitHub envoie alors un e-mail au propriétaire.
+# Supprimer ce fichier le jour où le projet passe en abonnement payant (qui ne se met jamais en pause).
+name: Garder Supabase actif
+
+on:
+  schedule:
+    - cron: "13 5 * * *"
+    - cron: "41 17 * * *"
+  workflow_dispatch: {}
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Quelques lectures publiques
+        env:
+          URL: https://uikxpjnovzxcglygueif.supabase.co
+          # Clé publique (déjà présente dans l'application, conçue pour être publique).
+          CLE: sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9
+        run: |
+          set -e
+          for i in 1 2 3; do
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/rest/v1/etablissements?select=id&limit=1" -H "apikey: $CLE" -H "Authorization: Bearer $CLE")
+            echo "Lecture $i : HTTP $code"
+            case "$code" in 2*) ;; *) echo "Le projet ne répond pas correctement"; exit 1 ;; esac
+            sleep 5
+          done
