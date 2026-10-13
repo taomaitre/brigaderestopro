@@ -3720,6 +3720,36 @@ const LIBELLE_STATUT = Object.fromEntries(STATUTS_EQUIPE.map((x) => [x.value, x.
 
 // Gestion des comptes employés (nouvelle base) : création avec e-mail (l'employé choisit lui-même son code par un lien),
 // liste des comptes actifs, suppression rapide avec une simple confirmation.
+// Remplaçant du chef : les jours de repos du chef, la personne choisie reçoit l'accès à Contrôle & Gestion
+// et le « Contrôle obligatoire » du soir (voir KitchenApp : employees effectifs, et Taches : appliesToDate).
+function CarteRemplacantChef({ employees, remplacants, setRemplacants, logActivity, persiste }) {
+  const candidats = employees.filter((e) => !e.estDirection && (!e.estChef || e.remplaceChef) && e.id !== "direction");
+  const basculer = (e) => {
+    const actif = remplacants.includes(e.id);
+    setRemplacants(actif ? remplacants.filter((x) => x !== e.id) : [...remplacants, e.id]);
+    logActivity && logActivity("Équipe", actif ? "Remplaçant du chef retiré" : "Remplaçant du chef ajouté", e.nom);
+  };
+  return (
+    <Card className="mb-4">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Remplaçant du chef (jours de repos)</h3>
+      <p className="text-sm text-[var(--steel)] mb-3">Les jours où le chef est en repos (aucun horaire dans le planning), la personne cochée reçoit l'accès à Contrôle & Gestion et fait le « Contrôle obligatoire ». Les autres jours, elle garde son accès habituel.</p>
+      {candidats.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun autre compte disponible.</p>}
+      <div className="flex flex-wrap gap-2">
+        {candidats.map((e) => {
+          const actif = remplacants.includes(e.id);
+          return (
+            <button key={e.id} type="button" onClick={() => basculer(e)} aria-pressed={actif}
+              className={`min-h-[44px] px-4 rounded-xl border-2 text-sm font-bold ${actif ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>
+              {actif ? "✓ " : ""}{e.nom}{e.poste ? <span className="font-normal opacity-80"> · {e.poste}</span> : null}
+            </button>
+          );
+        })}
+      </div>
+      {persiste === false && <p className="text-xs text-[var(--steel)] mt-2">Aperçu : ce réglage n'est pas encore conservé après rechargement dans la nouvelle base.</p>}
+    </Card>
+  );
+}
+
 function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }) {
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
@@ -3907,7 +3937,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
   );
 }
 
-function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -4637,6 +4667,9 @@ function Controle({ commandesHistorique, setProduits, setEquipementsFroid, catal
         <DeclarationTiac employees={employees} activityLog={activityLog} receptions={receptions} preparations={preparations} produits={produits} reservations={reservations} currentUserId={currentUserId} logActivity={logActivity} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} />
       </>)}
 
+      {sousEcran === "comptes" && setRemplacantsChef && (
+        <CarteRemplacantChef employees={employees} remplacants={remplacantsChef || []} setRemplacants={setRemplacantsChef} logActivity={logActivity} persiste={!gestionComptes} />
+      )}
       {sousEcran === "comptes" && gestionComptes && (
         <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} />
       )}
@@ -15617,7 +15650,7 @@ const FICHES_NORMES = {
     sections: [
       { titre: "Règle générale — 63°C à cœur", contenu: "≥ 63°C à cœur pour tous les produits (sauf exceptions ci-dessous), maintenus au moins 2 minutes pour garantir la destruction des agents pathogènes. En dessous de 63°C, le produit est non conforme : remise en cuisson obligatoire ou élimination." },
       { titre: "Cas particuliers par famille de produits", contenu: [
-        "Viandes hachées (steaks hachés, sauces bolognaise…) : ≥ 70°C à cœur.",
+        "Viandes hachées (steaks hachés, sauces bolognaise…) : ≥ 71°C à cœur.",
         "Volailles (poulet, dinde…) : ≥ 80°C à cœur.",
         "Poissons : ≥ 63°C à cœur.",
         "Œufs : le jaune et le blanc doivent être coagulés (aucun doute possible).",
@@ -21190,12 +21223,20 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
 
   const updateAssignation = (id, assignedTo) => updateTask(id, { assignedTo });
 
+  const chefAbsentPourDate = (dateStr) => {
+    const jour = JOURS[(dateDepuisIso(dateStr).getDay() + 6) % 7];
+    const chefs = employees.filter((e) => (e.estChef || e.remplacantActif) && !e.estDirection && !e.remplaceChef);
+    return chefs.length > 0 && shifts.length > 0 && chefs.every((c) => !shifts.some((x) => x.employeeId === c.id && x.jour === jour));
+  };
   const appliesToDate = (t, employeeId, dateStr) => {
     // Le contrôle de fin de service ne doit apparaître dans le planning de PERSONNE — il n'est
     // accessible que par le chef via "Gestion et contrôle" (ControlePlanningJour, hors de cet écran).
     if (t.titre === "Contrôle") return false;
     // Le chef a déjà "Contrôle obligatoire" qui couvre tout — pas besoin du contrôle par poste en double
     if (t.titre === "Contrôle et vérification" && employees.find((e) => e.id === employeeId)?.estChef) return false;
+    // Remplaçant du chef : les jours de repos du chef, il fait aussi le « Contrôle obligatoire ».
+    const empR = employees.find((e) => e.id === employeeId);
+    if (empR?.remplaceChef && /^Contrôle obligatoire/i.test(t.titre) && chefAbsentPourDate(dateStr)) return isTaskActive(t, dateStr);
     return taskAppliesTo(t, employees.find((e) => e.id === employeeId)) && isTaskActive(t, dateStr);
   };
   const tasksFor = (employeeId) => tasks.filter((t) => appliesToDate(t, employeeId, today));
@@ -22290,8 +22331,8 @@ function KitchenApp({ identiteExterne } = {}) {
   // modifications faites ici disparaissent au rechargement : la création/suppression durable
   // dans la nouvelle base sera ajoutée à l'étape suivante. Usage normal : comportement inchangé.
   const [employeesExternes, setEmployeesExternes] = useState(() => (identiteExterne && identiteExterne.equipe) || []);
-  const employees = modeExterne ? employeesExternes : employeesStockes;
-  const setEmployees = modeExterne ? setEmployeesExternes : setEmployeesStockes;
+  const employeesBase = modeExterne ? employeesExternes : employeesStockes;
+  const setEmployeesBase = modeExterne ? setEmployeesExternes : setEmployeesStockes;
   // Équipe de la nouvelle base : se met à jour quand un compte est créé, supprimé ou invité (gestion des comptes).
   const cleEquipeExterne = modeExterne ? JSON.stringify((identiteExterne.equipe || []).map((e) => [e.id, e.nom, e.poste, e.role, e.email, e.codeDefini, (e.services || []).join(",")])) : "";
   useEffect(() => {
@@ -22518,6 +22559,22 @@ function KitchenApp({ identiteExterne } = {}) {
   const [shiftsExternes, setShiftsExternes] = useListeExterne(identiteExterne, "shifts");
   const shifts = modeExterne ? shiftsExternes : shiftsStockes;
   const setShifts = modeExterne ? setShiftsExternes : setShiftsStockes;
+  // Remplaçant du chef : les jours de repos du chef (aucun horaire ce jour-là), le remplaçant désigné reçoit les droits du chef.
+  const [remplacantsChef, setRemplacantsChef] = useStoredOuMemoire("remplacants-chef", [], modeExterne, []);
+  const chefAbsentLe = (jour) => {
+    const chefs = employeesBase.filter((e) => e.estChef && !e.estDirection);
+    return chefs.length > 0 && shifts.length > 0 && chefs.every((c) => !shifts.some((x) => x.employeeId === c.id && x.jour === jour));
+  };
+  const chefAbsentAujourdhui = chefAbsentLe(JOURS[(new Date().getDay() + 6) % 7]);
+  const employees = React.useMemo(() => employeesBase.map((e) => {
+    if (e.estChef || !remplacantsChef.includes(e.id)) return e;
+    return { ...e, remplaceChef: true, ...(chefAbsentAujourdhui ? { estChef: true, remplacantActif: true } : {}) };
+  }), [employeesBase, remplacantsChef, chefAbsentAujourdhui]);
+  // Les droits « du jour » ne sont jamais écrits dans les comptes enregistrés.
+  const setEmployees = (suite) => {
+    const liste = typeof suite === "function" ? suite(employees) : suite;
+    setEmployeesBase(liste.map((e) => { if (!e.remplacantActif && !e.remplaceChef) return e; const { remplacantActif, remplaceChef, ...reste } = e; return remplacantActif ? { ...reste, estChef: false } : reste; }));
+  };
   // Tâches : en prévisualisation, en mémoire seulement (jamais l'ancien stockage, qui contient les tâches réelles de
   // Games Factory) et sans les tâches Games Factory intégrées au code. Aucune tâche d'exemple : le chef crée les siennes. La vraie migration des tâches viendra plus tard.
   const [tasksStockees, setTasksStockees] = useStored("taches", DEFAULT_TASKS_POSTE_CHAUD);
@@ -23833,7 +23890,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {tab === "controle" && !bloqueChef && (
-          <Controle commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />

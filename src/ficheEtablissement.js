@@ -35,6 +35,8 @@ export const FICHE_ETAB_CHAMPS = [
   { cle: "exploitantFonction", colonne: "exploitant_fonction", groupe: "responsables", label: "Fonction de l'exploitant", type: "texte" },
   { cle: "responsableHygiene", colonne: "responsable_hygiene", groupe: "responsables", label: "Responsable hygiène / référent PMS (nom)", type: "texte", requis: true },
   { cle: "responsableHygieneFonction", colonne: "responsable_hygiene_fonction", groupe: "responsables", label: "Fonction du responsable hygiène", type: "texte" },
+  { cle: "suppleantControles", colonne: "suppleant_controles", groupe: "responsables", label: "Si le chef est absent : qui assure les contrôles ? (nom)", type: "texte", aide: "Une deuxième personne (second de cuisine, chef de partie…) qui prend les contrôles les jours de repos ou d'absence du chef. Une absence de chef sans remplaçant est un point faible lors d'un contrôle." },
+  { cle: "suppleantControlesFonction", colonne: "suppleant_controles_fonction", groupe: "responsables", label: "Fonction de ce remplaçant", type: "texte" },
 ];
 
 // Remarques de saisie (affichées en gris, jamais bloquantes).
