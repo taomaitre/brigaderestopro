@@ -2738,6 +2738,9 @@ const NettoyageContext = React.createContext(null);
 // Règle d'accès : un employé voit et fait les tâches ; ajouter, modifier, supprimer et consulter les historiques
 // se fait uniquement dans Contrôle & Gestion (chef, directeur).
 const AccesContext = React.createContext({ estResponsable: true });
+// Actions rapides depuis le contrôle / l'historique de la journée : terminer une cuisson, un refroidissement ou un maintien au chaud
+// sur place, sans retourner à l'écran de la fonction (fournies par KitchenApp).
+const RapideContext = React.createContext(null);
 const useAcces = () => React.useContext(AccesContext);
 
 const libelleDateCourte = (iso) => { const [y, m, d] = String(iso).split("-"); return `${d}/${m}`; };
@@ -18192,6 +18195,10 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
   const [jour, setJour] = useState(aujourdhui);
   const [etendus, setEtendus] = useState({});
   const [agrandi, setAgrandi] = useState(null);
+  const rapide = React.useContext(RapideContext);
+  const [fin, setFin] = useState(null); // { type: "cuisson" | "refroidissement" | "maintien", item }
+  const [saisieFin, setSaisieFin] = useState({ temp: "", motif: "" });
+  const [verdictFin, setVerdictFin] = useState(null);
   const who = (id) => (employees.find((e) => e.id === id) || {}).nom || "—";
   const decaler = (n) => { const d = new Date(jour + "T00:00:00"); d.setDate(d.getDate() + n); setJour(d.toISOString().slice(0, 10)); };
   const pct = (a, b) => (b > 0 ? `${Math.round((a / b) * 100)} %` : "—");
@@ -18235,11 +18242,11 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
       colonnes: ["Zone / matériel", "Poste", "Heure", "Responsable", "Statut"], lignes: nettoyages.map((c) => [c.tache, c.poste || "—", H(c.heure || c.heureFait), who(c.employeeId), "Fait"]) },
     { id: "temperatures", cle: "temperatures", ouvrir: "temperatures", icone: Thermometer, titre: "Températures", n: releves.length, texte: releves.length ? `${pct(tempsOk, releves.length)} conforme` : "Aucun relevé",
       colonnes: ["Équipement", "Température", "Heure", "Responsable", "Statut"], lignes: releves.map((r) => [nomEq(r.equipementId), `${r.valeur} °C`, H(r.heure), who(r.employeeId), statutTemp(r)]), alerteCol: 4 },
-    { id: "refroidissements", cle: "cellule", ouvrir: "cellule", icone: Snowflake, titre: "Refroidissements", n: refr.length, texte: refr.length ? `${pct(refrFinis, refr.length)} · ${refr.length - refrFinis} en cours` : "Aucun",
+    { id: "refroidissements", items: refr, enCours: (r) => r.statut !== "termine" && !r.origineMaintienId && !r.origineRetourCuisson, cle: "cellule", ouvrir: "cellule", icone: Snowflake, titre: "Refroidissements", n: refr.length, texte: refr.length ? `${pct(refrFinis, refr.length)} · ${refr.length - refrFinis} en cours` : "Aucun",
       colonnes: ["Produit", "Départ", "Fin", "Durée", "Responsable", "Statut"], lignes: refr.map((r) => [r.produit, H(r.heureDebut), H(r.heureFin), r.dureeMin != null ? `${Math.floor(r.dureeMin / 60)} h ${String(r.dureeMin % 60).padStart(2, "0")}` : "—", who(r.employeeId), r.statut === "termine" ? (r.conforme === false ? "Terminé — non conforme" : "Terminé") : "En cours"]) },
-    { id: "cuissons", cle: "cuisson", ouvrir: "cuisson", icone: Flame, titre: "Cuissons", n: cuis.length, texte: cuis.length ? `${pct(cuisFinies, cuis.length)} · ${cuis.length - cuisFinies} en cours` : "Aucune",
+    { id: "cuissons", items: cuis, enCours: (c) => !(c.statut === "termine" || c.finie), cle: "cuisson", ouvrir: "cuisson", icone: Flame, titre: "Cuissons", n: cuis.length, texte: cuis.length ? `${pct(cuisFinies, cuis.length)} · ${cuis.length - cuisFinies} en cours` : "Aucune",
       colonnes: ["Produit", "Heure", "Appareil", "T° à cœur", "Responsable", "Statut"], lignes: cuis.map((c) => [c.produit, H(c.heureDebut), c.appareil || "—", c.temperature !== undefined && c.temperature !== null && c.temperature !== "" ? `${c.temperature} °C` : "—", who(c.employeeId), c.statut === "termine" || c.finie ? (c.conforme === false ? "Terminé — non conforme" : "Terminé") : "En cours"]) },
-    { id: "maintien", cle: "maintien", ouvrir: "maintien", icone: Soup, titre: "Maintien au chaud", n: maint.length, texte: maint.length ? `${pct(maintFinis, maint.length)} · ${maint.length - maintFinis} en cours` : "Aucun",
+    { id: "maintien", items: maint, enCours: (m) => m.statut !== "termine" && !m.refroidissementLance, cle: "maintien", ouvrir: "maintien", icone: Soup, titre: "Maintien au chaud", n: maint.length, texte: maint.length ? `${pct(maintFinis, maint.length)} · ${maint.length - maintFinis} en cours` : "Aucun",
       colonnes: ["Produit", "Appareil", "Début", "Fin", "Responsable", "Statut"], lignes: maint.map((m) => [m.nom, m.appareil || "—", H(m.heureDebut), H(m.heureFin), who(m.employeeId), m.statut === "termine" ? "Terminé" : "En cours"]) },
     { id: "huiles", cle: "huile", ouvrir: "huile", icone: Droplets, titre: "Huiles de friture", n: huiles.length, texte: huiles.length ? `${pct(huilesOk, huiles.length)} conforme` : "Aucun test",
       colonnes: ["Bain", "Heure", "Responsable", "Résultat"], lignes: huiles.map((h) => [h.bain || "—", H(h.heure), who(h.employeeId), h.resultat || "—"]) },
@@ -18269,9 +18276,60 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
   };
   const estStatut = (b, j) => (b.colonnes[j] || "") === "Statut" || b.colonnes[j] === "Résultat";
 
+  // Actions sur place : terminer ce qui est « en cours », ou ouvrir l'écran complet de la fonction.
+  const celluleAction = (b, i) => {
+    const it = b.items && b.items[i];
+    if (!it) return null;
+    const peutTerminer = rapide && b.enCours && b.enCours(it);
+    const type = b.id === "cuissons" ? "cuisson" : b.id === "refroidissements" ? "refroidissement" : b.id === "maintien" ? "maintien" : null;
+    return (
+      <span className="inline-flex gap-1.5">
+        {peutTerminer && type && <button type="button" onClick={() => { setSaisieFin({ temp: "", motif: "" }); setVerdictFin(null); setFin({ type, item: it }); }} className="px-2.5 py-1 rounded-md text-[11px] font-bold text-white" style={{ background: "#157347" }}>Terminer</button>}
+        {onOuvrir && b.ouvrir && <button type="button" onClick={() => { setAgrandi(null); onOuvrir(b.ouvrir); }} className="px-2 py-1 rounded-md text-[11px] font-semibold bg-white border border-[var(--line)] text-[var(--ink)]">Ouvrir ›</button>}
+      </span>
+    );
+  };
+  const heureNow = () => new Date().toTimeString().slice(0, 5);
+  const validerFin = (visuelOk) => {
+    if (!fin || !rapide) return;
+    const { type, item } = fin;
+    const t = String(saisieFin.temp).replace(",", ".");
+    const tNum = parseFloat(t);
+    if (type === "cuisson") {
+      let conforme;
+      if (visuelOk !== undefined) conforme = visuelOk;
+      else { if (t === "" || Number.isNaN(tNum)) return; conforme = tNum >= seuilCuissonEntree(item); }
+      const cloturer = !item.refroidissementLance;
+      rapide.setCuissons((prev) => prev.map((x) => (x.id === item.id ? { ...x, finie: true, heureFin: heureNow(), temperature: visuelOk !== undefined ? "" : t, controleVisuel: visuelOk !== undefined ? true : undefined, conforme, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) } : x)));
+      rapide.logActivity("HACCP", "Fin de cuisson (depuis le contrôle)", `${item.produit} — ${visuelOk !== undefined ? "contrôle visuel" : `${t}°C à cœur`} — ${conforme ? "conforme" : "non conforme"}`);
+      if (!conforme && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Cuisson", employeeId: rapide.currentUserId, titre: `${item.produit} — cuisson non conforme`, detail: visuelOk !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${t} °C, inférieure au seuil de ${seuilCuissonEntree(item)} °C.` });
+      setVerdictFin({ ok: conforme, texte: `${item.produit} : cuisson terminée · ${visuelOk !== undefined ? "contrôle visuel" : `${t} °C à cœur`} · ${conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
+    } else if (type === "refroidissement") {
+      if (t === "" || Number.isNaN(tNum)) return;
+      const norme = normeRefroidissement(item.type);
+      const dureeMin = Math.round((Date.now() - (item.debutTs || Date.now())) / 60000);
+      const depasse = dureeMin > norme.dureeMaxMin;
+      if (depasse && !saisieFin.motif) return;
+      const accepte = saisieFin.motif === "Produit resté à bonne température (accepté)";
+      const conforme = depasse ? accepte : tNum < norme.finMax;
+      rapide.setRefroidissements((prev) => prev.map((x) => (x.id === item.id ? { ...x, heureFin: heureNow(), tempFin: t, dureeMin, conforme, statut: "termine", anomalie: depasse ? saisieFin.motif : null, cellNettoyee: false } : x)));
+      if (rapide.ajouterTacheNettoyageCellule) rapide.ajouterTacheNettoyageCellule({ id: item.id, produit: item.produit, employeeId: item.employeeId });
+      rapide.logActivity("HACCP", "Refroidissement terminé (depuis le contrôle)", `${item.produit} — ${t}°C en ${dureeMin} min — ${conforme ? "conforme" : "non conforme"}`);
+      if (!conforme && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Refroidissement", employeeId: rapide.currentUserId, titre: `${item.produit} — refroidissement non conforme`, detail: depasse ? `Délai dépassé (${saisieFin.motif}).` : `Température de fin ${t} °C, au-dessus de ${norme.finMax} °C.` });
+      setVerdictFin({ ok: conforme, texte: `${item.produit} : refroidissement terminé en ${Math.floor(dureeMin / 60)} h ${String(dureeMin % 60).padStart(2, "0")} · ${t} °C · ${conforme ? "conforme" : "NON CONFORME, produit à détruire"}` });
+    } else if (type === "maintien") {
+      if (t === "" || Number.isNaN(tNum)) return;
+      rapide.setEntriesMaintienChaud((prev) => prev.map((x) => (x.id === item.id ? { ...x, statut: "termine", heureFin: heureNow(), tempFin: t } : x)));
+      rapide.logActivity("HACCP", "Maintien au chaud terminé (depuis le contrôle)", `${item.nom} — ${t}°C`);
+      const ok = tNum >= 63;
+      if (!ok && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Maintien au chaud", employeeId: rapide.currentUserId, titre: `${item.nom} — maintien sous 63 °C`, detail: `Température de fin de maintien : ${t} °C (minimum 63 °C).` });
+      setVerdictFin({ ok, texte: `${item.nom} : maintien au chaud terminé · ${t} °C · ${ok ? "conforme" : "SOUS 63 °C, produit à vérifier ou détruire"}` });
+    }
+  };
+
   return (
     <div className="mb-6">
-      {!integre && <SectionHeader title="Historique de la journée" subtitle="Vue d'ensemble de toutes les actions et contrôles réalisés ce jour-là. Lecture seule." fonction="historiqueJour" icone={ClipboardList} />}
+      {!integre && <SectionHeader title="Historique de la journée" subtitle="Vue d'ensemble de toutes les actions et contrôles réalisés ce jour-là. Ce qui est « en cours » peut être terminé directement ici." fonction="historiqueJour" icone={ClipboardList} />}
       <div className="flex flex-wrap items-center gap-2 mb-4">
         <button type="button" onClick={() => decaler(-1)} className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-white text-sm" aria-label="Jour précédent">‹</button>
         <input type="date" value={jour} max={aujourdhui} onChange={(e) => e.target.value && setJour(e.target.value)} className={inputCls} style={{ width: "auto" }} />
@@ -18313,11 +18371,11 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
               <div className="bg-white/80 px-3 py-2">
                 {b.lignes.length === 0 ? <p className="text-sm text-[var(--steel)] py-2">Rien d'enregistré ce jour-là.</p> : (
                   <div className="overflow-x-auto"><table className="w-full text-xs sm:text-sm">
-                    <thead><tr className="text-left text-[11px] text-[var(--steel)]">{b.colonnes.map((c) => <th key={c} className="py-1 pr-2 font-semibold">{c}</th>)}</tr></thead>
+                    <thead><tr className="text-left text-[11px] text-[var(--steel)]">{b.colonnes.map((c) => <th key={c} className="py-1 pr-2 font-semibold">{c}</th>)}{b.items && <th className="py-1" />}</tr></thead>
                     <tbody>{lignes.map((l, i) => <tr key={i} className="border-t border-[var(--line)]">{l.map((v, j) => {
                       const ch = (estStatut(b, j) || (b.id === "dlc" && j === l.length - 1)) ? pastille(v) : null;
                       return <td key={j} className="py-1.5 pr-2 align-middle">{ch ? <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: ch.fond, color: ch.texte }}>{v}</span> : v}</td>;
-                    })}</tr>)}</tbody>
+                    })}{b.items && <td className="py-1.5 align-middle text-right whitespace-nowrap">{celluleAction(b, i)}</td>}</tr>)}</tbody>
                   </table></div>
                 )}
                 {b.lignes.length > MAX_LIGNES && (
@@ -18330,6 +18388,61 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
           );
         })}
       </div>
+
+      {/* Terminer sur place une cuisson / un refroidissement / un maintien au chaud en cours */}
+      {fin && (() => {
+        const it = fin.item; const nom = it.produit || it.nom || "Produit";
+        const titreFin = fin.type === "cuisson" ? "Terminer la cuisson" : fin.type === "refroidissement" ? "Terminer le refroidissement" : "Terminer le maintien au chaud";
+        const norme = fin.type === "refroidissement" ? normeRefroidissement(it.type) : null;
+        const dureeMin = norme ? Math.round((Date.now() - (it.debutTs || Date.now())) / 60000) : 0;
+        const depasse = norme ? dureeMin > norme.dureeMaxMin : false;
+        const visuel = fin.type === "cuisson" && it.controleVisuelSeul;
+        return (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-3" style={{ backgroundColor: "rgba(20,20,30,0.55)" }} onClick={() => setFin(null)}>
+            <div className="w-full max-w-md rounded-2xl bg-white p-5" onClick={(e) => e.stopPropagation()}>
+              <div className="flex items-center gap-2 mb-1">
+                <h3 className="font-bold text-lg text-[var(--ink)]">{titreFin}</h3>
+                <button type="button" onClick={() => setFin(null)} aria-label="Fermer" className="ml-auto w-9 h-9 rounded-lg border border-[var(--line)] text-lg font-bold">×</button>
+              </div>
+              <p className="text-sm text-[var(--steel)] mb-3"><b className="text-[var(--ink)]">{nom}</b>{it.heureDebut ? ` · commencé à ${it.heureDebut}` : ""}</p>
+              {verdictFin ? (
+                <div>
+                  <div className="rounded-xl p-3 text-sm font-semibold" style={verdictFin.ok ? { background: "#DDF5E7", color: "#157347" } : { background: "#FDE2E0", color: "#B42318" }}>{verdictFin.texte}</div>
+                  <Button className="mt-3 w-full" onClick={() => { setFin(null); setVerdictFin(null); }}>Fermer</Button>
+                </div>
+              ) : visuel ? (
+                <div>
+                  <p className="text-sm mb-3">Cette cuisson se contrôle à l'œil. Le résultat est-il bon ?</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button onClick={() => validerFin(true)}>Conforme</Button>
+                    <Button variant="ghost" onClick={() => validerFin(false)}>Non conforme</Button>
+                  </div>
+                </div>
+              ) : (
+                <div>
+                  <label className="block text-sm font-semibold mb-1">{fin.type === "cuisson" ? "Température à cœur (°C)" : "Température de fin (°C)"}</label>
+                  <input type="number" inputMode="decimal" autoFocus className={`${inputCls} w-full`} value={saisieFin.temp} onChange={(e) => setSaisieFin({ ...saisieFin, temp: e.target.value })} placeholder="Ex. 74" />
+                  <p className="text-xs text-[var(--steel)] mt-1">
+                    {fin.type === "cuisson" && `Seuil de ce plat : ${seuilCuissonEntree(it)} °C minimum.`}
+                    {fin.type === "refroidissement" && `Cible : moins de ${norme.finMax} °C en ${Math.floor(norme.dureeMaxMin / 60)} h ${norme.dureeMaxMin % 60 ? String(norme.dureeMaxMin % 60).padStart(2, "0") : ""}. Durée actuelle : ${Math.floor(dureeMin / 60)} h ${String(dureeMin % 60).padStart(2, "0")}.`}
+                    {fin.type === "maintien" && "Minimum 63 °C."}
+                  </p>
+                  {depasse && (
+                    <div className="mt-3">
+                      <label className="block text-sm font-semibold mb-1" style={{ color: "#B42318" }}>Délai dépassé : motif obligatoire</label>
+                      <select className={`${inputCls} w-full`} value={saisieFin.motif} onChange={(e) => setSaisieFin({ ...saisieFin, motif: e.target.value })}>
+                        <option value="">Choisir un motif…</option>
+                        {MOTIFS_ANOMALIE_REFROIDISSEMENT.map((m) => <option key={m} value={m}>{m}</option>)}
+                      </select>
+                    </div>
+                  )}
+                  <Button className="mt-4 w-full" onClick={() => validerFin()}>Valider</Button>
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Zone agrandie : tout le détail, avec une flèche et une croix pour revenir au tableau */}
       {(() => {
@@ -18348,11 +18461,11 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
               <div className="overflow-auto p-4">
                 {b.lignes.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien d'enregistré ce jour-là.</p> : (
                   <table className="w-full text-sm">
-                    <thead><tr className="text-left text-xs text-[var(--steel)]">{b.colonnes.map((c) => <th key={c} className="py-1.5 pr-3 font-semibold">{c}</th>)}</tr></thead>
+                    <thead><tr className="text-left text-xs text-[var(--steel)]">{b.colonnes.map((c) => <th key={c} className="py-1.5 pr-3 font-semibold">{c}</th>)}{b.items && <th className="py-1.5" />}</tr></thead>
                     <tbody>{b.lignes.map((l, i) => <tr key={i} className="border-t border-[var(--line)]">{l.map((v, j) => {
                       const ch = (estStatut(b, j) || (b.id === "dlc" && j === l.length - 1)) ? pastille(v) : null;
                       return <td key={j} className="py-2 pr-3 align-middle">{ch ? <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold" style={{ background: ch.fond, color: ch.texte }}>{v}</span> : v}</td>;
-                    })}</tr>)}</tbody>
+                    })}{b.items && <td className="py-2 align-middle text-right whitespace-nowrap">{celluleAction(b, i)}</td>}</tr>)}</tbody>
                   </table>
                 )}
                 {onOuvrir && b.ouvrir && (
@@ -23315,9 +23428,11 @@ function KitchenApp({ identiteExterne } = {}) {
     .sort((a, b) => a.debutTs - b.debutTs)[0];
 
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
+  const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule };
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
     <AccesContext.Provider value={{ estResponsable: chefAcces || currentUserId === "direction" }}>
+    <RapideContext.Provider value={valeurRapide}>
     <div className={`min-h-screen flex flex-col ${modeExterne ? "md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[auto_1fr]" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
@@ -23704,6 +23819,7 @@ function KitchenApp({ identiteExterne } = {}) {
         />
       )}
     </div>
+    </RapideContext.Provider>
     </AccesContext.Provider>
     </NettoyageContext.Provider>
   );
