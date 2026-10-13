@@ -13117,7 +13117,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   const enCours = cuissons.filter((c) => c.statut === "en-cours");
   // Une cuisson dont la fin est enregistrée (et, si elle est passée en refroidissement, dont le refroidissement est fait) est clôturée toute seule.
   useEffect(() => {
-    const aCloturer = cuissons.filter((c) => c.statut === "en-cours" && c.finie && (!c.refroidissementLance || c.refroidissementFait));
+    const aCloturer = cuissons.filter((c) => c.statut === "en-cours" && c.finie && !c.refroidissementAnnule && (!c.refroidissementLance || c.refroidissementFait));
     if (aCloturer.length === 0) return;
     setCuissons((prev) => prev.map((x) => (aCloturer.some((a) => a.id === x.id) ? { ...x, statut: "termine", heureFin: x.heureFin || new Date().toTimeString().slice(0, 5), ...(x.refroidissementLance ? { pretPourRefroidissement: false } : {}) } : x)));
   }, [cuissons, setCuissons]);
@@ -22846,7 +22846,7 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [setTab]);
 
   const cuissonRefroidie = useCallback((cuissonId, verdict) => {
-    setCuissons((prev) => prev.map((c) => (c.id === cuissonId ? (verdict ? { ...c, refroidissementFait: true, refroidissementVerdict: verdict } : { ...c, refroidissementLance: false, refroidissementFait: false }) : c)));
+    setCuissons((prev) => prev.map((c) => (c.id === cuissonId ? (verdict ? { ...c, refroidissementFait: true, refroidissementVerdict: verdict } : { ...c, refroidissementLance: false, refroidissementFait: false, refroidissementAnnule: true }) : c)));
     if (verdict) setTab("haccpCuisson");
   }, [setCuissons, setTab]);
 
