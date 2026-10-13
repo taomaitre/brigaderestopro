@@ -496,6 +496,31 @@ const ZoneContext = React.createContext(null);
 const couleurSousTuile = (id, parDefaut) => {
   return COULEURS_FONCTION[id] || parDefaut;
 };
+// Deux seuls modèles de tuiles dans tout le logiciel :
+//  - TuileGrande : icône + titre + description (accueil, hubs, grandes rubriques)
+//  - TuilePetite : icône au-dessus du titre (sous-rubriques, résultats de recherche)
+// La couleur vient toujours de COULEURS_FONCTION (une fonction = une couleur).
+const TuileGrande = ({ fond, ombre, icone: Icone, titre, desc, pastille, badge, onClick, className = "", style }) => (
+  <button type="button" onClick={onClick} style={{ background: fond, boxShadow: `0 8px 20px ${ombre}`, ...(style || {}) }}
+    className={`relative overflow-hidden rounded-2xl flex items-center gap-4 min-h-[112px] px-5 py-4 text-left active:scale-[0.98] transition-transform ${className}`}>
+    <Icone size={120} color="#ffffff" strokeWidth={1.4} className="absolute -right-3 top-1/2 -translate-y-1/2 opacity-20 pointer-events-none" />
+    <span className="relative shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><Icone size={32} color="#ffffff" strokeWidth={2} /></span>
+    <span className="relative min-w-0 flex-1">
+      <span className="block text-lg md:text-xl font-bold text-white leading-tight">{titre}</span>
+      {pastille && <span className="inline-block mt-1.5 rounded-full px-3 py-1 text-sm font-bold" style={{ background: "#fff", color: pastille.ok ? "#146B45" : "#B45309" }}>{pastille.texte}</span>}
+      {desc && <span className="block text-sm text-white/90 mt-1 leading-snug">{desc}</span>}
+    </span>
+    {badge > 0 && <span className="relative shrink-0 text-xs font-bold rounded-full px-2 py-1" style={{ backgroundColor: "#ffffff", color: "#1D2321" }}>{badge}</span>}
+  </button>
+);
+const TuilePetite = ({ fond, ombre, icone: Icone, titre, sous, onClick }) => (
+  <button type="button" onClick={onClick} style={{ background: fond, boxShadow: `0 8px 20px ${ombre}` }}
+    className="rounded-2xl flex flex-col items-center justify-center gap-1.5 min-h-[96px] px-2 py-2 text-center active:scale-95 transition-transform">
+    <Icone size={30} color="#ffffff" strokeWidth={2} />
+    <span className="text-xs font-bold text-white leading-tight line-clamp-2">{titre}</span>
+    {sous && <span className="text-[10px] text-white/80 leading-none">{sous}</span>}
+  </button>
+);
 const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccp", "fiches", "controle"];
 
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -4159,18 +4184,12 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
         const q = rechercheCG.trim().toLowerCase();
         const trouvees = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => tuileVisible(t) && (t.label.toLowerCase().includes(q) || (SECTIONS_CG.find((x) => x.id === t.section)?.label || "").toLowerCase().includes(q)));
         return (
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-8">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-8">
             {trouvees.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune rubrique ne correspond.</p>}
             {trouvees.map((t) => {
-              const Icon = t.icon; const sec = SECTIONS_CG.find((x) => x.id === t.section); const c = couleurSousTuile(t.id, sec.couleur);
-              return (
-                <button key={t.id} onClick={() => { setRechercheCG(""); setSectionActive(t.section); ouvrirSousTuile(t.id); }}
-                  style={{ background: c.fond, boxShadow: `0 6px 16px ${c.ombre}` }}
-                  className="rounded-2xl flex items-center gap-3 px-4 py-3 text-left active:scale-[0.98] transition-transform">
-                  <Icon size={26} color="#ffffff" strokeWidth={2} />
-                  <span className="min-w-0"><span className="block text-sm font-bold text-white leading-tight">{t.label}</span><span className="block text-xs text-white/80">{sec.label}</span></span>
-                </button>
-              );
+              const sec = SECTIONS_CG.find((x) => x.id === t.section); const c = couleurSousTuile(t.id, sec.couleur);
+              return <TuilePetite key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={t.label} sous={sec.label}
+                onClick={() => { setRechercheCG(""); setSectionActive(t.section); ouvrirSousTuile(t.id); }} />;
             })}
           </div>
         );
@@ -4251,17 +4270,29 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
           const Icon = x.icon;
           const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && tuileVisible(t)).length;
           if (nb === 0) return null;
+          if (["equipe", "cuisine"].includes(x.id)) return null; // affichées plus bas, directement en tuiles
           return (
-            <button key={x.id} onClick={() => { setSousEcran(null); setSectionActive(x.id); }}
-              style={{ background: x.couleur.fond, boxShadow: `0 8px 20px ${x.couleur.ombre}` }}
-              className={`rounded-2xl flex items-center gap-4 min-h-[110px] px-5 py-4 text-left active:scale-[0.98] transition-transform ${x.urgence ? "sm:col-span-2 ring-2 ring-red-300" : ""}`}>
-              <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
-              <span className="min-w-0">
-                <span className="block text-lg font-bold text-white leading-tight">{x.label}</span>
-                <span className="block text-sm text-white/90 mt-1 leading-snug">{x.desc}</span>
-                {!x.urgence && <span className="block text-xs text-white/80 mt-1">{nb} rubrique{nb > 1 ? "s" : ""}</span>}
-              </span>
-            </button>
+            <TuileGrande key={x.id} fond={x.couleur.fond} ombre={x.couleur.ombre} icone={x.icon} titre={x.label}
+              desc={<>{x.desc}{!x.urgence && <span className="block text-xs text-white/80 mt-1">{nb} rubrique{nb > 1 ? "s" : ""}</span>}</>}
+              className={x.urgence ? "sm:col-span-2 ring-2 ring-red-300" : ""}
+              onClick={() => { setSousEcran(null); setSectionActive(x.id); }} />
+          );
+        })}
+      </div>
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
+        {SECTIONS_CG.filter((x) => ["cuisine", "equipe"].includes(x.id)).map((x) => {
+          const tuiles = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && tuileVisible(t));
+          if (tuiles.length === 0) return null;
+          return (
+            <div key={x.id}>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">{x.label}</p>
+              <div className="grid grid-cols-2 gap-3">
+                {tuiles.map((t) => {
+                  const c = couleurSousTuile(t.id, x.couleur);
+                  return <TuilePetite key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={t.label} onClick={() => { setSectionActive(x.id); ouvrirSousTuile(t.id); }} />;
+                })}
+              </div>
+            </div>
           );
         })}
       </div>
@@ -4273,7 +4304,9 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
       <>
       {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
       {sousEcran
-        ? <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3">Retour à {sectionInfo.label}</BoutonRetour>
+        ? (["equipe", "cuisine"].includes(sectionActive)
+            ? <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>
+            : <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3">Retour à {sectionInfo.label}</BoutonRetour>)
         : <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>}
 
       {!sousEcran && <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} fonction={({ equipe: "planningEmploye", controle: "taches", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "pms"} icone={sectionInfo.icon} />}
@@ -4289,15 +4322,8 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
       {!sousEcran && sectionActive !== "controle" && (
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 mb-6">
           {SOUS_TUILES_CONTROLE.map((t) => {
-            const Icon = t.icon;
-            return (
-              <button key={t.id} onClick={() => ouvrirSousTuile(t.id)}
-                style={{ background: couleurSousTuile(t.id, sectionInfo.couleur).fond, boxShadow: `0 8px 20px ${couleurSousTuile(t.id, sectionInfo.couleur).ombre}` }}
-                className="rounded-2xl flex flex-col items-center justify-center gap-1.5 h-[88px] px-2 text-center active:scale-95 transition-transform">
-                <Icon size={28} color="#ffffff" strokeWidth={2} />
-                <span className="text-xs font-bold text-white leading-tight line-clamp-2">{t.label}</span>
-              </button>
-            );
+            const c = couleurSousTuile(t.id, sectionInfo.couleur);
+            return <TuilePetite key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={t.label} onClick={() => ouvrirSousTuile(t.id)} />;
           })}
         </div>
       )}
@@ -7268,20 +7294,8 @@ function NettoyagePage({ chargerPlanDepart, cleaning, setCleaning, currentUserId
       <BandeauNormes label="Plan de nettoyage et de désinfection — guide de bonnes pratiques d'hygiène (GBPH) du restaurateur" />
       <SectionHeader title="Plan de nettoyage" subtitle="Deux étapes simples : d'abord définir comment nettoyer, ensuite planifier qui nettoie quoi et quand" />
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-6">
-        <button onClick={() => setVue("protocoles")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-4 min-h-[120px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
-          <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><SprayCan size={32} color="#ffffff" /></span>
-          <span className="min-w-0">
-            <span className="block text-lg font-bold text-white leading-tight">1. Protocoles de nettoyage</span>
-            <span className="block text-sm text-white/90 mt-1 leading-snug">Par surface ou matériel : les produits à utiliser et les étapes à suivre</span>
-          </span>
-        </button>
-        <button onClick={() => setVue("planning")} style={{ background: rose.fond, boxShadow: `0 8px 20px ${rose.ombre}` }} className="rounded-2xl flex items-center gap-4 min-h-[120px] px-5 py-4 text-left active:scale-[0.98] transition-transform">
-          <span className="shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><CalendarDays size={32} color="#ffffff" /></span>
-          <span className="min-w-0">
-            <span className="block text-lg font-bold text-white leading-tight">2. Planning de nettoyage</span>
-            <span className="block text-sm text-white/90 mt-1 leading-snug">Par zone, surface ou matériel : la fréquence et les employés concernés</span>
-          </span>
-        </button>
+        <TuileGrande fond={rose.fond} ombre={rose.ombre} icone={SprayCan} titre="1. Protocoles de nettoyage" desc="Par surface ou matériel : les produits à utiliser et les étapes à suivre" onClick={() => setVue("protocoles")} />
+        <TuileGrande fond={rose.fond} ombre={rose.ombre} icone={CalendarDays} titre="2. Planning de nettoyage" desc="Par zone, surface ou matériel : la fréquence et les employés concernés" onClick={() => setVue("planning")} />
       </div>
       <p className="text-xs text-[var(--steel)]">Les protocoles sont facultatifs : le planning suffit si le chef laisse ses employés nettoyer comme ils le font. Quand un protocole existe, le nettoyage planifié s'appuie dessus. Les tâches faites restent barrées dans le planning des employés.</p>
     </div>
@@ -23943,22 +23957,8 @@ function KitchenApp({ identiteExterne } = {}) {
               {[
                 ...ACCUEIL_TUILES.filter((t) => !t.chefOnly || peutVoirControle),
               ].map((t) => {
-                const Icon = t.icon;
-                return (
-                  <button
-                    key={t.id}
-                    onClick={() => { setTab(t.cible || t.id); setSelectedEmployeeId(null); }}
-                    style={{ background: t.fond, boxShadow: `0 8px 20px ${t.ombre}` }}
-                    className={`rounded-2xl flex items-center gap-4 min-h-[112px] px-5 py-4 text-left active:scale-[0.98] transition-transform ${t.large ? "lg:col-span-2" : ""}`}
-                  >
-                    <span className="shrink-0 w-16 h-16 rounded-2xl bg-white/20 flex items-center justify-center"><Icon size={36} color="#ffffff" strokeWidth={2} /></span>
-                    <span className="min-w-0 flex-1">
-                      <span className="block text-xl font-bold text-white leading-tight">{t.label}</span>
-                      <span className="block text-sm text-white/90 mt-1 leading-snug">{t.desc}</span>
-                    </span>
-                    {badges[t.id] > 0 && <span className="shrink-0 text-xs font-bold rounded-full px-2 py-1" style={{ backgroundColor: "#ffffff", color: "#1D2321" }}>{badges[t.id]}</span>}
-                  </button>
-                );
+                return <TuileGrande key={t.id} fond={t.fond} ombre={t.ombre} icone={t.icon} titre={t.label} desc={t.desc} badge={badges[t.id]}
+                  className={t.large ? "lg:col-span-2" : ""} onClick={() => { setTab(t.cible || t.id); setSelectedEmployeeId(null); }} />;
               })}
             </div>
           </div>
@@ -23980,18 +23980,7 @@ function KitchenApp({ identiteExterne } = {}) {
                   haccpChaud: { texte: entriesMaintienChaud.some((m) => m.statut !== "termine" && m.date === auj) ? `${entriesMaintienChaud.filter((m) => m.statut !== "termine" && m.date === auj).length} en maintien` : "Rien en maintien", ok: true },
                   haccpCuisson: { texte: enCoursN(cuissons) ? `${enCoursN(cuissons)} en cours` : "Rien en cours", ok: !enCoursN(cuissons) },
                 }[n.id];
-                return (
-                  <button key={n.id} onClick={() => setTab(n.id)} style={{ background: couleur.fond, boxShadow: `0 8px 20px ${couleur.ombre}` }}
-                    className="relative overflow-hidden rounded-2xl text-left min-h-[150px] md:min-h-[180px] px-5 py-5 flex items-center gap-4 active:scale-[0.98] transition-transform">
-                    <Icon size={150} color="#ffffff" strokeWidth={1.4} className="absolute -right-4 top-1/2 -translate-y-1/2 opacity-25 pointer-events-none" />
-                    <span className="relative w-14 h-14 rounded-xl bg-white/25 flex items-center justify-center shrink-0"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
-                    <span className="relative min-w-0 pr-16 md:pr-28">
-                      <span className="block text-xl md:text-2xl font-bold text-white leading-tight">{n.label}</span>
-                      {statut && <span className="inline-block mt-1.5 rounded-full px-3 py-1 text-sm font-bold" style={{ background: "#fff", color: statut.ok ? "#146B45" : "#B45309" }}>{statut.texte}</span>}
-                      <span className="block text-sm text-white/85 mt-1.5">{desc}</span>
-                    </span>
-                  </button>
-                );
+                return <TuileGrande key={n.id} fond={couleur.fond} ombre={couleur.ombre} icone={Icon} titre={n.label} desc={desc} pastille={statut} onClick={() => setTab(n.id)} />;
               })}
             </div>
           </div>
