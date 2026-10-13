@@ -1097,6 +1097,21 @@ function useStoredOuMemoire(cle, initial, memoireSeule, initialMemoire) {
   return memoireSeule ? [memoire, setMemoire] : [stocke, setStocke];
 }
 
+// Modèles de cuisson enregistrés par les employés (« Enregistrer comme modèle »). Sur cet appareil seulement pour l'instant :
+// le partage entre appareils viendra avec la table dédiée du mode réel. Jamais écrit dans l'ancien stockage.
+function useModelesCuisson() {
+  const lire = () => { try { const v = JSON.parse(localStorage.getItem("mc-cuisson-modeles") || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } };
+  const [modeles, setModeles] = useState(lire);
+  const ajouter = useCallback((m) => {
+    setModeles((prev) => {
+      const suite = [...prev.filter((x) => String(x.nom).toLowerCase() !== String(m.nom).toLowerCase()), m];
+      try { localStorage.setItem("mc-cuisson-modeles", JSON.stringify(suite)); } catch (e) { /* stockage indisponible */ }
+      return suite;
+    });
+  }, []);
+  return [modeles, ajouter];
+}
+
 function useStored(key, initial) {
   const [value, setValue] = useState(initial);
   const [loaded, setLoaded] = useState(false);
@@ -6135,7 +6150,7 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
   );
 }
 
-function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
+function HaccpCuissonPage({ ajouterModele, signalerAjout, cuissons, setCuissons, currentUserId, employees, logActivity, cuissonSuggere, setCuissonSuggere, catalogueCuisson, setCatalogueCuisson, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -6146,7 +6161,7 @@ function HaccpCuissonPage({ signalerAjout, cuissons, setCuissons, currentUserId,
         <div className="lg:shrink-0"><SectionHeader title="Cuisson" subtitle="Lancer une cuisson selon les fiches techniques ou créer une cuisson personnalisée" /></div>
         <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="cuisson" items={[[Flame, cuissons.filter((c) => c.statut === "en-cours").length, "en cours"], [CheckCircle2, cuissons.filter((c) => c.date === todayISO() && c.statut === "termine").length, "terminées aujourd'hui"], [AlertTriangle, cuissons.filter((c) => c.date === todayISO() && c.conforme === false).length, "non conformes", cuissons.some((c) => c.date === todayISO() && c.conforme === false)]]} /></div>
       </div>
-      <HaccpCuisson signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={onLancerRefroidissement} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+      <HaccpCuisson ajouterModele={ajouterModele} signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={onLancerRefroidissement} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -13156,7 +13171,7 @@ function modeCuissonDepuisAppareil(app) {
 }
 const APPAREILS_CUISSON = ["Four à pizza", "Four Rational", "Four Atoll Speed / Mery Chef", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
 
-function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
+function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
   const [resultatCuisson, setResultatCuisson] = useState(null);
   const [selection, setSelection] = useState([]);
   const [recherche, setRecherche] = useState("");
@@ -13173,6 +13188,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   const [mReglage, setMReglage] = useState("");
   const [mDuree, setMDuree] = useState("");
   const [mFamille, setMFamille] = useState("general");
+  const [mModele, setMModele] = useState(true); // garder cette cuisson comme modèle : la prochaine fois, une case à cocher
   const today = todayISO();
 
   useEffect(() => {
@@ -13213,6 +13229,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
     if (mAppareil === "Autre appareil" && signalerAjout) signalerAjout("appareil_cuisson", appareilFinal, mNom.trim());
     const entry = { id: uid(), produit: mNom.trim(), famille: mFamille, appareil: appareilFinal, mode: mMode, reglage: mReglage !== "" ? `${mReglage} °C` : undefined, date: today, employeeId: currentUserId, statut: "en-cours", heureDebut, debutTs: Date.now(), dureeAttendueMin: Number(mDuree), notes: notes.trim() || undefined, heureFin: null, temperature: null, conforme: null, pretPourRefroidissement: true, refroidissementLance: false };
     setCuissons([entry, ...cuissons]);
+    if (mModele && ajouterModele) ajouterModele({ nom: mNom.trim(), dureeMin: Number(mDuree), famille: mFamille, appareil: appareilFinal, reglage: mReglage !== "" ? `${mReglage} °C` : "", modeleEquipe: true });
     logActivity("HACCP", "Cuisson manuelle démarrée", `${entry.produit} — ${appareilFinal}, ${mDuree} min, à ${heureDebut}`);
     setMNom(""); setMAppareilAutre(""); setMReglage(""); setMDuree(""); setNotes(""); setHeureDebut(new Date().toTimeString().slice(0, 5));
   };
@@ -13370,6 +13387,12 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
                   <Field label="Heure de départ *"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
                   <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : quantité, préparation, observations…" /></Field>
                 </div>
+                {ajouterModele && (
+                  <label className="flex items-center gap-2 mb-3 min-h-[44px] text-sm font-semibold text-[var(--ink)]">
+                    <input type="checkbox" className="w-5 h-5" checked={mModele} onChange={(e) => setMModele(e.target.checked)} />
+                    Garder comme modèle (la prochaine fois : une simple case à cocher)
+                  </label>
+                )}
                 <div className="mb-3"></div>
                 <button onClick={demarrerManuelle} disabled={!mNom.trim() || !(Number(mDuree) > 0) || (mAppareil === "Autre appareil" && !mAppareilAutre.trim())}
                   className="w-full flex items-center justify-center gap-2 rounded-xl px-4 py-3.5 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
@@ -15121,6 +15144,13 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4 mb-6">
         <CarteZone icone={Package} titre="Catégories" sous="Choisissez une catégorie">
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
+            {alertes.length > 0 && (
+              <button type="button" onClick={() => aller("alerte")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#B4233A", color: "#fff", outline: filtreEtat === "alerte" ? "3px solid #1D2321" : "none" }}>
+                <ShoppingCart size={20} className="shrink-0" />
+                <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">À commander <span className="font-normal opacity-90">({alertes.length})</span></span>
+                <ChevronRight size={16} className="shrink-0 hidden lg:block" />
+              </button>
+            )}
             <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
               <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Tous les produits <span className="font-normal opacity-80">({stock.length})</span></span>
@@ -15146,7 +15176,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             {filtreEtat !== "tous" && <span className="text-xs font-semibold px-2 py-1 rounded-md bg-[var(--bg)] text-[var(--ink)]">Filtre : {filtreEtat === "alerte" ? "en alerte" : "dans le panier"} <button type="button" className="underline ml-1" onClick={() => setFiltreEtat("tous")}>retirer</button></span>}
           </div>
           <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)]" style={{ borderBottom: `2px solid ${zoneDepuisFonction("stock").bord}55` }}>
-            <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span>Unité / pas</span><span className="text-center">Panier</span>
+            <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span title="Ce que fait un clic sur + ou −">Un clic =</span><span className="text-center">Panier</span>
           </div>
           {liste.length === 0 ? (
             <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>
@@ -15169,7 +15199,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                 <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>{s.dlc ? <>DLC : {s.dlc}<br /></> : null}{s.lot ? <>Lot : {s.lot}</> : null}{!s.dlc && !s.lot ? <span className="opacity-40">—</span> : null}</div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div><CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{libelleQte(s, s.quantite)}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div><CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} /></div>
-                <div className="text-sm text-[var(--ink)] leading-tight"><b>{s.unite || "—"}</b><div className="text-[11px] text-[var(--steel)]">{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `+1 = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `+1 = 1 ${s.unite || ""}`))}</div></div>
+                <div className="text-sm text-[var(--ink)] leading-tight"><b>{s.unite || "—"}</b><div className="text-[11px] text-[var(--steel)]">{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `un clic = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `un clic = 1 ${s.unite || ""}`))}</div></div>
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
                   className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
               </div>
@@ -17437,14 +17467,14 @@ function commandeDemoFranceFrais() {
   return { id: "demo-commande-france-frais", demo: true, date: hier, employeeId: null, texte: `France Frais (commande de démonstration) :\n${lignes.map((l) => `  - ${l.nom} — ${l.quantite} ${l.unite}`).join("\n")}`, lignes };
 }
 
-function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, employees, logActivity, onDone, onCancel }) {
+function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes, currentUserId, employees, logActivity, onDone, onCancel }) {
   const moi = employees.find((e) => e.id === currentUserId);
   const nomMoi = (moi && moi.nom) || optionsExterne.moiNom || "";
   const receptionId = React.useMemo(() => uid(), []);
   const [date] = useState(todayISO());
   const [heure] = useState(new Date().toTimeString().slice(0, 5));
-  const [etape, setEtape] = useState(1); // 1 fournisseur, 2 températures, 3 produits, 4 récapitulatif
-  const [fournisseur, setFournisseur] = useState("");
+  const [etape, setEtape] = useState(fournisseurInitial ? 2 : 1); // 1 fournisseur, 2 températures, 3 produits, 4 récapitulatif
+  const [fournisseur, setFournisseur] = useState(fournisseurInitial || "");
   const [autreFournisseur, setAutreFournisseur] = useState(false);
   const [photosBon, setPhotosBon] = useState([]);
   const [temps, setTemps] = useState(() => Object.fromEntries(FAMILLES_TEMP.map((f) => [f.id, { valeur: "", limite: "", aucun: false, photo: null }])));
@@ -18131,13 +18161,14 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
   );
 }
 
-function Reception({ optionsExterne, stock, commandesHistorique, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, enCours, setEnCours, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
+function Reception({ fournisseursPlanning, optionsExterne, stock, commandesHistorique, setStock, receptions, setReceptions, currentUserId, employees, logActivity, notificationsFournisseur, setNotificationsFournisseur, enCours, setEnCours, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, catalogueProduits, setCatalogueProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, dlcJoursStandard, setDlcJoursStandard, setProduitsLotException }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const [infosOuvertes, setInfosOuvertes] = useState(false);
   const [ficheReception, setFicheReception] = useState(null);
+  const [fournisseurPrerempli, setFournisseurPrerempli] = useState("");
 
   if (enCours && optionsExterne && PARCOURS_RECEPTION_SIMPLE) {
-    return <ReceptionSimple optionsExterne={optionsExterne} stock={stock} commandes={commandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivity} onDone={() => setEnCours(false)} onCancel={() => setEnCours(false)} />;
+    return <ReceptionSimple fournisseurInitial={fournisseurPrerempli} optionsExterne={optionsExterne} stock={stock} commandes={commandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivity} onDone={() => { setFournisseurPrerempli(""); setEnCours(false); }} onCancel={() => { setFournisseurPrerempli(""); setEnCours(false); }} />;
   }
   if (enCours) {
     return <ReceptionWizard optionsExterne={optionsExterne} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivity} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} onDone={() => setEnCours(false)} onCancel={() => setEnCours(false)} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />;
@@ -18158,6 +18189,29 @@ function Reception({ optionsExterne, stock, commandesHistorique, setStock, recep
         style={{ backgroundColor: "#2F6B4F", color: "#ffffff", padding: "18px 20px", fontSize: 17 }}>
         <Plus size={22} /> Nouvelle réception
       </button>
+
+      {optionsExterne && (() => {
+        // Fournisseurs dont la livraison est prévue aujourd'hui (jours saisis dans Fournisseurs) : un doigt = réception déjà pré-remplie.
+        const attendus = (fournisseursPlanning || []).filter((f) => f && jourPrevuPlanning(f.planning_livraison, todayISO()));
+        if (attendus.length === 0) return null;
+        const dejaRecus = new Set((receptions || []).filter((r) => r.date === todayISO()).map((r) => r.fournisseur));
+        return (
+          <div className="mb-6">
+            <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Attendu aujourd'hui</p>
+            <div className="flex flex-wrap gap-2">
+              {attendus.map((f) => {
+                const recu = dejaRecus.has(f.nom);
+                return (
+                  <button key={f.id || f.nom} type="button" onClick={() => { setFournisseurPrerempli(f.nom); setEnCours(true); }}
+                    className="min-h-[48px] px-4 rounded-xl text-sm font-bold border-2 flex items-center gap-2" style={recu ? { borderColor: "#146B45", background: "#E4F4EA", color: "#146B45" } : { borderColor: "#1D4ED8", background: "#EAF1FF", color: "#1D4ED8" }}>
+                    <Truck size={18} /> {f.nom}{recu ? " — reçu ✓" : ""}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
 
       {(() => {
         // Un employé ne voit que la dernière réception ; tout l'historique est dans Contrôle & Gestion.
@@ -21334,6 +21388,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
   const [protocoleAffiche, setProtocoleAffiche] = useState(null);
   const [vueLocale, setVueLocale] = useState("planning");
   const vueAccueil = vueExt || vueLocale; const setVueAccueil = setVueExt || setVueLocale;
+  // Sur téléphone, la grille horaire Matin/Soir est repliée : l'essentiel (ce que j'ai à faire) remonte sous l'avancement.
+  const [grilleOuverte, setGrilleOuverte] = useState(() => typeof window === "undefined" || window.innerWidth >= 768);
   const [plage, setPlage] = useState(plageActuelle());
   const [vueTemps, setVueTemps] = useState("jour");
   const [dateSelectionnee, setDateSelectionnee] = useState(todayISO());
@@ -21552,8 +21608,13 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
               const manqueMoi = [...mesTachesJ.filter((t) => !faitT(t)).map((t) => `${t.heure ? t.heure + " · " : ""}${t.titre}`), ...(totalN > faitsN ? [`${totalN - faitsN} nettoyage(s) à faire`] : [])];
               return <BarreAvancement faits={faitesT + faitsN} total={mesTachesJ.length + totalN} manque={manqueMoi} titre={estAujS ? `Mon avancement — ce qui est dû à ${hm.replace(":", " h ")}` : "Mon avancement ce jour-là"} neutreEnCours={estAujS} />;
             })()}
+            <button type="button" onClick={() => setGrilleOuverte((v) => !v)} className="md:hidden w-full min-h-[44px] mb-3 rounded-xl border-2 border-[var(--line)] bg-white text-sm font-bold text-[#1B4F9C] flex items-center justify-center gap-2">
+              <CalendarDays size={18} /> {grilleOuverte ? "Replier ma grille horaire" : "Voir ma grille horaire (matin / soir)"}
+            </button>
+            <div className={grilleOuverte ? "" : "hidden md:block"}>
             <PlanningDeuxColonnes tasks={tasksForDate(currentUserId, dateSelectionnee)} employeeId={currentUserId} date={dateSelectionnee} actorId={currentUserId} onToggle={toggleTask}
               onOuvrirFenetre={ouvrirFenetreMoi} horaires={horaires} blocsNettoyage={blocsNettoyageGrille(dateSelectionnee)} />
+            </div>
           </div>
         )}
 
@@ -21642,7 +21703,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                 {colonneBas("Nettoyage", nettoyages.length + miennesNet.length + (nettoyagesPeriodiques > 0 ? 1 : 0), SprayCan, "#FBE3EF", "#F1B3D3", "#9D174D",
                   (nettoyages.length === 0 && miennesNet.length === 0 && nettoyagesPeriodiques === 0) ? vide("Aucun nettoyage prévu.") : [
                     ctxFin && miennesNet.length > 0 ? <LignesNettoyageJour key="plan" ctx={ctxFin} miennes={miennesNet} employees={employees} currentUserId={currentUserId} logActivity={logActivity} today={today} /> : null,
-                    ...nettoyages.slice(0, LIM).map((t) => ligne(t.id, t.titre, true, () => clic(t), fait(t), null, true)),
+                    ...nettoyages.slice(0, LIM).map((t) => ligne(t.id, t.titre === "Nettoyage" ? `Nettoyage de fin de service${t.heure ? " (" + t.heure.replace(":", " h ") + ")" : ""}` : t.titre, true, () => clic(t), fait(t), null, true)),
                     ...(nettoyagesPeriodiques > 0 ? [ligne("periodiques", `Nettoyages hebdo / mensuels (${nettoyagesPeriodiques} à faire)`, false, () => setModalOuvert(new Date().getHours() < 16 ? "nettoyage-midi" : "nettoyage-soir"), false)] : []),
                   ])}
                 {colonneBas("À surveiller", infos.length, IcInfo, "#FFEFD0", "#F3D69A", "#9A5B00",
@@ -22694,7 +22755,10 @@ function KitchenApp({ identiteExterne } = {}) {
   NORMES_PERSO_FICHES = React.useMemo(() => (modeExterne ? construireNormesPersoFiches(fichesExternes) : {}), [modeExterne, fichesExternes]);
   QUANTITES_FICHES = React.useMemo(() => construireQuantitesFiches(fiches), [fiches]);
   const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
-  const catalogueCuisson = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
+  const [modelesCuisson, ajouterModeleCuisson] = useModelesCuisson();
+  // Les modèles enregistrés par l'équipe s'ajoutent à la liste (une fiche technique du même nom reste prioritaire).
+  const catalogueCuissonBrut = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
+  const catalogueCuisson = React.useMemo(() => [...catalogueCuissonBrut, ...modelesCuisson.filter((m) => !catalogueCuissonBrut.some((c) => String(c.nom).toLowerCase() === String(m.nom).toLowerCase()))], [catalogueCuissonBrut, modelesCuisson]);
   const setCatalogueCuisson = modeExterne ? (() => {}) : setCatalogueCuissonBase;
   const catalogueMaintienChaud = React.useMemo(() => (modeExterne ? [...new Set([...catalogueMaintienFiches, ...catalogueMaintienChaudBase])] : catalogueMaintienChaudBase), [modeExterne, catalogueMaintienFiches, catalogueMaintienChaudBase]);
   const setCatalogueMaintienChaud = setCatalogueMaintienChaudBase;
@@ -24022,7 +24086,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "reception" && (
           consentementAccorde()
-            ? <Reception commandesHistorique={commandesHistorique} optionsExterne={modeExterne && identiteExterne.gestionReceptions ? { enregistrer: identiteExterne.gestionReceptions.enregistrer, fournisseurs: (identiteExterne.fournisseurs || []).map((f) => f.nom), moiNom: identiteExterne.employeNom } : undefined} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
+            ? <Reception fournisseursPlanning={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} commandesHistorique={commandesHistorique} optionsExterne={modeExterne && identiteExterne.gestionReceptions ? { enregistrer: identiteExterne.gestionReceptions.enregistrer, fournisseurs: (identiteExterne.fournisseurs || []).map((f) => f.nom), moiNom: identiteExterne.employeNom } : undefined} stock={stock} setStock={setStock} receptions={receptions} setReceptions={setReceptions} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} enCours={receptionActive} setEnCours={setReceptionActive} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} catalogueProduits={produits} setCatalogueProduits={setProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} setProduitsLotException={setProduitsLotException} />
             : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
         )}
         {tab === "etiquettes" && (
@@ -24048,7 +24112,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpChaudPage currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} entriesMaintienChaud={entriesMaintienChaud} setEntriesMaintienChaud={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} maintienChaudSuggere={maintienChaudSuggere} setMaintienChaudSuggere={setMaintienChaudSuggere} onLancerRefroidissement={lancerRefroidissementDepuisMaintien} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "haccpCuisson" && (
-          <HaccpCuissonPage signalerAjout={identiteExterne && identiteExterne.signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={lancerRefroidissementDepuisCuissonEnCours} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+          <HaccpCuissonPage ajouterModele={ajouterModeleCuisson} signalerAjout={identiteExterne && identiteExterne.signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} cuissonSuggere={cuissonSuggere} setCuissonSuggere={setCuissonSuggere} catalogueCuisson={catalogueCuisson} setCatalogueCuisson={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={lancerRefroidissementDepuisCuissonEnCours} proposerEtiquetteRapide={proposerEtiquetteRapide} />
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
