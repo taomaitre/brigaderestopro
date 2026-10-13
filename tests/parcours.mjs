@@ -100,6 +100,17 @@ for (const [chefTravaille, remplacants, qui, attendu] of [[true, ['yusuf'], 'Yus
   });
 }
 
+await parcours('Second de cuisine : accède aux contrôles, pas aux réglages ni au planning', async () => {
+  const equipe = [{ id: 'loic', nom: 'Loïc', poste: 'Poste Pizza', estChef: true }, { id: 'terence', nom: 'Terence', poste: 'Poste Froid', estSecond: true }];
+  const { p, ctx } = await ouvrir({ qui: 'Terence', graines: { 'planning-employees': equipe } });
+  await p.waitForTimeout(13000);
+  await cliquer(p, 'Contrôle & Gestion');
+  const t = await p.innerText('body');
+  verifier(/Urgence sanitaire/.test(t), 'le second ne voit pas Urgence sanitaire');
+  verifier(!/Réglages/.test(t) && !/Planning employé/.test(t), 'le second voit la gestion (réglages / planning)');
+  await ctx.close();
+});
+
 await parcours('Téléphone (employé Loïc) : aucune page ne déborde en largeur', async () => {
   const { p, ctx } = await ouvrir({ qui: 'Loïc', mobile: true });
   for (const t of ['Tâches du jour', 'Contrôles en cuisine', 'Stock', 'Réception des marchandises']) {

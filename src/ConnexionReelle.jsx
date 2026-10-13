@@ -1165,6 +1165,7 @@ export default function ConnexionReelle() {
       employePoste: employeIdentifie.poste,
       employeRole: employeIdentifie.role,
       estChef: estChefOuDirecteur(employeIdentifie.role),
+      estSecond: employeIdentifie.role === "second_cuisine",
       catalogue: catalogue || undefined,
       fournisseurs: fournisseursCat || undefined,
       gestionCatalogue: catalogue ? { enregistrer: enregistrerCatalogue } : undefined,
@@ -1213,7 +1214,7 @@ export default function ConnexionReelle() {
       equipe: (equipe || []).map((e) => ({
         id: e.id, nom: [e.prenom, e.nom].filter(Boolean).join(" "), prenom: e.prenom || "", nomFamille: e.nom, poste: e.poste || "", role: e.role,
         email: e.email || "", services: e.services || [], codeDefini: e.code_defini !== false,
-        estChef: estChefOuDirecteur(e.role), estDirection: e.role === "directeur",
+        estChef: estChefOuDirecteur(e.role), estDirection: e.role === "directeur", estSecond: e.role === "second_cuisine",
       })),
       // Gestion des comptes (Contrôle & Gestion) : création, invitation par e-mail, suppression — réservée au chef / directeur.
       gestionEquipe: (estChefOuDirecteur(employeIdentifie.role) || code.length === 4) ? {

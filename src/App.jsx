@@ -456,20 +456,20 @@ const COULEURS_FONCTION = {
   temperatures: degrade("#4F46E5", "#312E81"),
   cellule: degrade("#4FC3F7", "#1E88C7"),
   huile: degrade("#84CC16", "#4D7C0F"),
-  maintien: degrade("#EC4899", "#9D174D"),
+  maintien: degrade("#F4623A", "#B3300F"),
   cuisson: degrade("#10B981", "#047857"),
   // Équipe et gestion
   planningEmploye: degrade("#7E22CE", "#581C87"),
   reservationsClient: degrade("#C026D3", "#86198F"),
   comptes: degrade("#475569", "#1E293B"),
   // Cuisine
-  creationFiche: degrade("#C1893C", "#8C5E22"),
+  creationFiche: degrade("#A0522D", "#5C2E14"),
   carte: degrade("#E07A5F", "#B5523B"),
   fournisseur: degrade("#2F55C7", "#1E3A8A"),
   commandes: degrade("#3B82F6", "#1D4ED8"),
   // Hygiène
   pms: degrade("#DB2777", "#831843"),
-  pmsDossier: degrade("#F97316", "#9A3412"),
+  pmsDossier: degrade("#9F1239", "#4C0519"),
   dossierControle: degrade("#7C3AED", "#4C1D95"),
   pmsPrestataires: degrade("#0D9488", "#115E59"),
   allergenes: degrade("#EAB308", "#A16207"),
@@ -478,7 +478,7 @@ const COULEURS_FONCTION = {
   dlc: degrade("#EF4444", "#B91C1C"),
   rappelconso: degrade("#DC2626", "#7F1D1D"),
   notifications: degrade("#3B82F6", "#1D4ED8"),
-  alertes: degrade("#D4A017", "#9A7000"),
+  alertes: degrade("#F59E0B", "#B45309"),
   historiqueJour: degrade("#0F766E", "#134E4A"),
   preparations: degrade("#E07A5F", "#B5523B"),
 };
@@ -1413,7 +1413,24 @@ function BoutonRetour({ onClick, children, className = "" }) {
   );
 }
 
-function SectionHeader({ title, subtitle, action, fonction, icone }) {
+// Les explications sous les titres servent les premiers jours : après 4 ouvertures de l'écran sur cet appareil, elles disparaissent.
+// (Seulement une commodité de lecture : si le stockage du navigateur est indisponible, elles restent affichées.)
+const SOUS_TITRE_OUVERTURES_MAX = 4;
+function useSousTitreTemporaire(cle) {
+  const [visible, setVisible] = useState(true);
+  useEffect(() => {
+    if (!cle) return;
+    try {
+      const k = "sous-titre:" + cle;
+      const n = Number(localStorage.getItem(k) || 0);
+      setVisible(n < SOUS_TITRE_OUVERTURES_MAX);
+      localStorage.setItem(k, String(n + 1));
+    } catch (e) { setVisible(true); }
+  }, [cle]);
+  return visible;
+}
+
+function SectionHeader({ title, subtitle, action, fonction, icone, permanent }) {
   const zone = React.useContext(ZoneContext);
   const logo = typeof title === "string" ? LOGOS_TITRE.find(([debut]) => title.startsWith(debut)) : null;
   const Ic = icone || (logo ? logo[2]() : ClipboardList);
@@ -1421,13 +1438,14 @@ function SectionHeader({ title, subtitle, action, fonction, icone }) {
   const tableau = cle ? COULEURS_FONCTION[cle] : null;
   const coul = tableau || (zone ? { fond: `linear-gradient(160deg, ${zone.bord}, ${zone.texte})`, ombre: `${zone.bord}55` } : { fond: "linear-gradient(160deg,#64748B,#334155)", ombre: "rgba(51,65,85,0.3)" });
   const zoneTitre = (cle && zoneDepuisFonction(cle)) || zone;
+  const sousTitreVisible = useSousTitreTemporaire(typeof title === "string" ? title : cle);
   return (
     <div className="flex items-start justify-between mb-3 gap-3 flex-wrap">
       <div className="flex items-center gap-3">
         <span className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ background: coul.fond, boxShadow: `0 4px 10px ${coul.ombre}` }}><Ic size={22} /></span>
         <div>
           <h2 className="text-xl font-bold tracking-tight leading-tight" style={{ color: zoneTitre ? zoneTitre.texte : "var(--ink)" }}>{title}</h2>
-          {subtitle && <p className="text-sm text-[var(--steel)] leading-tight">{subtitle}</p>}
+          {subtitle && (permanent || sousTitreVisible) && <p className="text-sm text-[var(--steel)] leading-tight">{subtitle}</p>}
         </div>
       </div>
       {action}
@@ -2013,7 +2031,7 @@ function PmsAssistant({ reglages, employees, onOuvrirComptes, comptes, onFin }) 
   const etapes = ["Établissement", "Personnel", "Prestataires", "Pièces jointes"];
   return (
     <div>
-      <SectionHeader title="Assistant de démarrage" subtitle={`Étape ${etape + 1} sur ${etapes.length} — ${etapes[etape]}. Vous pouvez compléter plus tard.`} />
+      <SectionHeader permanent title="Assistant de démarrage" subtitle={`Étape ${etape + 1} sur ${etapes.length} — ${etapes[etape]}. Vous pouvez compléter plus tard.`} />
       {etape === 0 && <PmsFicheEtablissement reglages={reglages} />}
       {etape === 1 && <PmsPersonnel employees={employees} pms={pms} editable onOuvrirComptes={onOuvrirComptes} comptes={comptes} />}
       {etape === 2 && <PmsPrestataires pms={pms} editable />}
@@ -2339,7 +2357,7 @@ function Dashboard({ employees, activityLog, shifts, tempLogs, stock, reservatio
 
   return (
     <div>
-      <SectionHeader title="Tableau de bord" subtitle={`Aujourd'hui, ${new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`} />
+      <SectionHeader permanent title="Tableau de bord" subtitle={`Aujourd'hui, ${new Date().toLocaleDateString("fr-FR", { weekday: "long", day: "numeric", month: "long" })}`} />
 
       <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-3">Votre équipe</h3>
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
@@ -2459,7 +2477,7 @@ function EmployeeDetail({ employee, employees, shifts, activityLog, tasks, toggl
     <div>
       <BoutonRetour onClick={onBack} className="mb-4">Retour à l'équipe</BoutonRetour>
 
-      <SectionHeader title={employee.nom} subtitle={employee.poste} fonction="comptes" icone={Users} />
+      <SectionHeader permanent title={employee.nom} subtitle={employee.poste} fonction="comptes" icone={Users} />
 
       <div className="grid grid-cols-3 gap-4 mb-6">
         <Card><div className="text-2xl font-semibold text-[var(--ink)]">{heuresSemaine.toFixed(1)}h</div><div className="text-xs text-[var(--steel)] mt-1">Cette semaine</div></Card>
@@ -4090,7 +4108,7 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const tuileVisible = (t) => (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
+  const tuileVisible = (t) => (t.section !== "reglages" || accesPlanningReservations) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
   const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && tuileVisible(t));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
@@ -4204,6 +4222,8 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
         const froidEnAttente = (surveillancesFroid || []).filter((x) => x.statut === "attente");
         const dlcAujourdhui = stock.filter((x) => x.dlc === auj && Number(x.quantite) > 0).length + preparations.filter((x) => x.dlcDate === auj && !x.jete).length;
         const nettoAValider = ctxNettoyageCG && ctxNettoyageCG.executions ? ctxNettoyageCG.executions.filter((x) => x.date === auj && x.statut === "fait" && !x.valideChef).length : 0;
+        const fournisseursIncomplets = (fournisseursCatalogue || []).filter((f) => f && !planningRenseigne(f.planning_commande) && !planningRenseigne(f.planning_livraison) && !f.jours_livraison);
+        const sansPoste = accesPlanningReservations ? (employees || []).filter((e) => e.id !== "direction" && !e.estDirection && !String(e.poste || "").trim()) : [];
         const pl = (n, un, plus) => `${n} ${n > 1 ? plus : un}`;
         // Par ordre de priorité : le plus urgent en haut, chaque ligne a son bouton d'action.
         const aTraiter = [
@@ -4216,23 +4236,36 @@ function Controle({ produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRem
           { n: enAttente.length, texte: pl(enAttente.length, "notification fournisseur à envoyer", "notifications fournisseur à envoyer"), bouton: "Envoyer", niveau: 1, agir: () => { setSectionActive("reception"); setSousEcran("notifications"); } },
           { n: nettoAValider, texte: pl(nettoAValider, "nettoyage à valider", "nettoyages à valider"), bouton: "Valider", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("planning"); } },
           { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } },
+          { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => setReferentielActif(true) },
+          { n: sansPoste.length, texte: pl(sansPoste.length, "employé sans poste", "employés sans poste"), bouton: "Corriger", niveau: 2, agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); } },
         ].filter((x) => x.n > 0);
         const coulNiveau = ["#B42318", "#B7791F", "#1D4ED8"];
         return (
           <Card className="mb-6">
-            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">À traiter {aTraiter.length > 0 && <span className="normal-case font-normal">— le plus urgent en premier</span>}</h3>
+            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">À traiter {aTraiter.length > 0 && <span className="normal-case font-normal">— par ordre de priorité</span>}</h3>
             <BandeauEcheancesPms alertes={alertesEcheancesPms(reglagesEtablissement && reglagesEtablissement.pms, todayISO(), compteDirection)} onOuvrir={(cible) => { setSectionActive("hygiene"); setSousEcran(cible); }} />
             {aTraiter.length === 0 ? (
               <p className="text-sm text-[var(--accent)]">✓ Rien à traiter pour le moment.</p>
             ) : (
-              <ul className="space-y-2">
-                {aTraiter.map((x) => (
-                  <li key={x.texte} className="flex items-center gap-3 rounded-xl border bg-white pl-3 pr-2 py-2" style={{ borderColor: coulNiveau[x.niveau], borderLeftWidth: 6 }}>
-                    <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--ink)]">{x.texte}</span>
-                    <button type="button" onClick={x.agir} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white shrink-0" style={{ background: coulNiveau[x.niveau] }}>{x.bouton}</button>
-                  </li>
-                ))}
-              </ul>
+              <div className="space-y-3">
+                {[[0, "Urgent"], [1, "À faire aujourd'hui"], [2, "À compléter (moins urgent)"]].map(([niv, titreGroupe]) => {
+                  const lignes = aTraiter.filter((x) => x.niveau === niv);
+                  if (lignes.length === 0) return null;
+                  return (
+                    <div key={niv}>
+                      <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: coulNiveau[niv] }}>{titreGroupe}</p>
+                      <ul className="space-y-2">
+                        {lignes.map((x) => (
+                          <li key={x.texte} className="flex items-center gap-3 rounded-xl border bg-white pl-3 pr-2 py-2" style={{ borderColor: coulNiveau[x.niveau], borderLeftWidth: 6 }}>
+                            <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--ink)]">{x.texte}</span>
+                            <button type="button" onClick={x.agir} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white shrink-0" style={{ background: coulNiveau[x.niveau] }}>{x.bouton}</button>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </Card>
         );
@@ -4889,7 +4922,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
       </div>
       <div className="hidden print:block mb-3 text-lg font-semibold">Ma Cuisine — Inventaire mensuel — {fmtLong(today)}</div>
       <div className="print:hidden">
-        <SectionHeader title="Inventaire mensuel" subtitle={`${fmtLong(today)} — comptez chaque produit et saisissez la quantité réelle ; les écarts corrigent le stock à la validation.`} />
+        <SectionHeader permanent title="Inventaire mensuel" subtitle={`${fmtLong(today)} — comptez chaque produit et saisissez la quantité réelle ; les écarts corrigent le stock à la validation.`} />
       </div>
 
       {valide ? (
@@ -8490,14 +8523,10 @@ function DemandeCodeChef({ action, onAutorise, onAnnuler, verifierCodeChef }) {
 }
 
 // Message unique quand quelqu'un n'a pas le droit de corriger : explication, « Signaler au chef » (la demande arrive dans
-// « À traiter » du chef) ou code du chef pour débloquer tout de suite. Réutilisé partout où l'on corrige « sur place ».
+// « À traiter » du chef). La correction se fait ensuite dans Contrôle & Gestion, côté chef / directeur. Réutilisé partout où l'on corrige « sur place ».
 function BlocPasDeDroit({ sujet, onDebloque, onFermer }) {
   const rapide = React.useContext(RapideContext);
   const [envoye, setEnvoye] = useState(false);
-  const [saisieCode, setSaisieCode] = useState(false);
-  const [code, setCode] = useState("");
-  const [erreur, setErreur] = useState("");
-  const [enCours, setEnCours] = useState(false);
   const signaler = () => {
     if (rapide && rapide.ajouterAlerteControle) {
       const d = new Date();
@@ -8505,34 +8534,14 @@ function BlocPasDeDroit({ sujet, onDebloque, onFermer }) {
     }
     setEnvoye(true);
   };
-  const verifier = async (e) => {
-    e.preventDefault();
-    if (code.length !== 4) return;
-    setEnCours(true); setErreur("");
-    try {
-      const r = rapide && rapide.verifierCodeChef
-        ? await rapide.verifierCodeChef(code)
-        : { ok: !!(rapide && (rapide.employees || []).some((x) => (x.estChef || x.estDirection) && x.code && String(x.code) === code)) };
-      if (r && r.ok) { setEnCours(false); onDebloque && onDebloque(); return; }
-      setErreur("Ce code n'appartient pas à un responsable cuisine ou à un directeur.");
-    } catch (err) { setErreur("Code incorrect."); }
-    setCode(""); setEnCours(false);
-  };
   return (
     <div className="rounded-xl border-2 px-3 py-3 mt-2" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
       <p className="text-sm font-bold" style={{ color: "#6B4A00" }}>Vous n'êtes pas en mesure de le faire : demandez à vos supérieurs.</p>
       {envoye ? (
         <p className="text-sm font-semibold mt-2" style={{ color: "#146B45" }}>✓ Demande envoyée au chef.</p>
-      ) : saisieCode ? (
-        <form onSubmit={verifier} className="mt-2 flex flex-wrap items-center gap-2">
-          <input autoFocus type="password" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Code du chef (4 chiffres)" className={`${inputCls} !w-52 text-center tracking-widest`} />
-          <button type="submit" disabled={code.length !== 4 || enCours} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white bg-[var(--accent)] disabled:opacity-50">{enCours ? "Vérification…" : "Débloquer"}</button>
-          {erreur && <span className="text-xs text-[var(--warn)] w-full">{erreur}</span>}
-        </form>
       ) : (
         <div className="flex flex-wrap gap-2 mt-2">
           <button type="button" onClick={signaler} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Signaler au chef</button>
-          <button type="button" onClick={() => setSaisieCode(true)} className="min-h-[44px] px-4 rounded-xl text-sm font-bold border-2 bg-white" style={{ borderColor: "#6B4A00", color: "#6B4A00" }}>Je suis le chef : mon code</button>
           {onFermer && <button type="button" onClick={onFermer} className="min-h-[44px] px-3 text-sm text-[var(--steel)] underline">Fermer</button>}
         </div>
       )}
@@ -9978,7 +9987,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
 
   return (
     <div>
-      <SectionHeader title={modifier ? "Modification de la fiche technique" : ficheInitiale ? "Copie de la fiche technique" : "Création de fiche technique"} subtitle={`Questionnaire en 7 étapes — la fiche se construit en direct ${avecModes ? "à droite" : "ci-dessous"}, puis crée automatiquement ses liens stock, HACCP, étiquette et traçabilité`} />
+      <SectionHeader permanent title={modifier ? "Modification de la fiche technique" : ficheInitiale ? "Copie de la fiche technique" : "Création de fiche technique"} subtitle={`Questionnaire en 7 étapes — la fiche se construit en direct ${avecModes ? "à droite" : "ci-dessous"}, puis crée automatiquement ses liens stock, HACCP, étiquette et traçabilité`} />
 
       {confirmation && (
         <Card className="mb-6 bg-[var(--accent-soft)] border-[var(--accent)]/30">
@@ -11427,7 +11436,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
   if (!type) {
     return (
       <div>
-        <SectionHeader title="Ma carte" subtitle="Les plats que vous proposez à vos clients" />
+        <SectionHeader permanent title="Ma carte" subtitle="Les plats que vous proposez à vos clients" />
         <Card><p className="text-sm text-[var(--steel)]">{estChef ? "Préparation de la carte…" : "La carte n'a pas encore été créée par le responsable."}</p></Card>
       </div>
     );
@@ -19935,7 +19944,7 @@ function CommandeVocaleFlottante({ onCommande }) {
   });
   const glisse = useRef(null);
   const bornes = (x, y) => ({ x: Math.min(Math.max(8, x), Math.max(8, window.innerWidth - TAILLE_MICRO - 8)), y: Math.min(Math.max(8, y), Math.max(8, window.innerHeight - TAILLE_MICRO - 8)) });
-  const positionActuelle = pos ? bornes(pos.x, pos.y) : { x: window.innerWidth - TAILLE_MICRO - 20, y: window.innerHeight - TAILLE_MICRO - 28 };
+  const positionActuelle = pos ? bornes(pos.x, pos.y) : { x: window.innerWidth - TAILLE_MICRO - 20, y: window.innerHeight - TAILLE_MICRO - 20 };
   const debutGlisse = (e) => { glisse.current = { dx: e.clientX - positionActuelle.x, dy: e.clientY - positionActuelle.y, x0: e.clientX, y0: e.clientY, bouge: false }; try { e.currentTarget.setPointerCapture(e.pointerId); } catch (err) { /* ignore */ } };
   const pendantGlisse = (e) => {
     const g = glisse.current; if (!g) return;
@@ -20085,6 +20094,8 @@ function CommandeVocaleFlottante({ onCommande }) {
   };
 
   if (!supporteVocal) return null;
+  // Au repos : petit et un peu transparent pour cacher le moins possible ; grand dès qu'on l'utilise.
+  const occupe = enEcoute || enTraitement || parle || !!retour || !!confirmation;
 
   return (
     <div className="fixed flex flex-col items-end gap-2 print:hidden" style={{ zIndex: 9998, left: positionActuelle.x, top: positionActuelle.y, touchAction: "none" }}>
@@ -20105,11 +20116,11 @@ function CommandeVocaleFlottante({ onCommande }) {
         onPointerMove={pendantGlisse}
         onPointerUp={() => { const g = finGlisse(); if (g && !g.bouge) demarrer(); }}
         onPointerCancel={finGlisse}
-        style={{ width: TAILLE_MICRO, height: TAILLE_MICRO, backgroundColor: enEcoute ? "#F59E0B" : "#1769D6", border: "4px solid #111111", boxShadow: "0 0 0 3px #ffffff, 0 10px 24px rgba(0,0,0,0.45)", touchAction: "none", cursor: "grab" }}
+        style={{ width: occupe ? TAILLE_MICRO : 54, height: occupe ? TAILLE_MICRO : 54, opacity: occupe ? 1 : 0.62, backgroundColor: enEcoute ? "#F59E0B" : "#1769D6", border: occupe ? "4px solid #111111" : "3px solid #111111", boxShadow: occupe ? "0 0 0 3px #ffffff, 0 10px 24px rgba(0,0,0,0.45)" : "0 0 0 2px #ffffff, 0 4px 10px rgba(0,0,0,0.3)", touchAction: "none", cursor: "grab", transition: "width .15s, height .15s, opacity .15s" }}
         className={`rounded-full flex items-center justify-center text-white select-none ${enEcoute ? "animate-pulse" : ""}`}
         title="Commande vocale — glissez pour déplacer"
       >
-        {enTraitement ? <Loader2 size={32} className="animate-spin" /> : <Mic size={36} />}
+        {enTraitement ? <Loader2 size={occupe ? 32 : 24} className="animate-spin" /> : <Mic size={occupe ? 36 : 26} />}
       </button>
     </div>
   );
@@ -23604,7 +23615,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const nbNotifications = (alertesControle || []).filter((a) => !a.vue).length;
 
   const moi = modeExterne
-    ? { id: identiteExterne.employeId, nom: identiteExterne.employeNom, poste: identiteExterne.employePoste, estChef: !!identiteExterne.estChef }
+    ? { id: identiteExterne.employeId, nom: identiteExterne.employeNom, poste: identiteExterne.employePoste, estChef: !!identiteExterne.estChef, estSecond: !!identiteExterne.estSecond }
     : currentUserId === "direction"
       ? { id: "direction", nom: "Direction", poste: "Direction", estChef: true }
       : employees.find((e) => e.id === currentUserId);
@@ -23614,8 +23625,12 @@ function KitchenApp({ identiteExterne } = {}) {
   // Connexion réelle : « Contrôle & Gestion » est visible par tous, mais seul un code de chef / directeur l'ouvre (voir GardeCodeChef).
   const [controleDebloque, setControleDebloque] = useState(false);
   const porteParCode = modeExterne && !!(identiteExterne && identiteExterne.verifierCodeChef);
-  const peutVoirControle = !!moi?.estChef || porteParCode;
-  const chefAcces = !!moi?.estChef || (porteParCode && controleDebloque);
+  // Second de cuisine : accède à « Contrôle & Gestion » pour les contrôles (jour, réception, urgence, PMS en lecture de suivi),
+  // mais pas à la gestion (comptes, planning, réservations, réglages) : ces droits restent au chef et au directeur.
+  const moiSecond = !!moi?.estSecond;
+  const peutVoirControle = !!moi?.estChef || porteParCode || moiSecond;
+  const chefComplet = !!moi?.estChef || (porteParCode && controleDebloque);
+  const chefAcces = chefComplet || moiSecond;
   // Bandeau « Maintenant » de l'accueil : ma prochaine tâche, ce qui est en cours, ce qui est en retard.
   const maintenantHM = new Date().toTimeString().slice(0, 5);
   const minutesDepuis = (ts) => Math.max(0, Math.round((Date.now() - ts) / 60000));
@@ -23694,7 +23709,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule, employees, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, ouvrirProduitAcompleter: (id, focus) => { setProduitAOuvrirApp({ id, focus }); setTab("controle"); } };
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
-    <AccesContext.Provider value={{ estResponsable: chefAcces || currentUserId === "direction" }}>
+    <AccesContext.Provider value={{ estResponsable: chefComplet || currentUserId === "direction", estSecond: moiSecond }}>
     <RapideContext.Provider value={valeurRapide}>
     <div className={`min-h-screen flex flex-col ${modeExterne ? "md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[auto_1fr]" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
@@ -23909,7 +23924,7 @@ function KitchenApp({ identiteExterne } = {}) {
         </div>
       )}
 
-      <main className={`flex-1 p-3 sm:p-4 lg:p-5 pb-6 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
+      <main className={`flex-1 p-3 sm:p-4 lg:p-5 pb-24 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
         <IndicateurHorsLigne />
         {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin) && (
           <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement} continu>Un refroidissement ou une congélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
