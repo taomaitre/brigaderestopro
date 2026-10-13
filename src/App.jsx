@@ -18190,6 +18190,27 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
 // ---- Historique de la journée (chef et direction) : vue d'ensemble de tous les autocontrôles d'un jour ----
 // Lecture seule. Les pourcentages sont de simples informations (jamais bloquants). Chaque fonction
 // garde sa couleur et son logo (couleurSousTuile). Le texte « à utiliser aujourd'hui » est en rouge : c'est une alerte.
+// Barre d'avancement : « 6 sur 8 · 75 % ». Vert à partir de 80 %, rouge en dessous (seuil voulu par Loïc le 13/10 : sous 80 %, la journée est mauvaise).
+const SEUIL_BON_POURCENT = 80;
+function BarreAvancement({ faits, total, titre, sous, neutreEnCours = false }) {
+  if (!(total > 0)) return null;
+  const pc = Math.round((faits / total) * 100);
+  const bon = pc >= SEUIL_BON_POURCENT;
+  const couleur = bon ? "#157347" : (neutreEnCours ? "#B7791F" : "#B42318");
+  const fond = bon ? "#DDF5E7" : (neutreEnCours ? "#FFF1D6" : "#FDE2E0");
+  return (
+    <div className="rounded-xl p-3 mb-4" style={{ background: fond, border: `1.5px solid ${couleur}` }}>
+      <div className="flex items-baseline gap-3 flex-wrap">
+        <span className="text-3xl font-bold leading-none" style={{ color: couleur }}>{pc} %</span>
+        <span className="text-sm font-semibold" style={{ color: couleur }}>{titre}</span>
+        <span className="text-xs text-[var(--steel)] ml-auto">{faits} faite{faits > 1 ? "s" : ""} sur {total}</span>
+      </div>
+      <div className="h-2.5 rounded-full bg-white/80 overflow-hidden mt-2"><div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pc)}%`, backgroundColor: couleur }} /></div>
+      <div className="text-[11px] text-[var(--steel)] mt-1.5">{bon ? `Objectif de ${SEUIL_BON_POURCENT} % atteint.` : `Sous ${SEUIL_BON_POURCENT} % : ${neutreEnCours ? "encore du travail pour finir la journée." : "à surveiller."}`}{sous ? ` ${sous}` : ""}</div>
+    </div>
+  );
+}
+
 function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, tableauDeBord, employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
   const aujourdhui = todayISO();
   const [jour, setJour] = useState(aujourdhui);
@@ -18336,6 +18357,18 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
         <button type="button" onClick={() => decaler(1)} disabled={jour >= aujourdhui} className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-white text-sm disabled:opacity-40" aria-label="Jour suivant">›</button>
         <span className="text-sm text-[var(--steel)] capitalize">{libelleJour}</span>
       </div>
+      {(() => {
+        const lots = [
+          [tachesFaites.length, tachesDuJour.length],
+          [Math.min(nettoyages.length, nettoyagesAttendus.length), nettoyagesAttendus.length],
+          [cuisFinies, cuis.length],
+          [refrFinis, refr.length],
+          [maintFinis, maint.length],
+        ];
+        const faits = lots.reduce((t, l) => t + l[0], 0);
+        const total = lots.reduce((t, l) => t + l[1], 0);
+        return <BarreAvancement faits={faits} total={total} titre={jour === aujourdhui ? "Avancement général de la journée (toute l'équipe)" : "Bilan général de la journée (toute l'équipe)"} sous="Tâches du jour, nettoyages, cuissons, refroidissements et maintiens au chaud." neutreEnCours={false} />;
+      })()}
       <BoutonsExport titre={`Historique de la journée ${jour}`} colonnes={["Fonction", "Élément", "Détail 1", "Détail 2", "Détail 3", "Détail 4"]} lignes={exportLignes} />
 
       {/* Rangée de résumé : un carré par fonction, cliquer fait défiler jusqu'au cadre correspondant */}
@@ -21314,6 +21347,14 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId !== "direction" && (
           <div>
             <HorairesDuJour employeeId={currentUserId} shifts={shifts} date={dateSelectionnee} />
+            {(() => {
+              const blocsN = blocsNettoyageGrille(dateSelectionnee);
+              const mesTachesJ = tasksForDate(currentUserId, dateSelectionnee).filter((t) => !(blocsN.length > 0 && /^Nettoyage/i.test(t.titre)));
+              const faitesT = mesTachesJ.filter((t) => !!t.completions?.[dateSelectionnee]?.[currentUserId]).length;
+              const totalN = blocsN.reduce((t, b) => t + b.total, 0);
+              const faitsN = blocsN.reduce((t, b) => t + b.faits, 0);
+              return <BarreAvancement faits={faitesT + faitsN} total={mesTachesJ.length + totalN} titre={dateSelectionnee === today ? "Mon avancement aujourd'hui" : "Mon avancement ce jour-là"} neutreEnCours={dateSelectionnee === today} />;
+            })()}
             <PlanningDeuxColonnes tasks={tasksForDate(currentUserId, dateSelectionnee)} employeeId={currentUserId} date={dateSelectionnee} actorId={currentUserId} onToggle={toggleTask}
               onOuvrirFenetre={ouvrirFenetreMoi} horaires={horaires} blocsNettoyage={blocsNettoyageGrille(dateSelectionnee)} />
           </div>
