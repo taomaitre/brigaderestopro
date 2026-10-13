@@ -17371,9 +17371,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
           origine: r.origine || b.origine, agrementSanitaire: r.agrementSanitaire || b.agrementSanitaire,
         };
       });
-      setScanMsg("Étiquette lue : complétez la quantité" + (typeIA ? "." : " et le type.") + " "
-        + (lisibles ? "Les allergènes ont été lus : vérifiez-les ci-dessous. " : "Allergènes non lus sur cette photo : photographiez la liste des ingrédients, ou cochez-les vous-même. ")
-        + "Vous pouvez photographier plusieurs faces du produit : les informations s'ajoutent.");
+      setScanMsg("Étiquette lue" + (lisibles ? " (allergènes enregistrés)" : "") + " : complétez la quantité" + (typeIA ? "." : " et le type."));
     } else setScanMsg("L'étiquette n'a pas pu être lue : saisissez les informations à la main, ou reprenez la photo (bien à plat, bien éclairée, sans reflet).");
   };
 
@@ -17625,6 +17623,12 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <h3 className="font-semibold text-lg text-[var(--ink)]">{b.kind === "plus" ? "Produit livré en plus (non commandé)" : `Produit ${numero}`}</h3>
               <p className="text-sm text-[var(--steel)]">Fournisseur : {fournisseur}</p>
             </div>
+            {iaDispo && (
+              <div className="flex items-center gap-3">
+                <PhotoInput rond value={null} onChange={scannerEtiquette} label="Photographier l'étiquette du produit" />
+                <div className="text-sm font-semibold text-[var(--ink)] leading-tight">Photo de l'étiquette<span className="block text-xs font-normal text-[var(--steel)]">plusieurs faces possibles</span></div>
+              </div>
+            )}
             {produits.filter((p) => !p.manquant).length > 0 && (
               <div className="flex flex-wrap gap-1.5 justify-end">
                 {produitsF.filter((p) => !p.manquant && p.id !== b.id).map((p) => (
@@ -17662,8 +17666,8 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
           {scanMsg && <p className="text-sm rounded-lg px-3 py-2 mt-3" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{scanMsg}</p>}
           {scanEnCours && <p className="text-sm mt-3 text-[var(--steel)]">Lecture de l'étiquette en cours…</p>}
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-4 mt-4">
-            <div className="sm:col-span-2">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-x-3 gap-y-3 mt-3">
+            <div className="col-span-2 lg:col-span-4">
               <label className={lab}>Nom du produit</label>
               {b.ligneId ? <div className="text-lg font-bold text-[var(--ink)]">{b.nom}</div> : <input autoComplete="off" className={`${inputCls} w-full`} placeholder="Tapez le nom (ex. poulet)" value={b.nom} onChange={(e) => { const v = e.target.value; const ts = typeSuggere(v); maj({ nom: v, nomAuto: false, ...(!b.typeChoisi ? (ts ? { conservation: ts, typeAuto: true } : (b.typeAuto ? { conservation: "", typeAuto: false } : {})) : {}) }); }} />}
               {suggestions.length > 0 && (
@@ -17677,7 +17681,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <label className={lab}>Quantité reçue</label>
               <input className={`${inputCls} w-full`} type="number" inputMode="decimal" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
               {b.commandeQte != null && <p className="text-xs mt-1.5 text-[var(--steel)]">Commandé : <b>{b.commandeQte} {b.commandeUnite}</b></p>}
-              {b.poidsNet && <p className="text-xs mt-1.5 text-[var(--steel)]">Poids net lu sur l'emballage : <b>{b.poidsNet}</b>. Saisissez ici le <b>nombre</b> d'unités reçues.</p>}
+              {b.poidsNet && <p className="text-xs mt-1 text-[var(--steel)]">Emballage : <b>{b.poidsNet}</b> — saisir le <b>nombre</b> d'unités.</p>}
             </div>
             <div>
               {!(b.ligneId && b.conservation) && <label className={lab}>Type de produit</label>}
@@ -17710,15 +17714,6 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
             </div>
           </div>
 
-          {(!b.conservation || alimentaire) && (
-            <div className="mt-4 rounded-xl border-2 p-3" style={{ borderColor: "#E6D3A3", backgroundColor: "#FFFAEB" }}>
-              <label className={lab}>Allergènes de ce produit (lus sur l'étiquette, à vérifier)</label>
-              <ChampAllergenesReception value={b.allergenes} onChange={(v) => maj({ allergenes: v })} />
-              {!String(b.allergenes || "").trim() && <p className="text-xs mt-2 text-[var(--steel)]">Pas encore renseignés : photographiez la liste des ingrédients, ou cliquez sur les cases.</p>}
-              <label className={`${lab} mt-3`}>Origine (facultatif)</label>
-              <input className={`${inputCls} w-full`} value={b.origine || ""} onChange={(e) => maj({ origine: e.target.value })} placeholder="Ex. France, UE…" />
-            </div>
-          )}
 
           {b.ligneId && b.commandeQte != null && Number(b.quantite) > Number(b.commandeQte) && (
             <div className="mt-4 rounded-xl border-2 p-3" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
@@ -17792,13 +17787,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
 
           {pied(
             <BoutonRetour onClick={() => { setBrouillon(null); setEtape(produits.length === 0 ? 2 : 2); }}>Retour aux températures</BoutonRetour>,
-            iaDispo ? (
-              <div className="flex flex-col items-center text-center">
-                <p className="text-sm font-semibold text-[var(--ink)] mb-1.5">Photo de l'étiquette</p>
-                <PhotoInput rond value={null} onChange={scannerEtiquette} label="Photographier l'étiquette du produit" />
-                <p className="text-xs text-[var(--steel)] mt-1 max-w-[16rem]">Plusieurs photos possibles : face avant, date et lot, liste d'ingrédients.</p>
-              </div>
-            ) : null,
+            null,
             <>
               <Button onClick={() => demander("valider")} disabled={!peutContinuer}>Valider cette étape <ChevronRight size={16} /></Button>
             </>
