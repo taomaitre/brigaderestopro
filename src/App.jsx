@@ -23526,6 +23526,25 @@ function KitchenApp({ identiteExterne } = {}) {
   const porteParCode = modeExterne && !!(identiteExterne && identiteExterne.verifierCodeChef);
   const peutVoirControle = !!moi?.estChef || porteParCode;
   const chefAcces = !!moi?.estChef || (porteParCode && controleDebloque);
+  // Bandeau « Maintenant » de l'accueil : ma prochaine tâche, ce qui est en cours, ce qui est en retard.
+  const maintenantHM = new Date().toTimeString().slice(0, 5);
+  const minutesDepuis = (ts) => Math.max(0, Math.round((Date.now() - ts) / 60000));
+  const jourAcc = JOURS[(new Date().getDay() + 6) % 7];
+  const enReposAcc = !!moi && shifts.length > 0 && !shifts.some((x) => x.employeeId === moi.id && x.jour === jourAcc);
+  const mesTachesAuj = moi && moi.id !== "direction" && !enReposAcc
+    ? tasks.filter((t) => !/^Contrôle$/i.test(t.titre) && taskAppliesTo(t, moi) && isTaskActive(t, todayISO()) && !/^Nettoyage/i.test(t.titre))
+    : [];
+  const tacheFaiteMoi = (t) => !!t.completions?.[todayISO()]?.[moi?.id];
+  const tachesRetard = mesTachesAuj.filter((t) => !tacheFaiteMoi(t) && t.heure && t.heure < maintenantHM).sort((a, b) => a.heure.localeCompare(b.heure));
+  const prochaineTache = mesTachesAuj.filter((t) => !tacheFaiteMoi(t) && t.heure && t.heure >= maintenantHM).sort((a, b) => a.heure.localeCompare(b.heure))[0];
+  const lignesMaintenant = [
+    ...cuissons.filter((c) => c.statut === "en-cours").map((c) => ({ cle: "cu" + c.id, couleur: "#047857", texte: `Cuisson en cours : ${c.produit} (${minutesDepuis(c.debutTs)} min)`, cible: "haccpCuisson", bouton: "Ouvrir" })),
+    ...refroidissements.filter((r) => r.statut === "en-cours").map((r) => ({ cle: "rf" + r.id, couleur: "#1E88C7", texte: `Refroidissement en cours : ${r.produit || r.nom || ""} (${minutesDepuis(r.debutTs)} min)`, cible: "haccpRefroid", bouton: "Ouvrir" })),
+    ...entriesMaintienChaud.filter((m) => m.statut !== "termine" && m.date === todayISO()).map((m) => ({ cle: "mc" + m.id, couleur: "#9D174D", texte: `Maintien au chaud : ${m.nom || m.produit || ""}`, cible: "haccpChaud", bouton: "Ouvrir" })),
+    ...(tachesRetard.length ? [{ cle: "retard", couleur: "#B42318", texte: `${tachesRetard.length} tâche${tachesRetard.length > 1 ? "s" : ""} en retard : ${tachesRetard[0].heure} ${tachesRetard[0].titre}`, cible: "taches", bouton: "Voir" }] : []),
+    ...(prochaineTache ? [{ cle: "proch", couleur: "#146B45", texte: `Prochaine tâche : ${prochaineTache.heure} · ${prochaineTache.titre}`, cible: "taches", bouton: "Voir" }] : []),
+  ].slice(0, 4);
+  badges.taches = tachesRetard.length;
   const navItems = NAV.filter((n) => !n.chefOnly || peutVoirControle);
 
   useEffect(() => {
@@ -23831,6 +23850,19 @@ function KitchenApp({ identiteExterne } = {}) {
         <ZoneContext.Provider value={zoneDepuisFonction({ taches: vueTaches === "reservations" ? "reservationsClient" : "taches", stock: "stock", reception: "reception", etiquettes: "etiquettes", tracabilite: "tracabilite", haccp: "haccp", haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson", fiches: "fiches", controle: "controle", reservations: "reservationsClient", equipe: "comptes", horaires: "planningEmploye" }[tab])}>
         {tab === "accueil" && (
           <div>
+            {lignesMaintenant.length > 0 && (
+              <div className="rounded-2xl border-2 bg-white p-3 mb-4" style={{ borderColor: "#CBD5E1" }}>
+                <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Maintenant</div>
+                <ul className="space-y-2">
+                  {lignesMaintenant.map((l) => (
+                    <li key={l.cle} className="flex items-center gap-3 rounded-xl pl-3 pr-2 py-1.5" style={{ borderLeft: `6px solid ${l.couleur}`, background: "#F8FAFC" }}>
+                      <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--ink)]">{l.texte}</span>
+                      <button type="button" onClick={() => setTab(l.cible)} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white shrink-0" style={{ background: l.couleur }}>{l.bouton}</button>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
               {[
                 ...ACCUEIL_TUILES.filter((t) => !t.chefOnly || peutVoirControle),
