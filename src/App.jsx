@@ -14067,21 +14067,27 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
 
   return (
     <Card className="mb-6">
-      <h3 className="font-semibold text-[var(--ink)] mb-1">Ajouter une traçabilité par photo</h3>
-      <p className="text-xs text-[var(--steel)] mb-4">Autant de photos que nécessaire pour tout avoir lisible : le nom est parfois sur le devant de l'emballage, la DLC et les ingrédients à l'arrière, le logo du fabricant/agrément sanitaire ailleurs — prenez une photo par information si besoin, l'IA fusionne tout. Une étiquette entièrement visible permet aussi de repérer si ce produit diffère de l'habituel.</p>
-      {photos.length > 0 && (
-        <div className="flex flex-wrap gap-2 mb-3">
-          {photos.map((p, i) => (
-            <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
-          ))}
+      <h3 className="text-xl font-bold text-[var(--ink)] mb-1">Ajouter une traçabilité par photo</h3>
+      <p className="text-sm text-[var(--steel)] mb-4">Photographiez l'étiquette (nom, lot, DLC/DDM). Plusieurs photos possibles : devant, dos, logo. L'IA lit tout et remplit les cases.</p>
+      <div className="flex flex-wrap items-center gap-5">
+        <div className="flex flex-col items-center text-center">
+          <PhotoInput rond geant value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Photographier le produit"} />
+          <p className="text-base font-bold text-[var(--ink)] mt-2">{photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"}</p>
         </div>
-      )}
-      <PhotoInput value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo (dos, étiquette, logo...)" : "Photographier le produit"} />
-      {photos.length > 0 && (
-        <Button className="mt-3" onClick={analyser} disabled={analyseEnCours}>
-          {analyseEnCours ? <><Loader2 size={16} className="animate-spin" /> Analyse...</> : `Analyser la${photos.length > 1 ? ` (${photos.length} photos)` : " photo"}`}
-        </Button>
-      )}
+        {photos.length > 0 && (
+          <div className="flex-1 min-w-[220px]">
+            <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo{photos.length > 1 ? "s" : ""} prise{photos.length > 1 ? "s" : ""} — touchez pour agrandir</p>
+            <div className="flex flex-wrap gap-2 mb-3">
+              {photos.map((p, i) => (
+                <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
+              ))}
+            </div>
+            <Button onClick={analyser} disabled={analyseEnCours}>
+              {analyseEnCours ? <><Loader2 size={16} className="animate-spin" /> Analyse...</> : `Analyser la${photos.length > 1 ? ` (${photos.length} photos)` : " photo"}`}
+            </Button>
+          </div>
+        )}
+      </div>
       {echecAnalyse && <p className="text-xs text-[var(--warn)] mt-2">Photo pas assez lisible pour être analysée automatiquement — complétez les champs ci-dessous, ou reprenez une photo de l'étiquette plus nette.</p>}
       {analyseFaite && champsObligatoiresManquants.length > 0 && (
         <p className="text-xs text-[var(--warn)] mt-2 font-medium">Information(s) obligatoire(s) manquante(s) : {champsObligatoiresManquants.join(", ")} — complétez ci-dessous ou reprenez une photo de l'étiquette.</p>
