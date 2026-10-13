@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
+import { analyserCommandeLocale, rapprocher as rapprocherVocal, reponseOuiNon, pluriel as pluralVocal } from './analyseVocale.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
@@ -13587,14 +13588,14 @@ function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, em
 // toujours être saisi par l'employé, jamais déduit automatiquement d'une quantité — un même lot
 // préparé (ex. 8 Saint-Marcellin) peut très bien finir stocké dans une seule boîte et n'avoir
 // besoin que d'une seule étiquette, donc on ne devine jamais, on demande toujours.
-function SelectionEtiquettesModal({ produitsInitiaux, produits, fiches = [], creerEtiquetteDlc, employees, onClose }) {
+function SelectionEtiquettesModal({ produitsInitiaux, nbInitiaux = {}, produits, fiches = [], creerEtiquetteDlc, employees, onClose }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   // Tout ce qui est déjà connu est pré-rempli : durée de conservation (fiche technique) et 1 étiquette par défaut,
   // modifiables. Le chef/employé n'a plus qu'à vérifier et imprimer.
   const preRemplir = (nom) => {
     const fiche = trouverFicheCorrespondante(nom, fiches);
     const j = fiche && fiche.dlcJours != null && fiche.dlcJours !== "" ? String(fiche.dlcJours) : "";
-    return { nom, nbEtiquettes: "1", jours: j, depuisFiche: j !== "" };
+    return { nom, nbEtiquettes: String(nbInitiaux[(nom || "").trim().toLowerCase()] || 1), jours: j, depuisFiche: j !== "" };
   };
   const [panier, setPanier] = useState(() => {
     const vus = new Set();
@@ -13831,77 +13832,71 @@ function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDl
 // montre déjà elle-même le nom, la DLC et le lot — on ne redemande jamais rien à taper. Enregistrée
 // avec la date, l'heure et le nom de la personne, conservée 5 ans (la photo EST la traçabilité), retrouvable dans le contrôle
 // traçabilité du chef/direction. Plusieurs produits à la suite : juste reprendre une photo.
-function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, dernieres = [], who }) {
+function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, who, stock = [] }) {
   // Plusieurs photos possibles ici aussi (pas réservé au palier avec IA) : le nom, la DLC et le lot
   // ne sont pas toujours tous lisibles sur une seule face de l'emballage.
+  // Seules les photos de CETTE traçabilité sont affichées : une fois enregistrée, l'écran redevient vide
+  // (les anciennes restent consultables par le chef dans Contrôle et gestion).
   const [photos, setPhotos] = useState([]);
-  const [enregistre, setEnregistre] = useState(false);
-  const [photoOuverte, setPhotoOuverte] = useState(null);
+  const [resultat, setResultat] = useState(null);
+  const [produitId, setProduitId] = useState("");
+  const [quantite, setQuantite] = useState("1");
+  const enStock = [...stock].filter((x) => Number(x.quantite) > 0).sort((a, b) => a.nom.localeCompare(b.nom));
 
   const confirmer = () => {
     if (photos.length === 0) return;
-    enregistrerTracabilitePhotoSimple(photos);
-    setEnregistre(true);
+    const r = enregistrerTracabilitePhotoSimple(photos, { produitId, quantite });
+    setResultat(r && r.retrait ? r.retrait : { aucun: true });
   };
-  const nouveau = () => { setPhotos([]); setEnregistre(false); };
-  const fmtJour = (d) => (d ? d.split("-").reverse().join("/") : "");
+  const nouveau = () => { setPhotos([]); setResultat(null); setProduitId(""); setQuantite("1"); };
 
-  const carteAjout = enregistre ? (
-    <Card className="flex flex-col items-center text-center gap-3 py-10">
-      <div className="w-14 h-14 rounded-full flex items-center justify-center text-[var(--accent)]" style={{ background: "var(--accent-soft)" }}><CheckCircle2 size={30} /></div>
-      <p className="text-base text-[var(--ink)] font-semibold">Traçabilité enregistrée</p>
-      <p className="text-sm text-[var(--steel)]">Photo(s) conservée(s) 5 ans, classée(s) par jour.</p>
-      <Button onClick={nouveau}><Camera size={16} /> Photographier un autre produit</Button>
-    </Card>
-  ) : (
-    <Card>
-      <h3 className="text-xl font-bold text-[var(--ink)] self-start">Ajouter une traçabilité</h3>
-      <div className="flex flex-col items-center text-center">
-      <p className="text-sm text-[var(--steel)] self-start text-left mb-5">Photographiez l'étiquette du produit, bien lisible (nom, DLC/DDM, numéro de lot). Plusieurs photos si besoin (devant et dos de l'emballage).</p>
-      <PhotoInput rond geant value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"} />
-      <p className="text-base font-bold text-[var(--ink)] mt-4">{photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"}</p>
-      {photos.length > 0 && (
-        <div className="w-full mt-5 pt-4 border-t border-[var(--line)]">
-          <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo{photos.length > 1 ? "s" : ""} prise{photos.length > 1 ? "s" : ""} — cliquez pour agrandir et vérifier</p>
-          <div className="flex flex-wrap justify-center gap-3 mb-4">
-            {photos.map((p, i) => (
-              <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
-            ))}
-          </div>
-          <button type="button" onClick={confirmer} className="w-full h-12 rounded-lg text-white text-base font-bold" style={{ backgroundColor: "#1E7B4B" }}>Valider la traçabilité</button>
-        </div>
-      )}
-      </div>
-    </Card>
-  );
-
+  if (resultat) {
+    return (
+      <Card className="flex flex-col items-center text-center gap-3 py-10 mb-6">
+        <div className="w-14 h-14 rounded-full flex items-center justify-center text-[var(--accent)]" style={{ background: "var(--accent-soft)" }}><CheckCircle2 size={30} /></div>
+        <p className="text-lg text-[var(--ink)] font-bold">Traçabilité enregistrée</p>
+        {resultat.nom
+          ? <p className="text-base font-semibold" style={{ color: "#14653A" }}>{resultat.qteTxt} retiré(s) du stock : {resultat.nom} (reste {resultat.resteTxt})</p>
+          : <p className="text-sm text-[var(--steel)]">Aucun produit retiré du stock.</p>}
+        <Button onClick={nouveau}><Camera size={16} /> Photographier un autre produit</Button>
+      </Card>
+    );
+  }
   return (
-    <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_minmax(0,1.4fr)] gap-4 mb-6">
-      {carteAjout}
-      <Card>
-        <div className="flex items-center gap-3 mb-4"><Clock size={24} className="text-[#1B4F9C]" /><h3 className="text-xl font-bold text-[#1B4F9C]">Dernières traçabilités</h3></div>
-        {dernieres.length === 0 ? <p className="text-sm text-[var(--steel)] py-6">Aucune traçabilité enregistrée pour l'instant.</p> : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-            {dernieres.map((d) => (
-              <button key={d.id} type="button" onClick={() => setPhotoOuverte(d)} className="text-left rounded-xl border border-[var(--cadre)] overflow-hidden bg-white hover:shadow-md transition-shadow">
-                {d.photo ? <img src={d.photo} alt="" className="w-full h-28 object-cover" /> : <div className="w-full h-28 bg-[var(--bg)]" />}
-                <div className="px-2.5 py-2">
-                  <div className="text-xs text-[var(--steel)]">{fmtJour(d.date)} · {d.heure}</div>
-                  <div className="text-xs text-[var(--ink)] font-medium">{(who && who(d.employeeId)) || ""}{d.photos && d.photos.length > 1 ? ` · ${d.photos.length} photos` : ""}</div>
-                </div>
-              </button>
-            ))}
+    <Card className="mb-6">
+      <h3 className="text-xl font-bold text-[var(--ink)]">Ajouter une traçabilité</h3>
+      <p className="text-sm text-[var(--steel)] mb-4">Photographiez l'étiquette, bien lisible (nom, DLC/DDM, lot). Plusieurs photos si besoin.</p>
+      <div className="flex flex-wrap items-start gap-5">
+        <div className="flex flex-col items-center text-center">
+          <PhotoInput rond geant value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"} />
+          <p className="text-base font-bold text-[var(--ink)] mt-3">{photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"}</p>
+        </div>
+        {photos.length > 0 && (
+          <div className="flex-1 min-w-[260px]">
+            <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo{photos.length > 1 ? "s" : ""} prise{photos.length > 1 ? "s" : ""} — cliquez pour agrandir et vérifier</p>
+            <div className="flex flex-wrap gap-3 mb-4">
+              {photos.map((p, i) => (
+                <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
+              ))}
+            </div>
+            <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3 items-end">
+              <div>
+                <label className="block text-sm font-semibold text-[var(--ink)] mb-1.5">Produit utilisé (pour le retirer du stock)</label>
+                <select className={`${inputCls} w-full`} value={produitId} onChange={(e) => setProduitId(e.target.value)}>
+                  <option value="">Ne rien retirer du stock</option>
+                  {enStock.map((x) => <option key={x.id} value={x.id}>{x.nom} — {libelleQte(x, x.quantite)}</option>)}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-[var(--ink)] mb-1.5">Quantité</label>
+                <input className={`${inputCls} w-full`} type="number" inputMode="decimal" min="0" value={quantite} onChange={(e) => setQuantite(e.target.value)} />
+              </div>
+            </div>
+            <button type="button" onClick={confirmer} className="mt-4 w-full h-14 rounded-lg text-white text-lg font-bold" style={{ backgroundColor: "#1E7B4B" }}>Valider la traçabilité</button>
           </div>
         )}
-      </Card>
-      {photoOuverte && (
-        <div className="fixed inset-0 z-50 bg-black/80 flex flex-col items-center justify-center p-4" onClick={() => setPhotoOuverte(null)}>
-          <div className="flex flex-wrap justify-center gap-3 max-h-[75vh] overflow-y-auto">{(photoOuverte.photos && photoOuverte.photos.length ? photoOuverte.photos : [photoOuverte.photo]).filter(Boolean).map((p, i) => <img key={i} src={p} alt="" className="max-w-full max-h-[70vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />)}</div>
-          <p className="text-white text-sm mt-3">{fmtJour(photoOuverte.date)} · {photoOuverte.heure}</p>
-          <Button className="mt-3" onClick={() => setPhotoOuverte(null)}>Fermer</Button>
-        </div>
-      )}
-    </div>
+      </div>
+    </Card>
   );
 }
 
@@ -13926,7 +13921,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
   const [origine, setOrigine] = useState("");
   const [codeUsine, setCodeUsine] = useState("");
   const [delaiApresOuvertureJours, setDelaiApresOuvertureJours] = useState("");
-  const [quantiteUtilisee, setQuantiteUtilisee] = useState("");
+  const [quantiteUtilisee, setQuantiteUtilisee] = useState("1");
   const [nbEtiquettes, setNbEtiquettes] = useState(1);
   const [entreeCreee, setEntreeCreee] = useState(null);
 
@@ -14023,7 +14018,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
   const nouveau = () => {
     setPhotos([]); setAnalyseFaite(false); setEchecAnalyse(false);
     setNom(""); setLot(""); setDlcDate(""); setAllergenes(""); setOrigine(""); setCodeUsine(""); setDelaiApresOuvertureJours("");
-    setQuantiteUtilisee(""); setNbEtiquettes(1); setEntreeCreee(null);
+    setQuantiteUtilisee("1"); setNbEtiquettes(1); setEntreeCreee(null);
   };
 
   if (entreeCreee) {
@@ -14031,8 +14026,8 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
       <Card className="mb-6">
         <h3 className="font-semibold text-[var(--ink)] mb-2 print:hidden">Traçabilité enregistrée</h3>
         <p className="text-sm text-[var(--ink)] mb-3 print:hidden">
-          <strong>{entreeCreee.nomLibre}</strong>{entreeCreee.lot ? ` — lot ${entreeCreee.lot}` : ""} — DLC/DDM {entreeCreee.dlcDate}{entreeCreee.quantite ? ` — ${entreeCreee.quantite} retiré(s) du stock` : ""}
-        </p>
+          <strong>{entreeCreee.nomLibre}</strong>{entreeCreee.lot ? ` — lot ${entreeCreee.lot}` : ""} — DLC/DDM {entreeCreee.dlcDate}</p>
+        {entreeCreee.retrait ? <p className="text-base font-semibold mb-3 print:hidden" style={{ color: "#14653A" }}>{entreeCreee.retrait.qteTxt} retiré(s) du stock : {entreeCreee.retrait.nom} (reste {entreeCreee.retrait.resteTxt})</p> : <p className="text-sm mb-3 print:hidden" style={{ color: "#8A5A00" }}>Aucun produit du stock ne correspond à « {entreeCreee.nomLibre} » : rien n'a été retiré du stock.</p>}
         <div className="flex flex-wrap gap-3 mb-4">
           {Array.from({ length: entreeCreee.nbEtiquettes || 1 }, (_, i) => (
             <EtiquetteDlcImprimable key={i} produitNom={entreeCreee.nomLibre} lot={entreeCreee.lot} dlcDate={entreeCreee.dlcDate} date={entreeCreee.date} heure={entreeCreee.heure} who={who} employeeId={entreeCreee.employeeId} cuissonInfo={entreeCreee.cuissonInfo} refroidissementInfo={entreeCreee.refroidissementInfo} maintienInfo={entreeCreee.maintienInfo} decongelationInfo={entreeCreee.decongelationInfo} />
@@ -14075,7 +14070,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
         <Field label="Origine (si connue)"><input className={inputCls} value={origine} onChange={(e) => setOrigine(e.target.value)} /></Field>
         <Field label="Agrément sanitaire / code usine"><input className={inputCls} value={codeUsine} onChange={(e) => setCodeUsine(e.target.value)} /></Field>
         <Field label="Délai après ouverture (jours)"><input className={inputCls} type="number" min="0" value={delaiApresOuvertureJours} onChange={(e) => setDelaiApresOuvertureJours(e.target.value)} /></Field>
-        <Field label="Quantité utilisée (optionnel — déstocke automatiquement)"><input className={inputCls} value={quantiteUtilisee} onChange={(e) => setQuantiteUtilisee(e.target.value)} /></Field>
+        <Field label="Quantité retirée du stock"><input className={inputCls} type="number" inputMode="decimal" min="0" value={quantiteUtilisee} onChange={(e) => setQuantiteUtilisee(e.target.value)} /></Field>
         <Field label="Nombre d'étiquettes à imprimer"><input className={inputCls} type="number" min="1" value={nbEtiquettes} onChange={(e) => setNbEtiquettes(e.target.value)} /></Field>
       </div>
       <Button className="mt-3" onClick={confirmer} disabled={!pretAConfirmer}>Confirmer la traçabilité</Button>
@@ -14150,7 +14145,7 @@ function ChampRechercheVocale({ value, onChange, placeholder, label }) {
   );
 }
 
-function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabilitePhotoSimple, employees, allergenesStandard, setAllergenesStandard, setAllergenesProduits, origineStandard, setOrigineStandard, setOrigineProduits, dlcJoursStandard, setDlcJoursStandard, catalogueProduits, setCatalogueProduits, setProduitsLotException, sansIA }) {
+function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabilitePhotoSimple, employees, allergenesStandard, setAllergenesStandard, setAllergenesProduits, origineStandard, setOrigineStandard, setOrigineProduits, dlcJoursStandard, setDlcJoursStandard, catalogueProduits, setCatalogueProduits, setProduitsLotException, sansIA, stock }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -14163,7 +14158,7 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
 
       {IA_ACTIVEE && !sansIA
         ? <AjoutTracabilitePhotoIA creerEtiquetteDlc={creerEtiquetteDlc} who={who} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={catalogueProduits} setCatalogueProduits={setCatalogueProduits} setProduitsLotException={setProduitsLotException} />
-        : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} who={who} dernieres={preparations.filter((p) => p.typeEntree === "photo-simple").sort((a, b) => (b.date + b.heure).localeCompare(a.date + a.heure)).slice(0, 8)} />}
+        : <AjoutTracabilitePhotoSimple enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} who={who} stock={stock || []} />}
 
     </div>
   );
@@ -14664,6 +14659,26 @@ function categorieStock(s) {
   return "Autres";
 }
 // Quantité (dans l'unité du produit) qu'ajoute « +1 conditionnement » : « Carton 6 x 1 L » → 6 L, « 1 x 6 litres » → 6 L, « Sac 25 kg » → 25 kg.
+// Affichage clair d'une quantité en stock : « 3 × 300 g » (nombre × format d'une unité) et, si on sait le calculer, le total (« = 900 g »).
+const UNITES_PIECE = ["pièce", "piece", "pièces", "pieces", "pc", "u", "paquet", "paquets", "unité", "unités"];
+function formatTotal(cond, n) {
+  const m = String(cond || "").trim().toLowerCase().replace(",", ".").match(/^(?:(\d+(?:\.\d+)?)\s*[x×]\s*)?(\d+(?:\.\d+)?)\s*(kg|g|l|cl|ml)$/);
+  if (!m) return null;
+  let v = (m[1] ? parseFloat(m[1]) : 1) * parseFloat(m[2]) * Number(n);
+  let u = m[3];
+  if (!Number.isFinite(v) || v <= 0) return null;
+  if (u === "cl") { v /= 100; u = "l"; } else if (u === "ml") { v /= 1000; u = "l"; }
+  if (u === "g" && v >= 1000) { v /= 1000; u = "kg"; }
+  const r = Math.round(v * 100) / 100;
+  return `${String(r).replace(".", ",")} ${u === "l" ? "L" : u}`;
+}
+function libelleQte(s, n) {
+  const u = String((s && s.unite) || "").toLowerCase();
+  const nb = String(Math.round(Number(n) * 1000) / 1000).replace(".", ",");
+  if (s && s.conditionnement && UNITES_PIECE.includes(u)) return `${nb} × ${s.conditionnement}`;
+  return `${nb} ${(s && s.unite) || ""}`.trim();
+}
+
 function quantiteParConditionnement(s) {
   const txt = String(s.conditionnement || "").toLowerCase().replace(",", ".");
   const unite = String(s.unite || "").toLowerCase();
@@ -14937,9 +14952,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference || "—"}</div>
                 </div>
                 <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>DLC : {s.dlc || "—"}<br />Lot : {s.lot || "—"}</div>
-                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div><CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} /></div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div><CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{libelleQte(s, s.quantite)}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div><CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} /></div>
-                <div className="text-sm text-[var(--ink)] leading-tight"><b>{s.unite || "—"}</b><div className="text-[11px] text-[var(--steel)]">{pasConnu ? `+1 = ${pas} ${s.unite}` : "+1 = 1 (à préciser)"}</div></div>
+                <div className="text-sm text-[var(--ink)] leading-tight"><b>{s.unite || "—"}</b><div className="text-[11px] text-[var(--steel)]">{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `+1 = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `+1 = 1 ${s.unite || ""}`))}</div></div>
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
                   className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
               </div>
@@ -15121,6 +15136,9 @@ async function analyserImage(dataUrl, consigne) {
 }
 
 async function interpreterCommande(texte) {
+  // 1. Analyse locale (mots-clés de la cuisine) : instantanée, gratuite, sans IA. 2. Sinon, l'IA sert de secours.
+  const locale = analyserCommandeLocale(texte);
+  if (locale) return locale;
   if (!IA_ACTIVEE) { console.warn("Commande vocale/texte désactivée pour ce restaurant (interrupteur IA)."); return null; }
   if (!PONT_IA) { console.warn("Commande vocale/texte indisponible : IA non activée pour cet établissement."); return null; }
   try {
@@ -15145,6 +15163,20 @@ function normaliserTexteStrict(s) {
 }
 
 const MOTS_GENERIQUES_CORRESPONDANCE = new Set(["sauce", "produit", "maison", "portion", "portionne", "pate", "poste", "cuit", "cuite", "ouvert", "ouverte", "ouverts", "ouvertes"]);
+
+// Relie un nom lu (étiquette, voix) à un article du stock : nom identique, sinon un seul article dont le nom contient l'autre
+// (« Chips nature 150 g » ↔ « Chips »). Plusieurs candidats : on ne devine pas (renvoie null).
+function trouverStockPourRetrait(nom, stock) {
+  const cible = normaliserTexteStrict(nom);
+  if (!cible) return null;
+  const liste = stock || [];
+  const exacts = liste.filter((s) => normaliserTexteStrict(s.nom) === cible);
+  if (exacts.length) return exacts.find((s) => Number(s.quantite) > 0) || exacts[0];
+  const proches = liste.filter((s) => { const n = normaliserTexteStrict(s.nom); return n.length >= 4 && cible.length >= 4 && (n.includes(cible) || cible.includes(n)); });
+  if (proches.length === 1) return proches[0];
+  const enStock = proches.filter((s) => Number(s.quantite) > 0);
+  return enStock.length === 1 ? enStock[0] : null;
+}
 
 function trouverCorrespondance(nomRecherche, liste, getNom) {
   const cible = normaliserTexte(nomRecherche);
@@ -17597,6 +17629,10 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
                       </select>
                     </div>
                     <div>
+                      <label className={lab}>Format d'une unité (ex. 300 g, 1 kg, 1 L, 6 x 1 L)</label>
+                      <input className={`${inputCls} w-full`} value={b.poidsNet || ""} onChange={(e) => maj({ poidsNet: e.target.value })} placeholder="Ex. 300 g" />
+                    </div>
+                    <div>
                       <label className={lab}>Référence fournisseur (facultatif)</label>
                       <input className={`${inputCls} w-full`} value={b.reference || ""} onChange={(e) => maj({ reference: e.target.value })} />
                     </div>
@@ -17681,7 +17717,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
               <label className={lab}>Quantité reçue</label>
               <input className={`${inputCls} w-full`} type="number" inputMode="decimal" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
               {b.commandeQte != null && <p className="text-xs mt-1.5 text-[var(--steel)]">Commandé : <b>{b.commandeQte} {b.commandeUnite}</b></p>}
-              {b.poidsNet && <p className="text-xs mt-1 text-[var(--steel)]">Emballage : <b>{b.poidsNet}</b> — saisir le <b>nombre</b> d'unités.</p>}
+              {(() => { const st = stock.find((x) => norm(x.nom) === norm(b.nom)); const fmt = b.poidsNet || (st && st.conditionnement) || ""; if (!fmt) return null; const tot = Number(b.quantite) > 0 ? formatTotal(fmt, b.quantite) : null; return <p className="text-xs mt-1 text-[var(--ink)]">Format d'une unité : <b>{fmt}</b> — saisir le <b>nombre</b>{Number(b.quantite) > 0 ? <> : <b>{b.quantite} × {fmt}{tot ? ` = ${tot}` : ""}</b></> : "."}</p>; })()}
             </div>
             <div>
               {!(b.ligneId && b.conservation) && <label className={lab}>Type de produit</label>}
@@ -17836,7 +17872,7 @@ function ReceptionSimple({ optionsExterne, stock, commandes, currentUserId, empl
                 <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
                 {!p.conforme && !p.manquant && <div className="text-xs" style={{ color: "#B4233A" }}>{p.raison}</div>}
               </div>
-              <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Qté : </span>{p.quantite}</div>
+              <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Qté : </span>{p.quantite}{p.poidsNet ? <span className="block text-[11px] text-[var(--steel)]">× {p.poidsNet}</span> : null}</div>
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "—" : (LIBELLE_CONSERVATION[p.conservation] || "—")}</div>
               <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Temp. : </span>{p.temperature !== "" && p.temperature != null && !p.manquant ? `${p.temperature} °C` : "—"}</div>
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "Non livré" : `${p.lot || "—"} · ${p.dlc || "—"}`}</div>
@@ -19514,7 +19550,15 @@ function CommandeBar({ onCommande }) {
 function CommandeVocaleFlottante({ onCommande }) {
   const [enEcoute, setEnEcoute] = useState(false);
   const [enTraitement, setEnTraitement] = useState(false);
+  const [parle, setParle] = useState(false);
   const [retour, setRetour] = useState(null);
+  const [confirmation, setConfirmation] = useState(null); // { question, run } : l'application attend « oui » ou « non »
+  const confRef = useRef(null);
+  const essais = useRef(0);      // échecs dans la session en cours (pas compris, « non », rien entendu) : 3 maximum
+  const session = useRef(0);     // change à chaque écoute : une réponse tardive d'une écoute annulée est ignorée
+  const actif = useRef(false);
+  const recoRef = useRef(null);
+  const MAX_ESSAIS = 3;
   // Bouton déplaçable au doigt (ou à la souris) : la position est mémorisée sur l'appareil.
   const TAILLE_MICRO = 76;
   const [pos, setPos] = useState(() => {
@@ -19539,24 +19583,126 @@ function CommandeVocaleFlottante({ onCommande }) {
   const supporteVocal = iaDispo() && typeof window !== "undefined" && (window.SpeechRecognition || window.webkitSpeechRecognition);
 
   useEffect(() => {
-    if (!retour) return;
-    const t = setTimeout(() => setRetour(null), 6000);
+    if (!retour || confirmation) return;
+    const t = setTimeout(() => setRetour(null), 7000);
     return () => clearTimeout(t);
-  }, [retour]);
+  }, [retour, confirmation]);
 
-  const envoyer = async (valeur) => {
-    const v = (valeur || "").trim();
-    if (!v) return;
-    setEnTraitement(true);
-    setRetour(null);
-    const r = await onCommande(v);
+  const couperSon = () => {
+    session.current += 1;
+    try { if (recoRef.current) recoRef.current.abort(); } catch (e) { /* ignore */ }
+    try { if (typeof window !== "undefined" && window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ }
+    setEnEcoute(false); setParle(false);
+  };
+  const arreter = () => { actif.current = false; couperSon(); confRef.current = null; setConfirmation(null); setEnTraitement(false); };
+  useEffect(() => () => { actif.current = false; try { if (recoRef.current) recoRef.current.abort(); if (window.speechSynthesis) window.speechSynthesis.cancel(); } catch (e) { /* ignore */ } }, []);
+
+  // L'application parle (voix du navigateur, gratuite), puis lance « apres » (par exemple l'écoute de la réponse).
+  const parler = (texte, apres) => {
+    const id = session.current;
+    let fait = false;
+    const fin = () => { if (fait) return; fait = true; setParle(false); if (apres && id === session.current && actif.current) apres(); };
+    try {
+      if (!window.speechSynthesis || typeof SpeechSynthesisUtterance === "undefined") { fin(); return; }
+      window.speechSynthesis.cancel();
+      const u = new SpeechSynthesisUtterance(texte);
+      u.lang = "fr-FR"; u.onend = fin; u.onerror = fin;
+      setParle(true);
+      window.speechSynthesis.speak(u);
+      setTimeout(fin, 10000);
+    } catch (e) { fin(); }
+  };
+
+  const abandon = (msg) => { actif.current = false; confRef.current = null; setConfirmation(null); setRetour(msg); parler(msg); };
+  const echec = (msg) => {
+    essais.current += 1;
+    if (essais.current >= MAX_ESSAIS) { abandon("Je n'ai pas compris après 3 essais. Faites-le à la main."); return; }
+    setRetour(msg + " Que voulez-vous ?");
+    parler(msg + " Que voulez-vous ?", () => ecouter("commande"));
+  };
+
+  const valider = () => {
+    const c = confRef.current; if (!c) return;
+    actif.current = false; couperSon(); confRef.current = null; setConfirmation(null);
+    essais.current = 0;
+    setRetour(c.run() || "C'est fait.");
+  };
+  const refuser = () => {
+    if (!confRef.current) return;
+    couperSon(); confRef.current = null; setConfirmation(null);
+    essais.current += 1;
+    if (essais.current >= MAX_ESSAIS) { abandon("Je n'ai pas compris après 3 essais. Faites-le à la main."); return; }
+    setRetour("D'accord. Que voulez-vous ?");
+    parler("D'accord. Que voulez-vous ?", () => ecouter("commande"));
+  };
+
+  const traiterCommande = async (texte) => {
+    const id = session.current;
+    setEnTraitement(true); setRetour(null);
+    const r = await onCommande(texte);
     setEnTraitement(false);
-    setRetour(r || "Je n'ai pas compris cette commande — réessayez.");
+    if (id !== session.current || !actif.current) return;
+    if (typeof r === "string") { actif.current = false; essais.current = 0; setRetour(r); return; }
+    if (r && r.question) {
+      confRef.current = r; setConfirmation(r);
+      parler(r.question, () => ecouter("reponse"));
+      return;
+    }
+    echec((r && r.nonCompris) || "Je n'ai pas compris la commande.");
+  };
+  const traiterReponse = (texte) => {
+    const rep = reponseOuiNon(texte);
+    if (rep === "oui") valider();
+    else if (rep === "non") refuser();
+    else {
+      essais.current += 1;
+      if (essais.current >= MAX_ESSAIS) { abandon("Je n'ai pas compris après 3 essais. Faites-le à la main."); return; }
+      parler("Répondez par oui ou par non.", () => ecouter("reponse"));
+    }
+  };
+
+  const ecouter = (mode) => {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SR) { setRetour("Commande vocale non disponible sur ce navigateur."); actif.current = false; return; }
+    session.current += 1;
+    const id = session.current;
+    let traite = false;
+    try {
+      const reco = new SR();
+      recoRef.current = reco;
+      reco.lang = "fr-FR"; reco.interimResults = false; reco.maxAlternatives = 1;
+      reco.onresult = (e) => {
+        if (id !== session.current) return;
+        traite = true;
+        const t = e.results[0][0].transcript;
+        if (mode === "commande") { setRetour("« " + t + " »"); traiterCommande(t); } else traiterReponse(t);
+      };
+      reco.onerror = (e) => {
+        if (id !== session.current) return;
+        if (e.error === "no-speech" || e.error === "aborted") return; // géré dans onend
+        traite = true; setEnEcoute(false);
+        if (e.error === "not-allowed") { abandon("Micro refusé — autorisez l'accès au micro."); return; }
+        abandon(e.error === "network" ? "Problème de connexion — réessayez." : "La commande vocale n'a pas fonctionné — réessayez.");
+      };
+      reco.onend = () => {
+        if (id !== session.current) return;
+        setEnEcoute(false);
+        if (traite || !actif.current) return;
+        traite = true;
+        if (mode === "commande") echec("Je n'ai rien entendu.");
+        else { essais.current += 1; if (essais.current >= MAX_ESSAIS) abandon("Je n'ai pas compris après 3 essais. Faites-le à la main."); else parler("Répondez par oui ou par non.", () => ecouter("reponse")); }
+      };
+      setEnEcoute(true);
+      reco.start();
+    } catch (err) {
+      setEnEcoute(false); actif.current = false;
+      setRetour("La commande vocale n'a pas pu démarrer ici.");
+    }
   };
 
   const demarrer = async () => {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-    if (!SR) { setRetour("Commande vocale non disponible sur ce navigateur."); return; }
+    if (actif.current || enEcoute || parle || enTraitement || confirmation) { arreter(); return; } // un nouvel appui annule
+    if (!(window.SpeechRecognition || window.webkitSpeechRecognition)) { setRetour("Commande vocale non disponible sur ce navigateur."); return; }
     if (navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -19566,36 +19712,30 @@ function CommandeVocaleFlottante({ onCommande }) {
         return;
       }
     }
-    try {
-      const reco = new SR();
-      reco.lang = "fr-FR";
-      reco.interimResults = false;
-      reco.maxAlternatives = 1;
-      reco.onresult = (e) => envoyer(e.results[0][0].transcript);
-      reco.onend = () => setEnEcoute(false);
-      reco.onerror = (e) => {
-        setEnEcoute(false);
-        const messages = { "not-allowed": "Micro refusé — autorisez l'accès au micro.", "no-speech": "Je n'ai rien entendu — réessayez.", "network": "Problème de connexion — réessayez." };
-        setRetour(messages[e.error] || "La commande vocale n'a pas fonctionné — réessayez.");
-      };
-      setEnEcoute(true);
-      reco.start();
-    } catch (e) {
-      setEnEcoute(false);
-      setRetour("La commande vocale n'a pas pu démarrer ici.");
-    }
+    essais.current = 0; actif.current = true; setRetour(null);
+    ecouter("commande");
   };
 
   if (!supporteVocal) return null;
 
   return (
     <div className="fixed flex flex-col items-end gap-2 print:hidden" style={{ zIndex: 9998, left: positionActuelle.x, top: positionActuelle.y, touchAction: "none" }}>
-      {retour && <div className="absolute bottom-full right-0 mb-2 w-[230px] text-xs bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">{retour}</div>}
-      {enEcoute && <div className="absolute bottom-full right-0 mb-2 whitespace-nowrap text-xs bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">Je vous écoute...</div>}
+      {confirmation && (
+        <div className="absolute bottom-full right-0 mb-2 w-[300px] rounded-2xl bg-white p-4 shadow-2xl" style={{ border: "4px solid #1769D6" }}>
+          <div className="text-lg font-bold leading-snug" style={{ color: "#0F172A" }}>{confirmation.question}</div>
+          <div className="text-sm mt-1" style={{ color: "#475569" }}>{parle ? "Je parle…" : enEcoute ? "Je vous écoute : dites oui ou non" : "Dites oui ou non, ou touchez un bouton"}</div>
+          <div className="grid grid-cols-2 gap-3 mt-3">
+            <button type="button" onClick={valider} className="min-h-[60px] rounded-xl text-xl font-extrabold text-white" style={{ backgroundColor: "#2F9D63", border: "3px solid #1E7B4B" }}>Oui</button>
+            <button type="button" onClick={refuser} className="min-h-[60px] rounded-xl text-xl font-extrabold" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C", border: "3px solid #1B5FA8" }}>Non</button>
+          </div>
+        </div>
+      )}
+      {retour && !confirmation && <div className="absolute bottom-full right-0 mb-2 w-[260px] text-sm bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">{retour}</div>}
+      {enEcoute && !confirmation && <div className="absolute bottom-full right-0 mb-2 whitespace-nowrap text-sm bg-[var(--ink)] text-white rounded-lg px-3 py-2 shadow-lg">Je vous écoute...</div>}
       <button
         onPointerDown={debutGlisse}
         onPointerMove={pendantGlisse}
-        onPointerUp={() => { const g = finGlisse(); if (g && !g.bouge && !enEcoute && !enTraitement) demarrer(); }}
+        onPointerUp={() => { const g = finGlisse(); if (g && !g.bouge) demarrer(); }}
         onPointerCancel={finGlisse}
         style={{ width: TAILLE_MICRO, height: TAILLE_MICRO, backgroundColor: enEcoute ? "#F59E0B" : "#1769D6", border: "4px solid #111111", boxShadow: "0 0 0 3px #ffffff, 0 10px 24px rgba(0,0,0,0.45)", touchAction: "none", cursor: "grab" }}
         className={`rounded-full flex items-center justify-center text-white select-none ${enEcoute ? "animate-pulse" : ""}`}
@@ -21919,6 +22059,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const [maintienChaudSuggere, setMaintienChaudSuggere] = useState(null);
   const [huileTestActif, setHuileTestActif] = useState(null);
   const [huileMatinActif, setHuileMatinActif] = useState(null);
+  const [etiquetteRapideNb, setEtiquetteRapideNb] = useState({});
   const [etiquetteRapideDemandee, setEtiquetteRapideDemandee] = useState(null); // tableau de noms de produits — voir proposerEtiquetteRapide
 
   const [employeesStockes, setEmployeesStockes] = useStored("planning-employees", DEFAULT_EMPLOYEES);
@@ -22340,7 +22481,8 @@ function KitchenApp({ identiteExterne } = {}) {
   // quantité utilisée + nombre d'étiquettes, lot et DLC/DDM calculés automatiquement) — utilisé
   // en fin de chaîne d'un protocole HACCP (refroidissement notamment) pour qu'on n'ait pas à s'en
   // souvenir plus tard.
-  const proposerEtiquetteRapide = useCallback((nom) => {
+  const proposerEtiquetteRapide = useCallback((nom, nb) => {
+    if (nb && Number(nb) > 0) setEtiquetteRapideNb((prev) => ({ ...prev, [nom.trim().toLowerCase()]: Number(nb) }));
     // Si une sélection d'étiquettes est déjà ouverte, on ajoute ce produit à la liste au lieu
     // d'en reperdre une autre déjà en cours de saisie (utile si la commande vocale ou un deuxième
     // protocole HACCP propose un nouveau produit pendant que la fenêtre est déjà ouverte).
@@ -22813,12 +22955,18 @@ function KitchenApp({ identiteExterne } = {}) {
       decongelationInfo: decongelationInfo || null,
       typeDlc: typeDlc || null,
     };
-    setPreparations((prev) => [entry, ...prev]);
-    // Si une quantité utilisée est renseignée et qu'un article de stock du même nom existe, on la retire du stock.
-    if (quantiteUtilisee) {
-      setStock((prev) => prev.map((s) => (s.nom.trim().toLowerCase() === nomPropre ? { ...s, quantite: Math.max(0, Number(s.quantite) - Number(quantiteUtilisee)) } : s)));
+    // Si une quantité utilisée est renseignée et qu'un article de stock correspond (nom identique ou clairement proche), on la retire du stock.
+    const qteRetrait = Number(String(quantiteUtilisee || "").replace(",", "."));
+    if (qteRetrait > 0) {
+      const art = trouverStockPourRetrait(produitNom, stock);
+      if (art) {
+        const reste = Math.max(0, Math.round((Number(art.quantite) - qteRetrait) * 1000) / 1000);
+        setStock((prev) => prev.map((s) => (s.id === art.id ? { ...s, quantite: reste } : s)));
+        entry.retrait = { nom: art.nom, qteTxt: libelleQte(art, qteRetrait), resteTxt: libelleQte(art, reste) };
+      }
     }
-    logActivitySafe("HACCP", "Étiquette DLC créée", `${produitNom}${lotFinal ? ` — lot ${lotFinal}` : ""} — DLC/DDM ${dlcDate}${quantiteUtilisee ? ` — ${quantiteUtilisee} retiré(s) du stock` : ""}`);
+    setPreparations((prev) => [entry, ...prev]);
+    logActivitySafe("HACCP", "Étiquette DLC créée", `${produitNom}${lotFinal ? ` — lot ${lotFinal}` : ""} — DLC/DDM ${dlcDate}${entry.retrait ? ` — ${entry.retrait.qteTxt} retiré(s) du stock (${entry.retrait.nom})` : ""}`);
     return entry;
   }, [currentUserId, setPreparations, logActivitySafe, cuissons, refroidissements, entriesMaintienChaud, setStock, stock, modeExterne]);
 
@@ -22827,16 +22975,24 @@ function KitchenApp({ identiteExterne } = {}) {
   // nom, la DLC et le numéro de lot du produit — on ne redemande rien à l'employé, rien à taper. Les
   // photos datées et nommées par qui les a prises SONT la traçabilité ; conservées 5 ans, elles se
   // retrouvent dans le contrôle traçabilité du chef/direction par date.
-  const enregistrerTracabilitePhotoSimple = useCallback((photos) => {
+  const enregistrerTracabilitePhotoSimple = useCallback((photos, retrait) => {
     const photosFinal = Array.isArray(photos) ? photos : (photos ? [photos] : []);
     const entry = {
       id: uid(), produitId: null, nomLibre: null, employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5),
       quantite: null, dlcDate: null, jete: false, jeteDate: null, lot: null, photo: photosFinal[0] || null, photos: photosFinal, typeEntree: "photo-simple",
     };
+    const qte = Number(String((retrait && retrait.quantite) || "").replace(",", "."));
+    const art = retrait && retrait.produitId && qte > 0 ? stock.find((x) => x.id === retrait.produitId) : null;
+    if (art) {
+      const reste = Math.max(0, Math.round((Number(art.quantite) - qte) * 1000) / 1000);
+      setStock((prev) => prev.map((x) => (x.id === art.id ? { ...x, quantite: reste } : x)));
+      entry.retrait = { nom: art.nom, qteTxt: libelleQte(art, qte), resteTxt: libelleQte(art, reste) };
+      entry.nomLibre = art.nom;
+    }
     setPreparations((prev) => [entry, ...prev]);
-    logActivitySafe("HACCP", "Traçabilité enregistrée (photo)", `${photosFinal.length} photo(s) de l'étiquette conservée(s) — offre sans IA.`);
+    logActivitySafe("HACCP", "Traçabilité enregistrée (photo)", `${photosFinal.length} photo(s) de l'étiquette conservée(s) — offre sans IA.${entry.retrait ? ` ${qte} retiré(s) du stock (${art.nom}).` : ""}`);
     return entry;
-  }, [currentUserId, setPreparations, logActivitySafe]);
+  }, [currentUserId, setPreparations, logActivitySafe, stock, setStock]);
 
   const jeterPreparation = useCallback((prepId, options = {}) => {
     const prep = preparations.find((p) => p.id === prepId);
@@ -22915,10 +23071,13 @@ function KitchenApp({ identiteExterne } = {}) {
     logActivitySafe("Stock", delta > 0 ? "Entrée de stock (commande rapide)" : "Sortie de stock (commande rapide)", `${s.nom} : ${delta > 0 ? "+" : ""}${delta} ${s.unite}${motif ? ` — ${motif}` : ""}`);
   }, [stock, setStock, logActivitySafe]);
 
+  // Renvoie : une phrase (action faite), { question, run } (à confirmer par oui/non) ou { nonCompris } (à redire).
   const executerCommande = useCallback(async (texte) => {
     const interpretation = await interpreterCommande(texte);
-    if (!interpretation) return "Je n'ai pas pu interpréter la commande — réessayez ou faites-le manuellement.";
+    if (!interpretation) return { nonCompris: "Je n'ai pas compris la commande." };
     const { action, produit, quantite, motif, cible } = interpretation;
+    const nbDemande = Math.max(1, parseInt(interpretation.nb != null ? interpretation.nb : (action === "etiquette_dlc" ? quantite : 1), 10) || 1);
+    const introuvable = (p) => ({ nonCompris: `Je ne trouve pas « ${p} ». Redites le nom du produit.` });
 
     if (action === "ouvrir_reception") {
       setReceptionActive(true);
@@ -22926,61 +23085,57 @@ function KitchenApp({ identiteExterne } = {}) {
       return "Réception ouverte.";
     }
 
-    if (action === "retirer_stock") {
-      const item = trouverCorrespondance(produit, stock, (s) => s.nom);
-      if (!item) return `Produit « ${produit} » introuvable dans le stock — faites-le manuellement.`;
-      const qte = Math.abs(Number(quantite)) || 1;
-      mouvementStockShared(item.id, -qte, motif || "");
-      return `Stock mis à jour : -${qte} ${item.unite} de ${item.nom}${motif ? ` (${motif})` : ""}.`;
-    }
-
-    if (action === "preparer_produit") {
-      // D'abord une recette (fiche technique) : si trouvée, on ouvre directement sa fiche avec
-      // tous les boutons d'action prêts (cuisson, refroidissement, maintien au chaud, étiquette...)
-      // — les relevés de température restent un geste physique volontaire, jamais automatisé.
-      const fiche = trouverFicheCorrespondante(produit, fiches, null);
-      if (fiche) {
-        setTab("fiches");
-        setFicheAutoOuvrirId(fiche.id);
-        return `Fiche « ${fiche.nom} » ouverte — les boutons de préparation sont prêts.`;
-      }
-      // Sinon, un produit simple du catalogue DLC (acheté, portionné...) : on ouvre directement
-      // la petite fenêtre d'étiquette rapide (lot et DLC/DDM déjà calculés automatiquement) —
-      // il ne reste qu'à indiquer la quantité utilisée et le nombre d'étiquettes, et confirmer.
-      const item = trouverCorrespondance(produit, produits, (p) => p.nom);
-      if (!item) return `Produit « ${produit} » introuvable — ni dans les fiches techniques, ni dans le catalogue des étiquettes DLC.`;
-      proposerEtiquetteRapide(item.nom);
-      return `Étiquette DLC de « ${item.nom} » prête — indiquez vous-même le nombre d'étiquettes, puis confirmez.`;
-    }
-
-    // Démarrage d'une étape HACCP précise à la voix : on ouvre l'écran correspondant et on
-    // pré-sélectionne le produit, exactement comme le bouton équivalent sur la fiche technique.
-    // Le relevé de température reste ensuite un geste manuel de l'employé — jamais automatisé.
-    if (action === "demarrer_cuisson") {
-      const fiche = trouverFicheCorrespondante(produit, fiches, null);
-      if (!fiche) return `Fiche « ${produit} » introuvable — impossible de démarrer la cuisson.`;
-      demarrerCuissonDepuisFiche(fiche.nom);
-      return `Cuisson de « ${fiche.nom} » ouverte — reste à relever la température.`;
-    }
-    if (action === "demarrer_refroidissement") {
-      const fiche = trouverFicheCorrespondante(produit, fiches, null);
-      if (!fiche) return `Fiche « ${produit} » introuvable — impossible de démarrer le refroidissement.`;
-      demarrerRefroidissementDepuisFiche(fiche.nom);
-      return `Refroidissement de « ${fiche.nom} » ouvert — reste à relever la température.`;
-    }
-    if (action === "demarrer_maintien_chaud") {
-      const fiche = trouverFicheCorrespondante(produit, fiches, null);
-      if (!fiche) return `Fiche « ${produit} » introuvable — impossible de démarrer le maintien au chaud.`;
-      demarrerMaintienChaudDepuisFiche(fiche.nom);
-      return `Maintien au chaud de « ${fiche.nom} » ouvert — reste à relever la température.`;
-    }
-
     if (action === "naviguer" && (NAV.some((n) => n.id === cible) || NAV_HACCP.some((n) => n.id === cible))) {
       setTab(cible);
       return "C'est fait.";
     }
 
-    return "Je n'ai pas compris cette commande — reformulez ou faites-le manuellement.";
+    if (action === "retirer_stock") {
+      const item = rapprocherVocal(produit, stock, (s) => s.nom) || trouverStockPourRetrait(produit, stock);
+      if (!item) return introuvable(produit);
+      const qte = Math.abs(Number(String(quantite).replace(",", "."))) || 1;
+      return {
+        question: `Voulez-vous retirer ${libelleQte(item, qte)} de ${item.nom} du stock ?`,
+        run: () => { mouvementStockShared(item.id, -qte, motif || ""); return `Stock mis à jour : -${libelleQte(item, qte)} de ${item.nom}${motif ? ` (${motif})` : ""}.`; },
+      };
+    }
+
+    // Fiche technique : uniquement une fiche (jamais une étiquette).
+    if (action === "ouvrir_fiche" || action === "preparer_produit") {
+      const fiche = rapprocherVocal(produit, fiches, (f) => f.nom) || trouverFicheCorrespondante(produit, fiches, null);
+      if (action === "preparer_produit" && !fiche) {
+        const item = rapprocherVocal(produit, produits, (p) => p.nom);
+        if (!item) return introuvable(produit);
+        return { question: `Voulez-vous une étiquette DLC de ${item.nom} ?`, run: () => { proposerEtiquetteRapide(item.nom, 1); return `Étiquette DLC de « ${item.nom} » prête.`; } };
+      }
+      if (!fiche) return { nonCompris: `Je ne trouve pas de fiche technique « ${produit} ».` };
+      return { question: `Voulez-vous ouvrir la fiche technique de ${fiche.nom} ?`, run: () => { setTab("fiches"); setFicheAutoOuvrirId(fiche.id); return `Fiche « ${fiche.nom} » ouverte.`; } };
+    }
+
+    // Étiquette DLC : produit du catalogue, sinon plat (fiche), sinon article du stock.
+    if (action === "etiquette_dlc") {
+      const item = rapprocherVocal(produit, produits, (p) => p.nom) || rapprocherVocal(produit, fiches, (f) => f.nom) || rapprocherVocal(produit, stock, (x) => x.nom);
+      if (!item) return introuvable(produit);
+      return {
+        question: `Voulez-vous ${pluralVocal(nbDemande, "étiquette")} DLC de ${item.nom} ?`,
+        run: () => { proposerEtiquetteRapide(item.nom, nbDemande); return `${pluralVocal(nbDemande, "étiquette")} de « ${item.nom} » prête${nbDemande > 1 ? "s" : ""} : vérifiez et imprimez.`; },
+      };
+    }
+
+    // Étapes HACCP : l'écran s'ouvre avec le produit choisi ; le relevé de température reste un geste de l'employé.
+    const etapes = {
+      demarrer_cuisson: { verbe: (n) => `mettre ${n} en cuisson`, lancer: (n) => demarrerCuissonDepuisFiche(n), fait: (n) => `Cuisson de « ${n} » ouverte — reste à relever la température.` },
+      demarrer_refroidissement: { verbe: (n) => `mettre ${n} en refroidissement`, lancer: (n) => demarrerRefroidissementDepuisFiche(n), fait: (n) => `Refroidissement de « ${n} » ouvert — reste à relever la température.` },
+      demarrer_maintien_chaud: { verbe: (n) => `mettre ${n} en maintien au chaud`, lancer: (n) => demarrerMaintienChaudDepuisFiche(n), fait: (n) => `Maintien au chaud de « ${n} » ouvert — reste à relever la température.` },
+    };
+    if (etapes[action]) {
+      const fiche = rapprocherVocal(produit, fiches, (f) => f.nom) || trouverFicheCorrespondante(produit, fiches, null);
+      if (!fiche) return { nonCompris: `Je ne trouve pas de fiche technique « ${produit} » pour démarrer cette étape.` };
+      const e = etapes[action];
+      return { question: `Voulez-vous ${e.verbe(fiche.nom)} ?`, run: () => { e.lancer(fiche.nom); return e.fait(fiche.nom); } };
+    }
+
+    return { nonCompris: "Je n'ai pas compris la commande." };
   }, [stock, produits, fiches, setTab, mouvementStockShared, proposerEtiquetteRapide, demarrerCuissonDepuisFiche, demarrerRefroidissementDepuisFiche, demarrerMaintienChaudDepuisFiche]);
 
   const goToEmployee = (id) => { setSelectedEmployeeId(id); setTab("equipe"); };
@@ -23419,7 +23574,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "tracabilite" && (
           consentementAccorde()
-            ? <TracabilitePage preparations={preparations} creerEtiquetteDlc={creerEtiquetteDlc} enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} employees={employees} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={produits} setCatalogueProduits={setProduits} setProduitsLotException={setProduitsLotException} sansIA={modeExterne} />
+            ? <TracabilitePage preparations={preparations} creerEtiquetteDlc={creerEtiquetteDlc} enregistrerTracabilitePhotoSimple={enregistrerTracabilitePhotoSimple} employees={employees} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} setAllergenesProduits={setAllergenesProduits} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} setOrigineProduits={setOrigineProduits} dlcJoursStandard={dlcJoursStandard} setDlcJoursStandard={setDlcJoursStandard} catalogueProduits={produits} setCatalogueProduits={setProduits} setProduitsLotException={setProduitsLotException} sansIA={!iaDispo()} stock={stock} />
             : <AccesRestreint titre="Lecture automatique des photos par IA" />
         )}
         {tab === "haccpTemp" && (
@@ -23474,11 +23629,12 @@ function KitchenApp({ identiteExterne } = {}) {
       {etiquetteRapideDemandee && (
         <SelectionEtiquettesModal
           produitsInitiaux={etiquetteRapideDemandee}
+          nbInitiaux={etiquetteRapideNb}
           produits={produits}
           fiches={fiches}
           creerEtiquetteDlc={creerEtiquetteDlc}
           employees={employees}
-          onClose={() => setEtiquetteRapideDemandee(null)}
+          onClose={() => { setEtiquetteRapideDemandee(null); setEtiquetteRapideNb({}); }}
         />
       )}
     </div>
