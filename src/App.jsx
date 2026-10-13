@@ -21501,6 +21501,12 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         {vueAccueil === "reservations" && (
           <Reservations integre reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivity} horaires={horaires} formOuvert={formResa} setFormOuvert={setFormResa} dateExt={dateResa} setDateExt={setDateResa} filtreExt={filtreResa} setFiltreExt={setFiltreResa} />
         )}
+        {vueAccueil === "planning" && currentUserId === "direction" && (
+          <Card className="mb-4">
+            <p className="text-sm text-[var(--ink)] mb-3"><b>Compte Direction :</b> pas de planning personnel ici. Pour voir ce qui est fait aujourd'hui, ce qui manque et valider, ouvrez Contrôle &amp; Gestion.</p>
+            <button type="button" onClick={() => setTab("controle")} className="min-h-[44px] px-5 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Ouvrir Contrôle &amp; Gestion</button>
+          </Card>
+        )}
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId !== "direction" && (
           <div>
             <HorairesDuJour employeeId={currentUserId} shifts={shifts} date={dateSelectionnee} />
@@ -23964,6 +23970,16 @@ function KitchenApp({ identiteExterne } = {}) {
               {NAV_HACCP.map((n) => {
                 const couleur = TUILE_COULEURS[n.id] || TUILE_COULEURS.default; const Icon = n.icon;
                 const desc = { haccpTemp: "Suivez et enregistrez les températures de vos équipements", haccpRefroid: "Contrôlez vos cycles de refroidissement et vos enregistrements", haccpHuile: "Suivez la qualité et la durée d'utilisation de vos huiles", haccpChaud: "Vérifiez et enregistrez les températures de maintien", haccpCuisson: "Contrôlez et enregistrez les températures de cuisson" }[n.id] || "";
+                const auj = todayISO();
+                const nbRel = new Set(relevesFroid.filter((r) => r.date === auj).map((r) => r.equipementId)).size;
+                const enCoursN = (liste) => liste.filter((x) => x.statut === "en-cours").length;
+                const statut = {
+                  haccpTemp: { texte: equipementsFroid.length ? `${nbRel} appareil${nbRel > 1 ? "s" : ""} relevé${nbRel > 1 ? "s" : ""} sur ${equipementsFroid.length} aujourd'hui` : "Aucun appareil", ok: equipementsFroid.length > 0 && nbRel >= equipementsFroid.length },
+                  haccpRefroid: { texte: enCoursN(refroidissements) ? `${enCoursN(refroidissements)} en cours` : "Rien en cours", ok: !enCoursN(refroidissements) },
+                  haccpHuile: { texte: huileTests.some((h) => h.date === auj) ? "Test fait aujourd'hui" : "Pas de test aujourd'hui", ok: huileTests.some((h) => h.date === auj) },
+                  haccpChaud: { texte: entriesMaintienChaud.some((m) => m.statut !== "termine" && m.date === auj) ? `${entriesMaintienChaud.filter((m) => m.statut !== "termine" && m.date === auj).length} en maintien` : "Rien en maintien", ok: true },
+                  haccpCuisson: { texte: enCoursN(cuissons) ? `${enCoursN(cuissons)} en cours` : "Rien en cours", ok: !enCoursN(cuissons) },
+                }[n.id];
                 return (
                   <button key={n.id} onClick={() => setTab(n.id)} style={{ background: couleur.fond, boxShadow: `0 8px 20px ${couleur.ombre}` }}
                     className="relative overflow-hidden rounded-2xl text-left min-h-[150px] md:min-h-[180px] px-5 py-5 flex items-center gap-4 active:scale-[0.98] transition-transform">
@@ -23971,7 +23987,8 @@ function KitchenApp({ identiteExterne } = {}) {
                     <span className="relative w-14 h-14 rounded-xl bg-white/25 flex items-center justify-center shrink-0"><Icon size={32} color="#ffffff" strokeWidth={2} /></span>
                     <span className="relative min-w-0 pr-16 md:pr-28">
                       <span className="block text-xl md:text-2xl font-bold text-white leading-tight">{n.label}</span>
-                      <span className="block text-sm md:text-base text-white/90 mt-1.5">{desc}</span>
+                      {statut && <span className="inline-block mt-1.5 rounded-full px-3 py-1 text-sm font-bold" style={{ background: "#fff", color: statut.ok ? "#146B45" : "#B45309" }}>{statut.texte}</span>}
+                      <span className="block text-sm text-white/85 mt-1.5">{desc}</span>
                     </span>
                   </button>
                 );
