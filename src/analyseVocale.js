@@ -23,7 +23,7 @@ const MOTS_VIDES = new Set((
   "sortir sors creer cree etiquette etiquettes etiqueter dlc ddm lot date limite peremption fabrication fiche fiches technique techniques recette recettes " +
   "cuisson cuire four fours plancha grill rotissoire sauteuse cellule cellules refroidissement refroidir refroidi refroidis abattre abattage abattu descente temperature " +
   "bain marie bains maintien maintenir passe chaude garder tenir chaud demarre demarrer commence commencer enregistre enregistrer page onglet ecran numero nombre quantite " +
-  "sur dans et ou ca ce cette ces donc alors please s'il suis tu pouvez peux peut test tests releve releves verifier verification lis"
+  "sur dans et ou ca ce cette ces donc alors please s'il suis tu pouvez peux peut test tests releve releves verifier verification lis me m moi toi nous vous lui leur leurs y il elle ils elles on ca cela ceci celui celle mon ma mes ton ta tes notre nos votre vos son sa ses plus tres bien bon bonne ben euh heu hein bah voila merci bonjour salut hey ok okay vite maintenant tout toute tous toutes aussi encore deja faudrait faut doit dois dois devrait vais vas allons allez va vont veux voudrais voudrait souhaite aimerais aimerait peux pourrais pourriez pourrait peut fasse fasses fassent fais faites faisons lance lances lancez mette mettes mettez mettons mis ouvrez ouvrons donne donnes donner passe passer sors sortez quelque chose truc machin petit petite petits petites grand grande ici la voici voila svp stp sil vous plait prie qu que qui quoi
 ).split(" "));
 
 const NAVIGATION = [
@@ -45,7 +45,7 @@ export function nombreDansTexte(t) {
 }
 
 export function motsDuProduit(texte) {
-  return norm(texte).split(" ").filter((m) => m && !MOTS_VIDES.has(m) && !/^\d+$/.test(m) && !(NOMBRES[m] && m !== "un" && m !== "une"));
+  return norm(texte).split(" ").filter((m) => m && m.length > 1 && !MOTS_VIDES.has(m) && !/^\d+$/.test(m) && !(NOMBRES[m] && m !== "un" && m !== "une"));
 }
 
 // Renvoie { action, produit, nb, cible } ou null (phrase à confier à l'IA).
@@ -76,27 +76,31 @@ export function analyserCommandeLocale(texte) {
   return null;
 }
 
-// Cherche le meilleur élément dont le nom contient TOUS les mots du produit demandé (pluriels tolérés).
+// Cherche l'élément qui correspond le mieux aux mots-clés du produit. Les mots en trop (petits mots, hésitations) sont ignorés :
+// on compte les mots du produit retrouvés dans le nom ; le meilleur score gagne, puis le nom le plus court.
 const racine = (m) => m.replace(/(s|x)$/, "");
+const MOTS_TROP_GENERAUX = new Set(["sauce", "plat", "produit", "maison", "portion", "pate", "pates", "creme", "base", "mix", "melange"]);
 export function rapprocher(produitTexte, liste, getNom) {
-  const mots = motsDuProduit(produitTexte).map(racine).filter((m) => m.length > 1);
+  const mots = [...new Set(motsDuProduit(produitTexte).map(racine).filter((m) => m.length > 1))];
   if (!mots.length) return null;
-  let meilleur = null, meilleurReste = Infinity;
+  const retrouve = (m, jetons) => jetons.some((j) => j === m || (m.length >= 4 && (j.startsWith(m) || m.startsWith(j) && j.length >= 4)));
+  let meilleur = null, meilleurScore = 0, meilleurReste = Infinity, egalite = false;
   for (const item of liste || []) {
     const nom = norm(getNom(item));
     if (!nom) continue;
     const jetons = nom.split(" ").map(racine);
-    if (!mots.every((m) => jetons.some((j) => j === m || (m.length >= 4 && j.startsWith(m))))) continue;
-    const reste = jetons.length - mots.length;
-    if (reste < meilleurReste) { meilleurReste = reste; meilleur = item; }
+    const trouves = mots.filter((m) => retrouve(m, jetons));
+    if (!trouves.length) continue;
+    // au moins un mot précis (pas seulement « sauce », « maison »…)
+    if (trouves.every((m) => MOTS_TROP_GENERAUX.has(m)) && mots.some((m) => !MOTS_TROP_GENERAUX.has(m))) continue;
+    // Tous les mots du nom de l'élément doivent figurer dans la phrase (ou le contraire), sinon le score est pénalisé.
+    const reste = jetons.length - trouves.length;
+    const score = trouves.length * 10 - reste;
+    if (score > meilleurScore || (score === meilleurScore && reste < meilleurReste)) { meilleur = item; meilleurScore = score; meilleurReste = reste; egalite = false; }
+    else if (score === meilleurScore && reste === meilleurReste) egalite = true;
   }
-  if (meilleur) return meilleur;
-  // Sens inverse : le nom de l'élément (au moins 4 lettres) est contenu dans ce que l'on a dit (« steak haché maison »).
-  for (const item of liste || []) {
-    const jetons = norm(getNom(item)).split(" ").map(racine).filter((j) => j.length > 1);
-    if (jetons.length && jetons.every((j) => mots.includes(j)) && jetons.join("").length >= 4) return item;
-  }
-  return null;
+  // Égalité parfaite entre deux éléments différents : on ne devine pas.
+  return egalite ? null : meilleur;
 }
 
 const OUI = /\b(oui|ouais|ouai|yes|ok|okay|d accord|daccord|c est bon|c est ca|exact|exactement|parfait|confirme|confirmer|vas y|allez y|go|affirmatif|tout a fait|bien sur|certainement|valide|valider)\b/;
