@@ -13900,7 +13900,7 @@ function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, who, s
             <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo{photos.length > 1 ? "s" : ""} prise{photos.length > 1 ? "s" : ""} — cliquez pour agrandir et vérifier</p>
             <div className="flex flex-wrap gap-3 mb-4">
               {photos.map((p, i) => (
-                <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
+                <PhotoVignetteZoomable grande key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
               ))}
             </div>
             <div className="grid grid-cols-[minmax(0,1fr)_6rem] gap-3 items-end">
@@ -14076,10 +14076,10 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
         </div>
         {photos.length > 0 && (
           <div className="flex-1 min-w-[220px]">
-            <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo{photos.length > 1 ? "s" : ""} prise{photos.length > 1 ? "s" : ""} — touchez pour agrandir</p>
-            <div className="flex flex-wrap gap-2 mb-3">
+            <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo{photos.length > 1 ? "s" : ""} prise{photos.length > 1 ? "s" : ""} — vérifiez que tout est lisible (touchez pour agrandir)</p>
+            <div className="flex flex-wrap gap-3 mb-3">
               {photos.map((p, i) => (
-                <PhotoVignetteZoomable key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
+                <PhotoVignetteZoomable grande key={i} src={p} onRetake={(v) => setPhotos(photos.map((x, idx) => (idx === i ? v : x)))} onRemove={() => setPhotos(photos.filter((_, idx) => idx !== i))} />
               ))}
             </div>
             <Button onClick={analyser} disabled={analyseEnCours}>
@@ -14096,14 +14096,19 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
         <Field label="Nom du produit *"><input className={inputCls} value={nom} onChange={(e) => setNom(e.target.value)} /></Field>
         <Field label="Numéro de lot *"><input className={inputCls} value={lot} onChange={(e) => setLot(e.target.value)} /></Field>
         <Field label="Date DLC / DDM *"><input className={inputCls} type="date" value={dlcDate} onChange={(e) => setDlcDate(e.target.value)} /></Field>
-        <Field label="Allergènes (si connus)"><input className={inputCls} value={allergenes} onChange={(e) => setAllergenes(e.target.value)} /></Field>
-        <Field label="Origine (si connue)"><input className={inputCls} value={origine} onChange={(e) => setOrigine(e.target.value)} /></Field>
-        <Field label="Agrément sanitaire / code usine"><input className={inputCls} value={codeUsine} onChange={(e) => setCodeUsine(e.target.value)} /></Field>
-        <Field label="Délai après ouverture (jours)"><input className={inputCls} type="number" min="0" value={delaiApresOuvertureJours} onChange={(e) => setDelaiApresOuvertureJours(e.target.value)} /></Field>
         <Field label="Quantité retirée du stock"><input className={inputCls} type="number" inputMode="decimal" min="0" value={quantiteUtilisee} onChange={(e) => setQuantiteUtilisee(e.target.value)} /></Field>
         <Field label="Nombre d'étiquettes à imprimer"><input className={inputCls} type="number" min="1" value={nbEtiquettes} onChange={(e) => setNbEtiquettes(e.target.value)} /></Field>
       </div>
-      <Button className="mt-3" onClick={confirmer} disabled={!pretAConfirmer}>Confirmer la traçabilité</Button>
+      <details className="mt-3 rounded-lg border border-[var(--cadre)] px-3 py-2">
+        <summary className="text-sm font-semibold text-[var(--steel)] cursor-pointer">Autres informations lues (allergènes, origine, agrément, délai après ouverture) — enregistrées automatiquement</summary>
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+          <Field label="Allergènes (si connus)"><input className={inputCls} value={allergenes} onChange={(e) => setAllergenes(e.target.value)} /></Field>
+          <Field label="Origine (si connue)"><input className={inputCls} value={origine} onChange={(e) => setOrigine(e.target.value)} /></Field>
+          <Field label="Agrément sanitaire / code usine"><input className={inputCls} value={codeUsine} onChange={(e) => setCodeUsine(e.target.value)} /></Field>
+          <Field label="Délai après ouverture (jours)"><input className={inputCls} type="number" min="0" value={delaiApresOuvertureJours} onChange={(e) => setDelaiApresOuvertureJours(e.target.value)} /></Field>
+        </div>
+      </details>
+      <button type="button" onClick={confirmer} disabled={!pretAConfirmer} className="mt-4 w-full h-14 rounded-lg text-white text-lg font-bold disabled:opacity-50" style={{ backgroundColor: "#1E7B4B" }}>Confirmer la traçabilité</button>
     </Card>
   );
 }
@@ -15891,7 +15896,7 @@ function PhotoInput({ value, onChange, label = "Prendre la photo", small = false
 // photo est gardée telle quelle) ou "Refaire cette photo" (ouvre directement l'appareil photo et
 // remplace cette photo précise par la nouvelle une fois prise). La croix en haut à droite de la
 // vignette reste le moyen rapide de simplement supprimer une photo ratée sans la remplacer.
-function PhotoVignetteZoomable({ src, onRetake, onRemove }) {
+function PhotoVignetteZoomable({ src, onRetake, onRemove, grande = false }) {
   const [agrandie, setAgrandie] = useState(false);
   const inputId = "refaire-photo-" + Math.random().toString(36).slice(2, 9);
   const refaire = async (e) => {
@@ -15903,7 +15908,7 @@ function PhotoVignetteZoomable({ src, onRetake, onRemove }) {
   return (
     <>
       <div className="relative">
-        <img src={src} alt="" className="w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] cursor-pointer" onClick={() => setAgrandie(true)} />
+        <img src={src} alt="" className={grande ? "h-56 w-auto max-w-full object-contain rounded-lg border-2 border-[var(--cadre)] bg-white cursor-pointer" : "w-16 h-16 object-cover rounded-lg border border-[var(--cadre)] cursor-pointer"} onClick={() => setAgrandie(true)} />
         {onRemove && (
           <button onClick={onRemove} className="absolute -top-1.5 -right-1.5 bg-white rounded-full border border-[var(--cadre)] w-5 h-5 flex items-center justify-center text-[var(--steel)]"><X size={12} /></button>
         )}
