@@ -12992,6 +12992,7 @@ function modeCuissonDepuisAppareil(app) {
 const APPAREILS_CUISSON = ["Four à pizza", "Four Rational", "Four Atoll Speed / Mery Chef", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
 
 function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
+  const [resultatCuisson, setResultatCuisson] = useState(null);
   const [selection, setSelection] = useState([]);
   const [recherche, setRecherche] = useState("");
   const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
@@ -13052,19 +13053,25 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   };
 
   // Fin de cuisson : température à cœur (ou contrôle visuel) → conforme / non conforme. Les alarmes de durée s'arrêtent.
-  const finir = (c, visuel) => {
+  const finir = (c, visuel, enchainerRefroid) => {
     const temp = temperatureSaisie[c.id];
     let conforme;
     if (visuel !== undefined) conforme = visuel;
     else { if (temp === undefined || temp === "") return; conforme = parseFloat(temp) >= seuilCuissonEntree(c); }
-    maj(c.id, { finie: true, heureFin: new Date().toTimeString().slice(0, 5), temperature: visuel !== undefined ? "" : temp, controleVisuel: visuel !== undefined ? true : undefined, conforme, alarmeAcquittee: true, preAlarmeAcquittee: true });
+    // Cuisson terminée = elle disparaît de la liste (enregistrée dans l'historique), sauf si elle part en refroidissement.
+    const cloturer = !enchainerRefroid && !c.refroidissementLance;
+    maj(c.id, { finie: true, heureFin: new Date().toTimeString().slice(0, 5), temperature: visuel !== undefined ? "" : temp, controleVisuel: visuel !== undefined ? true : undefined, conforme, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) });
     logActivity("HACCP", "Fin de cuisson", `${c.produit} — ${visuel !== undefined ? "contrôle visuel" : `${temp}°C à cœur`} — ${conforme ? "conforme" : "non conforme"}`);
+    if (cloturer) {
+      setResultatCuisson({ id: c.id, ok: conforme, texte: `${c.produit} : cuisson terminée · ${visuel !== undefined ? "contrôle visuel" : `${temp} °C à cœur`} · ${conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
+      if (proposerEtiquetteRapide && conforme) proposerEtiquetteRapide(c.produit);
+    }
     if (!conforme && ajouterAlerteControle) {
       ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Cuisson", employeeId: currentUserId, titre: `${c.produit} — cuisson non conforme`, detail: visuel !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${temp} °C, inférieure au seuil de ${seuilCuissonEntree(c)} °C.`, conforme: false });
     }
   };
   const versRefroidissement = (c) => {
-    if (!c.finie) finir(c);
+    if (!c.finie) finir(c, undefined, true);
     const temp = c.finie ? c.temperature : temperatureSaisie[c.id];
     if (!c.finie && (temp === undefined || temp === "") && !c.controleVisuelSeul) return;
     if (!onLancerRefroidissement) return;
@@ -13108,6 +13115,17 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
   };
 
   const enCours = cuissons.filter((c) => c.statut === "en-cours");
+  // Une cuisson dont la fin est enregistrée (et, si elle est passée en refroidissement, dont le refroidissement est fait) est clôturée toute seule.
+  useEffect(() => {
+    const aCloturer = cuissons.filter((c) => c.statut === "en-cours" && c.finie && (!c.refroidissementLance || c.refroidissementFait));
+    if (aCloturer.length === 0) return;
+    setCuissons((prev) => prev.map((x) => (aCloturer.some((a) => a.id === x.id) ? { ...x, statut: "termine", heureFin: x.heureFin || new Date().toTimeString().slice(0, 5), ...(x.refroidissementLance ? { pretPourRefroidissement: false } : {}) } : x)));
+  }, [cuissons, setCuissons]);
+  useEffect(() => {
+    if (!resultatCuisson) return;
+    const t = setTimeout(() => setResultatCuisson(null), resultatCuisson.ok ? 8000 : 60000);
+    return () => clearTimeout(t);
+  }, [resultatCuisson]);
 
   return (
     <div>
@@ -13199,6 +13217,12 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
 
       <Card className="xl:col-span-4 !mb-0 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
         <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Cuissons en cours ({enCours.length})</h3>
+        {resultatCuisson && (
+          <div className="mb-3 rounded-lg px-3 py-2 text-sm font-semibold flex items-start justify-between gap-2" style={resultatCuisson.ok ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }}>
+            <span>{resultatCuisson.ok ? "✓ " : "⚠ "}{resultatCuisson.texte}</span>
+            <button type="button" onClick={() => setResultatCuisson(null)} aria-label="Fermer" className="shrink-0"><X size={16} /></button>
+          </div>
+        )}
         {enCours.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune cuisson en cours.</p> : (
           <div className="space-y-3">
             {enCours.map((c) => {
@@ -13280,7 +13304,7 @@ function HaccpCuisson({ signalerAjout, cuissons, setCuissons, currentUserId, log
         const suivis = cuissons
           .filter((c) => c.statut === "termine" && c.refroidissementLance)
           .map((c) => ({ c, r: refroidissements.find((x) => x.origineCuissonId === c.id) || refroidissements.find((x) => (x.produit || "").trim().toLowerCase() === (c.produit || "").trim().toLowerCase() && x.date === c.date) }))
-          .filter(({ c, r }) => c.date === today || (r && r.statut === "en-cours"));
+          .filter(({ c, r }) => r && r.statut === "en-cours");
         if (suivis.length === 0) return null;
         return (
           <Card className="mb-6">
