@@ -9084,6 +9084,10 @@ function couleurCategorieFiche(cat) {
   return PALETTE_AUTRES_FICHES[h % PALETTE_AUTRES_FICHES.length];
 }
 
+// Règle commune des automatismes (à ajuster pendant le test terrain) : nombre de répétitions, sur combien de jours.
+const AUTOMATISME_REPETITIONS = 3;
+const AUTOMATISME_JOURS = 30;
+
 function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef, modeDirect, onQuitter }) {
   const [selectedId, setSelectedId] = useState(null);
   const [edition, setEdition] = useState(null);
@@ -9105,12 +9109,15 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
 
   // Mise en avant automatique : les plats de la carte du jour, et les fiches que CET employé ouvre le plus souvent
   // (compteur gardé sur cet appareil, par employé). Rien à régler : plus il en ouvre une, plus elle remonte.
-  const cleUsage = "mc-fiches-usage:" + (utilisateurId || "anonyme");
-  const [usage, setUsage] = useState(() => { try { return JSON.parse(localStorage.getItem(cleUsage) || "{}") || {}; } catch (e) { return {}; } });
+  // Règle des automatismes : 3 ouvertures sur 30 jours pour monter ; sans ouverture pendant 30 jours, la fiche redescend.
+  const cleUsage = "mc-fiches-usage-v2:" + (utilisateurId || "anonyme");
+  const [usage, setUsage] = useState(() => { try { const v = JSON.parse(localStorage.getItem(cleUsage) || "{}"); return v && typeof v === "object" ? v : {}; } catch (e) { return {}; } });
+  const ouverturesRecentes = (id) => { const limite = Date.now() - AUTOMATISME_JOURS * 86400000; return (Array.isArray(usage[id]) ? usage[id] : []).filter((t) => t >= limite).length; };
   useEffect(() => {
     if (!selectedId) return;
     setUsage((u) => {
-      const suite = { ...u, [selectedId]: (u[selectedId] || 0) + 1 };
+      const limite = Date.now() - AUTOMATISME_JOURS * 86400000;
+      const suite = { ...u, [selectedId]: [...(Array.isArray(u[selectedId]) ? u[selectedId] : []).filter((t) => t >= limite), Date.now()] };
       try { localStorage.setItem(cleUsage, JSON.stringify(suite)); } catch (e) { /* stockage indisponible */ }
       return suite;
     });
@@ -9125,8 +9132,8 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
     return platsAuCarte(carteJ, auj).map((id) => fiches.find((f) => f.id === id)).filter(Boolean);
   }, [cartes, fiches]);
   const fichesFavorites = React.useMemo(() => fiches
-    .filter((f) => (usage[f.id] || 0) >= 2 && !fichesDuJour.some((d) => d.id === f.id))
-    .sort((a, b) => (usage[b.id] || 0) - (usage[a.id] || 0)).slice(0, 5), [fiches, usage, fichesDuJour]);
+    .filter((f) => ouverturesRecentes(f.id) >= AUTOMATISME_REPETITIONS && !fichesDuJour.some((d) => d.id === f.id))
+    .sort((a, b) => ouverturesRecentes(b.id) - ouverturesRecentes(a.id)).slice(0, 5), [fiches, usage, fichesDuJour]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // La recherche filtre directement la liste affichée (plutôt que de simplement faire défiler
   // jusqu'au premier résultat) : plus fiable, et le résultat reste visible même s'il y a beaucoup
