@@ -935,6 +935,7 @@ export default function ConnexionReelle() {
           conditionnement: e.conditionnement || null, type_date: e.typeDate === "DDM" || e.typeDate === "DLC" ? e.typeDate : null,
           allergenes_norme: allergenesVersListe(e.allergenes).length ? allergenesVersListe(e.allergenes) : null, origine_norme: e.origine || null,
           fournisseur_id: idFournisseur, quantite_stock: qte, quantite_cible: 0,
+          ...(e.aValider ? { note: "À VALIDER — nouveau produit créé à la réception, fiche à compléter et à valider par le chef.", reference_verifiee: false } : { reference_verifiee: true }),
           conservation: e.conservation || null, categorie: (e.categorie || "").trim() || ({ surgele: "Surgelés", viande: "Viandes", poisson: "Poissons", legume: "Fruits et légumes", frais: "Frais / laitier", sec: "Épicerie sèche", boisson: "Boissons", emballage: "Emballages", entretien: "Entretien", autre: "Autres" }[e.conservation] || null),
         }).select("id").single();
         if (error) throw error;
