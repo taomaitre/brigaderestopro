@@ -9084,7 +9084,7 @@ function couleurCategorieFiche(cat) {
   return PALETTE_AUTRES_FICHES[h % PALETTE_AUTRES_FICHES.length];
 }
 
-function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef, modeDirect, onQuitter }) {
+function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef, modeDirect, onQuitter }) {
   const [selectedId, setSelectedId] = useState(null);
   const [edition, setEdition] = useState(null);
   const [recherche, setRecherche] = useState("");
@@ -9102,6 +9102,31 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
   }, [ouvrirIdAuto]);
 
   const selected = fiches.find((f) => f.id === selectedId);
+
+  // Mise en avant automatique : les plats de la carte du jour, et les fiches que CET employé ouvre le plus souvent
+  // (compteur gardé sur cet appareil, par employé). Rien à régler : plus il en ouvre une, plus elle remonte.
+  const cleUsage = "mc-fiches-usage:" + (utilisateurId || "anonyme");
+  const [usage, setUsage] = useState(() => { try { return JSON.parse(localStorage.getItem(cleUsage) || "{}") || {}; } catch (e) { return {}; } });
+  useEffect(() => {
+    if (!selectedId) return;
+    setUsage((u) => {
+      const suite = { ...u, [selectedId]: (u[selectedId] || 0) + 1 };
+      try { localStorage.setItem(cleUsage, JSON.stringify(suite)); } catch (e) { /* stockage indisponible */ }
+      return suite;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+  const fichesDuJour = React.useMemo(() => {
+    const auj = todayISO();
+    const tr = [...(cartes || [])].sort((x, y) => (x.debut || "").localeCompare(y.debut || ""));
+    const periodique = tr.length > 0 && tr[0].typeCarte !== "fixe";
+    const carteJ = tr.find((c) => !periodique || (c.debut <= auj && auj <= c.fin)) || null;
+    if (!carteJ) return [];
+    return platsAuCarte(carteJ, auj).map((id) => fiches.find((f) => f.id === id)).filter(Boolean);
+  }, [cartes, fiches]);
+  const fichesFavorites = React.useMemo(() => fiches
+    .filter((f) => (usage[f.id] || 0) >= 2 && !fichesDuJour.some((d) => d.id === f.id))
+    .sort((a, b) => (usage[b.id] || 0) - (usage[a.id] || 0)).slice(0, 5), [fiches, usage, fichesDuJour]);
 
   // La recherche filtre directement la liste affichée (plutôt que de simplement faire défiler
   // jusqu'au premier résultat) : plus fiable, et le résultat reste visible même s'il y a beaucoup
@@ -9141,6 +9166,27 @@ function FichesTechniques({ fiches, onDemarrerRefroidissement, onDemarrerCuisson
   return (
     <div>
       <SectionHeader title="Préparation culinaire" subtitle={`${fiches.length} fiches techniques — recettes et préparations de référence`} />
+
+      {(fichesDuJour.length > 0 || fichesFavorites.length > 0) && (
+        <Card className="mb-5">
+          {fichesDuJour.length > 0 && (
+            <div className={fichesFavorites.length > 0 ? "mb-3" : ""}>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">À la carte aujourd'hui</p>
+              <div className="flex flex-wrap gap-2">
+                {fichesDuJour.map((f) => <button key={f.id} type="button" onClick={() => setSelectedId(f.id)} className="min-h-[48px] px-4 rounded-xl text-sm font-bold text-white" style={{ background: COULEURS_FONCTION.fiches.fond }}>{f.nom}</button>)}
+              </div>
+            </div>
+          )}
+          {fichesFavorites.length > 0 && (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Mes fiches les plus ouvertes</p>
+              <div className="flex flex-wrap gap-2">
+                {fichesFavorites.map((f) => <button key={f.id} type="button" onClick={() => setSelectedId(f.id)} className="min-h-[48px] px-4 rounded-xl text-sm font-bold border-2" style={{ borderColor: "#8C5E22", color: "#8C5E22", background: "#FBF3E8" }}>{f.nom}</button>)}
+              </div>
+            </div>
+          )}
+        </Card>
+      )}
 
       <Card className="mb-5">
         <Field label="Recherche rapide — tapez le nom d'un plat">
@@ -24116,7 +24162,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            fichesProps={{ fiches, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne }}
+            fichesProps={{ fiches, cartes, utilisateurId: currentUserId, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
             ouvrirIdAuto={ficheAutoOuvrirId}
