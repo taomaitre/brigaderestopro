@@ -4954,6 +4954,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
   // Édition (uniquement quand l'écran est branché sur la nouvelle base : prop `gestion`)
   const [edition, setEdition] = useState(null); // { table, id|null, valeurs }
   const [erreurEdition, setErreurEdition] = useState("");
+  const [refusProduit, setRefusProduit] = useState(null); // id du produit pour lequel un employé a demandé à compléter
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
   const sauverEdition = async (valeurs) => {
     setEnregistrementEnCours(true); setErreurEdition("");
@@ -5066,7 +5067,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="text-sm font-medium text-[var(--ink)] flex items-center gap-2">
                           {s.nom} {gestion && estAValider(s.note) && <span className="text-[10px] uppercase font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: "#FFE08A", color: "#6B4A00" }}>nouveau produit — à valider</span>}
-                          {gestion && (!s.reference || !s.prixUnitaire) && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à compléter : {[!s.reference && "référence", !s.prixUnitaire && "prix"].filter(Boolean).join(", ")}</span>}
+                          {(gestion || s.brut) && (!s.reference || !s.prixUnitaire) && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à compléter : {[!s.reference && "référence", !s.prixUnitaire && "prix"].filter(Boolean).join(", ")}</span>}
                           {!gestion && !s.referenceVerifiee && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à vérifier</span>}
                         </div>
                         {s.prixUnitaire && <div className="text-sm font-semibold text-[var(--ink)]">{s.prixUnitaire}</div>}
@@ -5096,6 +5097,13 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
                       {s.poidsParPiece && <div className="text-xs text-[var(--accent)] mt-0.5">Poids/pièce calculé : {s.poidsParPiece}</div>}
                       {s.note && !estAValider(s.note) && <div className="text-xs text-[var(--steel)] italic mt-0.5">{s.note}</div>}
                       {estAValider(s.note) && <div className="text-xs font-semibold mt-0.5" style={{ color: "#6B4A00" }}>Nouveau produit créé à la réception : fiche à compléter puis enregistrer.</div>}
+                      {(gestion || s.brut) && (!s.reference || !s.prixUnitaire) && (
+                        <div className="mt-2 flex items-center justify-between gap-3 flex-wrap rounded-xl border-2 px-3 py-2" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
+                          <span className="text-sm font-bold" style={{ color: "#6B4A00" }}>Il manque : {[!s.reference && "la référence", !s.prixUnitaire && "le prix"].filter(Boolean).join(" et ")}</span>
+                          <button type="button" onClick={() => { if (gestion) { setRefusProduit(null); setEdition({ table: "produits", id: s.id, valeurs: s.brut, focus: !s.prixUnitaire ? "prix_achat" : "reference" }); } else setRefusProduit(s.id); }} className="min-h-[44px] px-5 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Compléter</button>
+                        </div>
+                      )}
+                      {refusProduit === s.id && !gestion && <div className="mt-1 rounded-lg px-3 py-2 text-sm font-bold" style={{ backgroundColor: "#FFF4CC", color: "#6B4A00" }}>Vous n'êtes pas en mesure de le faire : demandez à vos supérieurs (chef ou direction).</div>}
                       {gestion && s.brut && <button onClick={() => setEdition({ table: "produits", id: s.id, valeurs: s.brut })} className="mt-1 text-xs font-medium text-[var(--accent)]">Modifier ce produit</button>}
                     </li>
                   ))}
@@ -5204,7 +5212,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   const champTexte = (cle, label, requis) => (
     <label key={cle} className="block text-xs text-[var(--steel)]">
       {label}{requis ? " *" : ""}
-      <input autoComplete="off" value={v[cle] == null ? "" : v[cle]} onChange={(e) => maj(cle, e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
+      <input ref={cle === edition.focus ? (el) => { if (el && !el.dataset.fait) { el.dataset.fait = "1"; setTimeout(() => { el.scrollIntoView({ block: "center" }); el.focus(); }, 50); } } : undefined} autoComplete="off" value={v[cle] == null ? "" : v[cle]} onChange={(e) => maj(cle, e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />
     </label>
   );
   const valider = () => {
