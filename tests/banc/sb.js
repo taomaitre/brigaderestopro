@@ -1,0 +1,2 @@
+const chain=()=>{const p=new Proxy(function(){},{get:(t,k)=>k==="then"?(r)=>r({data:[],error:null}):chain(),apply:()=>chain()});return p;};
+export const createClient=()=>({from:chain,auth:{getSession:async()=>({data:{session:null}}),onAuthStateChange:()=>({data:{subscription:{unsubscribe(){}}}}),signOut:async()=>({})},functions:{invoke:async()=>({data:null,error:{message:"off"}})},storage:{from:chain},channel:()=>({on(){return this},subscribe(){return this}}),removeChannel(){}, rpc:chain});
