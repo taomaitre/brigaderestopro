@@ -3946,6 +3946,8 @@ function Controle({ remplacantsChef, setRemplacantsChef, commandesHistorique, se
   const [releveMensuel, setReleveMensuel] = useState(false);
   const [moisReleve, setMoisReleve] = useState(todayISO().slice(0, 7));
   const [referentielActif, setReferentielActif] = useState(false);
+  const [produitAOuvrir, setProduitAOuvrir] = useState(null); // { id, focus } : ouvre directement la fiche d'un produit à compléter
+  const ctxNettoyageCG = React.useContext(NettoyageContext);
   const [verifReceptionsActif, setVerifReceptionsActif] = useState(false);
   const [tracabiliteCompleteActif, setTracabiliteCompleteActif] = useState(false);
   const [rechercheTracabilite, setRechercheTracabilite] = useState("");
@@ -4125,7 +4127,7 @@ function Controle({ remplacantsChef, setRemplacantsChef, commandesHistorique, se
   }
 
   if (referentielActif) {
-    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} onBack={() => setReferentielActif(false)} />;
+    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); }} />;
   }
 
   if (verifReceptionsActif) {
@@ -4175,27 +4177,42 @@ function Controle({ remplacantsChef, setRemplacantsChef, commandesHistorique, se
       <>
       {(() => {
         const rappelsAtraiter = alertesRappelConso.filter((a) => !a.traite).length;
+        const auj = todayISO(); const maintenant = Date.now();
+        const incomplets = (stockCatalogue || []).filter((x) => x.brut && (!x.reference || !x.prixUnitaire || estAValider(x.note)));
+        const cuisDepassees = cuissons.filter((c) => c.statut === "en-cours" && (maintenant - c.debutTs) / 60000 >= c.dureeAttendueMin);
+        const refrDepasses = refroidissements.filter((r) => r.statut === "en-cours" && (maintenant - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin);
+        const froidEnAttente = (surveillancesFroid || []).filter((x) => x.statut === "attente");
+        const dlcAujourdhui = stock.filter((x) => x.dlc === auj && Number(x.quantite) > 0).length + preparations.filter((x) => x.dlcDate === auj && !x.jete).length;
+        const nettoAValider = ctxNettoyageCG && ctxNettoyageCG.executions ? ctxNettoyageCG.executions.filter((x) => x.date === auj && x.statut === "fait" && !x.valideChef).length : 0;
+        const pl = (n, un, plus) => `${n} ${n > 1 ? plus : un}`;
+        // Par ordre de priorité : le plus urgent en haut, chaque ligne a son bouton d'action.
         const aTraiter = [
-          { n: enAttente.length, texte: enAttente.length > 1 ? "notifications fournisseur à envoyer" : "notification fournisseur à envoyer", section: "reception", ecran: "notifications", couleur: "#1D4ED8" },
-          { n: alertesNonVues.length, texte: alertesNonVues.length > 1 ? "alertes qualité à lire" : "alerte qualité à lire", section: "controle", ecran: "alertes", couleur: "#9A7000" },
-          { n: rappelsAtraiter, texte: rappelsAtraiter > 1 ? "rappels de produits à traiter" : "rappel de produit à traiter", section: "urgence", ecran: "rappelconso", couleur: "#7F1D1D" },
+          { n: rappelsAtraiter, texte: pl(rappelsAtraiter, "rappel de produit à traiter", "rappels de produits à traiter"), bouton: "Traiter", niveau: 0, agir: () => { setSectionActive("urgence"); setSousEcran("rappelconso"); } },
+          { n: froidEnAttente.length, texte: pl(froidEnAttente.length, "frigo / congélateur à recontrôler", "frigos / congélateurs à recontrôler"), bouton: "Recontrôler", niveau: 0, agir: () => setTab("haccpTemp") },
+          { n: refrDepasses.length, texte: pl(refrDepasses.length, "refroidissement au-delà de la durée maximale", "refroidissements au-delà de la durée maximale"), bouton: "Terminer", niveau: 0, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
+          { n: cuisDepassees.length, texte: pl(cuisDepassees.length, "cuisson à contrôler (durée atteinte)", "cuissons à contrôler (durée atteinte)"), bouton: "Terminer", niveau: 0, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
+          { n: dlcAujourdhui, texte: pl(dlcAujourdhui, "produit à DLC aujourd'hui", "produits à DLC aujourd'hui"), bouton: "Voir", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
+          { n: alertesNonVues.length, texte: pl(alertesNonVues.length, "alerte qualité à lire", "alertes qualité à lire"), bouton: "Lire", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("alertes"); } },
+          { n: enAttente.length, texte: pl(enAttente.length, "notification fournisseur à envoyer", "notifications fournisseur à envoyer"), bouton: "Envoyer", niveau: 1, agir: () => { setSectionActive("reception"); setSousEcran("notifications"); } },
+          { n: nettoAValider, texte: pl(nettoAValider, "nettoyage à valider", "nettoyages à valider"), bouton: "Valider", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("planning"); } },
+          { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } },
         ].filter((x) => x.n > 0);
+        const coulNiveau = ["#B42318", "#B7791F", "#1D4ED8"];
         return (
           <Card className="mb-6">
-            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">À traiter</h3>
+            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">À traiter {aTraiter.length > 0 && <span className="normal-case font-normal">— le plus urgent en premier</span>}</h3>
             <BandeauEcheancesPms alertes={alertesEcheancesPms(reglagesEtablissement && reglagesEtablissement.pms, todayISO(), compteDirection)} onOuvrir={(cible) => { setSectionActive("hygiene"); setSousEcran(cible); }} />
             {aTraiter.length === 0 ? (
               <p className="text-sm text-[var(--accent)]">✓ Rien à traiter pour le moment.</p>
             ) : (
-              <div className="flex flex-wrap gap-2">
+              <ul className="space-y-2">
                 {aTraiter.map((x) => (
-                  <button key={x.ecran} onClick={() => { setSectionActive(x.section); setSousEcran(x.ecran); }}
-                    style={{ borderColor: x.couleur, color: x.couleur }}
-                    className="rounded-full border-2 bg-white px-3 py-1.5 text-sm font-semibold active:scale-95 transition-transform">
-                    {x.n} {x.texte} →
-                  </button>
+                  <li key={x.texte} className="flex items-center gap-3 rounded-xl border bg-white pl-3 pr-2 py-2" style={{ borderColor: coulNiveau[x.niveau], borderLeftWidth: 6 }}>
+                    <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--ink)]">{x.texte}</span>
+                    <button type="button" onClick={x.agir} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white shrink-0" style={{ background: coulNiveau[x.niveau] }}>{x.bouton}</button>
+                  </li>
                 ))}
-              </div>
+              </ul>
             )}
           </Card>
         );
@@ -4981,11 +4998,14 @@ const MARQUE_A_VALIDER = "À VALIDER — ";
 const NOTE_A_VALIDER = MARQUE_A_VALIDER + "nouveau produit créé à la réception, fiche à compléter et à valider par le chef.";
 const estAValider = (note) => String(note || "").startsWith(MARQUE_A_VALIDER);
 
-function ReferentielProduits({ stock, fournisseurs, gestion, onBack }) {
+function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProduit }) {
   const [catOuverte, setCatOuverte] = useState(null);
   const [fournisseurOuvert, setFournisseurOuvert] = useState(null);
   // Édition (uniquement quand l'écran est branché sur la nouvelle base : prop `gestion`)
-  const [edition, setEdition] = useState(null); // { table, id|null, valeurs }
+  const [edition, setEdition] = useState(() => {
+    const p = ouvrirProduit && gestion ? stock.find((x) => x.id === ouvrirProduit.id) : null;
+    return p && p.brut ? { table: "produits", id: p.id, valeurs: p.brut, focus: ouvrirProduit.focus } : null;
+  }); // { table, id|null, valeurs }
   const [erreurEdition, setErreurEdition] = useState("");
   const [refusProduit, setRefusProduit] = useState(null); // id du produit pour lequel un employé a demandé à compléter
   const [enregistrementEnCours, setEnregistrementEnCours] = useState(false);
@@ -18233,7 +18253,8 @@ function VerificationReceptions({ receptions, setReceptions, employees, onBack, 
 // garde sa couleur et son logo (couleurSousTuile). Le texte « à utiliser aujourd'hui » est en rouge : c'est une alerte.
 // Barre d'avancement : « 6 sur 8 · 75 % ». Vert à partir de 80 %, rouge en dessous (seuil voulu par Loïc le 13/10 : sous 80 %, la journée est mauvaise).
 const SEUIL_BON_POURCENT = 80;
-function BarreAvancement({ faits, total, titre, sous, neutreEnCours = false }) {
+function BarreAvancement({ faits, total, titre, sous, neutreEnCours = false, manque = [] }) {
+  const [liste, setListe] = useState(false);
   if (!(total > 0)) return null;
   const pc = Math.round((faits / total) * 100);
   const bon = pc >= SEUIL_BON_POURCENT;
@@ -18247,6 +18268,12 @@ function BarreAvancement({ faits, total, titre, sous, neutreEnCours = false }) {
         <span className="text-xs text-[var(--steel)] ml-auto">{faits} faite{faits > 1 ? "s" : ""} sur {total}</span>
       </div>
       <div className="h-2.5 rounded-full bg-white/80 overflow-hidden mt-2"><div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pc)}%`, backgroundColor: couleur }} /></div>
+      {manque.length > 0 && (
+        <div className="mt-2">
+          <button type="button" onClick={() => setListe((v) => !v)} className="min-h-[36px] text-xs font-bold underline" style={{ color: couleur }}>{liste ? "Masquer" : `Voir ce qui manque (${manque.length})`}</button>
+          {liste && <ul className="mt-1 space-y-0.5 text-sm text-[var(--ink)]">{manque.slice(0, 12).map((m, i) => <li key={i}>• {m}</li>)}{manque.length > 12 && <li className="text-xs text-[var(--steel)]">… et {manque.length - 12} autre(s)</li>}</ul>}
+        </div>
+      )}
       <div className="text-[11px] text-[var(--steel)] mt-1.5">{bon ? `Objectif de ${SEUIL_BON_POURCENT} % atteint.` : `Sous ${SEUIL_BON_POURCENT} % : ${neutreEnCours ? "encore du travail pour finir la journée." : "à surveiller."}`}{sous ? ` ${sous}` : ""}</div>
     </div>
   );
@@ -18399,16 +18426,28 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
         <span className="text-sm text-[var(--steel)] capitalize">{libelleJour}</span>
       </div>
       {(() => {
+        // Aujourd'hui, on ne compte que ce qui est déjà dû à cette heure (pas le service du soir à 13 h 50).
+        const estAuj = jour === aujourdhui;
+        const hm = new Date().toTimeString().slice(0, 5);
+        const tachesDues = estAuj ? tachesDuJour.filter((t) => tacheFaite(t) || !t.heure || t.heure <= hm) : tachesDuJour;
+        const nettoyageDu = !estAuj || hm >= "15:00" || nettoyages.length > 0;
+        const nettoyagesDus = nettoyageDu ? nettoyagesAttendus : [];
         const lots = [
-          [tachesFaites.length, tachesDuJour.length],
-          [Math.min(nettoyages.length, nettoyagesAttendus.length), nettoyagesAttendus.length],
+          [tachesFaites.length, tachesDues.length],
+          [Math.min(nettoyages.length, nettoyagesDus.length), nettoyagesDus.length],
           [cuisFinies, cuis.length],
           [refrFinis, refr.length],
           [maintFinis, maint.length],
         ];
         const faits = lots.reduce((t, l) => t + l[0], 0);
         const total = lots.reduce((t, l) => t + l[1], 0);
-        return <BarreAvancement faits={faits} total={total} titre={jour === aujourdhui ? "Avancement général de la journée (toute l'équipe)" : "Bilan général de la journée (toute l'équipe)"} sous="Tâches du jour, nettoyages, cuissons, refroidissements et maintiens au chaud." neutreEnCours={false} />;
+        return <BarreAvancement faits={faits} total={total} manque={[
+          ...tachesDues.filter((t) => !tacheFaite(t)).map((t) => `${t.heure ? t.heure + " · " : ""}${t.titre}`),
+          ...(nettoyagesDus.length > nettoyages.length ? [`${nettoyagesDus.length - nettoyages.length} nettoyage(s) à valider`] : []),
+          ...cuis.filter((c) => !(c.statut === "termine" || c.finie)).map((c) => `Cuisson en cours : ${c.produit || c.nom || ""}`),
+          ...refr.filter((r) => r.statut !== "termine").map((r) => `Refroidissement en cours : ${r.produit || r.nom || ""}`),
+          ...maint.filter((m) => m.statut !== "termine").map((m) => `Maintien au chaud en cours : ${m.nom || m.produit || ""}`),
+        ]} titre={jour === aujourdhui ? `Avancement général — ce qui est dû à ${hm.replace(":", " h ")} (toute l'équipe)` : "Bilan général de la journée (toute l'équipe)"} sous="Tâches du jour, nettoyages, cuissons, refroidissements et maintiens au chaud." neutreEnCours={false} />;
       })()}
       <BoutonsExport titre={`Historique de la journée ${jour}`} colonnes={["Fonction", "Élément", "Détail 1", "Détail 2", "Détail 3", "Détail 4"]} lignes={exportLignes} />
 
@@ -21398,11 +21437,20 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
             <HorairesDuJour employeeId={currentUserId} shifts={shifts} date={dateSelectionnee} />
             {(() => {
               const blocsN = blocsNettoyageGrille(dateSelectionnee);
-              const mesTachesJ = tasksForDate(currentUserId, dateSelectionnee).filter((t) => !(blocsN.length > 0 && /^Nettoyage/i.test(t.titre)));
-              const faitesT = mesTachesJ.filter((t) => !!t.completions?.[dateSelectionnee]?.[currentUserId]).length;
-              const totalN = blocsN.reduce((t, b) => t + b.total, 0);
-              const faitsN = blocsN.reduce((t, b) => t + b.faits, 0);
-              return <BarreAvancement faits={faitesT + faitsN} total={mesTachesJ.length + totalN} titre={dateSelectionnee === today ? "Mon avancement aujourd'hui" : "Mon avancement ce jour-là"} neutreEnCours={dateSelectionnee === today} />;
+              const jourSel = JOURS[(dateDepuisIso(dateSelectionnee).getDay() + 6) % 7];
+              const enRepos = shifts.length > 0 && !shifts.some((x) => x.employeeId === currentUserId && x.jour === jourSel);
+              if (enRepos) return <div className="rounded-xl p-3 mb-4 text-sm font-semibold" style={{ background: "#EEF2F6", color: "#475569" }}>Repos — pas d'avancement à suivre ce jour-là.</div>;
+              const estAujS = dateSelectionnee === today;
+              const hm = new Date().toTimeString().slice(0, 5);
+              const faitT = (t) => !!t.completions?.[dateSelectionnee]?.[currentUserId];
+              // Aujourd'hui : seulement ce qui est déjà dû à cette heure.
+              const mesTachesJ = tasksForDate(currentUserId, dateSelectionnee).filter((t) => !(blocsN.length > 0 && /^Nettoyage/i.test(t.titre))).filter((t) => !estAujS || faitT(t) || !t.heure || t.heure <= hm);
+              const faitesT = mesTachesJ.filter(faitT).length;
+              const blocsDus = blocsN.filter((b) => !estAujS || hm >= "15:00" || b.faits > 0);
+              const totalN = blocsDus.reduce((t, b) => t + b.total, 0);
+              const faitsN = blocsDus.reduce((t, b) => t + b.faits, 0);
+              const manqueMoi = [...mesTachesJ.filter((t) => !faitT(t)).map((t) => `${t.heure ? t.heure + " · " : ""}${t.titre}`), ...(totalN > faitsN ? [`${totalN - faitsN} nettoyage(s) à faire`] : [])];
+              return <BarreAvancement faits={faitesT + faitsN} total={mesTachesJ.length + totalN} manque={manqueMoi} titre={estAujS ? `Mon avancement — ce qui est dû à ${hm.replace(":", " h ")}` : "Mon avancement ce jour-là"} neutreEnCours={estAujS} />;
             })()}
             <PlanningDeuxColonnes tasks={tasksForDate(currentUserId, dateSelectionnee)} employeeId={currentUserId} date={dateSelectionnee} actorId={currentUserId} onToggle={toggleTask}
               onOuvrirFenetre={ouvrirFenetreMoi} horaires={horaires} blocsNettoyage={blocsNettoyageGrille(dateSelectionnee)} />
