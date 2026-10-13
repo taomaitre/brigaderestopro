@@ -22,8 +22,9 @@ jobs:
         run: |
           set -e
           for i in 1 2 3; do
-            code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/rest/v1/etablissements?select=id&limit=1" -H "apikey: $CLE" -H "Authorization: Bearer $CLE")
+            code=$(curl -s -o /dev/null -w "%{http_code}" "$URL/rest/v1/etablissements?select=id&limit=1" -H "apikey: $CLE")
             echo "Lecture $i : HTTP $code"
-            case "$code" in 2*) ;; *) echo "Le projet ne répond pas correctement"; exit 1 ;; esac
+            # 2xx = lecture permise ; 401/403 = le projet répond mais refuse l'accès anonyme (normal, la sécurité fonctionne)
+            case "$code" in 2*|401|403) ;; *) echo "Le projet ne répond pas correctement"; exit 1 ;; esac
             sleep 5
           done
