@@ -3999,6 +3999,7 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
+  const [ligneATraiterOuverte, setLigneATraiterOuverte] = useState(null); // ligne de « À traiter » dépliée (liste détaillée)
   const [releve, setReleve] = useState(false);
   const [pmsImpression, setPmsImpression] = useState(false);
   const [releveMensuel, setReleveMensuel] = useState(false);
@@ -4253,10 +4254,13 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
           { n: alertesNonVues.length, texte: pl(alertesNonVues.length, "alerte qualité à lire", "alertes qualité à lire"), bouton: "Lire", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("alertes"); } },
           { n: enAttente.length, texte: pl(enAttente.length, "notification fournisseur à envoyer", "notifications fournisseur à envoyer"), bouton: "Envoyer", niveau: 1, agir: () => { setSectionActive("reception"); setSousEcran("notifications"); } },
           { n: nettoAValider, texte: pl(nettoAValider, "nettoyage à valider", "nettoyages à valider"), bouton: "Valider", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("planning"); } },
-          { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } },
-          { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => setReferentielActif(true) },
+          { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); },
+            detail: [...incomplets].sort((p1, p2) => String(p1.nom).localeCompare(String(p2.nom), "fr")).map((x) => ({ id: x.id, libelle: x.nom, sous: [!x.prixUnitaire && "prix manquant", !x.reference && "référence manquante", estAValider(x.note) && "à vérifier"].filter(Boolean).join(" · "), agir: () => { setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } })) },
+          { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => setReferentielActif(true),
+            detail: fournisseursIncomplets.map((f) => ({ id: f.id || f.nom, libelle: f.nom, sous: "jours de commande / livraison à renseigner", agir: () => setReferentielActif(true) })) },
           { n: sauvegardeDue ? 1 : 0, texte: "sauvegarde hebdomadaire à faire (copie sur clé USB)", bouton: "Sauvegarder", niveau: 1, agir: () => { setSectionActive("reglages"); setSousEcran("sauvegarde"); } },
-          { n: sansPoste.length, texte: pl(sansPoste.length, "employé sans poste", "employés sans poste"), bouton: "Corriger", niveau: 2, agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); } },
+          { n: sansPoste.length, texte: pl(sansPoste.length, "employé sans poste", "employés sans poste"), bouton: "Corriger", niveau: 2, agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); },
+            detail: sansPoste.map((e) => ({ id: e.id, libelle: e.name || e.nom || "Employé", sous: "poste à renseigner", agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); } })) },
         ].filter((x) => x.n > 0);
         const coulNiveau = ["#B42318", "#B7791F", "#1D4ED8"];
         return (
@@ -4274,12 +4278,30 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
                     <div key={niv}>
                       <p className="text-xs font-bold uppercase tracking-wide mb-1.5" style={{ color: coulNiveau[niv] }}>{titreGroupe}</p>
                       <ul className="space-y-2">
-                        {lignes.map((x) => (
-                          <li key={x.texte} className="flex items-center gap-3 rounded-xl border bg-white pl-3 pr-2 py-2" style={{ borderColor: coulNiveau[x.niveau], borderLeftWidth: 6 }}>
-                            <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--ink)]">{x.texte}</span>
-                            <button type="button" onClick={x.agir} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white shrink-0" style={{ background: coulNiveau[x.niveau] }}>{x.bouton}</button>
+                        {lignes.map((x) => {
+                          const ouverte = ligneATraiterOuverte === x.texte;
+                          const avecListe = !!(x.detail && x.detail.length > 0);
+                          return (
+                          <li key={x.texte} className="rounded-xl border bg-white pl-3 pr-2 py-2" style={{ borderColor: coulNiveau[x.niveau], borderLeftWidth: 6 }}>
+                            <div className="flex items-center gap-3">
+                              <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--ink)]">{x.texte}</span>
+                              <button type="button" onClick={avecListe ? () => setLigneATraiterOuverte(ouverte ? null : x.texte) : x.agir} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white shrink-0 inline-flex items-center gap-1.5" style={{ background: coulNiveau[x.niveau] }}>{avecListe ? (ouverte ? "Fermer" : "Choisir") : x.bouton}{avecListe && (ouverte ? <ChevronUp size={16} /> : <ChevronDown size={16} />)}</button>
+                            </div>
+                            {avecListe && ouverte && (
+                              <ul className="mt-2 pt-2 border-t border-[var(--cadre)] space-y-1.5 max-h-[55vh] overflow-y-auto">
+                                {x.detail.map((d) => (
+                                  <li key={d.id}>
+                                    <button type="button" onClick={d.agir} className="w-full min-h-[44px] flex items-center gap-3 rounded-lg px-3 text-left hover:bg-[var(--accent-soft)]" style={{ border: `1px solid ${coulNiveau[x.niveau]}55` }}>
+                                      <span className="flex-1 min-w-0"><span className="block text-sm font-semibold text-[var(--ink)] truncate">{d.libelle}</span>{d.sous && <span className="block text-xs text-[var(--steel)]">{d.sous}</span>}</span>
+                                      <ChevronRight size={18} style={{ color: coulNiveau[x.niveau] }} />
+                                    </button>
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
                           </li>
-                        ))}
+                          );
+                        })}
                       </ul>
                     </div>
                   );
@@ -10113,8 +10135,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             <h3 className="font-semibold text-[var(--ink)] mt-0.5">Créer la fiche à partir d'une photo</h3>
             <p className="text-sm text-[var(--steel)] mt-1">Prenez en photo une recette (fiche papier, carnet, écran) ou importez une image. L'IA remplit le questionnaire ci-dessous{avecModes ? ", y compris les allergènes quand elle les trouve" : ""} ; relisez et corrigez avant d'enregistrer — {avecModes ? "vous confirmez vous-même la liste finale des allergènes." : "les allergènes ne sont jamais confirmés automatiquement."}</p>
           </div>
-          <label className="inline-flex items-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium cursor-pointer" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
-            <Camera size={16} /> Prendre / importer une photo
+          <label className="inline-flex items-center gap-3 min-h-[44px] cursor-pointer">
+            <span className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={26} /></span>
+            <span className="text-sm font-semibold text-[var(--ink)]">Prendre / importer une photo</span>
             <input type="file" accept="image/*" capture="environment" className="hidden" onChange={(e) => { const f = e.target.files[0]; if (f) gererPhoto(f); e.target.value = ""; }} />
           </label>
         </div>
@@ -14163,7 +14186,7 @@ function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, who, s
         {resultat.nom
           ? <p className="text-base font-semibold" style={{ color: "#14653A" }}>{resultat.qteTxt} retiré(s) du stock : {resultat.nom} (reste {resultat.resteTxt})</p>
           : <p className="text-sm text-[var(--steel)]">Aucun produit retiré du stock.</p>}
-        <Button onClick={nouveau}><Camera size={16} /> Photographier un autre produit</Button>
+        <button type="button" onClick={nouveau} className="inline-flex items-center gap-3 cursor-pointer"><span className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={26} /></span><span className="text-sm font-semibold text-[var(--ink)]">Photographier un autre produit</span></button>
       </Card>
     );
   }
@@ -14171,7 +14194,7 @@ function AjoutTracabilitePhotoSimple({ enregistrerTracabilitePhotoSimple, who, s
     <Card className="mb-6">
       <h3 className="text-xl font-bold text-[var(--ink)]">Ajouter une traçabilité</h3>
       <p className="text-sm text-[var(--steel)] mb-4">Photographiez l'étiquette, bien lisible (nom, DLC/DDM, lot). Plusieurs photos si besoin.</p>
-      <div className="flex flex-wrap items-start gap-5">
+      <div className={`flex flex-wrap items-start gap-5 ${photos.length === 0 ? "justify-center" : ""}`}>
         <div className="flex flex-col items-center text-center">
           <PhotoInput rond geant value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"} />
           <p className="text-base font-bold text-[var(--ink)] mt-3">{photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"}</p>
@@ -14340,7 +14363,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
         </div>
         <div className="flex gap-2 print:hidden">
           <Button onClick={() => window.print()}><Printer size={16} /> Imprimer {entreeCreee.nbEtiquettes > 1 ? `les ${entreeCreee.nbEtiquettes} étiquettes` : "l'étiquette"}</Button>
-          <Button variant="ghost" onClick={nouveau}><Camera size={16} /> Enregistrer un autre produit</Button>
+          <button type="button" onClick={nouveau} className="inline-flex items-center gap-3 cursor-pointer"><span className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={26} /></span><span className="text-sm font-semibold text-[var(--ink)]">Enregistrer un autre produit</span></button>
         </div>
       </Card>
     );
@@ -14350,7 +14373,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
     <Card className="mb-6">
       <h3 className="text-xl font-bold text-[var(--ink)] mb-1">Ajouter une traçabilité par photo</h3>
       <p className="text-sm text-[var(--steel)] mb-4">Photographiez l'étiquette (nom, lot, DLC/DDM). Plusieurs photos possibles : devant, dos, logo. L'IA lit tout et remplit les cases.</p>
-      <div className="flex flex-wrap items-center gap-5">
+      <div className={`flex flex-wrap items-center gap-5 ${photos.length === 0 ? "justify-center" : ""}`}>
         <div className="flex flex-col items-center text-center">
           <PhotoInput rond geant value={null} onChange={(v) => setPhotos([...photos, v])} label={photos.length > 0 ? "Ajouter une autre photo" : "Photographier le produit"} />
           <p className="text-base font-bold text-[var(--ink)] mt-2">{photos.length > 0 ? "Ajouter une autre photo" : "Prendre une photo"}</p>
@@ -15050,7 +15073,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [panier, setPanier] = useState({}); // { idProduit: quantité à commander (unité du produit) }
   const [dernierBon, setDernierBon] = useState(null);
   const [recherche, setRecherche] = useState("");
-  const [categorieChoisie, setCategorieChoisie] = useState(null);
+  const [categorieChoisie, setCategorieChoisie] = useState("__tous__");
   const [filtresOuverts, setFiltresOuverts] = useState(false);
   const [filtreEtat, setFiltreEtat] = useState("tous"); // tous | alerte | panier
   const [modeCatalogue, setModeCatalogue] = useState(null); // null | "ajouter" | "supprimer"
@@ -16184,8 +16207,9 @@ function PhotoInput({ value, onChange, label = "Prendre la photo", small = false
           <Camera size={geant ? 68 : 30} />
         </label>
       ) : (
-        <label htmlFor={inputId} style={grand ? { backgroundColor: "#C1432D", color: "#ffffff", borderColor: "#C1432D" } : undefined} className={`inline-flex items-center gap-1.5 ${grand ? "px-5 py-3.5 text-base font-semibold border-solid" : "px-3 py-1.5 text-xs font-medium border-dashed"} rounded-lg border border-[var(--cadre)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]`}>
-          <Camera size={14} /> {label}
+        <label htmlFor={inputId} className="inline-flex items-center gap-3 cursor-pointer">
+          <span className={`${grand ? "w-16 h-16" : small ? "w-11 h-11" : "w-14 h-14"} rounded-full flex items-center justify-center text-white shadow-md shrink-0 hover:opacity-90`} style={{ backgroundColor: grand ? "#C1432D" : "#1E7B4B" }}><Camera size={grand ? 30 : small ? 20 : 26} /></span>
+          <span className={`${grand ? "text-base font-semibold" : "text-sm font-medium"} text-[var(--ink)]`}>{label}</span>
         </label>
       )}
       <input id={inputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
@@ -16220,7 +16244,7 @@ function PhotoVignetteZoomable({ src, onRetake, onRemove, grande = false }) {
           <img src={src} alt="" className="max-w-full max-h-[75vh] object-contain rounded-lg" onClick={(e) => e.stopPropagation()} />
           <div className="flex gap-3 mt-4" onClick={(e) => e.stopPropagation()}>
             <Button onClick={() => setAgrandie(false)}><CheckCircle2 size={16} /> Valider</Button>
-            <label htmlFor={inputId} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-sm font-medium bg-white text-[var(--ink)] cursor-pointer"><Camera size={16} /> Refaire cette photo</label>
+            <label htmlFor={inputId} className="inline-flex items-center gap-3 cursor-pointer"><span className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={26} /></span><span className="text-sm font-medium text-white">Refaire cette photo</span></label>
             <input id={inputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={refaire} />
           </div>
         </div>
@@ -16270,8 +16294,9 @@ function ImportPhotoIAInterne({ titre, description, consigne, onResultats, bouto
       <p className="text-xs text-[var(--steel)] mb-3">{description}</p>
       <div className="flex flex-wrap items-center gap-2">
         {photo && <img src={photo} alt="" className="w-14 h-14 object-cover rounded-lg border border-[var(--cadre)]" />}
-        <label htmlFor={inputId} className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-sm font-medium border border-dashed border-[var(--cadre)] text-[var(--steel)] cursor-pointer hover:border-[var(--accent)] hover:text-[var(--accent)]">
-          <Camera size={16} /> {photo ? "Reprendre la photo" : "Prendre une photo / capture d'écran"}
+        <label htmlFor={inputId} className="inline-flex items-center gap-3 cursor-pointer">
+          <span className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={26} /></span>
+          <span className="text-sm font-medium text-[var(--ink)]">{photo ? "Reprendre la photo" : "Prendre une photo / capture d'écran"}</span>
         </label>
         <input id={inputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
         {photo && (
