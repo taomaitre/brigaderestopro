@@ -8730,7 +8730,9 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
     setNoteIngredients("");
   };
 
-  const imprimerFiche = () => {
+  const [indicePdfFiche, setIndicePdfFiche] = useState(false);
+  const imprimerFiche = (versPdf) => {
+    setIndicePdfFiche(!!versPdf);
     document.body.classList.add("impression-fiche");
     const fin = () => { document.body.classList.remove("impression-fiche"); window.removeEventListener("afterprint", fin); };
     window.addEventListener("afterprint", fin);
@@ -8743,7 +8745,13 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       <div className="flex items-center gap-2 min-w-0 flex-wrap mb-4">
         {fiche.code && <span className="text-xs font-bold px-2 py-1 rounded shrink-0" style={{ backgroundColor: "#C1432D", color: "#fff" }}>{fiche.code}</span>}
         <h2 className="text-lg font-semibold text-[var(--ink)] tracking-tight">{fiche.nom}</h2>
+        {/* Imprimer / télécharger : en haut, visible sans défiler (le PDF passe par la fenêtre d'impression du navigateur) */}
+        <div className="ml-auto flex gap-2 print:hidden">
+          <Button variant="ghost" onClick={() => imprimerFiche(false)}><Printer size={15} /> Imprimer</Button>
+          <Button variant="ghost" onClick={() => imprimerFiche(true)}><Download size={15} /> Télécharger en PDF</Button>
+        </div>
       </div>
+      {indicePdfFiche && <p className="text-xs text-[var(--steel)] mb-3 print:hidden">Dans la fenêtre qui s'ouvre, choisissez « Enregistrer au format PDF » à la place de l'imprimante, puis « Enregistrer ».</p>}
 
       {fiche.sousTitre && <p className="text-sm text-[var(--steel)] mb-4">{fiche.sousTitre}</p>}
 
@@ -8911,7 +8919,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </div>
         <div className="lg:col-span-12 xl:col-span-3 min-w-0">
       {(onDemarrerRefroidissement || onDemarrerCuisson || onDemarrerMaintienChaud || onEditerDlc || onTracabiliteIngredients) && (
-        <Card className="mb-5 border-[var(--accent)]/30">
+        <Card className="mb-5 border-[var(--accent)]/30 print:hidden">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{avecModes ? "Produire cette fiche" : "Actions à partir de cette fiche"}</h3>
 
           {/* Ordre volontaire : d'abord on confirme ce qui a été réellement préparé (quantité +
@@ -9124,7 +9132,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       )}
       </div>
       <div className="mt-6 pt-4 border-t border-[var(--cadre)] print:hidden">
-        <Button onClick={imprimerFiche}><Printer size={16} /> Imprimer la fiche</Button>
+        <Button onClick={() => imprimerFiche(false)}><Printer size={16} /> Imprimer la fiche</Button>
       </div>
     </div>
   );
