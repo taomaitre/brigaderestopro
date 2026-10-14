@@ -8,18 +8,32 @@ import './index.css';
 
 const h = React.createElement;
 
+// Adresse « en ligne » = tout ce qui n'est pas l'ordinateur de Loïc (localhost, 127.x, réseau local).
+// En ligne (ex. demo.brigaderestopro.fr) : l'écran de connexion réelle s'ouvre TOUJOURS, sans rien ajouter
+// à l'adresse, l'ancien mode (données locales du navigateur) et la page technique de création de comptes
+// n'existent pas. Sur l'ordinateur de Loïc, rien ne change (les adresses "?nouveau-login=1" et
+// "?test-multi=1" restent nécessaires).
+const EST_EN_LIGNE = (() => {
+  try {
+    const hote = String(window.location.hostname || "").toLowerCase();
+    const local = hote === "localhost" || hote === "127.0.0.1" || hote === "[::1]" || hote.endsWith(".local")
+      || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hote);
+    return !local && hote !== "";
+  } catch (e) { return false; }
+})();
+
 // Page technique temporaire pour tester la nouvelle base multi-établissement, strictement
 // séparée de l'application normale : elle ne s'affiche QUE si l'adresse contient
 // "?test-multi=1" à la fin — jamais autrement. Rien ne change pour l'usage quotidien habituel.
 const AFFICHER_TEST_MULTI = (() => {
-  try { return new URLSearchParams(window.location.search).get("test-multi") === "1"; }
+  try { return !EST_EN_LIGNE && new URLSearchParams(window.location.search).get("test-multi") === "1"; }
   catch (e) { return false; }
 })();
 
 // Prévisualisation de l'écran de connexion réel (établissement + code employé), même principe
 // d'isolation stricte : visible UNIQUEMENT avec "?nouveau-login=1" à la fin de l'adresse.
 const AFFICHER_NOUVEAU_LOGIN = (() => {
-  try { return new URLSearchParams(window.location.search).get("nouveau-login") === "1"; }
+  try { return EST_EN_LIGNE || new URLSearchParams(window.location.search).get("nouveau-login") === "1"; }
   catch (e) { return false; }
 })();
 
