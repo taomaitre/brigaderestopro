@@ -4118,7 +4118,8 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
     { id: "comptes", label: "Gestion des comptes", icon: Users, section: "reglages" },
     { id: "appareilsFroid", label: "Appareils de froid (ajout, modification)", icon: Thermometer, section: "reglages" },
     { id: "catalogueDlc", label: "Produits des étiquettes DLC", icon: Printer, section: "reglages" },
-    ...(identiteExterneCG && identiteExterneCG.exporterSauvegarde ? [{ id: "sauvegarde", label: "Sauvegarde des données", icon: Download, section: "reglages" }] : []),
+    // Tuile « Sauvegarde des données » retirée le 14/10 (la copie USB du test a été faite) : pour la remettre, rétablir la ligne ci-dessous.
+    // ...(identiteExterneCG && identiteExterneCG.exporterSauvegarde ? [{ id: "sauvegarde", label: "Sauvegarde des données", icon: Download, section: "reglages" }] : []),
   ];
   const sectionInfo = SECTIONS_CG.find((x) => x.id === sectionActive);
   // "Planning employé" et "Réservation client" sont réservées à la direction : elles ne sont
@@ -4258,7 +4259,7 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
             detail: [...incomplets].sort((p1, p2) => String(p1.nom).localeCompare(String(p2.nom), "fr")).map((x) => ({ id: x.id, libelle: x.nom, sous: [!x.prixUnitaire && "prix manquant", !x.reference && "référence manquante", estAValider(x.note) && "à vérifier"].filter(Boolean).join(" · "), agir: () => { setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } })) },
           { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => setReferentielActif(true),
             detail: fournisseursIncomplets.map((f) => ({ id: f.id || f.nom, libelle: f.nom, sous: "jours de commande / livraison à renseigner", agir: () => setReferentielActif(true) })) },
-          { n: sauvegardeDue ? 1 : 0, texte: "sauvegarde hebdomadaire à faire (copie sur clé USB)", bouton: "Sauvegarder", niveau: 1, agir: () => { setSectionActive("reglages"); setSousEcran("sauvegarde"); } },
+          // Rappel « sauvegarde hebdomadaire » retiré le 14/10 (voir la tuile Sauvegarde, désactivée).
           { n: sansPoste.length, texte: pl(sansPoste.length, "employé sans poste", "employés sans poste"), bouton: "Corriger", niveau: 2, agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); },
             detail: sansPoste.map((e) => ({ id: e.id, libelle: e.name || e.nom || "Employé", sous: "poste à renseigner", agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); } })) },
         ].filter((x) => x.n > 0);
