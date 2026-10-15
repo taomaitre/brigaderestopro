@@ -1,0 +1,4 @@
+# Toujours passer par la version sécurisée (HTTPS) : cadenas, micro, installation.
+RewriteEngine On
+RewriteCond %{HTTPS} !=on
+RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [L,R=301]

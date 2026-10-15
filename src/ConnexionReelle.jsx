@@ -31,6 +31,16 @@ const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`
 
 const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
 
+// En ligne (hors ordinateur de Loïc) : plus de bandeau noir « Prévisualisation » au-dessus de l'application.
+const ADRESSE_EN_LIGNE = (() => {
+  try {
+    const hote = String(window.location.hostname || "").toLowerCase();
+    const local = hote === "localhost" || hote === "127.0.0.1" || hote === "[::1]" || hote.endsWith(".local")
+      || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(hote);
+    return !local && hote !== "";
+  } catch (e) { return false; }
+})();
+
 function dateHeureIso(date, heure) {
   const d = new Date(`${date}T${heure || "00:00"}:00`);
   return (isNaN(d.getTime()) ? new Date() : d).toISOString();
@@ -1251,6 +1261,7 @@ export default function ConnexionReelle() {
     };
     return (
       <div>
+        {!ADRESSE_EN_LIGNE && (
         <div
           style={{
             position: "fixed", top: 0, left: 0, right: 0, zIndex: 9999,
@@ -1266,7 +1277,8 @@ export default function ConnexionReelle() {
             ← Revenir à la prévisualisation
           </button>
         </div>
-        <div style={{ paddingTop: 32 }}>
+        )}
+        <div style={{ paddingTop: ADRESSE_EN_LIGNE ? 0 : 32 }}>
           <KitchenApp identiteExterne={identiteExterne} />
         </div>
       </div>
