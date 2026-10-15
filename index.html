@@ -233,6 +233,16 @@
 <div id="mc-app-content">
 
 <div id="banner">Aperçu de "Ma Cuisine" — données d'exemple générées localement dans ce navigateur (rien n'est sauvegardé)</div>
+<script>
+  // En ligne (demo.brigaderestopro.fr), les données sont réelles : on masque ce bandeau d'aperçu local.
+  (function () {
+    try {
+      var h = String(location.hostname || "").toLowerCase();
+      var local = h === "localhost" || h === "127.0.0.1" || h === "[::1]" || h.slice(-6) === ".local" || /^(10\.|192\.168\.|172\.(1[6-9]|2\d|3[01])\.)/.test(h);
+      if (!local && h !== "") document.getElementById("banner").style.display = "none";
+    } catch (e) {}
+  })();
+</script>
 <div id="root"></div>
 
 <script type="module" src="/src/main.jsx"></script>
