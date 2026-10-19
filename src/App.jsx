@@ -5435,13 +5435,13 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     if (!String(v.nom || "").trim()) return;
     const sortie = {};
     const cles = estProduit
-      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours", "allergenes_norme", "origine_norme"]
+      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours", "decongel_methode", "decongel_jours", "decongel_source", "allergenes_norme", "origine_norme"]
       : [...CHAMPS_FOURNISSEUR.map((c) => c.cle), "jours_livraison", "planning_commande", "planning_livraison"];
     cles.forEach((c) => {
       let val = v[c];
       if (c === "reference_verifiee") val = !!val;
       else if (c === "prix_achat") val = val === "" || val == null ? null : Number(String(val).replace(",", "."));
-      else if (c === "delai_jours_dlc" || c === "delai_apres_ouverture_jours") { const n = parseInt(String(val == null ? "" : val), 10); val = Number.isNaN(n) || n < 0 ? null : n; }
+      else if (c === "delai_jours_dlc" || c === "delai_apres_ouverture_jours" || c === "decongel_jours") { const n = parseInt(String(val == null ? "" : val), 10); val = Number.isNaN(n) || n < 0 ? null : n; }
       else if (c === "type_date") val = val === "DLC" || val === "DDM" ? val : null;
       else if (typeof val === "string") val = val.trim() === "" ? null : val.trim();
       else if (val === undefined) val = null;
@@ -5505,6 +5505,25 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 </div>
               );
             })()}
+            {v.conservation === "surgele" && (
+              <div className="sm:col-span-2 rounded-lg px-3 py-2 border border-[var(--cadre)] bg-white">
+                <p className="text-xs font-semibold text-[var(--ink)] mb-1">Décongélation de ce produit</p>
+                <label className="block text-xs text-[var(--steel)]">Méthode
+                  <select value={v.decongel_methode || ""} onChange={(e) => maj("decongel_methode", e.target.value || null)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+                    <option value="">Chambre froide 0 à +3 °C (par défaut, norme HACCP)</option>
+                    <option value="fabricant">Selon la notice du fabricant (durée et source ci-dessous)</option>
+                    <option value="cuisson">Pas de décongélation : cuisson directe depuis le congelé</option>
+                  </select>
+                </label>
+                {v.decongel_methode !== "cuisson" && (
+                  <div className="grid gap-2 sm:grid-cols-2 mt-2">
+                    {champTexte("decongel_jours", "DLC après décongélation (en jours, jour de début compris). Vide = 3 jours")}
+                    {champTexte("decongel_source", "Source de cette durée (ex. fiche Sysco du 04/08/2026)")}
+                  </div>
+                )}
+                <p className="text-[11px] text-[var(--steel)] mt-2">Température ambiante : non proposée comme méthode (interdite par les normes générales). Si le fabricant l'autorise par écrit, on l'ajoutera.</p>
+              </div>
+            )}
             {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
             <label className="block text-xs text-[var(--steel)]">Unité
               <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
@@ -14743,6 +14762,14 @@ function GestionCatalogueDlc({ produits, setProduits, logActivity }) {
   );
 }
 
+// Règles de décongélation d'un produit surgelé : méthode et durée réglées par le chef sur la fiche produit.
+// Par défaut : chambre froide 0 à +3 °C, DLC en J+3 (jour de début compris). Jamais de température ambiante.
+function reglesDecongelation(p) {
+  const methode = p && p.decongelMethode === "cuisson" ? "cuisson" : p && p.decongelMethode === "fabricant" ? "fabricant" : "froid";
+  const jours = p && Number.isFinite(Number(p.decongelJours)) && Number(p.decongelJours) >= 1 ? Number(p.decongelJours) : 3;
+  return { methode, jours, source: (p && p.decongelSource) || "" };
+}
+
 function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits, modeMigre }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
 
@@ -14808,7 +14835,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
     const entries = lignes
       .filter((l) => l.dlcDate)
       .map((l) => {
-        const dlcFinale = l.decongele ? addDays(l.decongelDate, 2) : l.dlcDate;
+        const dlcFinale = l.decongele ? addDays(l.decongelDate, (l.decongelJours || 3) - 1) : l.dlcDate;
         const decongelationInfo = l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null;
         return creerEtiquetteDlc({ produitNom: l.nom, lot: l.lot, dlcDate: dlcFinale, photo: null, quantiteUtilisee: l.quantiteUtilisee, nbEtiquettes: l.nbEtiquettes, decongelationInfo, typeDlc: l.decongele ? undefined : l.typeDlc });
       })
@@ -14862,7 +14889,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
     produitId: p.id, nom: p.nom,
     reference: p.reference || "", lot: lotDe(p), dlcDate: infoEtiq(p).dlcDate, typeDlc: infoEtiq(p).typeDlc, repereHaccp: infoEtiq(p).repere, sourceDlc: infoEtiq(p).source, quantiteUtilisee: (qteParProduit[p.id] || "").trim(), nbEtiquettes: nbDe(p.id),
     estSurgele: categorieDeProduitDlc(p) === "Surgelés", decongele: !!decongDe(p.id).oui,
-    decongelDate: decongDe(p.id).date, decongelHeure: decongDe(p.id).heure,
+    decongelDate: decongDe(p.id).date, decongelHeure: decongDe(p.id).heure, decongelJours: reglesDecongelation(p).jours,
   }));
   // « Valider » : crée directement les étiquettes (lot et DLC/DDM calculés, quantité utilisée saisie dans le panneau) puis lance l'impression.
   const validerSelection = () => {
@@ -14950,21 +14977,29 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
               </div>
               {categorieDeProduitDlc(p) === "Surgelés" && (
                 <div className="mt-3 pt-3 border-t border-[var(--line)]">
-                  <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Ce produit sort-il de congélation ?</p>
-                  <div className="flex gap-2 mb-2">
-                    {[[true, "Oui"], [false, "Non"]].map(([v, lib]) => (
-                      <button key={lib} type="button" onClick={() => majDecong(p.id, { oui: v })} className={`text-xs font-medium px-3 py-1.5 rounded-full border ${decongDe(p.id).oui === v ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>{lib}</button>
-                    ))}
-                  </div>
-                  {decongDe(p.id).oui && (
-                    <>
-                      <div className="grid grid-cols-2 gap-2">
-                        <Field label="Date de sortie"><input className={inputCls} type="date" value={decongDe(p.id).date} onChange={(e) => majDecong(p.id, { date: e.target.value })} /></Field>
-                        <Field label="Heure de sortie"><input className={inputCls} type="time" value={decongDe(p.id).heure} onChange={(e) => majDecong(p.id, { heure: e.target.value })} /></Field>
-                      </div>
-                      <p className="text-xs text-[var(--steel)] mt-2">L'étiquette portera « Décongelé le … » et une DLC en J+3 à partir de cette sortie (jour de sortie compris), jamais recongelé.</p>
-                    </>
-                  )}
+                  <p className="text-xs font-semibold text-[var(--ink)] mb-1.5">Que faites-vous de ce surgelé ?</p>
+                  {(() => {
+                    const rg = reglesDecongelation(p);
+                    return (
+                      <>
+                        <div className="flex gap-2 mb-2">
+                          {[[false, "Remis au congélateur"], [true, "Décongélation"]].map(([v, lib]) => (
+                            <button key={lib} type="button" disabled={v && rg.methode === "cuisson"} onClick={() => majDecong(p.id, { oui: v })} className={`text-xs font-medium px-3 py-1.5 rounded-full border disabled:opacity-40 ${decongDe(p.id).oui === v ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>{lib}</button>
+                          ))}
+                        </div>
+                        {rg.methode === "cuisson" && <p className="text-xs text-[var(--warn)]">Ce produit ne se décongèle pas : cuisson directe depuis le congelé.</p>}
+                        {decongDe(p.id).oui && rg.methode !== "cuisson" && (
+                          <>
+                            <div className="grid grid-cols-2 gap-2">
+                              <Field label="Date de début"><input className={inputCls} type="date" value={decongDe(p.id).date} onChange={(e) => majDecong(p.id, { date: e.target.value })} /></Field>
+                              <Field label="Heure de début"><input className={inputCls} type="time" value={decongDe(p.id).heure} onChange={(e) => majDecong(p.id, { heure: e.target.value })} /></Field>
+                            </div>
+                            <p className="text-xs text-[var(--steel)] mt-2">À mettre en chambre froide (0 à +3 °C), couvert, sur une grille. Jamais à température ambiante. L'étiquette portera « Décongelé le … » et une DLC en J+{rg.jours} (jour de début compris){rg.source ? ` — ${rg.source}` : ""}. Jamais recongelé.</p>
+                          </>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               )}
             </div>
@@ -14985,7 +15020,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                   l.dlcDate ? (
                     <div key={l.produitId} className="overflow-hidden">
                       {l.nbEtiquettes > 1 && <p className="text-xs text-[var(--steel)] text-center mb-1">× {l.nbEtiquettes} étiquettes identiques</p>}
-                      <EtiquetteDlcImprimable typeDlc={l.decongele ? undefined : l.typeDlc} produitNom={l.nom} lot={l.lot} dlcDate={l.decongele ? addDays(l.decongelDate, 2) : l.dlcDate} date={todayISO()} heure={new Date().toTimeString().slice(0, 5)} who={who} employeeId={currentUserId} decongelationInfo={l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null} />
+                      <EtiquetteDlcImprimable typeDlc={l.decongele ? undefined : l.typeDlc} produitNom={l.nom} lot={l.lot} dlcDate={l.decongele ? addDays(l.decongelDate, (l.decongelJours || 3) - 1) : l.dlcDate} date={todayISO()} heure={new Date().toTimeString().slice(0, 5)} who={who} employeeId={currentUserId} decongelationInfo={l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null} />
                     </div>
                   ) : null
                 ))}
@@ -23001,6 +23036,7 @@ function KitchenApp({ identiteExterne } = {}) {
       return {
         id: c.id, nom: c.nom, poste: "", reference: c.reference || "", conservation: c.conservation || "", categorieCatalogue: c.categorie || "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
         typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), ddmExplicite: c.typeDate === "DDM", dlcJours: jours,
+        decongelMethode: c.decongelMethode || "", decongelJours: c.decongelJours, decongelSource: c.decongelSource || "",
         ddmLotActuel: c.lot || null, ddmDateActuelle: c.dlc || null,
       };
     });
