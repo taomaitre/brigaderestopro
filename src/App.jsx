@@ -1418,8 +1418,68 @@ const LOGOS_TITRE = [
   ["Origine des viandes", "origine", () => MapPin], ["Procédure de TIAC", "tiac", () => Activity], ["Stock", "stock", () => Package], ["Étiquettes", "etiquettes", () => Printer],
   ["Contrôles en cuisine", "haccp", () => Thermometer], ["Contrôle & Gestion", "controle", () => ClipboardCheck], ["Tableau de bord", "controle", () => ClipboardCheck], ["Inventaire", "stock", () => ClipboardCheck],
 ];
+// ---- Bouton « retour » du téléphone ----
+// Chaque écran qui affiche un bouton Retour s'inscrit dans une pile (le dernier ouvert est au-dessus). Le bouton retour
+// du téléphone (ou le bouton précédent du navigateur) exécute alors la même action que le bouton Retour à l'écran, au lieu
+// de quitter le logiciel. Chaque inscription ajoute une entrée dans l'historique du navigateur ; elle est retirée quand
+// l'écran se ferme. Sur un téléphone Android, les boutons Retour du haut de l'écran sont masqués (le retour du téléphone les remplace).
+const PILE_RETOUR = [];
+let retourInitialise = false, retourIgnorer = 0, retourADepiler = 0, retourPlanifie = false, retourCompteur = 0, retourSortie = false;
+const EST_ANDROID_TELEPHONE = (() => { try { return /Android/i.test(navigator.userAgent) && /Mobile/i.test(navigator.userAgent); } catch (e) { return false; } })();
+function initialiserRetourTelephone() {
+  if (retourInitialise || typeof window === "undefined") return;
+  retourInitialise = true;
+  window.addEventListener("popstate", () => {
+    if (retourSortie) return;
+    if (retourIgnorer > 0) { retourIgnorer--; return; }
+    const haut = PILE_RETOUR[PILE_RETOUR.length - 1];
+    if (!haut) return; // rien à refermer : le navigateur fait son comportement normal
+    haut.dejaRecule = true; // le navigateur a déjà reculé d'une entrée : inutile de reculer encore à la fermeture
+    try { haut.get()(); } catch (e) { /* on ne bloque jamais le retour */ }
+    // Si l'écran est resté ouvert (retour sans changement d'écran), on remet l'entrée d'historique pour garder la pile cohérente.
+    setTimeout(() => {
+      if (haut.dejaRecule && PILE_RETOUR.includes(haut) && !retourSortie) {
+        haut.dejaRecule = false;
+        try { window.history.pushState({ mcRetour: haut.id }, ""); } catch (e) { /* ignore */ }
+      }
+    }, 80);
+  });
+}
+function planifierDepilageRetour() {
+  if (retourPlanifie) return;
+  retourPlanifie = true;
+  Promise.resolve().then(() => {
+    retourPlanifie = false;
+    const n = retourADepiler; retourADepiler = 0;
+    if (n > 0) { retourIgnorer += 1; try { window.history.go(-n); } catch (e) { retourIgnorer = 0; } }
+  });
+}
+function quitterLeLogiciel() {
+  retourSortie = true;
+  try { window.history.back(); } catch (e) { /* ignore */ }
+  setTimeout(() => { retourSortie = false; }, 1500);
+}
+function useRetourTelephone(actif, surRetour, bas = false) {
+  const ref = React.useRef(surRetour);
+  ref.current = surRetour;
+  React.useEffect(() => {
+    if (!actif) return undefined;
+    initialiserRetourTelephone();
+    const item = { id: ++retourCompteur, get: () => ref.current, dejaRecule: false };
+    if (bas) PILE_RETOUR.unshift(item); else PILE_RETOUR.push(item);
+    try { window.history.pushState({ mcRetour: item.id }, ""); } catch (e) { /* ignore */ }
+    return () => {
+      const i = PILE_RETOUR.indexOf(item);
+      if (i >= 0) PILE_RETOUR.splice(i, 1);
+      if (!item.dejaRecule) { retourADepiler += 1; planifierDepilageRetour(); }
+    };
+  }, [actif, bas]);
+}
+
 function BoutonRetour({ onClick, children, className = "" }) {
   const z = React.useContext(ZoneContext) || { bord: "#475569", fond: "#47556922", texte: "#1E293B" };
+  useRetourTelephone(true, onClick);
+  if (EST_ANDROID_TELEPHONE) return null;
   return (
     <button type="button" onClick={onClick} className={`inline-flex items-center gap-2 h-11 px-4 rounded-xl border-2 text-sm font-bold shadow-sm active:scale-[0.98] transition-transform print:hidden ${className}`}
       style={{ borderColor: z.bord, backgroundColor: z.fond, color: z.texte }}>
@@ -22869,6 +22929,20 @@ function KitchenApp({ identiteExterne } = {}) {
     if (tabPrecedent === "fiches") { if (ficheRetourId) setFicheAutoOuvrirId(ficheRetourId); setFicheRetourId(null); setTab("fiches"); }
     else setTab(tabPrecedent && tabPrecedent !== tab ? tabPrecedent : "haccp");
   };
+  // Bouton retour du téléphone : sur n'importe quel écran autre que l'Accueil, il ramène à l'écran d'avant (les écrans qui ont
+  // leur propre bouton Retour passent avant, voir BoutonRetour). Sur l'Accueil : un premier appui affiche un message,
+  // un second appui dans les 2,5 secondes quitte le logiciel.
+  const [messageQuitter, setMessageQuitter] = useState(false);
+  const dernierAppuiAccueilRef = useRef(0);
+  const retourTabRef = useRef(null);
+  retourTabRef.current = () => { if (NAV_HACCP.some((n) => n.id === tab)) retourPagePrecedente(); else setTab("accueil"); };
+  useRetourTelephone(tab !== "accueil", () => retourTabRef.current && retourTabRef.current(), true);
+  useRetourTelephone(EST_ANDROID_TELEPHONE && tab === "accueil", () => {
+    if (Date.now() - dernierAppuiAccueilRef.current < 2500) { quitterLeLogiciel(); return; }
+    dernierAppuiAccueilRef.current = Date.now();
+    setMessageQuitter(true);
+    setTimeout(() => setMessageQuitter(false), 2500);
+  }, true);
   // Prévisualisation : les cuissons pré-programmées et les produits du maintien au chaud viennent des fiches techniques (nouvelle base).
   const catalogueCuissonFiches = React.useMemo(() => fichesExternes
     .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
@@ -24104,13 +24178,16 @@ function KitchenApp({ identiteExterne } = {}) {
       </header>
 
       {tab !== "accueil" && tab !== "fiches" && !NAV_HACCP.some((n) => n.id === tab) && (
-        <div className="md:hidden px-4 pt-3 bg-white">
+        <div className={`md:hidden ${EST_ANDROID_TELEPHONE ? "" : "px-4 pt-3 bg-white"}`}>
           <BoutonRetour onClick={() => setTab("accueil")}>Retour Accueil</BoutonRetour>
         </div>
       )}
 
       <main className={`flex-1 p-3 sm:p-4 lg:p-5 pb-24 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
         <IndicateurHorsLigne />
+        {messageQuitter && (
+          <div role="status" className="fixed left-1/2 -translate-x-1/2 bottom-24 z-[100] rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg" style={{ background: "rgba(29,35,33,0.92)" }}>Appuyez encore une fois pour quitter</div>
+        )}
         {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin) && (
           <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement} continu>Un refroidissement ou une congélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
         )}
