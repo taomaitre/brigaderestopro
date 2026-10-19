@@ -287,6 +287,34 @@ function EnTete({ sousTitre }) {
   );
 }
 
+// ----- Sessions (connexion réelle) -----
+// Téléphone personnel : le code est demandé une seule fois par jour ; la connexion reste valable jusqu'au prochain 4h du matin.
+// Tablette / ordinateur de cuisine : pas de mémoire de l'employé, retour à « Qui êtes-vous ? » après 2 minutes sans toucher l'écran.
+const CLE_SESSION_EMPLOYE = "mc-reel-session-employe";
+const DELAI_INACTIVITE_TABLETTE_MS = 2 * 60 * 1000;
+function estTelephoneAppareil() {
+  try { return window.matchMedia("(pointer: coarse)").matches && Math.min(window.screen.width, window.screen.height) < 600; } catch (e) { return false; }
+}
+function prochain4hIso() {
+  const d = new Date();
+  d.setHours(4, 0, 0, 0);
+  if (d.getTime() <= Date.now()) d.setDate(d.getDate() + 1);
+  return d.toISOString();
+}
+function lireSessionEmploye() {
+  try {
+    const s = JSON.parse(localStorage.getItem(CLE_SESSION_EMPLOYE) || "null");
+    if (!s || !s.employeId || !s.jusqua || new Date(s.jusqua).getTime() <= Date.now()) return null;
+    return s;
+  } catch (e) { return null; }
+}
+function ecrireSessionEmploye(employeId) {
+  try { localStorage.setItem(CLE_SESSION_EMPLOYE, JSON.stringify({ employeId, jusqua: prochain4hIso() })); } catch (e) { /* stockage indisponible */ }
+}
+function effacerSessionEmploye() {
+  try { localStorage.removeItem(CLE_SESSION_EMPLOYE); } catch (e) { /* stockage indisponible */ }
+}
+
 export default function ConnexionReelle() {
   const [etape, setEtape] = useState("etablissement"); // "etablissement" | "code" | "connecte"
   const [email, setEmail] = useState("demo@brigaderestopro.fr");
@@ -300,6 +328,13 @@ export default function ConnexionReelle() {
   const [employeIdentifie, setEmployeIdentifie] = useState(null);
   const [choixNoms, setChoixNoms] = useState(false); // après « Changer de compte » : liste des noms (sans code) pour le personnel
   const [voirAppliReelle, setVoirAppliReelle] = useState(false);
+  const [codeDemande, setCodeDemande] = useState(null); // employé dont on demande le code (fenêtre)
+  const [codeFenetre, setCodeFenetre] = useState("");
+  const [erreurFenetre, setErreurFenetre] = useState("");
+  const [fenetreEnCours, setFenetreEnCours] = useState(false);
+  const [debloqueParCode, setDebloqueParCode] = useState(false); // chef / directeur qui vient de saisir son code : Contrôle & Gestion ouvert sans redemander
+  const [restaurationFaite, setRestaurationFaite] = useState(false);
+  const [employeARestaurer, setEmployeARestaurer] = useState(null);
 
   const [equipe, setEquipe] = useState(null);
   const [afficherAjout, setAfficherAjout] = useState(false);
@@ -1149,12 +1184,17 @@ export default function ConnexionReelle() {
     }
   }
 
-  // Personnel (hors chef / direction) : un simple clic sur son nom, sans code. Le chef et le directeur gardent leur code.
-  function choisirEmploye(emp) {
+  // Entrée dans l'application pour un employé (code déjà vérifié, ou pas de code à demander).
+  function entrerEmploye(emp, codeSaisiOk, jeton) {
     setErreur("");
-    setEmployeIdentifie({ id: emp.id, nom: [emp.prenom, emp.nom].filter(Boolean).join(" "), poste: emp.poste || "", role: emp.role });
+    const chef = estChefOuDirecteur(emp.role);
+    setEmployeIdentifie({ id: emp.id, nom: [emp.prenom, emp.nom].filter(Boolean).join(" ") || emp.nom || "", poste: emp.poste || "", role: emp.role });
+    setDebloqueParCode(!!(chef && codeSaisiOk));
+    if (codeSaisiOk && chef) { setCode(codeSaisiOk); chargerEquipe(jeton, codeSaisiOk); }
+    if (codeSaisiOk && estTelephoneAppareil()) ecrireSessionEmploye(emp.id);
     setChoixNoms(false);
     setEtape("connecte");
+    setVoirAppliReelle(ADRESSE_EN_LIGNE); // en ligne : directement dans l'application
     // Même chargement qu'avec le code : fiches, cartes, températures, réglages, PMS…
     chargerCatalogue();
     chargerListesFroid();
@@ -1162,14 +1202,117 @@ export default function ConnexionReelle() {
     chargerPms();
   }
 
+  // Clic sur un nom. Chef et directeur : fenêtre de code partout. Téléphone : fenêtre de code une fois par jour pour tous.
+  // Tablette / ordinateur : pas de code pour le personnel. Employé sans code défini : pas de fenêtre (rien à vérifier).
+  function choisirEmploye(emp) {
+    setErreur("");
+    const chef = estChefOuDirecteur(emp.role);
+    const tel = estTelephoneAppareil();
+    const sess = lireSessionEmploye();
+    const dejaVerifie = tel && sess && sess.employeId === emp.id;
+    if (emp.code_defini !== false && (chef || tel) && !dejaVerifie) {
+      setCodeDemande(emp); setCodeFenetre(""); setErreurFenetre("");
+      return;
+    }
+    entrerEmploye({ ...emp }, null, session && session.token);
+  }
+
+  async function validerCodeFenetre(e) {
+    e.preventDefault();
+    if (!codeDemande || codeFenetre.length !== 4 || !session) return;
+    setFenetreEnCours(true); setErreurFenetre("");
+    try {
+      const data = await appelerEmployes(session.token, "verifier", { code: codeFenetre });
+      if (data.employe.id !== codeDemande.id) {
+        setErreurFenetre("Ce code n'est pas le vôtre.");
+        setCodeFenetre("");
+      } else {
+        const emp = codeDemande;
+        setCodeDemande(null);
+        entrerEmploye(emp, codeFenetre, session.token);
+        setCodeFenetre("");
+      }
+    } catch (e2) {
+      setErreurFenetre("Code incorrect.");
+      setCodeFenetre("");
+    } finally {
+      setFenetreEnCours(false);
+    }
+  }
+
+  // Rouvrir le logiciel : on reprend la connexion de l'établissement (jeton conservé par le navigateur) ; sur téléphone,
+  // si le code a été saisi aujourd'hui (avant 4h), on retrouve l'employé après avoir vérifié que son compte existe encore.
+  useEffect(() => {
+    let annule = false;
+    (async () => {
+      try {
+        const { data } = await supabasePublic.auth.getSession();
+        const s = data && data.session;
+        const meta = (s && s.user && s.user.user_metadata) || {};
+        if (!s || !meta.etablissement_id) return;
+        const rep = await appelerEmployes(s.access_token, "lister", {});
+        if (annule) return;
+        const liste = rep.employes || [];
+        setSession({ token: s.access_token, etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" } });
+        setEquipe(liste);
+        const sess = estTelephoneAppareil() ? lireSessionEmploye() : null;
+        const emp = sess ? liste.find((x) => x.id === sess.employeId) : null;
+        if (sess && !emp) effacerSessionEmploye(); // compte supprimé : plus d'accès
+        if (emp) {
+          setEmployeARestaurer(emp);
+        } else {
+          setChoixNoms(true);
+          setEtape("code");
+        }
+      } catch (e) { /* pas de connexion mémorisée : écran de connexion habituel */ }
+      finally { if (!annule) setRestaurationFaite(true); }
+    })();
+    return () => { annule = true; };
+  }, []);
+
+  // Une fois la connexion de l'établissement remise en place, on entre avec l'employé retrouvé (fonctions à jour).
+  useEffect(() => {
+    if (employeARestaurer && session) { const emp = employeARestaurer; setEmployeARestaurer(null); entrerEmploye({ ...emp }, null, session.token); }
+  }, [employeARestaurer, session]);
+
+  // Le jeton de l'établissement se renouvelle tout seul : on garde le plus récent.
+  useEffect(() => {
+    const { data } = supabasePublic.auth.onAuthStateChange((evt, s) => {
+      if (s && s.access_token && (evt === "TOKEN_REFRESHED" || evt === "SIGNED_IN")) setSession((old) => (old ? { ...old, token: s.access_token } : old));
+    });
+    return () => { try { data.subscription.unsubscribe(); } catch (e) { /* rien */ } };
+  }, []);
+
+  // Tablette / ordinateur : sans toucher l'écran pendant 2 minutes, retour à « Qui êtes-vous ? ».
+  useEffect(() => {
+    if (etape !== "connecte" || estTelephoneAppareil()) return undefined;
+    let minuteur = null;
+    const rearmer = () => {
+      clearTimeout(minuteur);
+      minuteur = setTimeout(() => {
+        setEmployeIdentifie(null); setCode(""); setErreur(""); setDebloqueParCode(false); setVoirAppliReelle(false); setChoixNoms(true); setEtape("code");
+      }, DELAI_INACTIVITE_TABLETTE_MS);
+    };
+    const evts = ["pointerdown", "pointermove", "keydown", "scroll", "touchstart", "wheel"];
+    evts.forEach((n) => window.addEventListener(n, rearmer, { passive: true, capture: true }));
+    rearmer();
+    return () => { clearTimeout(minuteur); evts.forEach((n) => window.removeEventListener(n, rearmer, { capture: true })); };
+  }, [etape]);
+
   async function seDeconnecter() {
     try { await supabasePublic.auth.signOut(); } catch (e) { /* pas grave */ }
+    effacerSessionEmploye(); setDebloqueParCode(false); setCodeDemande(null);
     setSession(null); setEmployeIdentifie(null); setCode(""); setErreur(""); setChoixNoms(false);
     setEquipe(null); setAfficherAjout(false); setErreurEquipe("");
     setEtape("etablissement");
   }
 
   if (jetonCode) return <PageDefinirCode jeton={jetonCode} />;
+
+  // Reprise de la connexion mémorisée : un court instant, sans montrer l'écran de connexion pour rien.
+  if (!restaurationFaite || employeARestaurer) {
+    return <div className="min-h-screen flex items-center justify-center text-sm" style={{ color: "var(--steel)" }}>Chargement…</div>;
+  }
 
   if (etape === "connecte" && voirAppliReelle) {
     const identiteExterne = {
@@ -1210,7 +1353,8 @@ export default function ConnexionReelle() {
         appeler: (payload) => appelerIA(session.token, payload),
       },
       // « Changer de compte » : on garde la connexion de l'établissement et on redemande un code personnel à 4 chiffres.
-      changerDeCompte: () => { setEmployeIdentifie(null); setCode(""); setErreur(""); setChoixNoms(true); setEtape("code"); },
+      changerDeCompte: () => { effacerSessionEmploye(); setEmployeIdentifie(null); setCode(""); setErreur(""); setDebloqueParCode(false); setVoirAppliReelle(false); setChoixNoms(true); setEtape("code"); },
+      debloqueParConnexion: debloqueParCode,
       // Autorisation ponctuelle : le responsable cuisine / directeur saisit son code pour débloquer une action réservée.
       verifierCodeChef: async (codeSaisi) => {
         const data = await appelerEmployes(session.token, "verifier", { code: codeSaisi });
@@ -1433,7 +1577,7 @@ export default function ConnexionReelle() {
     return (
       <EcranConnexion>
         <MarqueConnexion />
-        <CarteConnexion titre="Votre code" sousTitre={`Établissement : ${session.etablissement.nom} — code personnel à 4 chiffres, donné par le chef ou le directeur.`}>
+        <CarteConnexion titre={choixNoms && (equipe || []).length > 0 ? "Qui êtes-vous ?" : "Votre code"} sousTitre={choixNoms && (equipe || []).length > 0 ? `Établissement : ${session.etablissement.nom}` : `Établissement : ${session.etablissement.nom} — code personnel à 4 chiffres, donné par le chef ou le directeur.`}>
           {choixNoms && (equipe || []).length > 0 && (
             <div className="mb-4">
               <p className="text-sm font-semibold mb-2" style={{ color: "var(--ink)" }}>Qui êtes-vous ? Touchez votre nom</p>
@@ -1448,10 +1592,9 @@ export default function ConnexionReelle() {
                   );
                 })}
               </div>
-              <p className="text-xs mt-3 mb-1" style={{ color: "var(--steel)" }}>Vous pouvez aussi taper votre code personnel ci-dessous. Le code du chef ou du directeur sera demandé pour entrer dans Contrôle & Gestion.</p>
             </div>
           )}
-          <form onSubmit={validerCode}>
+          {!(choixNoms && (equipe || []).length > 0) && (<form onSubmit={validerCode}>
             <ChampConnexion icone="lock">
               <input
                 className={`${champConnexion} text-center text-2xl tracking-[0.5em] pl-4`}
@@ -1467,7 +1610,31 @@ export default function ConnexionReelle() {
             <button type="submit" disabled={enCours || code.length !== 4} className={boutonConnexion} style={{ backgroundColor: "var(--theme)", opacity: enCours || code.length !== 4 ? 0.6 : 1 }}>
               <Ico d={ICO.login} size={20} /> Valider le code
             </button>
-          </form>
+          </form>)}
+          {codeDemande && (
+            <div className="fixed inset-0 z-[9000] bg-black/40 flex items-center justify-center p-4">
+              <form onSubmit={validerCodeFenetre} className="bg-white rounded-2xl p-5 w-full max-w-sm shadow-xl">
+                <div className="font-semibold mb-1" style={{ color: "var(--ink)" }}>{[codeDemande.prenom, codeDemande.nom].filter(Boolean).join(" ")}</div>
+                <p className="text-sm mb-3" style={{ color: "var(--steel)" }}>Saisissez votre code personnel à 4 chiffres.</p>
+                <input
+                  autoFocus
+                  type="password"
+                  inputMode="numeric"
+                  maxLength={4}
+                  value={codeFenetre}
+                  onChange={(e) => { setCodeFenetre(e.target.value.replace(/\D/g, "").slice(0, 4)); setErreurFenetre(""); }}
+                  placeholder="••••"
+                  className="w-full h-12 text-center text-2xl tracking-[0.5em] border-2 rounded-lg bg-white"
+                  style={{ borderColor: "var(--cadre)" }}
+                />
+                {erreurFenetre && <p className="text-sm mt-2" style={{ color: "var(--warn)" }}>{erreurFenetre}</p>}
+                <div className="flex gap-2 mt-4 justify-end">
+                  <button type="button" onClick={() => { setCodeDemande(null); setCodeFenetre(""); setErreurFenetre(""); }} className="px-4 h-11 text-sm" style={{ color: "var(--steel)" }}>Annuler</button>
+                  <button type="submit" disabled={codeFenetre.length !== 4 || fenetreEnCours} className="px-5 h-11 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ backgroundColor: "var(--theme)" }}>{fenetreEnCours ? "Vérification…" : "Valider"}</button>
+                </div>
+              </form>
+            </div>
+          )}
           <button onClick={seDeconnecter} className="block mx-auto text-sm text-[var(--steel)] mt-4 underline">← Changer d'établissement</button>
         </CarteConnexion>
         <BandeauFonctions />

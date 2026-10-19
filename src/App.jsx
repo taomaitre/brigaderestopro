@@ -23924,7 +23924,8 @@ function KitchenApp({ identiteExterne } = {}) {
   // mais pas à la gestion (comptes, planning, réservations, réglages) : ces droits restent au chef et au directeur.
   const moiSecond = !!moi?.estSecond;
   const peutVoirControle = !!moi?.estChef || porteParCode || moiSecond;
-  const chefComplet = !!moi?.estChef || (porteParCode && controleDebloque);
+  const debloqueParConnexion = !!(identiteExterne && identiteExterne.debloqueParConnexion); // chef / directeur qui a saisi son code à la connexion
+  const chefComplet = !!moi?.estChef || (porteParCode && (controleDebloque || debloqueParConnexion));
   const chefAcces = chefComplet || moiSecond;
   // Bandeau « Maintenant » de l'accueil : ma prochaine tâche, ce qui est en cours, ce qui est en retard.
   const maintenantHM = new Date().toTimeString().slice(0, 5);
@@ -23956,7 +23957,7 @@ function KitchenApp({ identiteExterne } = {}) {
   useEffect(() => { if (!ONGLETS_CHEF.includes(tab)) setControleDebloque(false); }, [tab]);
   useEffect(() => { if (verrouille) setControleDebloque(false); }, [verrouille]);
   useEffect(() => { setControleDebloque(false); }, [currentUserId]);
-  const bloqueChef = modeExterne && !!(identiteExterne && identiteExterne.verifierCodeChef) && ONGLETS_CHEF.includes(tab) && !controleDebloque;
+  const bloqueChef = modeExterne && !!(identiteExterne && identiteExterne.verifierCodeChef) && ONGLETS_CHEF.includes(tab) && !controleDebloque && !debloqueParConnexion;
 
   // Téléphone personnel : si un code valable a déjà été entré aujourd'hui (avant 4h demain), on
   // reconnecte automatiquement l'employé sans lui redemander ni son code ni son nom. useLayoutEffect
