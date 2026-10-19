@@ -14848,30 +14848,25 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             </div>
             <span className="text-sm font-bold" style={{ color: zoneDepuisFonction("etiquettes").texte }}>{catChoisie === "__tous__" ? "Tous les produits" : catChoisie} ({visibles.length})</span>
           </div>
-          <div className="hidden md:grid md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1.3fr)] gap-3 px-4 py-2 text-xs font-semibold text-[var(--steel)] bg-[var(--bg)]">
-            <span /><span>Produit</span><span>Référence et n° de lot actuel</span><span>DLC après ouverture</span>
-          </div>
           {visibles.length === 0 && <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>}
-          {visibles.map((p) => {
-            const sel = selection.includes(p.id); const cat = catDe(p); const [fond, texte] = infoCat(cat);
-            const ie = infoEtiq(p); const lotActuel = lotDe(p);
-            return (
-              <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} className="w-full text-left grid grid-cols-[2rem_minmax(0,1fr)] md:grid-cols-[2rem_minmax(0,1.3fr)_minmax(0,1.6fr)_minmax(0,1.3fr)] gap-x-3 gap-y-1 px-4 py-3 border-t border-[var(--line)] items-center hover:bg-[var(--bg)]" style={sel ? { backgroundColor: "#FFF5F6" } : undefined}>
-                <span className="w-6 h-6 rounded border-2 flex items-center justify-center" style={sel ? { backgroundColor: "#6027C9", borderColor: "#6027C9", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{sel && <span className="text-xs leading-none">✓</span>}</span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</span>
-                  <span className="inline-block text-[11px] font-medium px-1.5 py-0.5 rounded mt-0.5" style={{ backgroundColor: fond, color: texte }}>{cat}</span>
-                </span>
-                <span className="col-start-2 md:col-start-auto min-w-0 text-sm text-[var(--ink)] space-y-0.5">
-                  <span className="block break-all"><span className="text-xs text-[var(--steel)]">Réf. : </span>{p.reference || "—"}</span>
-                  <span className="block"><span className="block text-xs text-[var(--steel)]">Lot actuel :</span><span className="block break-all">{lotActuel || "—"}</span></span>
-                </span>
-                <span className="col-start-2 md:col-start-auto text-sm font-semibold text-[var(--ink)]"><span className="md:hidden text-xs font-normal text-[var(--steel)]">DLC après ouverture : </span>
-                  {ie.ddm ? (ie.dlcDate ? `DDM ${ie.dlcDate.split("-").reverse().join("/")}` : "DDM à réception") : (ie.jours == null ? <span className="font-normal text-[var(--steel)]">à renseigner</span> : <>{`${ie.jours} j`}{ie.source === "haccp" && <span className="block text-[11px] font-normal text-[var(--steel)]">repère HACCP</span>}</>)}
-                </span>
-              </button>
-            );
-          })}
+          {/* Tuiles : seulement ce dont l'employé a besoin pour faire une étiquette (nom + nombre de jours de DLC). Référence et lot ne s'affichent plus ici : le lot est généré tout seul et s'imprime sur l'étiquette. */}
+          <div className="grid grid-cols-2 sm:grid-cols-3 2xl:grid-cols-4 gap-2 p-3">
+            {visibles.map((p) => {
+              const sel = selection.includes(p.id); const cat = catDe(p); const [fond] = infoCat(cat);
+              const ie = infoEtiq(p);
+              const manque = ie.ddm ? !ie.dlcDate : ie.jours == null;
+              const badge = ie.ddm ? (ie.dlcDate ? `DDM ${ie.dlcDate.split("-").slice(1).reverse().join("/")}` : "DDM") : (ie.jours == null ? "à renseigner" : `${ie.jours} j`);
+              return (
+                <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} aria-pressed={sel} title={cat}
+                  className="relative text-left rounded-xl border-2 bg-white px-3 pt-2.5 pb-2 min-h-[4.5rem] flex flex-col justify-between gap-1.5 active:scale-[0.98] transition-transform"
+                  style={{ borderColor: sel ? "#6027C9" : "var(--cadre)", borderTop: `5px solid ${fond}`, backgroundColor: sel ? "#F5F0FF" : "#fff" }}>
+                  {sel && <span className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-[11px] leading-none text-white" style={{ backgroundColor: "#6027C9" }}>✓</span>}
+                  <span className="block text-sm font-semibold text-[var(--ink)] break-words leading-snug pr-4">{p.nom}</span>
+                  <span className={`self-start text-[11px] font-bold px-1.5 py-0.5 rounded ${manque ? "" : "bg-[var(--bg)] text-[var(--steel)]"}`} style={manque ? { backgroundColor: "#FDECEC", color: "var(--warn)" } : undefined}>{badge}</span>
+                </button>
+              );
+            })}
+          </div>
         </div>
 
         {/* Produits sélectionnés */}
