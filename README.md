@@ -33,3 +33,9 @@ vivre uniquement dans un futur backend, pas dans ce projet front-end.
 
 Cible prévue : hébergement o2switch (déjà souscrit). Le build (`npm run build`) produit
 un dossier `dist/` statique à déployer. Pas encore fait à ce stade.
+
+## Lexique réglementaire (ajouté le 20/10/2026)
+- Source unique : `docs/lexique-haccp.md` (entrées sourcées, avec lien et niveau de certitude).
+- Génération : `node scripts/genererLexique.mjs` produit `src/lexiqueDonnees.js` (à relancer après toute modification du .md).
+- Écran : `src/LexiqueReglementaire.jsx` (recherche par mot, filtres), accessible dans Contrôle & Gestion > PMS et réglementation > Lexique et réglementation.
+- Les rectangles rouges « Règles et repères HACCP » des écrans disparaissent après le 20/04/2027 (`RECTANGLES_NORMES_JUSQU_AU` dans `src/App.jsx`) ; la procédure TIAC reste toujours affichée.
