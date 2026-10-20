@@ -2168,9 +2168,9 @@ function LignePms({ ok, children }) {
 const PMS_ETAPES_HACCP = [
   { etape: "Réception", limite: "Selon le produit : haché et poisson +2 °C, abats et plats cuisinés +3 °C, autres produits frais +4 °C, surgelés −18 °C", surveillance: "Température à cœur et aspect à chaque livraison", action: "Refus et renvoi, notification au fournisseur", ouvrir: "commandes", libelle: "Livraisons reçues" },
   { etape: "Stockage froid", limite: "Norme de chaque enceinte (réfrigérateur 0 à +4 °C, congélateur −18 °C)", surveillance: "Relevés et sondes", action: "Recontrôle sous 30 min, puis anomalie et devenir des produits", ouvrir: "temperatures", libelle: "Températures" },
-  { etape: "Cuisson", limite: "Barèmes indicatifs du guide Restaurateur (page 180) : viande hachée 71 °C ; volaille hachée 74 °C ; viandes coupées 63 °C ; poisson de 60 °C (1 min) à 80 °C (15 min) ; coquillages 90 °C. Volaille entière : règle de la cuisine (80 °C), sans barème officiel", surveillance: "Sonde à cœur", action: "Poursuite de cuisson ou rejet", ouvrir: "cuisson", libelle: "Cuisson" },
-  { etape: "Refroidissement", limite: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C (repère : arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective)", surveillance: "Chronomètre et alarme", action: "Produit non conforme jeté", ouvrir: "cellule", libelle: "Refroidissement" },
-  { etape: "Maintien au chaud", limite: "63 °C ou plus", surveillance: "Contrôle en service", action: "Une régénération à 65 °C ou plus, sinon destruction (règle de la cuisine)", ouvrir: "maintien", libelle: "Maintien au chaud" },
+  { etape: "Cuisson", limite: "Barèmes indicatifs du guide Restaurateur (page 180) : viande hachée 71 °C ; volaille hachée 74 °C ; viandes coupées 63 °C ; poisson de 60 °C (1 min) à 80 °C (15 min) ; coquillages 90 °C. Volaille entière et autres préparations : aucun barème officiel, le chef décide", surveillance: "Sonde à cœur", action: "Poursuite de cuisson ou rejet", ouvrir: "cuisson", libelle: "Cuisson" },
+  { etape: "Refroidissement", limite: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C (source : arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective ; aucune durée fixée pour la remise directe)", surveillance: "Chronomètre et alarme", action: "Produit non conforme jeté", ouvrir: "cellule", libelle: "Refroidissement" },
+  { etape: "Maintien au chaud", limite: "63 °C ou plus", surveillance: "Contrôle en service", action: "Décision du chef (aucune règle écrite sous 63 °C), à noter dans le PMS", ouvrir: "maintien", libelle: "Maintien au chaud" },
   { etape: "Huile de friture", limite: "Test du bain conforme", surveillance: "Photo de la bandelette, validation", action: "Renouvellement de l'huile, alerte", ouvrir: "huile", libelle: "Huile de friture" },
 ];
 
@@ -6109,8 +6109,8 @@ function HaccpRefroidPage({ fiches, onCuissonRefroidie, onMaintienRefroidi, cuis
   return (
     <div className="hc-compact">
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-2">
-      <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire : repère de +63 °C à +10 °C en moins de 2 h (arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective)." />
-      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire : congélation à −18 °C (arrêté du 21/12/2009, annexe I) ; la durée de 4 h 30 est une règle de la cuisine." />
+      <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire : +63 °C à +10 °C en moins de 2 h (arrêté du 21/12/2009, annexe IV, restauration collective) ; en remise directe aucune durée n'est fixée." />
+      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire : congélation à −18 °C (arrêté du 21/12/2009, annexe I) ; aucun texte lu ne fixe de durée de surgélation." />
       </div>
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
         <div className="lg:shrink-0"><SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" /></div>
@@ -6128,7 +6128,7 @@ function HaccpHuilePage({ huileTests, employees, onEnregistrerTest }) {
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div className="hc-compact">
-      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Règles et repères HACCP" texte="Cliquez pour lire : test de l'huile après chaque utilisation (règle de la cuisine ; source réglementaire à confirmer)." />
+      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Règles et repères HACCP" texte="Cliquez pour lire : test de l'huile après chaque utilisation (source réglementaire à confirmer)." />
       <SectionHeader title="Huile de friture" subtitle="Tests et suivi des bains d'huile" />
       <TuilesResume fonction="huile" items={[[Droplets, huileTests.filter((h) => h.date === todayISO()).length, "tests aujourd'hui"], [CheckCircle2, huileTests.length ? (huileTests[0].resultat || "—") : "—", "dernier résultat", false, (() => { const r = huileTests.length ? (huileTests[0].resultat || "") : ""; if (/non conforme|à changer|mauvaise/i.test(r)) return { fond: "#FDE4E8", couleur: "#B4233A" }; if (/limite/i.test(r)) return { fond: "#FDEBD3", couleur: "#B8620B" }; if (r) return { fond: "#EAF6EF", couleur: "#14653A" }; return undefined; })()]]} />
       {onEnregistrerTest && <HuileSaisie onEnregistrerTest={onEnregistrerTest} />}
@@ -6249,7 +6249,7 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div className="hc-compact">
-      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire : 63 °C minimum (guide Restaurateur page 180 et arrêté du 21/12/2009) ; la régénération unique à 65 °C est une règle de la cuisine." />
+      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire : 63 °C minimum (guide Restaurateur page 180 et arrêté du 21/12/2009) ; sous 63 °C, aucune règle écrite : le chef décide." />
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
         <div className="lg:shrink-0"><SectionHeader title="Maintien au chaud" subtitle="Suivi des produits maintenus au chaud" /></div>
         <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="maintien" items={[[Soup, entriesMaintienChaud.filter((e) => e.statut === "en-cours").length, "en cours"], [CheckCircle2, entriesMaintienChaud.filter((e) => e.date === todayISO() && e.statut === "termine").length, "terminés aujourd'hui"]]} /></div>
@@ -10531,7 +10531,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
                 <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
               </div>
-              {avecModes && <NormeAutreBloc titre="Norme de refroidissement" norme="+63 °C → +10 °C à cœur en moins de 2 h" note="Source : arrêté du 21/12/2009, annexe IV point 1 (écrit pour la restauration collective) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C. Repris ici comme repère pour tous les établissements."
+              {avecModes && <NormeAutreBloc titre="Norme de refroidissement" norme="+63 °C → +10 °C à cœur en moins de 2 h" note="Source : arrêté du 21/12/2009, annexe IV point 1 (écrit pour la restauration collective) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C. Pour un restaurant traditionnel (remise directe), aucune durée n'est fixée : le chef peut choisir « Autre » et justifier."
                 autre={S.procedes.refroid.autre} texte valeur={S.procedes.refroid.cibleTxt || ""} justif={S.procedes.refroid.justif}
                 onNorme={() => majProcede("refroid", { autre: false, cibleTxt: "", justif: "" })} onAutre={() => majProcede("refroid", { autre: true })}
                 onValeur={(v) => majProcede("refroid", { cibleTxt: v })} onJustif={(v) => majProcede("refroid", { justif: v })} />}
@@ -12940,12 +12940,12 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                       <strong>{e.refroidissementVerdict.conforme ? "Refroidissement conforme." : "Refroidissement NON CONFORME : produit à détruire."}</strong> {e.refroidissementVerdict.detail}
                     </div>
                   )}
-                  {sous63 && <p className="text-sm font-semibold rounded-lg p-2 mb-2" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>Température inférieure à 63 °C : une seule régénération à 65 °C ou plus est autorisée, une deuxième descente impose la destruction du produit.</p>}
+                  {sous63 && <p className="text-sm font-semibold rounded-lg p-2 mb-2" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>Température inférieure à 63 °C (minimum du guide et de l'arrêté). Aucune règle écrite ne fixe la conduite à tenir : le chef décide (régénérer ou détruire) et le note dans le PMS.</p>}
 
                   <div className="flex flex-wrap items-end gap-2">
                     <label className="flex flex-col gap-1 text-sm">
                       <span className="text-xs text-[var(--steel)]">Température de fin de maintien (°C) *</span>
-                      <input className={`${inputCls} w-44`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. : 65" value={t} onChange={(ev) => setTempFin({ ...tempFin, [e.id]: ev.target.value })} />
+                      <input className={`${inputCls} w-44`} type="number" step="0.1" inputMode="decimal" placeholder="Température relevée" value={t} onChange={(ev) => setTempFin({ ...tempFin, [e.id]: ev.target.value })} />
                     </label>
                     <Button variant="ghost" onClick={() => arreter(e)} disabled={t === "" || e.arrete}><Square size={14} /> Arrêter le maintien</Button>
                     <button onClick={() => versRefroidissement(e)} disabled={t === "" || e.refroidissementLance}
@@ -13343,7 +13343,7 @@ function EtiquetteCuisson({ c, who }) {
 // officiels, pas une simplification) : la règle générale est 63°C, mais viande hachée et volaille
 // ont des seuils officiels plus élevés. On ne compare donc plus toutes les cuissons au même chiffre.
 const CUISSON_FAMILLES = [
-  { id: "general", label: "Général (viande en morceau entier, légumes, plats, sauces...)", seuil: 63, note: "Barème du guide Restaurateur (page 180) : viandes coupées de bœuf, veau, agneau, jambon, 63 °C pendant 15 s. Valeur par défaut de la cuisine pour les autres préparations." },
+  { id: "general", label: "Général (viande en morceau entier, légumes, plats, sauces...)", seuil: 63, note: "Barème du guide Restaurateur (page 180) : viandes coupées de bœuf, veau, agneau, jambon, 63 °C pendant 15 s. Pour les autres préparations, aucun barème : le chef choisit (« Autre valeur ») et justifie." },
   { id: "viandeHachee", label: "Viande hachée (bœuf, veau, agneau, porc : steak haché, bolognaise, lasagne...)", seuil: 71, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +71 °C à cœur pendant 15 secondes." },
   { id: "volaille", label: "Volaille hachée", seuil: 74, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +74 °C à cœur pendant 15 secondes. Il n'existe pas de valeur officielle chiffrée pour la volaille en morceau entier : utilise « Autre valeur »." },
   { id: "poisson", label: "Poisson", seuil: 60, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : de 1 minute à +60 °C jusqu'à 15 minutes à +80 °C à cœur (plus la température est basse, plus le temps doit être long)." },
@@ -15700,7 +15700,7 @@ const FICHES_NORMES = {
         contenu: "Selon l'organisation du service — À chaque livraison, dès l'arrivée du camion jusqu'à la fin du rangement en stock. Aucune denrée ne doit rester hors température plus que le temps strictement nécessaire au contrôle.",
       },
       {
-        titre: "Températures à la réception, par famille de produits (repères de la cuisine ; maximums de conservation : arrêté du 21/12/2009, annexe I)",
+        titre: "Températures à la réception, par famille de produits (maximums de conservation : arrêté du 21/12/2009, annexe I)",
         type: "tableau",
         colonnes: ["Famille de produits", "Température à réception"],
         contenu: [
@@ -15849,7 +15849,7 @@ const FICHES_NORMES = {
     sections: [
       {
         titre: "Ce qui est vraiment fixé par la réglementation",
-        contenu: "Il n'existe pas de tableau légal unique fixant la DLC de chaque produit. La règle chiffrée la plus connue est la règle « J+3 » pour les plats cuisinés à l'avance et conservés au froid (arrêté du 21 décembre 2009, annexe IV, point 4) : la DLC ne peut pas dépasser le troisième jour après la fabrication, en l'absence d'études de durée de vie. Cette annexe est écrite pour la restauration collective : un restaurant traditionnel relève de la remise directe (annexe V), qui ne la reprend pas. Dans le logiciel, J+3 sert de repère de bonne pratique.",
+        contenu: "Il n'existe pas de tableau légal unique fixant la DLC de chaque produit. La règle chiffrée la plus connue est la règle « J+3 » pour les plats cuisinés à l'avance et conservés au froid (arrêté du 21 décembre 2009, annexe IV, point 4) : la DLC ne peut pas dépasser le troisième jour après la fabrication, en l'absence d'études de durée de vie. Cette annexe est écrite pour la restauration collective : un restaurant traditionnel relève de la remise directe (annexe V), qui ne la reprend pas. Pour un restaurant traditionnel, aucune durée n'est imposée par cet arrêté : le chef fixe la DLC et la justifie dans son PMS.",
       },
       {
         titre: "Pour tout le reste",
@@ -15952,7 +15952,7 @@ const FICHES_NORMES = {
         contenu: [
           "Texte européen : règlement (CE) 852/2004, annexe II chapitre IX point 6 : refroidir « dès que possible » après le traitement thermique, à une température qui n'entraîne pas de risque pour la santé. Aucune durée chiffrée.",
           "Texte français : arrêté du 21/12/2009, annexe IV point 1 (version en vigueur depuis le 09/05/2020) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C, puis conservation entre 0 °C et +3 °C ; autre méthode possible avec une analyse des dangers validée. Cette annexe vise la restauration collective. Un restaurant traditionnel relève de la remise directe (annexe V), qui ne reprend pas cette règle.",
-          "Dans le logiciel : les 2 h et les 0 à +3 °C sont utilisés comme repère de bonne pratique pour tous les établissements. Les consignes pratiques (bac d'eau glacée, épaisseur de 5 cm, étiquetage J+1) sont des règles de la cuisine : aucun texte lu ne les fixe.",
+          "Pour un restaurant traditionnel (remise directe), aucune durée de refroidissement n'est fixée : le chef décide. Le mode opératoire ci-dessous (bac d'eau glacée, épaisseur de 5 cm, étiquetage J+1) n'est fixé par aucun texte lu.",
         ],
       },
       {
@@ -15970,7 +15970,7 @@ const FICHES_NORMES = {
           "10. Sortir les préparations et les stocker immédiatement entre 0°C et 3°C.",
           "11. Enregistrer l'heure et la température de sortie du bac.",
           "12. Calculer la durée de refroidissement — La durée est la différence entre entrée et sortie : en moins de 2 heures.",
-          "13. Étiquetage des préparations culinaires élaborées à l'avance :\n    → DLC sur les produits invendus (fin de service) : J+1 (règle de la cuisine)\n    → DLC sur les préparations culinaires élaborées à l'avance : J+3 (arrêté du 21/12/2009, annexe IV : écrit pour la restauration collective ; repère de la cuisine pour les autres établissements)",
+          "13. Étiquetage des préparations culinaires élaborées à l'avance :\n    → DLC sur les produits invendus (fin de service) : J+1 (aucun texte lu : choix du chef)\n    → DLC sur les préparations culinaires élaborées à l'avance : J+3 (arrêté du 21/12/2009, annexe IV : écrit pour la restauration collective)",
         ],
       },
     ],
@@ -15983,7 +15983,7 @@ const FICHES_NORMES = {
         titre: "Statut de ces règles (source)",
         contenu: [
           "Arrêté du 21/12/2009, annexe I (températures de conservation) : −18 °C pour les glaces, viandes hachées, préparations de viandes et produits de la pêche congelés ; −12 °C pour les autres denrées congelées. Tableau lu sur une copie préfectorale et dans le guide (page 179) : à reconfirmer sur Légifrance.",
-          "La durée de 4 h 30 pour la surgélation est une règle de la cuisine : aucun texte lu ne la fixe.",
+          "Aucun texte lu ne fixe de durée de surgélation (le logiciel utilise 4 h 30) : le chef décide.",
           "Décongélation : arrêté du 21/12/2009, annexe VI (texte lu sur Légifrance le 20/10/2026), applicable à tous les établissements.",
         ],
       },
@@ -16010,11 +16010,11 @@ const FICHES_NORMES = {
           "2. Placer les produits sur une grille au-dessus d'un récipient adapté pour recueillir l'exsudat.",
           "3. Protéger par un couvercle ou film. Ajouter une étiquette portant la date de décongélation.",
           "4. Décongeler en enceinte réfrigérée entre 0 °C et la température maximale de conservation de la denrée, à défaut entre 0 °C et +4 °C (arrêté du 21/12/2009, annexe VI). Autre méthode possible avec une analyse des dangers validée.",
-          "⚠ Règle de la cuisine : les steaks hachés ne sont pas décongelés (cuisson directe depuis le congelé). L'annexe VI autorise la cuisson ou la remise en température sans décongélation préalable.",
+          "⚠ L'annexe VI autorise la cuisson ou la remise en température sans décongélation préalable.",
           "⚠ Réchauffage (recuire) des plats cuisinés sans décongélation préalable.",
           "⚠ Ne congelez que les aliments très frais, sains et mûrs à point.",
           "⚠ Un produit décongelé (hors surgelé) ne peut pas être recongelé, sauf analyse des dangers validée (arrêté du 21/12/2009, annexe VI point 3).",
-          "⚠ Durée de vie après décongélation : aucune durée fixée par l'arrêté (conservation selon l'annexe I). Les 48 heures sont une règle de la cuisine, à justifier dans le PMS.",
+          "⚠ Durée de vie après décongélation : aucune durée fixée par l'arrêté (conservation selon l'annexe I). Le chef fixe la durée et la justifie dans le PMS.",
         ],
       },
     ],
@@ -16026,7 +16026,7 @@ const FICHES_NORMES = {
       { titre: "Statut de ces valeurs (source)", contenu: [
         "Aucun texte français ou européen lu ne fixe une température de cuisson par type de viande. L'arrêté du 21/12/2009 ne donne que 63 °C, pour le maintien au chaud et la remise en température en restauration collective.",
         "Les barèmes ci-dessous sont recommandés par l'ANSES et repris, à titre indicatif, par le guide de bonnes pratiques « Restaurateur » (novembre 2015, page imprimée 180, page 187 du PDF). Ce guide est d'application volontaire ; son respect est un moyen de justification privilégié du respect des règlements 852/2004 et 853/2004 (avis du JO du 15/06/2015). Les barèmes restent sous la responsabilité du professionnel.",
-        "Les valeurs marquées « règle de la cuisine » n'ont pas de source réglementaire.",
+        "Quand aucun texte n'existe, c'est le chef qui décide, avec sa justification dans le PMS.",
       ]},
       { titre: "Barèmes du guide Restaurateur (page 180)", contenu: [
         "Viandes hachées : 71 °C à cœur, ou 2 min à 70 °C. Bœuf, veau, agneau, porc hachés : 71 °C pendant 15 s (fiche Yersinia citée par le guide).",
@@ -16038,11 +16038,10 @@ const FICHES_NORMES = {
         "Préparations liquides d'œufs entiers : 5 min à 60 °C.",
         "Sanglier, cheval : 63 °C, ou 3 min à 58 °C, ou 4 h à 51 °C.",
       ]},
-      { titre: "Sans barème officiel : règle de la cuisine", contenu: [
-        "Volaille en morceau entier (poulet, dinde), canard, magret : aucun barème trouvé. Le logiciel utilise 80 °C à cœur pour la volaille : règle de la cuisine, sans source réglementaire. Question en attente auprès de la DDPP.",
-        "Autres préparations (légumes, plats, sauces) : le logiciel propose 63 °C à cœur par défaut ; c'est un choix de la cuisine.",
-        "Œufs : jaune et blanc coagulés (consigne de la cuisine).",
-        "Cuisson saignante ou bleue d'une pièce entière : aucun texte lu ne l'autorise ni ne l'interdit expressément ; le barème du guide pour les viandes coupées est 63 °C pendant 15 s. Décision de l'établissement, à justifier dans le PMS.",
+      { titre: "Sans barème officiel : le chef décide", contenu: [
+        "Volaille en morceau entier (poulet, dinde), canard, magret : aucun barème officiel trouvé. Le chef choisit la température (« Autre valeur ») et la justifie dans le PMS. Question en attente auprès de la DDPP.",
+        "Autres préparations (légumes, plats, sauces), œufs : aucun barème trouvé ; le chef décide.",
+        "Cuisson saignante ou bleue d'une pièce entière : aucun texte lu ne l'autorise ni ne l'interdit expressément ; le barème du guide pour les viandes coupées est 63 °C pendant 15 s. Décision du chef, à justifier dans le PMS.",
       ]},
       { titre: "Méthode — Cuisson au four (Rational / Atoll Speed / four à pizza)", contenu: [
         "1. Préchauffer le four à la température souhaitée.",
@@ -16068,9 +16067,9 @@ const FICHES_NORMES = {
         "3. Secouer légèrement le panier pour éviter que les produits ne collent.",
         "4. Égoutter soigneusement après cuisson.",
         "5. Ne jamais plonger des produits humides ou mouillés dans l'huile chaude.",
-        "Test de l'huile (règle de la cuisine ; la limite légale de composés polaires n'a pas été relue dans les textes) : chauffer l'huile à 180°C, plonger le testeur 10 secondes. Voyant vert = huile bonne. Voyant jaune = TPM + 24 → à changer, vidanger et nettoyer la friteuse.",
+        "Test de l'huile (la limite légale de composés polaires n'a pas été relue dans les textes) : chauffer l'huile à 180°C, plonger le testeur 10 secondes. Voyant vert = huile bonne. Voyant jaune = TPM + 24 → à changer, vidanger et nettoyer la friteuse.",
       ]},
-      { titre: "Après cuisson", contenu: "Au chaud : 63 °C minimum. Sinon démarrer un refroidissement rapide (cellule ou bain de glace). Repère de bonne pratique : ne pas laisser un produit entre +10 °C et +63 °C plus de 2 h (arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective)." },
+      { titre: "Après cuisson", contenu: "Au chaud : 63 °C minimum. Sinon démarrer un refroidissement rapide (cellule ou bain de glace). Pour la restauration collective, l'arrêté du 21/12/2009 (annexe IV) fixe 2 h maximum entre +63 °C et +10 °C ; en remise directe aucune durée n'est fixée." },
     ],
   },
 
@@ -16078,7 +16077,7 @@ const FICHES_NORMES = {
     titre: "Maintien au chaud — Règles et repères HACCP",
     sections: [
       { titre: "Température minimale de maintien", contenu: "63 °C minimum, aussi longtemps que le produit reste en service. Sources : guide Restaurateur 2015, page imprimée 180 (« maintien à 63 °C ») ; arrêté du 21/12/2009, annexe IV point 3 (restauration collective) ; annexe I, tableau « température minimale en liaison chaude » (valeur à reconfirmer sur Légifrance). Une température plus basse n'est admise qu'avec une analyse des dangers validée. Aucune durée maximale de maintien n'a été trouvée dans les textes lus." },
-      { titre: "En cas de descente sous 63°C", contenu: "Règle de la cuisine (aucun texte lu ne la fixe) : régénération possible une seule fois, à 65 °C ou plus ; une deuxième descente sous 63 °C impose la destruction du produit. Pour comparaison : le guide Restaurateur (page 180) indique 75 °C minimum pour le réchauffage des plats préparés ; l'arrêté (annexe IV, restauration collective) indique 63 °C." },
+      { titre: "En cas de descente sous 63°C", contenu: "Aucun texte lu ne fixe la conduite à tenir sous 63 °C (régénération, nombre de fois, destruction) : le chef décide et l'inscrit dans le PMS. Pour information : le guide Restaurateur (page 180) indique 75 °C minimum pour le réchauffage des plats préparés ; l'arrêté (annexe IV, restauration collective) indique 63 °C." },
       { titre: "Procédure", contenu: [
         "1. Préchauffer le bain-marie avant d'y placer les produits.",
         "2. Vérifier régulièrement la température de l'eau ET du produit.",
@@ -16098,7 +16097,7 @@ const FICHES_NORMES = {
         contenu: "Personne en service — Contrôle et enregistrement le matin en arrivant (avant toute ouverture de porte) et le soir (juste avant de quitter l'établissement), plus tout contrôle aléatoire au thermomètre laser.",
       },
       {
-        titre: "Températures de conservation retenues par la cuisine (repères)",
+        titre: "Températures de conservation par enceinte (réglages de la cuisine)",
         type: "tableau",
         colonnes: ["Enceinte", "Température"],
         contenu: [
@@ -16120,8 +16119,8 @@ const FICHES_NORMES = {
         ],
       },
       {
-        titre: "Contrôle matin et soir : règle de la cuisine",
-        contenu: "Le relevé matin et soir et l'absence de marge sont des règles de la cuisine. Un dépassement d'un maximum de l'arrêté doit déclencher une vérification immédiate.",
+        titre: "Fréquence des relevés",
+        contenu: "Aucun texte lu ne fixe la fréquence des relevés de température pour un restaurant traditionnel : le chef décide. Au-delà d'un maximum de l'annexe I, la denrée n'est plus conforme à l'arrêté (sauf guide validé ou analyse des dangers validée, article 3).",
       },
       {
         titre: "En cas de température non conforme",
@@ -16166,7 +16165,7 @@ const FICHES_NORMES = {
         titre: "Identification et traçabilité",
         contenu: [
           "Tout produit entamé ou préparé doit porter une étiquette DLC : nom, date de fabrication/ouverture, DLC.",
-          "Préparations maison : DLC J+1 pour les produits invendus (règle de la cuisine), J+3 pour les préparations élaborées à l'avance (arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective ; repère de la cuisine ailleurs).",
+          "Préparations maison : DLC J+1 pour les produits invendus (aucun texte lu : choix du chef), J+3 pour les préparations élaborées à l'avance (arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective).",
           "Conserver les étiquettes d'origine jusqu'à épuisement du lot.",
           "En cas de doute sur un produit sans étiquette : le détruire.",
         ],
