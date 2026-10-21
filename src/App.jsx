@@ -386,6 +386,7 @@ const NAV = [
   { id: "tracabilite", label: "Traçabilité", icon: Camera },
   { id: "haccp", label: "Contrôles en cuisine", icon: Thermometer },
   { id: "fiches", label: "Fiches techniques", icon: BookOpen },
+  { id: "lexique", label: "Lexique et réglementation", icon: BookOpen },
   { id: "controle", label: "Contrôle & Gestion", icon: ClipboardCheck, chefOnly: true },
 ];
 
@@ -435,6 +436,7 @@ const ACCUEIL_TUILES = [
   { id: "tracabilite", label: "Traçabilité", desc: "Photographiez les étiquettes, suivez les lots", icon: Camera, fond: "linear-gradient(120deg, #14A5B8 0%, #0B7285 100%)", ombre: "rgba(11,114,133,0.35)" },
   { id: "haccp", label: "Contrôles en cuisine", desc: "Suivi des températures, refroidissements, maintien au chaud, cuissons et huiles de friture", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
+  { id: "lexique", label: "Lexique et réglementation", desc: "Les règles et les textes officiels, expliqués simplement", icon: BookOpen, fond: "linear-gradient(120deg, #0E8F7E 0%, #086356 100%)", ombre: "rgba(8,99,86,0.35)" },
   { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
 ];
 // Chaque fonction a SA couleur (jamais deux fonctions identiques, pour que le cerveau retienne la couleur et l'emplacement),
@@ -24413,6 +24415,12 @@ function KitchenApp({ identiteExterne } = {}) {
             ouvrirIdAuto={ficheAutoOuvrirId}
             onConsommeOuvrirIdAuto={() => setFicheAutoOuvrirId(null)}
           />
+        )}
+        {tab === "lexique" && (
+          <div>
+            <BoutonRetour onClick={() => setTab("accueil")}>Retour</BoutonRetour>
+            <LexiqueReglementaire />
+          </div>
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {tab === "controle" && !bloqueChef && (
