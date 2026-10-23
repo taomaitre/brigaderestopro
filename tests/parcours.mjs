@@ -108,6 +108,7 @@ await parcours('Second de cuisine : accède aux contrôles, pas aux réglages ni
   const t = await p.innerText('body');
   verifier(/Urgence sanitaire/.test(t), 'le second ne voit pas Urgence sanitaire');
   verifier(!/Réglages/.test(t) && !/Planning employé/.test(t), 'le second voit la gestion (réglages / planning)');
+  verifier(await p.locator('button[aria-label="Paramétrage"]').count() === 0, 'le second de cuisine voit l’engrenage Paramétrage');
   await ctx.close();
 });
 
@@ -121,6 +122,44 @@ await parcours('Téléphone (employé Loïc) : aucune page ne déborde en largeu
     verifier(large <= 2, `débordement horizontal de ${large}px sur « ${t} »`);
     await p.goBack().catch(() => {});
   }
+  await ctx.close();
+});
+
+await parcours('Paramétrage : engrenage visible pour la Direction, liste à gauche, chaque réglage s’ouvre et Retour fonctionne', async () => {
+  const { p, ctx, erreurs } = await ouvrir({});
+  const bouton = p.locator('button[aria-label="Paramétrage"], aside button:has-text("Paramétrage")').locator('visible=true');
+  verifier(await bouton.count() === 1, 'bouton Paramétrage absent (ou en double) pour la Direction');
+  await bouton.first().click(); await p.waitForTimeout(600);
+  const t = await p.innerText('body');
+  for (const x of ['Comptes de l’équipe'.replace('’', "'"), 'Fournisseurs et produits', 'Appareils de froid', 'Plan de nettoyage', 'Carte du restaurant']) verifier(t.includes(x), `« ${x} » absent de la liste du Paramétrage`);
+  for (const x of ['Appareils de froid', 'Comptes de l\'équipe', 'Plan de nettoyage', 'Carte du restaurant']) {
+    await cliquer(p, x);
+    verifier(!/Something went wrong|Erreur inattendue/.test(await p.innerText('body')), `écran d'erreur sur « ${x} »`);
+    verifier(await p.locator('text="Paramétrage"').locator('visible=true').count() >= 1, `la liste du Paramétrage a disparu après « ${x} »`);
+  }
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs.slice(0, 2).join(' | '));
+  await ctx.close();
+});
+
+await parcours('Paramétrage : aucun engrenage pour un employé', async () => {
+  const equipe = [{ id: 'loic', nom: 'Loïc', poste: 'Poste Pizza', estChef: true }, { id: 'sam', nom: 'Sam', poste: 'Poste Froid' }];
+  const { p, ctx } = await ouvrir({ qui: 'Sam', mobile: true, graines: { 'planning-employees': equipe } });
+  verifier(await p.locator('button[aria-label="Paramétrage"]').count() === 0, 'un employé voit l’engrenage');
+  await p.setViewportSize({ width: 1366, height: 800 }); await p.waitForTimeout(500);
+  verifier(await p.locator('aside button:has-text("Paramétrage")').count() === 0, 'un employé voit le bouton Paramétrage du menu');
+  await ctx.close();
+});
+
+await parcours('Paramétrage sur téléphone : engrenage, liste puis page avec Retour, sans débordement', async () => {
+  const { p, ctx } = await ouvrir({ mobile: true });
+  const g = p.locator('button[aria-label="Paramétrage"]').locator('visible=true');
+  verifier(await g.count() === 1, 'engrenage absent sur téléphone (Direction)');
+  await g.first().click(); await p.waitForTimeout(600);
+  await cliquer(p, 'Appareils de froid');
+  verifier(/Retour au Paramétrage/.test(await p.innerText('body')), 'bouton Retour au Paramétrage absent');
+  verifier(await p.evaluate(() => document.documentElement.scrollWidth - window.innerWidth) <= 2, 'débordement horizontal');
+  await cliquer(p, 'Retour au Paramétrage');
+  verifier(/Tous les réglages au même endroit/.test(await p.innerText('body')), 'retour à la liste impossible');
   await ctx.close();
 });
 

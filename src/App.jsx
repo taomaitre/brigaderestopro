@@ -107,6 +107,7 @@ const BookOpen = makeIcon([P("M12 7v14"), P("M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1
 const Camera = makeIcon([P("M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"), C(12, 13, 3)]);
 const Mail = makeIcon([RC(2, 4, 20, 16, 2), P("m22 6-8.97 6.7a2 2 0 0 1-2.06 0L2 6")]);
 const Search = makeIcon([C(11, 11, 8), L(21, 21, 16.65, 16.65)]);
+const Settings = makeIcon([P("M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"), C(12, 12, 3)]);
 const Sliders = makeIcon([L(4, 21, 4, 14), L(4, 10, 4, 3), L(12, 21, 12, 12), L(12, 8, 12, 3), L(20, 21, 20, 16), L(20, 12, 20, 3), L(1, 14, 7, 14), L(9, 8, 15, 8), L(17, 16, 23, 16)]);
 const Loader2 = makeIcon([P("M21 12a9 9 0 1 1-6.219-8.56")]);
 const XCircle = makeIcon([C(12, 12, 10), L(15, 9, 9, 15), L(9, 9, 15, 15)]);
@@ -4055,7 +4056,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
   );
 }
 
-function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -4198,6 +4199,20 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
     setSousEcran(id);
   };
 
+  // ---- Paramétrage (engrenage de la barre du haut) : mêmes écrans que Contrôle & Gestion, rangés dans une seule fenêtre ----
+  // Liste à gauche, page à droite ; les droits sont ceux de tuileVisible (rien n'est élargi).
+  const PARAM_GROUPES = [
+    { titre: "L'équipe", ids: ["comptes"] },
+    { titre: "Produits et fournisseurs", ids: ["fournisseur", "catalogueDlc"] },
+    { titre: "Matériel", ids: ["appareilsFroid"] },
+    { titre: "PMS et documentation", ids: ["pmsDossier", "pms", "pmsPrestataires"] },
+    { titre: "Carte et fiches", ids: ["carte"] },
+  ];
+  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs et produits", catalogueDlc: "Étiquettes DLC", appareilsFroid: "Appareils de froid", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", pmsPrestataires: "Prestataires", carte: "Carte du restaurant" };
+  const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte"]; // ces écrans ont déjà leur propre titre
+  const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
+  const paramCouleurDefaut = { fond: "linear-gradient(160deg, #64748B 0%, #334155 100%)", ombre: "rgba(51,65,85,0.35)" };
+
   const marquerEnvoyee = (id, mode) => setNotificationsFournisseur(notificationsFournisseur.map((n) => (n.id === id ? { ...n, envoyee: true, modeTraitement: mode || "mail", traiteParId: currentUserId, traiteLe: new Date().toISOString() } : n)));
   const enregistrerEmailFournisseur = (fournisseur, email) => {
     if (!fournisseur) return;
@@ -4264,8 +4279,48 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
   const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", dossierControle: "dossierControle", comptes: "comptes", rappelconso: "rappelconso", alertes: "alertes", notifications: "notifications", appareilsFroid: "temperatures" })[sousEcran] || ({ equipe: "planningEmploye", controle: "controle", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "controle";
   return (
     <ZoneContext.Provider value={zoneDepuisFonction(fonctionZoneControle)}>
-    <div>
-      {!sectionActive ? (
+    <div className={modeParametrage ? "md:flex md:gap-6 md:items-start" : undefined}>
+      {modeParametrage && (
+        <nav aria-label="Paramétrage" className={`${sousEcran ? "hidden md:block" : ""} md:w-72 md:shrink-0 mb-4`}>
+          <SectionHeader title="Paramétrage" subtitle="Tous les réglages au même endroit" permanent icone={Settings} />
+          {PARAM_GROUPES.map((g) => {
+            const items = g.ids.map(paramTuile).filter((t) => t && tuileVisible(t));
+            if (!items.length) return null;
+            return (
+              <div key={g.titre} className="mb-4">
+                <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2 px-1">{g.titre}</div>
+                <div className="space-y-1.5">
+                  {items.map((t) => {
+                    const actif = sousEcran === t.id; const Ic = t.icon; const c = couleurSousTuile(t.id, paramCouleurDefaut);
+                    return (
+                      <button key={t.id} type="button" onClick={() => ouvrirSousTuile(t.id)} aria-current={actif ? "page" : undefined}
+                        className="w-full flex items-center gap-3 px-3 py-2 min-h-[52px] rounded-xl border-2 text-left text-[15px] font-semibold transition-colors"
+                        style={actif ? { background: "var(--accent-soft)", borderColor: "var(--accent)", color: "var(--accent)" } : { background: "#fff", borderColor: "var(--line)", color: "var(--ink)" }}>
+                        <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: c.fond }}><Ic size={18} /></span>
+                        <span className="flex-1 leading-tight">{PARAM_LIBELLES[t.id] || t.label}</span>
+                        <ChevronRight size={16} />
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </nav>
+      )}
+      <div className={modeParametrage ? "flex-1 min-w-0" : undefined}>
+      {modeParametrage && sousEcran && (
+        <>
+          <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3 md:hidden">Retour au Paramétrage</BoutonRetour>
+          {!PARAM_ENTETE_PROPRE.includes(sousEcran) && paramTuile(sousEcran) && (
+            <SectionHeader title={PARAM_LIBELLES[sousEcran] || paramTuile(sousEcran).label} icone={paramTuile(sousEcran).icon} fonction={COULEURS_FONCTION[sousEcran] ? sousEcran : undefined} />
+          )}
+        </>
+      )}
+      {modeParametrage && !sousEcran && (
+        <p className="hidden md:block text-sm text-[var(--steel)] pt-2">Choisissez un réglage dans la liste à gauche.</p>
+      )}
+      {modeParametrage ? null : !sectionActive ? (
       <>
       <SectionHeader title="Contrôle & Gestion" subtitle="Vue d'ensemble du chef — qui a fait quoi aujourd'hui"
         action={<button onClick={() => setTab("equipe")} className="text-xs text-[var(--accent)] font-medium">Journal d'activité complet →</button>} />
@@ -4978,6 +5033,7 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
         </div>
       )}
 
+      </div>
     </div>
     </ZoneContext.Provider>
   );
@@ -23927,6 +23983,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const debloqueParConnexion = !!(identiteExterne && identiteExterne.debloqueParConnexion); // chef / directeur qui a saisi son code à la connexion
   const chefComplet = !!moi?.estChef || (porteParCode && (controleDebloque || debloqueParConnexion));
   const chefAcces = chefComplet || moiSecond;
+  // Paramétrage (engrenage) : chef et directeur seulement (pas le second de cuisine, pas les employés).
+  const peutParametrage = !!chefComplet;
   // Bandeau « Maintenant » de l'accueil : ma prochaine tâche, ce qui est en cours, ce qui est en retard.
   const maintenantHM = new Date().toTimeString().slice(0, 5);
   const minutesDepuis = (ts) => Math.max(0, Math.round((Date.now() - ts) / 60000));
@@ -23950,10 +24008,11 @@ function KitchenApp({ identiteExterne } = {}) {
 
   useEffect(() => {
     if (tab === "controle" && moi && !peutVoirControle) setTab("taches");
-  }, [tab, moi, currentUserId, peutVoirControle]);
+    if (tab === "parametrage" && moi && !peutParametrage) setTab("taches");
+  }, [tab, moi, currentUserId, peutVoirControle, peutParametrage]);
 
   // Contrôle & Gestion (et ses écrans de gestion) : code du chef / directeur redemandé à chaque entrée.
-  const ONGLETS_CHEF = ["controle", "reservations", "horaires"];
+  const ONGLETS_CHEF = ["controle", "parametrage", "reservations", "horaires"];
   useEffect(() => { if (!ONGLETS_CHEF.includes(tab)) setControleDebloque(false); }, [tab]);
   useEffect(() => { if (verrouille) setControleDebloque(false); }, [verrouille]);
   useEffect(() => { setControleDebloque(false); }, [currentUserId]);
@@ -23987,7 +24046,7 @@ function KitchenApp({ identiteExterne } = {}) {
     }
   }
 
-  if (tab === "controle" && !chefAcces && !bloqueChef) {
+  if ((tab === "controle" && !chefAcces && !bloqueChef) || (tab === "parametrage" && !peutParametrage && !bloqueChef)) {
     return null;
   }
 
@@ -24131,6 +24190,13 @@ function KitchenApp({ identiteExterne } = {}) {
               <div className="text-2xl font-bold leading-none">Bonjour <span style={{ color: "#6EE7A8" }}>{(moi?.nom || "").split(" ")[0]}</span></div>
               <div className="text-sm text-white/90 mt-1">Que souhaitez-vous faire aujourd'hui ?</div>
             </div>
+            {peutParametrage && (
+              <button type="button" onClick={() => setTab("parametrage")} title="Paramétrage" aria-label="Paramétrage"
+                className="w-12 h-12 rounded-xl flex items-center justify-center shadow transition-colors"
+                style={tab === "parametrage" ? { backgroundColor: "#6EE7A8", color: "#121821" } : { backgroundColor: "#FFFFFF", color: "#121821" }}>
+                <Settings size={24} />
+              </button>
+            )}
             <div className="relative">
               <button onClick={() => setMenuProfil(!menuProfil)} className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-white hover:bg-white/90 shadow" title="Mon compte">
                 <span className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base" style={{ backgroundColor: "#2F8F63", color: "#fff" }}>{initials(moi?.nom)}</span>
@@ -24194,6 +24260,13 @@ function KitchenApp({ identiteExterne } = {}) {
             </button>
           ))}
         </nav>
+        {peutParametrage && (
+          <button type="button" onClick={() => setTab("parametrage")}
+            className={`mt-4 flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium text-left transition-colors ${tab === "parametrage" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--steel)] hover:bg-[var(--bg)]"}`}>
+            <Settings size={17} />
+            Paramétrage
+          </button>
+        )}
       </aside>
       )}
 
@@ -24206,12 +24279,21 @@ function KitchenApp({ identiteExterne } = {}) {
           </div>
           <HorlogeCompacte />
         </div>
-        {typeAppareil === "tablette" && (
-          <button onClick={switchAccount} className="flex items-center gap-2 shrink-0">
-            <Avatar nom={moi?.nom} size={28} />
-            <span className="text-xs text-[var(--ink)] font-medium">{moi?.nom}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-3 shrink-0">
+          {peutParametrage && (
+            <button type="button" onClick={() => setTab("parametrage")} title="Paramétrage" aria-label="Paramétrage"
+              className="w-11 h-11 rounded-xl flex items-center justify-center border-2 transition-colors"
+              style={tab === "parametrage" ? { backgroundColor: "var(--accent)", borderColor: "var(--accent)", color: "#fff" } : { backgroundColor: "#fff", borderColor: "var(--line)", color: "var(--ink)" }}>
+              <Settings size={22} />
+            </button>
+          )}
+          {typeAppareil === "tablette" && (
+            <button onClick={switchAccount} className="flex items-center gap-2 shrink-0">
+              <Avatar nom={moi?.nom} size={28} />
+              <span className="text-xs text-[var(--ink)] font-medium">{moi?.nom}</span>
+            </button>
+          )}
+        </div>
       </header>
 
       {tab !== "accueil" && tab !== "fiches" && !NAV_HACCP.some((n) => n.id === tab) && (
@@ -24359,8 +24441,8 @@ function KitchenApp({ identiteExterne } = {}) {
           />
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
-        {tab === "controle" && !bloqueChef && (
-          <Controle exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+        {(tab === "controle" || (tab === "parametrage" && peutParametrage)) && !bloqueChef && (
+          <Controle key={tab} modeParametrage={tab === "parametrage"} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
