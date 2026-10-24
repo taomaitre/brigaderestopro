@@ -5619,7 +5619,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
             <label className="block text-xs text-[var(--steel)]">Catégorie (choisir dans la liste)
               <select value={categorieNouvelle ? "__nouvelle__" : (v.categorie || "")} onChange={(e) => { if (e.target.value === "__nouvelle__") { setCategorieNouvelle(true); maj("categorie", ""); } else { setCategorieNouvelle(false); maj("categorie", e.target.value); } }} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">— Choisir —</option>
-                {[...new Set([...categories, ...(v.categorie && !categories.includes(v.categorie) && !categorieNouvelle ? [v.categorie] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}
+                {[...new Set([...categories, "Boissons", "Produits d'hygiène", ...(v.categorie && !categories.includes(v.categorie) && !categorieNouvelle ? [v.categorie] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}
                 <option value="__nouvelle__">+ Nouvelle catégorie…</option>
               </select>
               {categorieNouvelle && <input autoComplete="off" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
@@ -7973,7 +7973,7 @@ function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNet
   return (
     <div>
       <div className="rounded-xl border-2 border-[var(--accent)] bg-[var(--accent-soft)] p-3 mb-3 text-sm text-[var(--ink)] space-y-1.5">
-        <p><strong>Important :</strong> le protocole ne peut se remplir automatiquement, avec le bon dosage et le bon temps de contact, que si chaque produit et sa fiche technique sont enregistrés dans l'onglet <button type="button" className="underline font-semibold text-[var(--accent)]" onClick={onOuvrirProduits}>Mes produits et fiches techniques</button>. Tant que ce n'est pas fait, les protocoles proposés ici sont des modèles généraux à vérifier et à adapter.</p>
+        <p><strong>Important :</strong> le protocole ne peut se remplir automatiquement, avec le bon dosage et le bon temps de contact, que si chaque produit et sa fiche technique sont enregistrés dans l'onglet <button type="button" className="underline font-semibold text-[var(--accent)]" onClick={onOuvrirProduits}>Produits de nettoyage et fiches techniques</button>. Tant que ce n'est pas fait, les protocoles proposés ici sont des modèles généraux à vérifier et à adapter.</p>
         <p><strong>Cette page est facultative.</strong> Elle sert au chef qui veut décrire précisément comment nettoyer. Le chef peut aussi se contenter du planning (page 2) et laisser ses employés nettoyer comme ils le font, avec les moyens déjà mis en place dans l'établissement.</p>
       </div>
       <p className="text-sm text-[var(--steel)] mb-3">Cochez une ou plusieurs <strong>zones</strong>, puis des <strong>surfaces</strong> et/ou du <strong>matériel</strong>, puis choisissez le <strong>produit</strong> et le <strong>protocole</strong> : ils seront mis en place d'un seul coup sur toutes les combinaisons cochées. Tout est pré-rempli et modifiable.</p>
@@ -8561,7 +8561,7 @@ function ProtocolesNettoyageZones({ cleaning, setCleaning, zonesNettoyage, setZo
   return (
     <div>
       <div className="flex flex-wrap gap-1.5 mb-4">
-        {[["zones", "Par zone : produit et protocole"], ["produits", "Mes produits et fiches techniques"], ["libres", "Protocoles libres"]].map(([k, lib]) => (
+        {[["zones", "Par zone : produit et protocole"], ["produits", "Produits de nettoyage et fiches techniques"], ["libres", "Protocoles libres"]].map(([k, lib]) => (
           <button key={k} type="button" onClick={() => setOnglet(k)} className={`px-3 py-2 rounded-full text-sm font-medium border ${onglet === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
         ))}
       </div>
@@ -9413,9 +9413,15 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
     if (!carteJ) return [];
     return platsAuCarte(carteJ, auj).map((id) => fiches.find((f) => f.id === id)).filter(Boolean);
   }, [cartes, fiches]);
+  // Un seul carré au-dessus de la liste : « Carte du jour » si la carte change selon les jours ou les périodes
+  // (les plats prévus aujourd'hui, rien d'autre), sinon « Carte fixe » (carte à l'année ou aucune carte) avec les 10 fiches les plus ouvertes.
+  const carteDuJourActive = React.useMemo(() => {
+    const tr = [...(cartes || [])].sort((x, y) => (x.debut || "").localeCompare(y.debut || ""));
+    return tr.length > 0 && tr[0].typeCarte !== "fixe" && fichesDuJour.length > 0;
+  }, [cartes, fichesDuJour]);
   const fichesFavorites = React.useMemo(() => fiches
-    .filter((f) => ouverturesRecentes(f.id) >= AUTOMATISME_REPETITIONS && !fichesDuJour.some((d) => d.id === f.id))
-    .sort((a, b) => ouverturesRecentes(b.id) - ouverturesRecentes(a.id)).slice(0, 5), [fiches, usage, fichesDuJour]); // eslint-disable-line react-hooks/exhaustive-deps
+    .filter((f) => ouverturesRecentes(f.id) >= 1)
+    .sort((a, b) => ouverturesRecentes(b.id) - ouverturesRecentes(a.id)).slice(0, 10), [fiches, usage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // La recherche filtre directement la liste affichée (plutôt que de simplement faire défiler
   // jusqu'au premier résultat) : plus fiable, et le résultat reste visible même s'il y a beaucoup
@@ -9456,19 +9462,18 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
     <div>
       <SectionHeader title="Préparation culinaire" subtitle={`${fiches.length} fiches techniques — recettes et préparations de référence`} />
 
-      {(fichesDuJour.length > 0 || fichesFavorites.length > 0) && (
+      {(carteDuJourActive || fichesFavorites.length > 0) && (
         <Card className="mb-5">
-          {fichesDuJour.length > 0 && (
-            <div className={fichesFavorites.length > 0 ? "mb-3" : ""}>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">À la carte aujourd'hui</p>
+          {carteDuJourActive ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Carte du jour</p>
               <div className="flex flex-wrap gap-2">
                 {fichesDuJour.map((f) => <button key={f.id} type="button" onClick={() => setSelectedId(f.id)} className="min-h-[48px] px-4 rounded-xl text-sm font-bold text-white" style={{ background: COULEURS_FONCTION.fiches.fond }}>{f.nom}</button>)}
               </div>
             </div>
-          )}
-          {fichesFavorites.length > 0 && (
+          ) : (
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Mes fiches les plus ouvertes</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Carte fixe — les fiches les plus ouvertes</p>
               <div className="flex flex-wrap gap-2">
                 {fichesFavorites.map((f) => <button key={f.id} type="button" onClick={() => setSelectedId(f.id)} className="min-h-[48px] px-4 rounded-xl text-sm font-bold border-2" style={{ borderColor: "#8C5E22", color: "#8C5E22", background: "#FBF3E8" }}>{f.nom}</button>)}
               </div>
