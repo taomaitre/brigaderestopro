@@ -38,7 +38,7 @@ const verifier = (cond, msg) => { if (!cond) throw new Error(msg); };
 
 await parcours('Connexion Direction + toutes les tuiles de l’accueil s’ouvrent sans erreur', async () => {
   const { p, ctx, erreurs } = await ouvrir({});
-  const tuiles = ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Étiquettes (DLC)', 'Traçabilité', 'Contrôles en cuisine', 'Fiches techniques', 'Contrôle & Gestion'];
+  const tuiles = ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Étiquettes (DLC)', 'Traçabilité', 'Contrôles en cuisine', 'Fiches techniques', 'Suivi et contrôle', 'Historique'];
   for (const t of tuiles) {
     await cliquer(p, t);
     verifier(!/Something went wrong|Erreur inattendue/.test(await p.innerText('body')), `écran d'erreur sur « ${t} »`);
@@ -48,17 +48,44 @@ await parcours('Connexion Direction + toutes les tuiles de l’accueil s’ouvre
   await ctx.close();
 });
 
-await parcours('Contrôle & Gestion : rubriques directes (Cuisine et carte, Équipe et planning) + Ma carte s’ouvre', async () => {
+await parcours('Suivi et contrôle : les 6 boutons sont présents et un sous-écran s’ouvre puis revient', async () => {
   const { p, ctx, erreurs } = await ouvrir({});
-  await cliquer(p, 'Contrôle & Gestion');
+  await cliquer(p, 'Suivi et contrôle');
   const t = await p.innerText('body');
-  for (const x of ['Création de fiche technique', 'Ma carte', 'Planning employé et heures de service', 'Réservations client', 'Urgence sanitaire', 'PMS et réglementation', 'Réglages']) verifier(t.includes(x), `« ${x} » absent du hub`);
-  await cliquer(p, 'Ma carte');
-  verifier(/Créer la carte/.test(await p.innerText('body')), 'Ma carte ne s’ouvre pas');
-  await cliquer(p, 'Retour à Contrôle & Gestion');
-  verifier(/Urgence sanitaire/.test(await p.innerText('body')), 'retour au hub impossible');
+  for (const x of ['Alertes qualité', 'Procédure de TIAC', 'Rappels de produits', 'Contrôle hygiène (DDPP)', 'Allergènes', 'Origine des viandes']) verifier(t.includes(x), `« ${x} » absent de Suivi et contrôle`);
+  for (const x of ['Ma carte', 'Planning employé', 'Réglages']) verifier(!t.includes(x), `« ${x} » ne devrait plus être dans Suivi et contrôle`);
+  await cliquer(p, 'Procédure de TIAC');
+  verifier(!/Something went wrong|Erreur inattendue/.test(await p.innerText('body')), 'erreur sur TIAC');
   verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
   await ctx.close();
+});
+
+await parcours('Historique (direction) : Historique de la journée en premier, un historique s’ouvre', async () => {
+  const { p, ctx, erreurs } = await ouvrir({});
+  await cliquer(p, 'Historique');
+  const t = await p.innerText('body');
+  verifier(t.includes('Historique de la journée'), '« Historique de la journée » absent');
+  verifier(t.indexOf('Historique de la journée') < (t.indexOf('Températures') < 0 ? 1e9 : t.indexOf('Températures')), 'Historique de la journée n’est pas en premier');
+  verifier(!/Something went wrong|Erreur inattendue/.test(t), 'écran d’erreur');
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
+
+await parcours('Stock : le chef voit Ajouter un produit, Inventaire et Commander ; l’employé ne les voit pas', async () => {
+  const chef = await ouvrir({});
+  await cliquer(chef.p, 'Stock');
+  const t = await chef.p.innerText('body');
+  verifier(/Inventaire/.test(t) && /Commander/.test(t), 'boutons Inventaire / Commander absents pour le chef');
+  verifier(chef.erreurs.length === 0, 'erreurs JavaScript chef : ' + chef.erreurs[0]);
+  await chef.ctx.close();
+  const equipe = [{ id: 'loic', nom: 'Loïc', poste: 'Poste Pizza', estChef: true }, { id: 'sam', nom: 'Sam', poste: 'Poste Froid' }];
+  const emp = await ouvrir({ qui: 'Sam', graines: { 'planning-employees': equipe } });
+  await emp.p.waitForTimeout(13000);
+  await cliquer(emp.p, 'Stock');
+  const te = await emp.p.innerText('body');
+  verifier(!/Ajouter un produit/.test(te), 'l’employé voit « Ajouter un produit »');
+  verifier(/Générer la fiche d'inventaire/.test(te), 'la carte d’inventaire de l’employé a changé');
+  await emp.ctx.close();
 });
 
 await parcours('Hub Contrôles en cuisine : les 5 contrôles sont présents', async () => {
@@ -72,10 +99,11 @@ await parcours('Hub Contrôles en cuisine : les 5 contrôles sont présents', as
 await parcours('Cuisson : de « Terminer » à « terminée », avec alerte À traiter', async () => {
   const cuissons = [{ id: 'c1', produit: 'Sauce test', famille: 'general', date: aujourdhui, employeeId: 'direction', statut: 'en-cours', heureDebut: '08:30', debutTs: Date.now() - 3600000, dureeAttendueMin: 20, heureFin: null, temperature: null, conforme: null }];
   const { p, ctx, erreurs } = await ouvrir({ graines: { cuissons }, attente: /Sauce test|cuisson/i });
-  await cliquer(p, 'Contrôle & Gestion');
+  await cliquer(p, 'Suivi et contrôle');
   await p.waitForTimeout(1500);
   verifier(/cuisson à contrôler/.test(await p.innerText('body')), 'la cuisson dépassée n’apparaît pas dans À traiter');
-  await cliquer(p, 'Contrôles du jour');
+  await p.locator('button:has-text("Terminer")').first().click({ timeout: 5000 }); // bouton de la ligne « À traiter »
+  await p.waitForTimeout(800);
   await p.locator('button:has-text("Terminer")').first().click({ timeout: 5000 });
   await p.fill('input[type=number]', '74');
   await p.locator('button:has-text("Valider")').first().click();
@@ -86,7 +114,7 @@ await parcours('Cuisson : de « Terminer » à « terminée », avec alerte À t
 });
 
 for (const [chefTravaille, remplacants, qui, attendu] of [[true, ['yusuf'], 'Yusuf', false], [false, [], 'Yusuf', false], [false, ['yusuf'], 'Yusuf', true], [false, ['yusuf'], 'Terence', false]]) {
-  await parcours(`Remplaçant du chef : chef ${chefTravaille ? 'présent' : 'absent'}, remplaçants ${JSON.stringify(remplacants)}, connecté ${qui} → Contrôle & Gestion ${attendu ? 'visible' : 'caché'}`, async () => {
+  await parcours(`Remplaçant du chef : chef ${chefTravaille ? 'présent' : 'absent'}, remplaçants ${JSON.stringify(remplacants)}, connecté ${qui} → Suivi et contrôle ${attendu ? 'visible' : 'caché'}`, async () => {
     const shifts = [];
     for (const j of JOURS) {
       if (!(j === jourNom && !chefTravaille)) shifts.push({ id: 's' + j, employeeId: 'loic', jour: j, service: 'Midi', debut: '09:30', fin: '14:30' });
@@ -94,8 +122,8 @@ for (const [chefTravaille, remplacants, qui, attendu] of [[true, ['yusuf'], 'Yus
     }
     const { p, ctx } = await ouvrir({ qui, graines: { 'planning-shifts': shifts, 'remplacants-chef': remplacants } });
     await p.waitForTimeout(13000); // le chargement des données de l'appli est volontairement étalé
-    const vu = /Contrôle & Gestion/.test(await p.innerText('body'));
-    verifier(vu === attendu, `accès Contrôle & Gestion = ${vu}, attendu ${attendu}`);
+    const vu = /Suivi et contrôle/.test(await p.innerText('body'));
+    verifier(vu === attendu, `accès Suivi et contrôle = ${vu}, attendu ${attendu}`);
     await ctx.close();
   });
 }
@@ -104,9 +132,9 @@ await parcours('Second de cuisine : accède aux contrôles, pas aux réglages ni
   const equipe = [{ id: 'loic', nom: 'Loïc', poste: 'Poste Pizza', estChef: true }, { id: 'terence', nom: 'Terence', poste: 'Poste Froid', estSecond: true }];
   const { p, ctx } = await ouvrir({ qui: 'Terence', graines: { 'planning-employees': equipe } });
   await p.waitForTimeout(13000);
-  await cliquer(p, 'Contrôle & Gestion');
+  await cliquer(p, 'Suivi et contrôle');
   const t = await p.innerText('body');
-  verifier(/Urgence sanitaire/.test(t), 'le second ne voit pas Urgence sanitaire');
+  verifier(/Procédure de TIAC/.test(t), 'le second ne voit pas la procédure de TIAC');
   verifier(!/Réglages/.test(t) && !/Planning employé/.test(t), 'le second voit la gestion (réglages / planning)');
   verifier(await p.locator('button[aria-label="Paramétrage"]').count() === 0, 'le second de cuisine voit l’engrenage Paramétrage');
   await ctx.close();

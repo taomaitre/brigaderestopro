@@ -386,7 +386,8 @@ const NAV = [
   { id: "tracabilite", label: "Traçabilité", icon: Camera },
   { id: "haccp", label: "Contrôles en cuisine", icon: Thermometer },
   { id: "fiches", label: "Fiches techniques", icon: BookOpen },
-  { id: "controle", label: "Contrôle & Gestion", icon: ClipboardCheck, chefOnly: true },
+  { id: "controle", label: "Suivi et contrôle", icon: ClipboardCheck, chefOnly: true },
+  { id: "historique", label: "Historique", icon: Clock, directionOnly: true },
 ];
 
 // Les cinq contrôles HACCP sont regroupés derrière une seule icône « HACCP » (menu de tuiles).
@@ -435,7 +436,8 @@ const ACCUEIL_TUILES = [
   { id: "tracabilite", label: "Traçabilité", desc: "Photographiez les étiquettes, suivez les lots", icon: Camera, fond: "linear-gradient(120deg, #14A5B8 0%, #0B7285 100%)", ombre: "rgba(11,114,133,0.35)" },
   { id: "haccp", label: "Contrôles en cuisine", desc: "Suivi des températures, refroidissements, maintien au chaud, cuissons et huiles de friture", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
-  { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
+  { id: "controle", label: "Suivi et contrôle", desc: "Alertes, TIAC, rappels de produits, contrôle d'hygiène (DDPP), allergènes, origine des viandes", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
+  { id: "historique", label: "Historique", desc: "Tous les historiques : journée, températures, huiles, refroidissement, cuissons, traçabilité…", icon: Clock, fond: "linear-gradient(120deg, #7C6BC4 0%, #4B3C94 100%)", ombre: "rgba(75,60,148,0.35)", directionOnly: true },
 ];
 // Chaque fonction a SA couleur (jamais deux fonctions identiques, pour que le cerveau retienne la couleur et l'emplacement),
 // et une même fonction garde la même couleur partout (écran HACCP, accueil, Contrôle & Gestion).
@@ -1417,7 +1419,7 @@ const LOGOS_TITRE = [
   ["Planning employé", "planningEmploye", () => Clock], ["Horaires", "planningEmploye", () => Clock], ["Réservations", "reservationsClient", () => CalendarDays],
   ["Création de fiche", "creationFiche", () => Sparkles], ["Fournisseurs et produits", "fournisseur", () => ShoppingCart], ["Allergènes", "allergenes", () => AlertTriangle],
   ["Origine des viandes", "origine", () => MapPin], ["Procédure de TIAC", "tiac", () => Activity], ["Stock", "stock", () => Package], ["Étiquettes", "etiquettes", () => Printer],
-  ["Contrôles en cuisine", "haccp", () => Thermometer], ["Contrôle & Gestion", "controle", () => ClipboardCheck], ["Tableau de bord", "controle", () => ClipboardCheck], ["Inventaire", "stock", () => ClipboardCheck],
+  ["Contrôles en cuisine", "haccp", () => Thermometer], ["Contrôle & Gestion", "controle", () => ClipboardCheck], ["Suivi et contrôle", "controle", () => ClipboardCheck], ["Tableau de bord", "controle", () => ClipboardCheck], ["Inventaire", "stock", () => ClipboardCheck],
 ];
 // ---- Bouton « retour » du téléphone ----
 // Chaque écran qui affiche un bouton Retour s'inscrit dans une pile (le dernier ouvert est au-dessus). Le bouton retour
@@ -1486,6 +1488,30 @@ function BoutonRetour({ onClick, children, className = "" }) {
       style={{ borderColor: z.bord, backgroundColor: z.fond, color: z.texte }}>
       <ArrowLeft size={18} strokeWidth={2.5} /> {children}
     </button>
+  );
+}
+
+// Rangée de gros boutons réservés au chef et au directeur, placée en haut d'une tuile (jamais visible par les employés).
+function BarreChef({ titre = "Réservé au chef", boutons }) {
+  const liste = (boutons || []).filter(Boolean);
+  if (!liste.length) return null;
+  return (
+    <div className="mb-4 rounded-2xl border-2 bg-white p-3" style={{ borderColor: "var(--line)" }}>
+      <div className="text-[11px] font-bold uppercase tracking-wide text-[var(--steel)] mb-2 px-1">{titre}</div>
+      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+        {liste.map((b) => {
+          const Ic = b.icone;
+          return (
+            <button key={b.label} type="button" onClick={b.onClick}
+              className="min-h-[56px] rounded-xl px-3 py-2 flex items-center gap-2.5 text-left text-sm font-bold text-white active:scale-95 transition-transform"
+              style={{ background: b.fond || "linear-gradient(160deg, #5B6B8C 0%, #34405C 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+              {Ic && <Ic size={20} className="shrink-0" />}
+              <span className="leading-tight">{b.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -2326,7 +2352,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <Card>
             <h3 className="font-semibold">Intoxication alimentaire collective (TIAC)</h3>
-            <p className="text-sm text-[var(--ink)]">Arrêter l'usage des produits suspects et les isoler, conserver échantillons et traçabilité, prévenir l'ARS et la DDPP, réunir menus, listes de malades, personnel en service. La procédure en 7 étapes est dans « Veille sanitaire » de l'accueil Contrôle & Gestion.</p>
+            <p className="text-sm text-[var(--ink)]">Arrêter l'usage des produits suspects et les isoler, conserver échantillons et traçabilité, prévenir l'ARS et la DDPP, réunir menus, listes de malades, personnel en service. La procédure en 7 étapes est dans « Veille sanitaire » de l'accueil Suivi et contrôle.</p>
           </Card>
           <Card>
             <h3 className="font-semibold">Retrait et rappel de produits</h3>
@@ -3851,7 +3877,7 @@ function CarteRemplacantChef({ employees, remplacants, setRemplacants, logActivi
   return (
     <Card className="mb-4">
       <h3 className="font-semibold text-[var(--ink)] mb-1">Remplaçant du chef (jours de repos)</h3>
-      <p className="text-sm text-[var(--steel)] mb-3">Les jours où le chef est en repos (aucun horaire dans le planning), la personne cochée reçoit l'accès à Contrôle & Gestion et fait le « Contrôle obligatoire ». Les autres jours, elle garde son accès habituel.</p>
+      <p className="text-sm text-[var(--steel)] mb-3">Les jours où le chef est en repos (aucun horaire dans le planning), la personne cochée reçoit l'accès à Suivi et contrôle et fait le « Contrôle obligatoire ». Les autres jours, elle garde son accès habituel.</p>
       {candidats.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun autre compte disponible.</p>}
       <div className="flex flex-wrap gap-2">
         {candidats.map((e) => {
@@ -4056,7 +4082,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
   );
 }
 
-function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ modeParametrage, modeHistorique, cibleInit, onCibleOuverte, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -4074,6 +4100,8 @@ function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onP
   const [rechercheTracabilite, setRechercheTracabilite] = useState("");
   const [remarqueEnCours, setRemarqueEnCours] = useState(null);
   const [sousEcran, setSousEcran] = useState(null);
+  // Ouverture directe depuis un bouton du chef placé dans une autre tuile (Stock, Fiches techniques, Réception…) : on revient à cette tuile.
+  const retourExterne = React.useRef(cibleInit && cibleInit.retourTab ? cibleInit.retourTab : null).current;
   const [rechercheCG, setRechercheCG] = useState("");
   const [impressionDossier, setImpressionDossier] = useState(null);
   const [choixFiche, setChoixFiche] = useState(null); // création de fiche : null | "dupliquer" | "modifier"
@@ -4198,6 +4226,13 @@ function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onP
     if (id === "tracabilite") return setTracabiliteCompleteActif(true);
     setSousEcran(id);
   };
+  useEffect(() => {
+    if (!cibleInit) return;
+    if (cibleInit.sousEcran) { const t = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === cibleInit.sousEcran); if (t) setSectionActive(t.section); ouvrirSousTuile(cibleInit.sousEcran); }
+    if (onCibleOuverte) onCibleOuverte();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Les overlays rendent la main : vers la tuile d'origine si on vient d'un bouton du chef, sinon on reste ici.
+  const finOverlay = () => { if (retourExterne) setTab(retourExterne); };
 
   // ---- Paramétrage (engrenage de la barre du haut) : mêmes écrans que Contrôle & Gestion, rangés dans une seule fenêtre ----
   // Liste à gauche, page à droite ; les droits sont ceux de tuileVisible (rien n'est élargi).
@@ -4211,6 +4246,13 @@ function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onP
   const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs et produits", catalogueDlc: "Étiquettes DLC", appareilsFroid: "Appareils de froid", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", pmsPrestataires: "Prestataires", carte: "Carte du restaurant" };
   const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte"]; // ces écrans ont déjà leur propre titre
   const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
+  // Tuile « Suivi et contrôle » (remplace Contrôle & Gestion) : six rubriques.
+  const SUIVI_IDS = ["alertes", "tiac", "rappelconso", "dossierControle", "allergenes", "origine"];
+  const SUIVI_LIBELLES = { alertes: "Alertes qualité", tiac: "Procédure de TIAC", rappelconso: "Rappels de produits (RappelConso)", dossierControle: "Contrôle hygiène (DDPP)", allergenes: "Allergènes", origine: "Origine des viandes" };
+  const SUIVI_DESCRIPTIONS = { alertes: "Les anomalies relevées par l'équipe", tiac: "Intoxication alimentaire : que faire, que déclarer", rappelconso: "Les rappels de produits officiels", dossierControle: "Le dossier à présenter à l'inspecteur", allergenes: "Les 14 allergènes de vos plats et produits", origine: "L'origine des viandes à afficher" };
+  // Tuile « Historique » (directeur) : un bouton par historique, celui de la journée en premier.
+  const HISTORIQUE_IDS = ["historiqueJour", "temperatures", "huile", "cellule", "cuisson", "maintien", "tracabilite", "commandes"];
+  const HISTORIQUE_LIBELLES = { historiqueJour: "Historique de la journée", temperatures: "Historique des températures", huile: "Historique des huiles de friture", cellule: "Historique du refroidissement", cuisson: "Historique des cuissons", maintien: "Historique du maintien au chaud", tracabilite: "Historique de la traçabilité", commandes: "Livraisons reçues" };
   const paramCouleurDefaut = { fond: "linear-gradient(160deg, #64748B 0%, #334155 100%)", ombre: "rgba(51,65,85,0.35)" };
 
   const marquerEnvoyee = (id, mode) => setNotificationsFournisseur(notificationsFournisseur.map((n) => (n.id === id ? { ...n, envoyee: true, modeTraitement: mode || "mail", traiteParId: currentUserId, traiteLe: new Date().toISOString() } : n)));
@@ -4265,15 +4307,15 @@ function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onP
   }
 
   if (referentielActif) {
-    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); }} />;
+    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); finOverlay(); }} />;
   }
 
   if (verifReceptionsActif) {
-    return <VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => setVerifReceptionsActif(false)} memoireSeule={!!stockCatalogue} />;
+    return <VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => { setVerifReceptionsActif(false); finOverlay(); }} memoireSeule={!!stockCatalogue} />;
   }
 
   if (tracabiliteCompleteActif) {
-    return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => setTracabiliteCompleteActif(false)} />;
+    return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => { setTracabiliteCompleteActif(false); finOverlay(); }} />;
   }
 
   const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", dossierControle: "dossierControle", comptes: "comptes", rappelconso: "rappelconso", alertes: "alertes", notifications: "notifications", appareilsFroid: "temperatures" })[sousEcran] || ({ equipe: "planningEmploye", controle: "controle", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "controle";
@@ -4320,13 +4362,25 @@ function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onP
       {modeParametrage && !sousEcran && (
         <p className="hidden md:block text-sm text-[var(--steel)] pt-2">Choisissez un réglage dans la liste à gauche.</p>
       )}
-      {modeParametrage ? null : !sectionActive ? (
+      {modeParametrage ? null : modeHistorique && !sectionActive ? (
       <>
-      <SectionHeader title="Contrôle & Gestion" subtitle="Vue d'ensemble du chef — qui a fait quoi aujourd'hui"
+        <SectionHeader title="Historique" subtitle="Tous les historiques au même endroit, en commençant par celui de la journée" permanent icone={Clock} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+          {HISTORIQUE_IDS.map((id) => {
+            const t = paramTuile(id); if (!t || !tuileVisible(t)) return null;
+            const sec = SECTIONS_CG.find((x) => x.id === t.section); const c = couleurSousTuile(t.id, sec.couleur);
+            return <TuilePetite key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={HISTORIQUE_LIBELLES[t.id] || t.label}
+              onClick={() => { setSectionActive(t.section); ouvrirSousTuile(t.id); }} />;
+          })}
+        </div>
+      </>
+      ) : !sectionActive ? (
+      <>
+      <SectionHeader title="Suivi et contrôle" subtitle="Alertes, TIAC, rappels de produits et contrôle d'hygiène (DDPP)" icone={ClipboardCheck}
         action={<button onClick={() => setTab("equipe")} className="text-xs text-[var(--accent)] font-medium">Journal d'activité complet →</button>} />
 
       {/* Barre de recherche : tape « tiac », « allergène », « température »… et la bonne rubrique s'ouvre. */}
-      <div className="relative mb-4">
+      <div className="relative mb-4 hidden">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
         <input value={rechercheCG} onChange={(e) => setRechercheCG(e.target.value)} placeholder="Chercher une rubrique (TIAC, allergènes, température, fournisseur…)"
           className="w-full rounded-xl border border-[var(--line)] bg-white pl-10 pr-3 py-3 text-sm text-[var(--ink)]" />
@@ -4456,33 +4510,14 @@ function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onP
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        {SECTIONS_CG.map((x) => {
-          const Icon = x.icon;
-          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && tuileVisible(t)).length;
-          if (nb === 0) return null;
-          if (["equipe", "cuisine"].includes(x.id)) return null; // affichées plus bas, directement en tuiles
+        {SUIVI_IDS.map((id) => {
+          const t = paramTuile(id); if (!t || !tuileVisible(t)) return null;
+          const sec = SECTIONS_CG.find((x) => x.id === t.section); const c = couleurSousTuile(t.id, sec.couleur);
           return (
-            <TuileGrande key={x.id} fond={x.couleur.fond} ombre={x.couleur.ombre} icone={x.icon} titre={x.label}
-              desc={<>{x.desc}{!x.urgence && <span className="block text-xs text-white/80 mt-1">{nb} rubrique{nb > 1 ? "s" : ""}</span>}</>}
-              className={x.urgence ? "sm:col-span-2 ring-2 ring-red-300" : ""}
-              onClick={() => { setSousEcran(null); setSectionActive(x.id); }} />
-          );
-        })}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        {SECTIONS_CG.filter((x) => ["cuisine", "equipe"].includes(x.id)).map((x) => {
-          const tuiles = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && tuileVisible(t));
-          if (tuiles.length === 0) return null;
-          return (
-            <div key={x.id}>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">{x.label}</p>
-              <div className="grid grid-cols-2 gap-3">
-                {tuiles.map((t) => {
-                  const c = couleurSousTuile(t.id, x.couleur);
-                  return <TuilePetite key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={t.label} onClick={() => { setSectionActive(x.id); ouvrirSousTuile(t.id); }} />;
-                })}
-              </div>
-            </div>
+            <TuileGrande key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={SUIVI_LIBELLES[t.id] || t.label}
+              desc={SUIVI_DESCRIPTIONS[t.id]}
+              className={t.id === "tiac" ? "sm:col-span-2 ring-2 ring-red-300" : ""}
+              onClick={() => { setSectionActive(t.section); ouvrirSousTuile(t.id); }} />
           );
         })}
       </div>
@@ -4493,11 +4528,11 @@ function Controle({ modeParametrage, exporterSauvegarde, produitAOuvrirInit, onP
       ) : (
       <>
       {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
-      {sousEcran
-        ? (["equipe", "cuisine"].includes(sectionActive)
-            ? <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>
-            : <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3">Retour à {sectionInfo.label}</BoutonRetour>)
-        : <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>}
+      {modeParametrage ? null : (
+        <BoutonRetour onClick={() => { if (retourExterne) { setTab(retourExterne); return; } setSousEcran(null); setSectionActive(null); }} className="mb-3">
+          {retourExterne ? "Retour" : (modeHistorique ? "Retour à Historique" : "Retour à Suivi et contrôle")}
+        </BoutonRetour>
+      )}
 
       {!sousEcran && <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} fonction={({ equipe: "planningEmploye", controle: "taches", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "pms"} icone={sectionInfo.icon} />}
       {sousEcran && ["temperatures", "cellule", "cuisson", "maintien", "huile", "allergenes", "origine", "tiac", "comptes", "planning"].includes(sousEcran) && (() => {
@@ -5222,6 +5257,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
   const [fournisseurOuvert, setFournisseurOuvert] = useState(null);
   // Édition (uniquement quand l'écran est branché sur la nouvelle base : prop `gestion`)
   const [edition, setEdition] = useState(() => {
+    if (ouvrirProduit && ouvrirProduit.nouveau && gestion) return { table: "produits", id: null, valeurs: {} };
     const p = ouvrirProduit && gestion ? stock.find((x) => x.id === ouvrirProduit.id) : null;
     return p && p.brut ? { table: "produits", id: p.id, valeurs: p.brut, focus: ouvrirProduit.focus } : null;
   }); // { table, id|null, valeurs }
@@ -5249,7 +5285,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
   return (
     <div>
       <BandeauNormes label="Fournisseurs et produits — traçabilité : Règlement (CE) n° 178/2002, art. 18 · allergènes : Règlement (UE) n° 1169/2011, art. 44" />
-      <BoutonRetour onClick={onBack} className="mb-4">Retour au contrôle</BoutonRetour>
+      <BoutonRetour onClick={onBack} className="mb-4">Retour</BoutonRetour>
       <SectionHeader title="Fournisseurs et produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
 
       {aValider.length > 0 && !edition && (
@@ -8655,7 +8691,7 @@ function GardeCodeChef({ verifierCodeChef, onAutorise, onRetour }) {
     <div className="max-w-md mx-auto mt-10">
       <form onSubmit={valider} className="bg-white border border-[var(--cadre)] rounded-2xl p-6 shadow-sm text-center">
         <div className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl" style={{ backgroundColor: "#FDE4E8" }}>🔒</div>
-        <h2 className="text-lg font-bold text-[var(--ink)] mb-1">Contrôle & Gestion</h2>
+        <h2 className="text-lg font-bold text-[var(--ink)] mb-1">Suivi et contrôle</h2>
         <p className="text-sm text-[var(--steel)] mb-4">Zone réservée au responsable cuisine et au directeur. Saisissez votre code à 4 chiffres pour continuer.</p>
         <input autoFocus type="password" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Code (4 chiffres)"
           className="w-full h-12 text-center text-xl tracking-[0.4em] border-2 border-[var(--cadre)] rounded-lg bg-white" />
@@ -9461,7 +9497,7 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
 /* ================================================================================
    CRÉATION D'UNE FICHE TECHNIQUE — questionnaire complet (7 étapes), photo IA,
    fiche A4 en direct, liens automatiques stock / HACCP / étiquette / traçabilité.
-   Vit dans Contrôle & Gestion → Gestion (réservé Chef / Directeur) — voir
+   Vit dans Suivi et contrôle → Gestion (réservé Chef / Directeur) — voir
    SOUS_TUILES_CONTROLE_TOUTES (id "creationFiche") plus haut.
    ================================================================================ */
 
@@ -10816,7 +10852,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       <details open={avecModes ? true : undefined} className="mb-5 bg-white border border-[var(--cadre)] rounded-xl">
         <summary className="px-5 py-3.5 cursor-pointer font-semibold text-[var(--ink)] text-sm">Réglages de l'établissement <span className="font-normal text-[var(--steel)]">— débloquent le procédé congélation</span></summary>
         <div className="px-5 pb-4 space-y-2.5">
-          <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong>{avecModes ? "" : " — modifiable dans Contrôle & Gestion → Déclaration TIAC."}</p>
+          <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong>{avecModes ? "" : " — modifiable dans Suivi et contrôle → Déclaration TIAC."}</p>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={!!congelPms} onChange={(e) => setCongelPms(e.target.checked)} className="mt-0.5" /><span>La congélation est décrite dans notre PMS</span></label>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={!!celluleDispo} onChange={(e) => setCelluleDispo(e.target.checked)} className="mt-0.5" /><span>L'établissement dispose d'une cellule de refroidissement</span></label>
         </div>
@@ -12612,7 +12648,7 @@ function HaccpTemperatures({
     });
   };
 
-  const jourReleve = todayISO(); // pas d'historique sur l'écran employé : il est dans Contrôle & Gestion
+  const jourReleve = todayISO(); // pas d'historique sur l'écran employé : il est dans Suivi et contrôle
   const dernierReleve = (eqId) => {
     const releves = relevesFroid.filter((r) => r.equipementId === eqId && r.date <= jourReleve);
     if (releves.length === 0) return null;
@@ -12910,7 +12946,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${catalogue.length})`} sous="Produits ayant un maintien au chaud">
             <input className={`${inputCls} mb-2`} value={rechercheFiche} onChange={(ev) => setRechercheFiche(ev.target.value)} placeholder="Rechercher un produit…" />
-            {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun produit dans la liste pour le moment : ils apparaîtront ici dès que vos fiches seront enregistrées (le chef peut aussi en ajouter dans Contrôle & Gestion). En attendant, saisissez le produit à droite.</p>}
+            {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun produit dans la liste pour le moment : ils apparaîtront ici dès que vos fiches seront enregistrées (le chef peut aussi en ajouter dans Suivi et contrôle). En attendant, saisissez le produit à droite.</p>}
             <div className="space-y-1.5 max-h-[26rem] lg:max-h-[calc(100vh-30rem)] overflow-y-auto pr-1">
               {catalogue.filter((nom) => nom.toLowerCase().includes(rechercheFiche.trim().toLowerCase())).map((nom) => (
                 <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[#1E7B4B] bg-[#EAF6EF] text-[#14653A] font-medium" : "border-[var(--line)] text-[var(--ink)] bg-white"}`}>
@@ -13831,7 +13867,7 @@ function HistoriqueCuissons({ cuissons, who }) {
 }
 
 function HaccpHuile({ huileTests, who, manuelPossible, historiqueComplet = false }) {
-  const estResponsable = historiqueComplet; // l'historique complet n'est montré que dans Contrôle & Gestion
+  const estResponsable = historiqueComplet; // l'historique complet n'est montré que dans Suivi et contrôle
   const [photoVue, setPhotoVue] = useState(null);
   const bon = (r) => ["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(r);
   const limiteR = (r) => /Limite/.test(r || "");
@@ -14193,7 +14229,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, nbInitiaux = {}, produits,
 }
 
 function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDlc, currentUserId, who, onBack, produits, avecHistorique = false }) {
-  const estResponsable = avecHistorique; // historique complet réservé à Contrôle & Gestion
+  const estResponsable = avecHistorique; // historique complet réservé à Suivi et contrôle
   const historique = estResponsable ? historiqueComplet : historiqueComplet.slice(0, 1);
   const [quantiteUtilisee, setQuantiteUtilisee] = useState("");
   const [nbEtiquettes, setNbEtiquettes] = useState(1);
@@ -15237,6 +15273,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [vueListeCommande, setVueListeCommande] = useState(false);
   const [vueEnvoyerCommande, setVueEnvoyerCommande] = useState(false);
   const [inventaireActif, setInventaireActif] = useState(false);
+  const [produitDetail, setProduitDetail] = useState(null); // chef : id du produit dont on ouvre la page
+  const estChefStock = !!acces.estResponsable;
+  const peutGererProduits = estChefStock && !!(rapideStock && rapideStock.produitsModifiables && rapideStock.ouvrirProduitAcompleter);
   const today = todayISO();
   const addItem = () => {
     if (!item.nom) return;
@@ -15385,6 +15424,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   );
   const aller = (etat) => { setCategorieChoisie("__tous__"); setFiltreEtat(etat); setRecherche(""); setFiltresOuverts(etat !== "tous"); setTimeout(() => { const el = document.getElementById("stock-tableau"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50); };
 
+  const produitOuvert = produitDetail ? stock.find((x) => x.id === produitDetail) : null;
+  if (produitOuvert) {
+    return <PageProduit s={produitOuvert} onBack={() => setProduitDetail(null)} onModifier={peutGererProduits ? () => rapideStock.ouvrirProduitAcompleter(produitOuvert.id, "nom") : null} />;
+  }
   return (
     <div>
       <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
@@ -15397,6 +15440,13 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </span>
       </button>
       <SectionHeader title="Stock" fonction="stock" icone={Package} subtitle="Gérez vos produits, vos quantités et vos inventaires" />
+      {peutGererProduits && (
+        <div className="mb-3">
+          <button type="button" onClick={() => rapideStock.ajouterProduit()} className="min-h-[48px] px-5 rounded-xl text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+            <Plus size={18} /> Ajouter un produit
+          </button>
+        </div>
+      )}
       <div className="relative mb-3">
         <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
         <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
@@ -15455,7 +15505,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             return (
               <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
                 <div className="col-span-2 lg:col-span-1 min-w-0">
-                  <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>
+                  {estChefStock ? <button type="button" onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
                   {s.reference ? <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference}</div> : null}
                   {estAValider(s.note) && (
@@ -15482,7 +15532,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </div>
       </div>
 
-      {/* Catalogue retiré de l'écran Stock : l'ajout/suppression de produits se fait dans Contrôle & Gestion */}
+      {/* Catalogue retiré de l'écran Stock : l'ajout/suppression de produits se fait dans Suivi et contrôle */}
       {false && (
         <Card className="mb-6" id="stock-catalogue">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer le catalogue produits</h3>
@@ -15546,6 +15596,24 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </Card>
       )}
 
+      {estChefStock ? (
+        <div className="grid grid-cols-2 gap-3 mt-6">
+          <button type="button" onClick={() => setInventaireActif(true)}
+            className="min-h-[96px] rounded-2xl px-4 py-3 flex flex-col items-center justify-center gap-1 text-white font-bold active:scale-95 transition-transform"
+            style={{ background: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", boxShadow: estDernierJourDuMois(today) ? "0 0 0 4px #6EE7A8, 0 6px 14px rgba(0,0,0,0.2)" : "0 6px 14px rgba(0,0,0,0.2)" }}>
+            <ClipboardList size={28} />
+            <span className="text-lg">Inventaire</span>
+            <span className="text-xs font-normal text-white/85">{estDernierJourDuMois(today) ? "À faire aujourd'hui (fin de mois)" : "Fiche d'inventaire du mois"}</span>
+          </button>
+          <button type="button" onClick={() => setVueListeCommande(true)}
+            className="min-h-[96px] rounded-2xl px-4 py-3 flex flex-col items-center justify-center gap-1 text-white font-bold active:scale-95 transition-transform"
+            style={{ background: "linear-gradient(160deg, #3B82F6 0%, #1D4ED8 100%)", boxShadow: "0 6px 14px rgba(0,0,0,0.2)" }}>
+            <ShoppingCart size={28} />
+            <span className="text-lg">Commander</span>
+            <span className="text-xs font-normal text-white/85">{lignesPanier.length ? `${lignesPanier.length} produit${lignesPanier.length > 1 ? "s" : ""} au panier` : "Panier vide"}</span>
+          </button>
+        </div>
+      ) : (
       <Card className={`text-center mt-6 ${estDernierJourDuMois(today) ? "border-[var(--accent)] bg-[var(--accent-soft)]" : ""}`}>
         <div className="flex items-center justify-center gap-2 mb-2">
           <ClipboardList size={20} className="text-[var(--accent)]" />
@@ -15558,6 +15626,47 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </p>
         <Button onClick={() => setInventaireActif(true)}>Générer la fiche d'inventaire</Button>
       </Card>
+      )}
+    </div>
+  );
+}
+
+// Page d'un produit (chef) : tout ce qu'on sait du produit au même endroit, avec le bouton Modifier.
+function PageProduit({ s, onBack, onModifier }) {
+  const b = s.brut || {};
+  const ligne = (libelle, valeur) => (
+    <div key={libelle} className="grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)] gap-3 py-2 border-t border-[var(--line)] first:border-t-0">
+      <span className="text-sm text-[var(--steel)]">{libelle}</span>
+      <span className={`text-sm break-words ${valeur ? "font-semibold text-[var(--ink)]" : "italic text-[var(--steel)]"}`}>{valeur || "À renseigner"}</span>
+    </div>
+  );
+  const jours = (n) => (n === null || n === undefined || n === "" ? "" : `${n} jour${Number(n) > 1 ? "s" : ""}`);
+  const allergenes = Array.isArray(b.allergenes_norme) && b.allergenes_norme.length ? b.allergenes_norme.join(", ") : "";
+  return (
+    <div>
+      <BoutonRetour onClick={onBack} className="mb-3">Retour au stock</BoutonRetour>
+      <SectionHeader title={s.nom} fonction="stock" icone={Package} subtitle={s.categorie || "Produit"} permanent />
+      <Card className="mb-4">
+        {ligne("Référence fournisseur", s.reference)}
+        {ligne("Fournisseur", s.fournisseur)}
+        {ligne("Catégorie", s.categorie)}
+        {ligne("Unité de comptage", s.unite)}
+        {ligne("Conditionnement", s.conditionnement)}
+        {b.prix_achat != null && ligne("Prix d'achat", `${b.prix_achat} €`)}
+        {b.conservation && ligne("Famille de température", b.conservation)}
+        {ligne("Stock actuel", `${s.quantite ?? 0} ${s.unite || ""}`.trim())}
+        {ligne("Stock à avoir", s.cible ? `${s.cible} ${s.unite || ""}`.trim() : "")}
+        {ligne("Dernier lot", s.lot)}
+        {ligne("DLC", s.dlc)}
+        {(b.delai_apres_ouverture_jours != null || b.delai_jours_dlc != null) && ligne("DLC après ouverture", jours(b.delai_apres_ouverture_jours != null ? b.delai_apres_ouverture_jours : b.delai_jours_dlc))}
+        {b.decongel_jours != null && ligne("Décongélation", jours(b.decongel_jours))}
+        {ligne("Allergènes", allergenes)}
+      </Card>
+      {onModifier && (
+        <button type="button" onClick={onModifier} className="min-h-[56px] w-full sm:w-auto px-8 rounded-xl text-base font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+          <IcCrayon size={20} /> Modifier le produit
+        </button>
+      )}
     </div>
   );
 }
@@ -17094,7 +17203,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         </div>
         <p className="text-sm text-[var(--steel)] mb-2">{entreesFinalisees.filter((e) => e.conforme).length} article(s) ajoutés au stock{nonConformesActuels.length ? `, ${nonConformesActuels.length} à retourner au fournisseur` : ""}.</p>
         {nonConformesActuels.length > 0 && (
-          <p className="text-sm text-[var(--steel)] mb-5">{modeManuel ? "Le chef et le directeur ont été prévenus dans leur onglet Contrôle & Gestion : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire." : "Le chef a été notifié dans son onglet Contrôle pour la suite — vous n'avez rien d'autre à faire."}</p>
+          <p className="text-sm text-[var(--steel)] mb-5">{modeManuel ? "Le chef et le directeur ont été prévenus dans leur onglet Suivi et contrôle : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire." : "Le chef a été notifié dans son onglet Contrôle pour la suite — vous n'avez rien d'autre à faire."}</p>
         )}
         <Button onClick={onDone}>Terminer</Button>
       </Card>
@@ -17206,7 +17315,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 2 && !IA_ACTIVEE && (
-        <StepShell titre="Bon de livraison" sousTitre="Photographiez le bon (plusieurs photos si le bon fait plusieurs pages) — la ou les photos sont archivées et consultables depuis Contrôle & Gestion → Réception, même sur une réception conforme." onPrev={() => setStep(1)} nextLabel="Suivant" onNext={() => setStep(3)} nextDisabled={photosBon.length === 0}>
+        <StepShell titre="Bon de livraison" sousTitre="Photographiez le bon (plusieurs photos si le bon fait plusieurs pages) — la ou les photos sont archivées et consultables depuis Suivi et contrôle → Réception, même sur une réception conforme." onPrev={() => setStep(1)} nextLabel="Suivant" onNext={() => setStep(3)} nextDisabled={photosBon.length === 0}>
           {photosBon.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               {photosBon.map((p, i) => (
@@ -18022,7 +18131,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
       <Card>
         <div className="flex items-center gap-2 mb-1"><CheckCircle2 size={22} className="text-[var(--accent)]" /><h3 className="font-semibold text-lg text-[var(--ink)]">Réception validée</h3></div>
         <p className="text-sm text-[var(--steel)] mb-2">{produitsF.filter((p) => p.conforme).length} article(s) ajouté(s) au stock{nonConformes.length ? `, ${nonConformes.length} à retourner ou à réclamer au fournisseur` : ""}.</p>
-        {nonConformes.length > 0 && <p className="text-sm text-[var(--steel)] mb-5">Le chef et le directeur ont été prévenus dans leur onglet Contrôle & Gestion : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire.</p>}
+        {nonConformes.length > 0 && <p className="text-sm text-[var(--steel)] mb-5">Le chef et le directeur ont été prévenus dans leur onglet Suivi et contrôle : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire.</p>}
         <Button onClick={onDone}>Terminer</Button>
       </Card>
     );
@@ -19767,7 +19876,7 @@ Une entrée par réservation visible. Si une information est illisible ou absent
   return (
     <div>
       {onBack && (
-        <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
+        <BoutonRetour onClick={onBack} className="mb-4">Retour à Suivi et contrôle</BoutonRetour>
       )}
       {!integre && <SectionHeader title="Réservations client" subtitle="Gestion des réservations et des services" />}
 
@@ -22519,7 +22628,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
   return (
     <div>
       {onBack && (
-        <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
+        <BoutonRetour onClick={onBack} className="mb-4">Retour à Suivi et contrôle</BoutonRetour>
       )}
       <SectionHeader
         title="Planning employé et heures de service"
@@ -22803,7 +22912,9 @@ function KitchenApp({ identiteExterne } = {}) {
   const [huileTestActif, setHuileTestActif] = useState(null);
   const [huileMatinActif, setHuileMatinActif] = useState(null);
   const [etiquetteRapideNb, setEtiquetteRapideNb] = useState({});
-  const [produitAOuvrirApp, setProduitAOuvrirApp] = useState(null); // produit à compléter à ouvrir directement dans Contrôle & Gestion
+  const [produitAOuvrirApp, setProduitAOuvrirApp] = useState(null); // produit à compléter à ouvrir directement dans Suivi et contrôle
+  const [cibleControleApp, setCibleControleApp] = useState(null); // écran à ouvrir directement depuis un bouton du chef : { sousEcran, retourTab }
+  const [retourPlanning, setRetourPlanning] = useState(null); // tuile d'où le chef a ouvert les horaires / réservations
   const [etiquetteRapideDemandee, setEtiquetteRapideDemandee] = useState(null); // tableau de noms de produits — voir proposerEtiquetteRapide
 
   const [employeesStockes, setEmployeesStockes] = useStored("planning-employees", DEFAULT_EMPLOYEES);
@@ -23985,6 +24096,11 @@ function KitchenApp({ identiteExterne } = {}) {
   const chefAcces = chefComplet || moiSecond;
   // Paramétrage (engrenage) : chef et directeur seulement (pas le second de cuisine, pas les employés).
   const peutParametrage = !!chefComplet;
+  // Historique (tuile du directeur) : directeur seulement.
+  const estDirectionApp = currentUserId === "direction" || !!moi?.estDirection;
+  const peutHistorique = estDirectionApp && !!chefComplet;
+  // Ouvre un écran de « Suivi et contrôle » depuis un bouton du chef, avec retour vers la tuile d'origine.
+  const ouvrirControle = (sousEcran, retourTab) => { setCibleControleApp({ sousEcran, retourTab }); setTab("controle"); };
   // Bandeau « Maintenant » de l'accueil : ma prochaine tâche, ce qui est en cours, ce qui est en retard.
   const maintenantHM = new Date().toTimeString().slice(0, 5);
   const minutesDepuis = (ts) => Math.max(0, Math.round((Date.now() - ts) / 60000));
@@ -24004,15 +24120,16 @@ function KitchenApp({ identiteExterne } = {}) {
     ...(prochaineTache ? [{ cle: "proch", couleur: "#146B45", texte: `Prochaine tâche : ${prochaineTache.heure} · ${prochaineTache.titre}`, cible: "taches", bouton: "Voir" }] : []),
   ].slice(0, 4);
   badges.taches = tachesRetard.length;
-  const navItems = NAV.filter((n) => !n.chefOnly || peutVoirControle);
+  const navItems = NAV.filter((n) => (!n.chefOnly || peutVoirControle) && (!n.directionOnly || peutHistorique));
 
   useEffect(() => {
     if (tab === "controle" && moi && !peutVoirControle) setTab("taches");
     if (tab === "parametrage" && moi && !peutParametrage) setTab("taches");
-  }, [tab, moi, currentUserId, peutVoirControle, peutParametrage]);
+    if (tab === "historique" && moi && !peutHistorique) setTab("taches");
+  }, [tab, moi, currentUserId, peutVoirControle, peutParametrage, peutHistorique]);
 
   // Contrôle & Gestion (et ses écrans de gestion) : code du chef / directeur redemandé à chaque entrée.
-  const ONGLETS_CHEF = ["controle", "parametrage", "reservations", "horaires"];
+  const ONGLETS_CHEF = ["controle", "parametrage", "historique", "reservations", "horaires"];
   useEffect(() => { if (!ONGLETS_CHEF.includes(tab)) setControleDebloque(false); }, [tab]);
   useEffect(() => { if (verrouille) setControleDebloque(false); }, [verrouille]);
   useEffect(() => { setControleDebloque(false); }, [currentUserId]);
@@ -24046,7 +24163,7 @@ function KitchenApp({ identiteExterne } = {}) {
     }
   }
 
-  if ((tab === "controle" && !chefAcces && !bloqueChef) || (tab === "parametrage" && !peutParametrage && !bloqueChef)) {
+  if ((tab === "controle" && !chefAcces && !bloqueChef) || (tab === "parametrage" && !peutParametrage && !bloqueChef) || (tab === "historique" && !peutHistorique && !bloqueChef)) {
     return null;
   }
 
@@ -24061,7 +24178,7 @@ function KitchenApp({ identiteExterne } = {}) {
     .sort((a, b) => a.debutTs - b.debutTs)[0];
 
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
-  const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule, employees, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, ouvrirProduitAcompleter: (id, focus) => { setProduitAOuvrirApp({ id, focus }); setTab("controle"); } };
+  const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule, employees, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, ouvrirProduitAcompleter: (id, focus) => { setProduitAOuvrirApp({ id, focus }); setCibleControleApp({ retourTab: "stock" }); setTab("controle"); }, ajouterProduit: () => { setProduitAOuvrirApp({ nouveau: true }); setCibleControleApp({ retourTab: "stock" }); setTab("controle"); }, produitsModifiables: !!(modeExterne && identiteExterne && identiteExterne.catalogue) };
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
     <AccesContext.Provider value={{ estResponsable: chefComplet || currentUserId === "direction", estSecond: moiSecond }}>
@@ -24351,7 +24468,7 @@ function KitchenApp({ identiteExterne } = {}) {
             )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
               {[
-                ...ACCUEIL_TUILES.filter((t) => !t.chefOnly || peutVoirControle),
+                ...ACCUEIL_TUILES.filter((t) => (!t.chefOnly || peutVoirControle) && (!t.directionOnly || peutHistorique)),
               ].map((t) => {
                 return <TuileGrande key={t.id} fond={t.fond} ombre={t.ombre} icone={t.icon} titre={t.label} desc={t.desc} badge={badges[t.id]}
                   className={t.large ? "lg:col-span-2" : ""} onClick={() => { setTab(t.cible || t.id); setSelectedEmployeeId(null); }} />;
@@ -24359,6 +24476,37 @@ function KitchenApp({ identiteExterne } = {}) {
             </div>
           </div>
         )}
+        {peutParametrage && (() => {
+          const HIST = { haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" };
+          const grad = (a, b) => `linear-gradient(160deg, ${a} 0%, ${b} 100%)`;
+          if (tab === "taches") return <BarreChef boutons={[
+            { label: "Modifier les horaires", icone: Clock, fond: grad("#2563B8", "#1D4E89"), onClick: () => { setRetourPlanning("taches"); setTab("horaires"); } },
+            { label: "Réservations", icone: CalendarDays, fond: grad("#0E7490", "#155E75"), onClick: () => { setRetourPlanning("taches"); setTab("reservations"); } },
+            { label: "Nettoyages à valider", icone: SprayCan, fond: grad("#B83A6B", "#8B2450"), onClick: () => ouvrirControle("planning", "taches") },
+            { label: "Historique de la journée", icone: ClipboardList, fond: grad("#7C6BC4", "#4B3C94"), onClick: () => ouvrirControle("historiqueJour", "taches") },
+          ]} />;
+          if (tab === "haccp") return <BarreChef boutons={[
+            { label: "Historique des températures", icone: Thermometer, onClick: () => ouvrirControle("temperatures", "haccp") },
+            { label: "Historique du refroidissement", icone: Snowflake, onClick: () => ouvrirControle("cellule", "haccp") },
+            { label: "Historique des huiles de friture", icone: Droplets, onClick: () => ouvrirControle("huile", "haccp") },
+            { label: "Historique du maintien au chaud", icone: Soup, onClick: () => ouvrirControle("maintien", "haccp") },
+            { label: "Historique des cuissons", icone: Flame, onClick: () => ouvrirControle("cuisson", "haccp") },
+          ]} />;
+          if (HIST[tab]) return <BarreChef boutons={[{ label: "Historique", icone: ClipboardList, onClick: () => ouvrirControle(HIST[tab], tab) }]} />;
+          if (tab === "tracabilite") return <BarreChef boutons={[{ label: "Historique de la traçabilité", icone: Camera, onClick: () => ouvrirControle("tracabilite", "tracabilite") }]} />;
+          if (tab === "reception") return <BarreChef boutons={[
+            { label: "Vérifier les réceptions", icone: ClipboardCheck, onClick: () => ouvrirControle("reception", "reception") },
+            { label: "Livraisons reçues", icone: ClipboardList, onClick: () => ouvrirControle("commandes", "reception") },
+            { label: "Notifications fournisseur", icone: Mail, onClick: () => ouvrirControle("notifications", "reception") },
+            { label: "Fournisseurs et produits", icone: ShoppingCart, onClick: () => ouvrirControle("fournisseur", "reception") },
+          ]} />;
+          if (tab === "etiquettes" && !(modeExterne && identiteExterne && identiteExterne.catalogue)) return <BarreChef boutons={[{ label: "Produits des étiquettes (DLC)", icone: Printer, onClick: () => ouvrirControle("catalogueDlc", "etiquettes") }]} />;
+          if (tab === "fiches") return <BarreChef boutons={[
+            { label: "Créer une fiche technique", icone: Sparkles, fond: grad("#E0457B", "#A3174F"), onClick: () => ouvrirControle("creationFiche", "fiches") },
+            { label: "Ma carte", icone: UtensilsCrossed, fond: grad("#E08A2C", "#B45309"), onClick: () => ouvrirControle("carte", "fiches") },
+          ]} />;
+          return null;
+        })()}
         {tab === "haccp" && (
           <div>
             <SectionHeader title="Contrôles en cuisine" fonction="haccp" icone={Thermometer} subtitle="Les cinq contrôles de la cuisine : températures, refroidissement, huile, maintien au chaud et cuissons" />
@@ -24441,17 +24589,17 @@ function KitchenApp({ identiteExterne } = {}) {
           />
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
-        {(tab === "controle" || (tab === "parametrage" && peutParametrage)) && !bloqueChef && (
-          <Controle key={tab} modeParametrage={tab === "parametrage"} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+        {(tab === "controle" || (tab === "parametrage" && peutParametrage) || (tab === "historique" && peutHistorique)) && !bloqueChef && (
+          <Controle key={tab} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
-          <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
+          <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} />
         )}
         {tab === "equipe" && (
           <Equipe employees={employees} shifts={shifts} activityLog={activityLog} tasks={tasks} toggleTask={toggleTaskShared} currentUserId={currentUserId} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} />
         )}
         {tab === "horaires" && !bloqueChef && (
-          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} />
+          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} />
         )}
         </ZoneContext.Provider>
       </main>
