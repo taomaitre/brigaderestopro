@@ -17,7 +17,7 @@ async function attendre(p, re, ms = 20000) {
   while (Date.now() - t0 < ms) { if (re.test(await p.innerText('body'))) return true; await p.waitForTimeout(400); }
   return false;
 }
-async function ouvrir({ qui = 'Direction', graines = {}, mobile = false, attente = null }) {
+async function ouvrir({ qui = 'Loïc', graines = {}, mobile = false, attente = null }) {
   const ctx = await b.newContext({ viewport: mobile ? { width: 412, height: 915 } : { width: 1366, height: 800 }, isMobile: mobile, hasTouch: mobile });
   const p = await ctx.newPage(); const erreurs = []; p.on('pageerror', (e) => erreurs.push(e.message));
   await p.addInitScript((g) => { if (!localStorage.getItem('__graine')) { for (const [k, v] of Object.entries(g)) localStorage.setItem('macuisine_preview:' + k, JSON.stringify(v)); localStorage.setItem('__graine', '1'); } }, graines);
@@ -36,9 +36,9 @@ async function parcours(nom, fn) {
 }
 const verifier = (cond, msg) => { if (!cond) throw new Error(msg); };
 
-await parcours('Connexion Direction + toutes les tuiles de l’accueil s’ouvrent sans erreur', async () => {
+await parcours('Connexion chef + toutes les tuiles de l’accueil s’ouvrent sans erreur', async () => {
   const { p, ctx, erreurs } = await ouvrir({});
-  const tuiles = ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Étiquettes (DLC)', 'Traçabilité', 'Contrôles en cuisine', 'Fiches techniques', 'Suivi et contrôle', 'Historique'];
+  const tuiles = ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Étiquettes (DLC)', 'Traçabilité', 'Contrôles en cuisine', 'Fiches techniques', 'Suivi et contrôle'];
   for (const t of tuiles) {
     await cliquer(p, t);
     verifier(!/Something went wrong|Erreur inattendue/.test(await p.innerText('body')), `écran d'erreur sur « ${t} »`);
@@ -61,7 +61,7 @@ await parcours('Suivi et contrôle : les 6 boutons sont présents et un sous-éc
 });
 
 await parcours('Historique (direction) : Historique de la journée en premier, un historique s’ouvre', async () => {
-  const { p, ctx, erreurs } = await ouvrir({});
+  const { p, ctx, erreurs } = await ouvrir({ qui: 'Direction' });
   await cliquer(p, 'Historique');
   const t = await p.innerText('body');
   verifier(t.includes('Historique de la journée'), '« Historique de la journée » absent');
@@ -138,6 +138,52 @@ await parcours('Second de cuisine : accède aux contrôles, pas aux réglages ni
   verifier(!/Réglages/.test(t) && !/Planning employé/.test(t), 'le second voit la gestion (réglages / planning)');
   verifier(await p.locator('button[aria-label="Paramétrage"]').count() === 0, 'le second de cuisine voit l’engrenage Paramétrage');
   await ctx.close();
+});
+
+
+// ---- Vrai mode (connexion réelle) : banc reel.html, identité fabriquée, aucun accès à Supabase ----
+async function ouvrirReel(role, mobile = false) {
+  const ctx = await b.newContext({ viewport: mobile ? { width: 412, height: 915 } : { width: 1366, height: 800 }, isMobile: mobile, hasTouch: mobile });
+  const p = await ctx.newPage(); const erreurs = []; p.on('pageerror', (e) => erreurs.push(e.message));
+  await p.goto(`http://127.0.0.1:5199/reel.html?role=${role}`);
+  await attendre(p, /Bonjour/, 30000); await p.waitForTimeout(1500);
+  return { p, ctx, erreurs };
+}
+await parcours('Vrai mode, directeur : seulement Suivi et contrôle, Historique, Planning, Réservations ; engrenage dans la bande noire', async () => {
+  const { p, ctx, erreurs } = await ouvrirReel('directeur');
+  const t = await p.innerText('body');
+  for (const x of ['Suivi et contrôle', 'Historique', 'Planning employé', 'Réservations client']) verifier(t.includes(x), `« ${x} » absent pour le directeur`);
+  for (const x of ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Étiquettes', 'Traçabilité', 'Contrôles en cuisine', 'Fiches techniques']) verifier(!t.includes(x), `le directeur voit « ${x} »`);
+  verifier(await p.locator('header button[aria-label="Paramétrage"]').count() >= 1, 'engrenage absent de la bande noire');
+  await p.locator('header button[aria-label="Paramétrage"]').first().click(); await p.waitForTimeout(800);
+  verifier(/Comptes de l'équipe/.test(await p.innerText('body')), 'Paramétrage ne s’ouvre pas');
+  await p.goto(`http://127.0.0.1:5199/reel.html?role=directeur`); await attendre(p, /Bonjour/, 30000);
+  await cliquer(p, 'Historique'); verifier(/Historique de la journée/.test(await p.innerText('body')), 'Historique ne s’ouvre pas');
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
+await parcours('Vrai mode, directeur : Planning employé et Réservations s’ouvrent et ramènent à l’accueil', async () => {
+  const { p, ctx, erreurs } = await ouvrirReel('directeur');
+  for (const [tuile, titre] of [['Planning employé', /Planning|Horaires/], ['Réservations client', /Réservation/]]) {
+    await p.locator(`main >> text="${tuile}"`).first().click(); await p.waitForTimeout(800);
+    verifier(titre.test(await p.innerText('body')), `${tuile} ne s’ouvre pas`);
+    await p.locator('button:has-text("Retour")').locator('visible=true').first().click(); await p.waitForTimeout(800);
+    verifier(/Historique/.test(await p.innerText('body')) && /Suivi et contrôle/.test(await p.innerText('body')), `retour depuis ${tuile} : pas l’accueil`);
+  }
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
+await parcours('Vrai mode, chef : toutes les tuiles du travail, engrenage, pas d’Historique ; employé : pas d’engrenage', async () => {
+  const chef = await ouvrirReel('chef');
+  const t = await chef.p.innerText('body');
+  for (const x of ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Suivi et contrôle']) verifier(t.includes(x), `« ${x} » absent pour le chef`);
+  verifier(!t.includes('Historique'), 'le chef voit Historique (réservé au directeur)');
+  verifier(await chef.p.locator('header button[aria-label="Paramétrage"]').count() >= 1, 'engrenage absent pour le chef');
+  await chef.ctx.close();
+  const emp = await ouvrirReel('employe');
+  verifier(await emp.p.locator('button[aria-label="Paramétrage"]').count() === 0, 'l’employé voit l’engrenage');
+  verifier(!(await emp.p.innerText('body')).includes('Suivi et contrôle'), 'l’employé voit Suivi et contrôle');
+  await emp.ctx.close();
 });
 
 await parcours('Téléphone (employé Loïc) : aucune page ne déborde en largeur', async () => {

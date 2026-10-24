@@ -24077,7 +24077,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const nbNotifications = (alertesControle || []).filter((a) => !a.vue).length;
 
   const moi = modeExterne
-    ? { id: identiteExterne.employeId, nom: identiteExterne.employeNom, poste: identiteExterne.employePoste, estChef: !!identiteExterne.estChef, estSecond: !!identiteExterne.estSecond }
+    ? { id: identiteExterne.employeId, nom: identiteExterne.employeNom, poste: identiteExterne.employePoste, estChef: !!identiteExterne.estChef, estSecond: !!identiteExterne.estSecond, estDirection: identiteExterne.employeRole === "directeur" }
     : currentUserId === "direction"
       ? { id: "direction", nom: "Direction", poste: "Direction", estChef: true }
       : employees.find((e) => e.id === currentUserId);
@@ -24120,9 +24120,13 @@ function KitchenApp({ identiteExterne } = {}) {
     ...(prochaineTache ? [{ cle: "proch", couleur: "#146B45", texte: `Prochaine tâche : ${prochaineTache.heure} · ${prochaineTache.titre}`, cible: "taches", bouton: "Voir" }] : []),
   ].slice(0, 4);
   badges.taches = tachesRetard.length;
-  const navItems = NAV.filter((n) => (!n.chefOnly || peutVoirControle) && (!n.directionOnly || peutHistorique));
+  // Le directeur n'a que la partie suivi et gestion : Suivi et contrôle, Historique, Paramétrage, Planning et Réservations
+  // (jamais Stock, Réception, Étiquettes, Traçabilité, Contrôles en cuisine, Fiches techniques, Tâches : c'est le travail de la cuisine).
+  const directionSeule = estDirectionApp;
+  const navItems = NAV.filter((n) => (!n.chefOnly || peutVoirControle) && (!n.directionOnly || peutHistorique) && (!directionSeule || ["controle", "historique"].includes(n.id)));
 
   useEffect(() => {
+    if (directionSeule && moi && !["accueil", "controle", "parametrage", "historique", "reservations", "horaires", "equipe"].includes(tab)) setTab("accueil");
     if (tab === "controle" && moi && !peutVoirControle) setTab("taches");
     if (tab === "parametrage" && moi && !peutParametrage) setTab("taches");
     if (tab === "historique" && moi && !peutHistorique) setTab("taches");
@@ -24453,7 +24457,7 @@ function KitchenApp({ identiteExterne } = {}) {
         <ZoneContext.Provider value={zoneDepuisFonction({ taches: vueTaches === "reservations" ? "reservationsClient" : "taches", stock: "stock", reception: "reception", etiquettes: "etiquettes", tracabilite: "tracabilite", haccp: "haccp", haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson", fiches: "fiches", controle: "controle", reservations: "reservationsClient", equipe: "comptes", horaires: "planningEmploye" }[tab])}>
         {tab === "accueil" && (
           <div>
-            {lignesMaintenant.length > 0 && (
+            {lignesMaintenant.length > 0 && !directionSeule && (
               <div className="rounded-2xl border-2 bg-white p-3 mb-4" style={{ borderColor: "#CBD5E1" }}>
                 <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Maintenant</div>
                 <ul className="space-y-2">
@@ -24468,10 +24472,14 @@ function KitchenApp({ identiteExterne } = {}) {
             )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
               {[
-                ...ACCUEIL_TUILES.filter((t) => (!t.chefOnly || peutVoirControle) && (!t.directionOnly || peutHistorique)),
+                ...ACCUEIL_TUILES.filter((t) => (!t.chefOnly || peutVoirControle) && (!t.directionOnly || peutHistorique) && (!directionSeule || ["controle", "historique"].includes(t.id))),
+                ...(directionSeule ? [
+                  { id: "horaires", label: "Planning employé", desc: "Horaires, heures de service et équipe du jour", icon: Clock, ...COULEURS_FONCTION.planningEmploye, retour: "accueil" },
+                  { id: "reservations", label: "Réservations client", desc: "Réservations du restaurant", icon: CalendarDays, ...COULEURS_FONCTION.reservationsClient, retour: "accueil" },
+                ] : []),
               ].map((t) => {
                 return <TuileGrande key={t.id} fond={t.fond} ombre={t.ombre} icone={t.icon} titre={t.label} desc={t.desc} badge={badges[t.id]}
-                  className={t.large ? "lg:col-span-2" : ""} onClick={() => { setTab(t.cible || t.id); setSelectedEmployeeId(null); }} />;
+                  className={t.large ? "lg:col-span-2" : ""} onClick={() => { if (t.retour) setRetourPlanning(t.retour); setTab(t.cible || t.id); setSelectedEmployeeId(null); }} />;
               })}
             </div>
           </div>
