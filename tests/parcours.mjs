@@ -175,6 +175,25 @@ await parcours('Vrai mode, directeur : seulement Suivi et contrôle, Historique,
   verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
   await ctx.close();
 });
+await parcours('Vrai mode, chef : le menu du Paramétrage est dans la bande noire, Fournisseurs et Produits sont séparés', async () => {
+  const { p, ctx, erreurs } = await ouvrirReel('chef');
+  await p.locator('header button[aria-label="Paramétrage"]').first().click(); await p.waitForTimeout(1000);
+  const aside = await p.locator('aside').first().innerText();
+  for (const x of ['Paramétrage', 'Comptes de l\'équipe', 'Fournisseurs', 'Produits', 'Appareils de froid', 'Créer une fiche technique', 'Carte du restaurant', 'Plan de nettoyage']) verifier(aside.includes(x), `« ${x} » absent de la bande noire`);
+  verifier(!/Tâches du jour/.test(aside), 'les tuiles du travail ne doivent plus être dans la bande noire pendant le Paramétrage');
+  if (process.env.CAPTURES) await p.screenshot({ path: process.env.CAPTURES + '/param-bande.png' });
+  await p.locator('aside button >> text="Produits"').first().click(); await p.waitForTimeout(1000);
+  const t1 = await p.innerText('main');
+  verifier(/Fournisseur, référence, conditionnement/.test(t1) && !/Ajouter un fournisseur/.test(t1), 'l’écran Produits doit montrer les produits, sans « Ajouter un fournisseur »');
+  if (process.env.CAPTURES) await p.screenshot({ path: process.env.CAPTURES + '/param-produits.png' });
+  await p.locator('aside button >> text="Fournisseurs"').first().click(); await p.waitForTimeout(1000);
+  const t2 = await p.innerText('main');
+  verifier(/Coordonnées, jours de commande et de livraison/.test(t2) && !/Ajouter un produit/.test(t2), 'l’écran Fournisseurs doit montrer les fournisseurs, sans « Ajouter un produit »');
+  await p.locator('aside >> text="Retour à l\'accueil"').first().click(); await p.waitForTimeout(800);
+  verifier(/Suivi et contrôle/.test(await p.locator('aside').first().innerText()), 'le retour à l’accueil ne remet pas le menu normal');
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
 await parcours('Vrai mode, directeur : Planning employé et Réservations s’ouvrent et ramènent à l’accueil', async () => {
   const { p, ctx, erreurs } = await ouvrirReel('directeur');
   for (const [tuile, titre] of [['Planning employé', /Planning|Horaires/], ['Réservations client', /Réservation/]]) {
