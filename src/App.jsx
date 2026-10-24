@@ -4097,6 +4097,7 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
+  const [panneauATraiterOuvert, setPanneauATraiterOuvert] = useState(false); // le cadre « Alertes, éléments à vérifier et à contrôler » est replié par défaut
   const [ligneATraiterOuverte, setLigneATraiterOuverte] = useState(null); // ligne de « À traiter » dépliée (liste détaillée)
   const [releve, setReleve] = useState(false);
   const [pmsImpression, setPmsImpression] = useState(false);
@@ -4259,7 +4260,7 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
   const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte"]; // ces écrans ont déjà leur propre titre
   const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
   // Tuile « Suivi et contrôle » (remplace Contrôle & Gestion) : six rubriques.
-  const SUIVI_IDS = ["alertes", "tiac", "rappelconso", "dossierControle", "allergenes", "origine"];
+  const SUIVI_IDS = ["allergenes", "origine", "rappelconso", "dossierControle", "tiac"];
   const SUIVI_LIBELLES = { alertes: "Alertes qualité", tiac: "Procédure de TIAC", rappelconso: "Rappels de produits (RappelConso)", dossierControle: "Contrôle hygiène (DDPP)", allergenes: "Allergènes", origine: "Origine des viandes" };
   const SUIVI_DESCRIPTIONS = { alertes: "Les anomalies relevées par l'équipe", tiac: "Intoxication alimentaire : que faire, que déclarer", rappelconso: "Les rappels de produits officiels", dossierControle: "Le dossier à présenter à l'inspecteur", allergenes: "Les 14 allergènes de vos plats et produits", origine: "L'origine des viandes à afficher" };
   // Tuile « Historique » (directeur) : un bouton par historique, celui de la journée en premier.
@@ -4446,11 +4447,11 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
         const aTraiter = [
           { n: rappelsAtraiter, texte: pl(rappelsAtraiter, "rappel de produit à traiter", "rappels de produits à traiter"), bouton: "Traiter", niveau: 0, agir: () => { setSectionActive("urgence"); setSousEcran("rappelconso"); } },
           { n: froidEnAttente.length, texte: pl(froidEnAttente.length, "frigo / congélateur à recontrôler", "frigos / congélateurs à recontrôler"), bouton: "Recontrôler", niveau: 0, agir: () => setTab("haccpTemp") },
+          { n: enAttente.length, texte: pl(enAttente.length, "notification fournisseur à envoyer", "notifications fournisseur à envoyer"), bouton: "Envoyer", niveau: 0, agir: () => { setSectionActive("reception"); setSousEcran("notifications"); } },
           { n: refrDepasses.length, texte: pl(refrDepasses.length, "refroidissement au-delà de la durée maximale", "refroidissements au-delà de la durée maximale"), bouton: "Terminer", niveau: 0, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
           { n: cuisDepassees.length, texte: pl(cuisDepassees.length, "cuisson à contrôler (durée atteinte)", "cuissons à contrôler (durée atteinte)"), bouton: "Terminer", niveau: 0, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
           { n: dlcAujourdhui, texte: pl(dlcAujourdhui, "produit à DLC aujourd'hui", "produits à DLC aujourd'hui"), bouton: "Voir", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
-          { n: alertesNonVues.length, texte: pl(alertesNonVues.length, "alerte qualité à lire", "alertes qualité à lire"), bouton: "Lire", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("alertes"); } },
-          { n: enAttente.length, texte: pl(enAttente.length, "notification fournisseur à envoyer", "notifications fournisseur à envoyer"), bouton: "Envoyer", niveau: 1, agir: () => { setSectionActive("reception"); setSousEcran("notifications"); } },
+          { n: alertesNonVues.length, texte: pl(alertesNonVues.length, "anomalie signalée par l'équipe à lire", "anomalies signalées par l'équipe à lire"), bouton: "Lire", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("alertes"); } },
           { n: nettoAValider, texte: pl(nettoAValider, "nettoyage à valider", "nettoyages à valider"), bouton: "Valider", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("planning"); } },
           { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); },
             detail: [...incomplets].sort((p1, p2) => String(p1.nom).localeCompare(String(p2.nom), "fr")).map((x) => ({ id: x.id, libelle: x.nom, sous: [!x.prixUnitaire && "prix manquant", !x.reference && "référence manquante", estAValider(x.note) && "à vérifier"].filter(Boolean).join(" · "), agir: () => { setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } })) },
@@ -4463,12 +4464,17 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
         const coulNiveau = ["#B42318", "#B7791F", "#1D4ED8"];
         return (
           <Card className="mb-6">
-            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">À traiter {aTraiter.length > 0 && <span className="normal-case font-normal">— par ordre de priorité</span>}</h3>
+            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Alertes, éléments à vérifier et à contrôler</h3>
             <BandeauEcheancesPms alertes={alertesEcheancesPms(reglagesEtablissement && reglagesEtablissement.pms, todayISO(), compteDirection)} onOuvrir={(cible) => { setSectionActive("hygiene"); setSousEcran(cible); }} />
             {aTraiter.length === 0 ? (
-              <p className="text-sm text-[var(--accent)]">✓ Rien à traiter pour le moment.</p>
+              <p className="text-sm text-[var(--accent)]">✓ Rien à vérifier ni à contrôler pour le moment.</p>
             ) : (
-              <div className="space-y-3">
+              <>
+              <div className="flex items-center gap-3 rounded-xl border-2 bg-white pl-3 pr-2 py-2 mb-3" style={{ borderColor: coulNiveau[Math.min(...aTraiter.map((x) => x.niveau))], borderLeftWidth: 6 }}>
+                <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--ink)]">{aTraiter.reduce((t, x) => t + x.n, 0)} {aTraiter.reduce((t, x) => t + x.n, 0) > 1 ? "éléments à vérifier ou à contrôler" : "élément à vérifier ou à contrôler"}</span>
+                <button type="button" onClick={() => setPanneauATraiterOuvert((v) => !v)} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white shrink-0 inline-flex items-center gap-1.5" style={{ background: "#1D4ED8" }}>{panneauATraiterOuvert ? "Fermer" : "Choisir"}{panneauATraiterOuvert ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+              </div>
+              {panneauATraiterOuvert && <div className="space-y-3">
                 {[[0, "Urgent"], [1, "À faire aujourd'hui"], [2, "À compléter (moins urgent)"]].map(([niv, titreGroupe]) => {
                   const lignes = aTraiter.filter((x) => x.niveau === niv);
                   if (lignes.length === 0) return null;
@@ -4504,7 +4510,8 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
                     </div>
                   );
                 })}
-              </div>
+              </div>}
+              </>
             )}
           </Card>
         );

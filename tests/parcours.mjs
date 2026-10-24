@@ -48,11 +48,13 @@ await parcours('Connexion chef + toutes les tuiles de l’accueil s’ouvrent sa
   await ctx.close();
 });
 
-await parcours('Suivi et contrôle : les 6 boutons sont présents et un sous-écran s’ouvre puis revient', async () => {
+await parcours('Suivi et contrôle : les 5 tuiles dans l’ordre voulu, sans « Alertes qualité » et un sous-écran s’ouvre puis revient', async () => {
   const { p, ctx, erreurs } = await ouvrir({});
   await cliquer(p, 'Suivi et contrôle');
   const t = await p.innerText('body');
-  for (const x of ['Alertes qualité', 'Procédure de TIAC', 'Rappels de produits', 'Contrôle hygiène (DDPP)', 'Allergènes', 'Origine des viandes']) verifier(t.includes(x), `« ${x} » absent de Suivi et contrôle`);
+  for (const x of ['Allergènes', 'Origine des viandes', 'Rappels de produits', 'Contrôle hygiène (DDPP)', 'Procédure de TIAC']) verifier(t.includes(x), `« ${x} » absent de Suivi et contrôle`);
+  verifier(!/Les anomalies relevées par l.équipe/.test(t), 'la tuile Alertes qualité doit avoir disparu');
+  verifier(/Alertes, éléments à vérifier et à contrôler/i.test(t), 'le titre du cadre des alertes est absent');
   for (const x of ['Ma carte', 'Planning employé', 'Réglages']) verifier(!t.includes(x), `« ${x} » ne devrait plus être dans Suivi et contrôle`);
   await cliquer(p, 'Procédure de TIAC');
   verifier(!/Something went wrong|Erreur inattendue/.test(await p.innerText('body')), 'erreur sur TIAC');
@@ -109,7 +111,10 @@ await parcours('Cuisson : de « Terminer » à « terminée », avec alerte À t
   const { p, ctx, erreurs } = await ouvrir({ graines: { cuissons }, attente: /Sauce test|cuisson/i });
   await cliquer(p, 'Suivi et contrôle');
   await p.waitForTimeout(1500);
-  verifier(/cuisson à contrôler/.test(await p.innerText('body')), 'la cuisson dépassée n’apparaît pas dans À traiter');
+  verifier(/élément.? à vérifier ou à contrôler/.test(await p.innerText('body')), 'le résumé général des éléments à vérifier est absent');
+  await cliquer(p, 'Choisir');
+  await p.waitForTimeout(500);
+  verifier(/cuisson à contrôler/.test(await p.innerText('body')), 'la cuisson dépassée n’apparaît pas dans les éléments à vérifier');
   await p.locator('button:has-text("Terminer")').first().click({ timeout: 5000 }); // bouton de la ligne « À traiter »
   await p.waitForTimeout(800);
   await p.locator('button:has-text("Terminer")').first().click({ timeout: 5000 });
