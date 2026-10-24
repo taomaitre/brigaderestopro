@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { analyserCommandeLocale, rapprocher as rapprocherVocal, reponseOuiNon, pluriel as pluralVocal } from './analyseVocale.js';
@@ -4093,7 +4094,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
   );
 }
 
-function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, onCibleOuverte, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, onCibleOuverte, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -4104,6 +4105,7 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
   const [releveMensuel, setReleveMensuel] = useState(false);
   const [moisReleve, setMoisReleve] = useState(todayISO().slice(0, 7));
   const [referentielActif, setReferentielActif] = useState(!!produitAOuvrirInit);
+  const [referentielVue, setReferentielVue] = useState(produitAOuvrirInit ? "produits" : null); // "fournisseurs" | "produits" | null (les deux)
   const [produitAOuvrir, setProduitAOuvrir] = useState(produitAOuvrirInit || null);
   useEffect(() => { if (produitAOuvrirInit && onProduitOuvert) onProduitOuvert(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const ctxNettoyageCG = React.useContext(NettoyageContext);
@@ -4196,7 +4198,7 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
     { id: "rappelconso", label: "Rappels de produits (RappelConso)", icon: AlertTriangle, section: "urgence" },
     { id: "planning", label: "Tâches du jour", icon: ListChecks, section: "controle" },
     { id: "temperatures", label: "Températures frigos et congélateurs", icon: Thermometer, section: "controle" },
-    { id: "huile", label: "Huile de friture", icon: Droplets, section: "controle" },
+    { id: "huile", label: "Suivi d'huile de friture", icon: Droplets, section: "controle" },
     { id: "cuisson", label: "Cuisson", icon: Flame, section: "controle" },
     { id: "cellule", label: "Refroidissement rapide et congélation", icon: Snowflake, section: "controle" },
     { id: "maintien", label: "Maintien au chaud", icon: Soup, section: "controle" },
@@ -4204,7 +4206,8 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
     { id: "historiqueJour", label: "Historique de la journée", icon: ClipboardList, section: "controle" },
     { id: "alertes", label: "Alertes qualité", icon: Bell, section: "controle" },
     { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "reception" },
-    { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "reception" },
+    { id: "fournisseur", label: "Fournisseurs", icon: ShoppingCart, section: "reception" },
+    { id: "produits", label: "Produits", icon: Package, section: "reception" },
     { id: "notifications", label: "Notifications fournisseur", icon: Mail, section: "reception" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
     { id: "carte", label: "Ma carte", icon: UtensilsCrossed, section: "cuisine" },
@@ -4235,7 +4238,8 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
     if (tuile && tuile.tab) return setTab(tuile.tab);
     if (id === "reception") return setVerifReceptionsActif(true);
-    if (id === "fournisseur") return setReferentielActif(true);
+    if (id === "fournisseur") { setReferentielVue("fournisseurs"); return setReferentielActif(true); }
+    if (id === "produits") { setReferentielVue("produits"); return setReferentielActif(true); }
     if (id === "tracabilite") return setTracabiliteCompleteActif(true);
     setSousEcran(id);
   };
@@ -4250,15 +4254,56 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
   // ---- Paramétrage (engrenage de la barre du haut) : mêmes écrans que Contrôle & Gestion, rangés dans une seule fenêtre ----
   // Liste à gauche, page à droite ; les droits sont ceux de tuileVisible (rien n'est élargi).
   const PARAM_GROUPES = [
-    { titre: "L'équipe", ids: ["comptes"] },
-    { titre: "Produits et fournisseurs", ids: ["fournisseur", "catalogueDlc"] },
+    { titre: "Le restaurant", ids: ["comptes", "@horaires", "@reservations"] },
+    { titre: "Produits", ids: ["fournisseur", "produits"] },
     { titre: "Matériel", ids: ["appareilsFroid"] },
-    { titre: "PMS et documentation", ids: ["pmsDossier", "pms", "pmsPrestataires"] },
-    { titre: "Carte et fiches", ids: ["carte"] },
+    { titre: "Cuisine", ids: ["creationFiche", "carte"] },
+    { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires"] },
   ];
-  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs et produits", catalogueDlc: "Étiquettes DLC", appareilsFroid: "Appareils de froid", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", pmsPrestataires: "Prestataires", carte: "Carte du restaurant" };
-  const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte"]; // ces écrans ont déjà leur propre titre
+  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Nettoyages à valider", pmsPrestataires: "Prestataires" };
+  const PARAM_EXTRAS = { "@horaires": ["horaires", "Horaires de l'équipe", Clock, "#2563B8", "#1D4E89"], "@reservations": ["reservations", "Réservations client", CalendarDays, "#0E7490", "#155E75"] };
+  const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
   const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
+  // Menu du Paramétrage : dans la bande noire de gauche (grand écran) ou en haut de la page (téléphone).
+  const construireMenuParam = (sombre) => (
+    <>
+      {sombre && (
+        <div className="px-1 pb-2">
+          <button type="button" onClick={() => onQuitterParam && onQuitterParam()} className="flex items-center gap-2 text-sm font-medium px-2 py-2 rounded-lg w-full text-left" style={{ color: "#C5CEDA" }}><ChevronLeft size={16} /> Retour à l'accueil</button>
+          <div className="flex items-center gap-2.5 px-2 pt-2 pb-1">
+            <span className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(160deg,#64748B,#334155)" }}><Settings size={20} /></span>
+            <span className="text-lg font-bold text-white leading-tight">Paramétrage</span>
+          </div>
+        </div>
+      )}
+      {PARAM_GROUPES.map((g) => {
+        const items = g.ids.map((id) => (id.startsWith("@") ? (ouvrirPlanning ? { extra: PARAM_EXTRAS[id] } : null) : (() => { const t = paramTuile(id); return t && tuileVisible(t) ? { t } : null; })())).filter(Boolean);
+        if (!items.length) return null;
+        return (
+          <div key={g.titre} className={sombre ? "mb-3" : "mb-4"}>
+            <div className="text-[11px] font-bold uppercase tracking-wide mb-1.5 px-2" style={{ color: sombre ? "#7C8AA0" : "var(--steel)" }}>{g.titre}</div>
+            <div className="space-y-1">
+              {items.map((it) => {
+                const id = it.extra ? it.extra[0] : it.t.id;
+                const Ic = it.extra ? it.extra[2] : it.t.icon;
+                const fond = it.extra ? `linear-gradient(160deg, ${it.extra[3]} 0%, ${it.extra[4]} 100%)` : couleurSousTuile(it.t.id, paramCouleurDefaut).fond;
+                const libelle = it.extra ? it.extra[1] : (PARAM_LIBELLES[it.t.id] || it.t.label);
+                const actif = !it.extra && ((sousEcran === it.t.id) || (referentielActif && ((it.t.id === "fournisseur" && referentielVue === "fournisseurs") || (it.t.id === "produits" && referentielVue === "produits"))));
+                return (
+                  <button key={id} type="button" onClick={() => { setReferentielActif(false); if (it.extra) ouvrirPlanning(id); else ouvrirSousTuile(it.t.id); }} aria-current={actif ? "page" : undefined}
+                    className="w-full flex items-center gap-3 px-2.5 py-2 min-h-[48px] rounded-xl text-left text-[15px] font-medium transition-colors"
+                    style={sombre ? (actif ? { backgroundColor: "#1F6B47", color: "#fff", boxShadow: "inset 4px 0 0 #6EE7A8" } : { color: "#C5CEDA" }) : (actif ? { background: "var(--accent-soft)", color: "var(--accent)", border: "2px solid var(--accent)" } : { background: "#fff", color: "var(--ink)", border: "2px solid var(--line)" })}>
+                    <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: fond }}><Ic size={18} /></span>
+                    <span className="flex-1 leading-tight">{libelle}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
   // Tuile « Suivi et contrôle » (remplace Contrôle & Gestion) : six rubriques.
   const SUIVI_IDS = ["allergenes", "origine", "rappelconso", "dossierControle", "tiac"];
   const SUIVI_LIBELLES = { alertes: "Alertes qualité", tiac: "Procédure de TIAC", rappelconso: "Rappels de produits (RappelConso)", dossierControle: "Contrôle hygiène (DDPP)", allergenes: "Allergènes", origine: "Origine des viandes" };
@@ -4310,6 +4355,7 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
   const relevesFroidDuJour = relevesFroid.filter((r) => r.date === today);
   const surveillancesDuJour = surveillancesFroid.filter((s) => s.date === today);
 
+  const menuParamSombre = modeParametrage && slotMenuParam ? createPortal(construireMenuParam(true), slotMenuParam) : null;
   if (pmsImpression) {
     return <PmsDossierImprimable reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onBack={() => setPmsImpression(false)} />;
   }
@@ -4320,63 +4366,26 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
   }
 
   if (referentielActif) {
-    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); finOverlay(); }} />;
+    return <>{menuParamSombre}<ReferentielProduits vue={referentielVue} stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); finOverlay(); }} /></>;
   }
 
   if (verifReceptionsActif) {
-    return <VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => { setVerifReceptionsActif(false); finOverlay(); }} memoireSeule={!!stockCatalogue} />;
+    return <>{menuParamSombre}<VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => { setVerifReceptionsActif(false); finOverlay(); }} memoireSeule={!!stockCatalogue} /></>;
   }
 
   if (tracabiliteCompleteActif) {
-    return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => { setTracabiliteCompleteActif(false); finOverlay(); }} />;
+    return <>{menuParamSombre}<TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => { setTracabiliteCompleteActif(false); finOverlay(); }} /></>;
   }
 
   const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", dossierControle: "dossierControle", comptes: "comptes", rappelconso: "rappelconso", alertes: "alertes", notifications: "notifications", appareilsFroid: "temperatures" })[sousEcran] || ({ equipe: "planningEmploye", controle: "controle", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "controle";
   return (
     <ZoneContext.Provider value={zoneDepuisFonction(fonctionZoneControle)}>
     <div className={modeParametrage ? "md:flex md:gap-6 md:items-start" : undefined}>
+      {menuParamSombre}
       {modeParametrage && (
-        <nav aria-label="Paramétrage" className={`${sousEcran ? "hidden md:block" : ""} md:w-72 md:shrink-0 mb-4`}>
+        <nav aria-label="Paramétrage" className={`${slotMenuParam ? "md:hidden" : "md:w-72 md:shrink-0"} ${sousEcran ? "hidden md:block" : ""} mb-4`} style={slotMenuParam && sousEcran ? { display: "none" } : undefined}>
           <SectionHeader title="Paramétrage" subtitle="Tous les réglages au même endroit" permanent icone={Settings} />
-          {PARAM_GROUPES.map((g) => {
-            const items = g.ids.map(paramTuile).filter((t) => t && tuileVisible(t));
-            if (!items.length) return null;
-            return (
-              <div key={g.titre} className="mb-4">
-                <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2 px-1">{g.titre}</div>
-                <div className="space-y-1.5">
-                  {items.map((t) => {
-                    const actif = sousEcran === t.id; const Ic = t.icon; const c = couleurSousTuile(t.id, paramCouleurDefaut);
-                    return (
-                      <button key={t.id} type="button" onClick={() => ouvrirSousTuile(t.id)} aria-current={actif ? "page" : undefined}
-                        className="w-full flex items-center gap-3 px-3 py-2 min-h-[52px] rounded-xl border-2 text-left text-[15px] font-semibold transition-colors"
-                        style={actif ? { background: "var(--accent-soft)", borderColor: "var(--accent)", color: "var(--accent)" } : { background: "#fff", borderColor: "var(--line)", color: "var(--ink)" }}>
-                        <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: c.fond }}><Ic size={18} /></span>
-                        <span className="flex-1 leading-tight">{PARAM_LIBELLES[t.id] || t.label}</span>
-                        <ChevronRight size={16} />
-                      </button>
-                    );
-                  })}
-                </div>
-              </div>
-            );
-          })}
-          {ouvrirPlanning && (
-            <div className="mb-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2 px-1">Planning et réservations</div>
-              <div className="space-y-1.5">
-                {[["horaires", "Horaires de l'équipe", Clock, "#2563B8", "#1D4E89"], ["reservations", "Réservations client", CalendarDays, "#0E7490", "#155E75"]].map(([cible, libelle, Ic, c1, c2]) => (
-                  <button key={cible} type="button" onClick={() => ouvrirPlanning(cible)}
-                    className="w-full flex items-center gap-3 px-3 py-2 min-h-[52px] rounded-xl border-2 text-left text-[15px] font-semibold transition-colors"
-                    style={{ background: "#fff", borderColor: "var(--line)", color: "var(--ink)" }}>
-                    <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)` }}><Ic size={18} /></span>
-                    <span className="flex-1 leading-tight">{libelle}</span>
-                    <ChevronRight size={16} />
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+          {construireMenuParam(false)}
         </nav>
       )}
       <div className={modeParametrage ? "flex-1 min-w-0" : undefined}>
@@ -4453,10 +4462,10 @@ function Controle({ ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, 
           { n: dlcAujourdhui, texte: pl(dlcAujourdhui, "produit à DLC aujourd'hui", "produits à DLC aujourd'hui"), bouton: "Voir", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
           { n: alertesNonVues.length, texte: pl(alertesNonVues.length, "anomalie signalée par l'équipe à lire", "anomalies signalées par l'équipe à lire"), bouton: "Lire", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("alertes"); } },
           { n: nettoAValider, texte: pl(nettoAValider, "nettoyage à valider", "nettoyages à valider"), bouton: "Valider", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("planning"); } },
-          { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); },
-            detail: [...incomplets].sort((p1, p2) => String(p1.nom).localeCompare(String(p2.nom), "fr")).map((x) => ({ id: x.id, libelle: x.nom, sous: [!x.prixUnitaire && "prix manquant", !x.reference && "référence manquante", estAValider(x.note) && "à vérifier"].filter(Boolean).join(" · "), agir: () => { setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } })) },
-          { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => setReferentielActif(true),
-            detail: fournisseursIncomplets.map((f) => ({ id: f.id || f.nom, libelle: f.nom, sous: "jours de commande / livraison à renseigner", agir: () => setReferentielActif(true) })) },
+          { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielVue("produits"); setReferentielActif(true); },
+            detail: [...incomplets].sort((p1, p2) => String(p1.nom).localeCompare(String(p2.nom), "fr")).map((x) => ({ id: x.id, libelle: x.nom, sous: [!x.prixUnitaire && "prix manquant", !x.reference && "référence manquante", estAValider(x.note) && "à vérifier"].filter(Boolean).join(" · "), agir: () => { setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielVue("produits"); setReferentielActif(true); } })) },
+          { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => { setReferentielVue("fournisseurs"); setReferentielActif(true); },
+            detail: fournisseursIncomplets.map((f) => ({ id: f.id || f.nom, libelle: f.nom, sous: "jours de commande / livraison à renseigner", agir: () => { setReferentielVue("fournisseurs"); setReferentielActif(true); } })) },
           // Rappel « sauvegarde hebdomadaire » retiré le 14/10 (voir la tuile Sauvegarde, désactivée).
           { n: sansPoste.length, texte: pl(sansPoste.length, "employé sans poste", "employés sans poste"), bouton: "Corriger", niveau: 2, agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); },
             detail: sansPoste.map((e) => ({ id: e.id, libelle: e.name || e.nom || "Employé", sous: "poste à renseigner", agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); } })) },
@@ -5288,7 +5297,7 @@ const MARQUE_A_VALIDER = "À VALIDER — ";
 const NOTE_A_VALIDER = MARQUE_A_VALIDER + "nouveau produit créé à la réception, fiche à compléter et à valider par le chef.";
 const estAValider = (note) => String(note || "").startsWith(MARQUE_A_VALIDER);
 
-function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProduit }) {
+function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrirProduit }) {
   const [catOuverte, setCatOuverte] = useState(null);
   const [fournisseurOuvert, setFournisseurOuvert] = useState(null);
   // Édition (uniquement quand l'écran est branché sur la nouvelle base : prop `gestion`)
@@ -5322,7 +5331,7 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
     <div>
       <BandeauNormes label="Fournisseurs et produits — traçabilité : Règlement (CE) n° 178/2002, art. 18 · allergènes : Règlement (UE) n° 1169/2011, art. 44" />
       <BoutonRetour onClick={onBack} className="mb-4">Retour</BoutonRetour>
-      <SectionHeader title="Fournisseurs et produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
+      <SectionHeader title={vue === "fournisseurs" ? "Fournisseurs" : vue === "produits" ? "Produits" : "Fournisseurs et produits"} subtitle={vue === "fournisseurs" ? "Coordonnées, jours de commande et de livraison de chaque fournisseur" : "Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison."} />
 
       {aValider.length > 0 && !edition && (
         <div className="mb-4 rounded-xl border-2 p-4" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
@@ -5345,12 +5354,12 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
       )}
       {gestion && !edition && (
         <div className="flex gap-2 mb-4">
-          <button onClick={() => setEdition({ table: "fournisseurs", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un fournisseur</button>
-          <button onClick={() => setEdition({ table: "produits", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un produit</button>
+          {vue !== "produits" && <button onClick={() => setEdition({ table: "fournisseurs", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un fournisseur</button>}
+          {vue !== "fournisseurs" && <button onClick={() => setEdition({ table: "produits", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un produit</button>}
         </div>
       )}
       {gestion && !edition && <ImportCatalogue stock={stock} fournisseurs={fournisseurs} gestion={gestion} />}
-      {fournisseurs && (fournisseurs.length > 0 || gestion) && (
+      {vue !== "produits" && fournisseurs && (fournisseurs.length > 0 || gestion) && (
         <div className="mb-5">
           <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-2">Fournisseurs</div>
           <div className="space-y-2">
@@ -5385,18 +5394,18 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
               );
             })}
           </div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mt-5 mb-2">Produits</div>
+          {vue !== "fournisseurs" && <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mt-5 mb-2">Produits</div>}
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      {vue !== "fournisseurs" && <div className="flex flex-wrap items-center gap-2 mb-3">
         <input className={`${inputCls} flex-1 min-w-[200px]`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={rechercheProduit} onChange={(e) => setRechercheProduit(e.target.value)} />
         <div className="flex gap-1">
           <button type="button" onClick={() => { setGroupement("fournisseur"); setCatOuverte(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${groupement === "fournisseur" ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--cadre)] text-[var(--steel)]"}`}>Par fournisseur</button>
           <button type="button" onClick={() => { setGroupement("categorie"); setCatOuverte(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${groupement === "categorie" ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--cadre)] text-[var(--steel)]"}`}>Par catégorie</button>
         </div>
-      </div>
-      {(
+      </div>}
+      {vue !== "fournisseurs" && (
         <div className="space-y-2">
           {groupes.map((cat) => (
             <Card key={cat} className="!p-0 overflow-hidden">
@@ -23059,6 +23068,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const [huileMatinActif, setHuileMatinActif] = useState(null);
   const [etiquetteRapideNb, setEtiquetteRapideNb] = useState({});
   const [produitAOuvrirApp, setProduitAOuvrirApp] = useState(null); // produit à compléter à ouvrir directement dans Suivi et contrôle
+  const [slotParam, setSlotParam] = useState(null); // emplacement du menu du Paramétrage dans la bande noire
   const [cibleControleApp, setCibleControleApp] = useState(null); // écran à ouvrir directement depuis un bouton du chef : { sousEcran, retourTab }
   const [retourPlanning, setRetourPlanning] = useState(null); // tuile d'où le chef a ouvert les horaires / réservations
   const [etiquetteRapideDemandee, setEtiquetteRapideDemandee] = useState(null); // tableau de noms de produits — voir proposerEtiquetteRapide
@@ -24506,7 +24516,8 @@ function KitchenApp({ identiteExterne } = {}) {
       )}
       {modeExterne && (
         <aside className="hidden md:flex md:flex-col w-60 shrink-0 md:col-start-1 md:row-start-2 md:sticky md:top-[4.25rem] md:self-start p-3 gap-1 overflow-y-auto" style={{ backgroundColor: "#151C26", height: "calc(100vh - 4.25rem)" }}>
-          {[{ id: "accueil", label: "Accueil", icon: ChefHat }, ...navItems].map((n) => {
+          {tab === "parametrage" && peutParametrage ? <div ref={setSlotParam} className="flex flex-col" /> : null}
+          {!(tab === "parametrage" && peutParametrage) && ([{ id: "accueil", label: "Accueil", icon: ChefHat }, ...navItems].map((n) => {
             const actif = tab === n.id || (n.id === "haccp" && NAV_HACCP.some((x) => x.id === tab));
             return (
               <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
@@ -24519,7 +24530,7 @@ function KitchenApp({ identiteExterne } = {}) {
                 {badges[n.id] > 0 && <span className="text-[11px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#E5243B", color: "#fff" }}>{badges[n.id]}</span>}
               </button>
             );
-          })}
+          }))}
         </aside>
       )}
       {!modeExterne && (
@@ -24744,7 +24755,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {(tab === "controle" || (tab === "parametrage" && peutParametrage) || (tab === "historique" && peutHistorique)) && !bloqueChef && (
-          <Controle key={tab} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setRetourPlanning("parametrage"); setTab(cible); } : undefined} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle key={tab} slotMenuParam={tab === "parametrage" ? slotParam : null} onQuitterParam={() => setTab("accueil")} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setRetourPlanning("parametrage"); setTab(cible); } : undefined} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} />

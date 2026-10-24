@@ -169,7 +169,7 @@ await parcours('Vrai mode, directeur : seulement Suivi et contrôle, Historique,
   for (const x of ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Étiquettes', 'Traçabilité', 'Contrôles en cuisine', 'Fiches techniques']) verifier(!t.includes(x), `le directeur voit « ${x} »`);
   verifier(await p.locator('header button[aria-label="Paramétrage"]').count() >= 1, 'engrenage absent de la bande noire');
   await p.locator('header button[aria-label="Paramétrage"]').first().click(); await p.waitForTimeout(800);
-  verifier(/Comptes de l'équipe/.test(await p.innerText('body')), 'Paramétrage ne s’ouvre pas');
+  verifier(/Comptes de l'équipe/.test(await p.innerText('body')), 'Paramétrage ne s’ouvre pas : ' + (await p.innerText('body')).slice(0, 700).replace(/\n/g, ' | '));
   await p.goto(`http://127.0.0.1:5199/reel.html?role=directeur`); await attendre(p, /Bonjour/, 30000);
   await cliquer(p, 'Historique'); verifier(/Historique de la journée/.test(await p.innerText('body')), 'Historique ne s’ouvre pas');
   verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
@@ -218,7 +218,7 @@ await parcours('Paramétrage : engrenage visible pour la Direction, liste à gau
   verifier(await bouton.count() === 1, 'bouton Paramétrage absent (ou en double) pour la Direction');
   await bouton.first().click(); await p.waitForTimeout(600);
   const t = await p.innerText('body');
-  for (const x of ['Comptes de l’équipe'.replace('’', "'"), 'Fournisseurs et produits', 'Appareils de froid', 'Plan de nettoyage', 'Carte du restaurant']) verifier(t.includes(x), `« ${x} » absent de la liste du Paramétrage`);
+  for (const x of ['Comptes de l’équipe'.replace('’', "'"), 'Fournisseurs', 'Produits', 'Appareils de froid', 'Créer une fiche technique', 'Plan de nettoyage', 'Nettoyages à valider', 'Carte du restaurant']) verifier(t.includes(x), `« ${x} » absent de la liste du Paramétrage`);
   for (const x of ['Appareils de froid', 'Comptes de l\'équipe', 'Plan de nettoyage', 'Carte du restaurant']) {
     await cliquer(p, x);
     verifier(!/Something went wrong|Erreur inattendue/.test(await p.innerText('body')), `écran d'erreur sur « ${x} »`);
