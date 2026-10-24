@@ -1492,18 +1492,18 @@ function BoutonRetour({ onClick, children, className = "" }) {
 }
 
 // Rangée de gros boutons réservés au chef et au directeur, placée en haut d'une tuile (jamais visible par les employés).
-function BarreChef({ titre = "Réservé au chef", boutons }) {
+function BarreChef({ titre = "Réservé au chef", boutons, bas = false }) {
   const liste = (boutons || []).filter(Boolean);
   if (!liste.length) return null;
   return (
-    <div className="mb-4 rounded-2xl border-2 bg-white p-3" style={{ borderColor: "var(--line)" }}>
-      <div className="text-[11px] font-bold uppercase tracking-wide text-[var(--steel)] mb-2 px-1">{titre}</div>
-      <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
+    <div className={bas ? "mt-8 rounded-2xl border-2 bg-white p-3" : "mb-4 rounded-2xl border-2 bg-white p-3"} style={{ borderColor: "var(--line)" }}>
+      <div className={`text-[11px] font-bold uppercase tracking-wide text-[var(--steel)] mb-2 px-1 ${bas ? "text-center" : ""}`}>{titre}</div>
+      <div className={bas ? "flex flex-wrap justify-center gap-2" : "grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2"}>
         {liste.map((b) => {
           const Ic = b.icone;
           return (
             <button key={b.label} type="button" onClick={b.onClick}
-              className="min-h-[56px] rounded-xl px-3 py-2 flex items-center gap-2.5 text-left text-sm font-bold text-white active:scale-95 transition-transform"
+              className={`min-h-[56px] rounded-xl px-3 py-2 flex items-center gap-2.5 text-sm font-bold text-white active:scale-95 transition-transform ${bas ? "justify-center text-center min-w-[220px]" : "text-left"}`}
               style={{ background: b.fond || "linear-gradient(160deg, #5B6B8C 0%, #34405C 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
               {Ic && <Ic size={20} className="shrink-0" />}
               <span className="leading-tight">{b.label}</span>
@@ -24183,6 +24183,38 @@ function KitchenApp({ identiteExterne } = {}) {
 
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
   const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule, employees, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, ouvrirProduitAcompleter: (id, focus) => { setProduitAOuvrirApp({ id, focus }); setCibleControleApp({ retourTab: "stock" }); setTab("controle"); }, ajouterProduit: () => { setProduitAOuvrirApp({ nouveau: true }); setCibleControleApp({ retourTab: "stock" }); setTab("controle"); }, produitsModifiables: !!(modeExterne && identiteExterne && identiteExterne.catalogue) };
+  const barreChefEl = !peutParametrage ? null : (() => {
+        const HIST = { haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" };
+        const grad = (a, b) => `linear-gradient(160deg, ${a} 0%, ${b} 100%)`;
+        if (tab === "taches") return <BarreChef boutons={[
+          { label: "Modifier les horaires", icone: Clock, fond: grad("#2563B8", "#1D4E89"), onClick: () => { setRetourPlanning("taches"); setTab("horaires"); } },
+          { label: "Réservations", icone: CalendarDays, fond: grad("#0E7490", "#155E75"), onClick: () => { setRetourPlanning("taches"); setTab("reservations"); } },
+          { label: "Nettoyages à valider", icone: SprayCan, fond: grad("#B83A6B", "#8B2450"), onClick: () => ouvrirControle("planning", "taches") },
+          { label: "Historique de la journée", icone: ClipboardList, fond: grad("#7C6BC4", "#4B3C94"), onClick: () => ouvrirControle("historiqueJour", "taches") },
+        ]} />;
+        if (tab === "haccp") return <BarreChef bas boutons={[
+          { label: "Historique des températures", icone: Thermometer, onClick: () => ouvrirControle("temperatures", "haccp") },
+          { label: "Historique du refroidissement", icone: Snowflake, onClick: () => ouvrirControle("cellule", "haccp") },
+          { label: "Historique des huiles de friture", icone: Droplets, onClick: () => ouvrirControle("huile", "haccp") },
+          { label: "Historique du maintien au chaud", icone: Soup, onClick: () => ouvrirControle("maintien", "haccp") },
+          { label: "Historique des cuissons", icone: Flame, onClick: () => ouvrirControle("cuisson", "haccp") },
+        ]} />;
+        if (HIST[tab]) return <BarreChef bas boutons={[{ label: "Historique", icone: ClipboardList, onClick: () => ouvrirControle(HIST[tab], tab) }]} />;
+        if (tab === "tracabilite") return <BarreChef bas boutons={[{ label: "Historique de la traçabilité", icone: Camera, onClick: () => ouvrirControle("tracabilite", "tracabilite") }]} />;
+        if (tab === "reception") return <BarreChef boutons={[
+          { label: "Vérifier les réceptions", icone: ClipboardCheck, onClick: () => ouvrirControle("reception", "reception") },
+          { label: "Livraisons reçues", icone: ClipboardList, onClick: () => ouvrirControle("commandes", "reception") },
+          { label: "Notifications fournisseur", icone: Mail, onClick: () => ouvrirControle("notifications", "reception") },
+          { label: "Fournisseurs et produits", icone: ShoppingCart, onClick: () => ouvrirControle("fournisseur", "reception") },
+        ]} />;
+        if (tab === "etiquettes" && !(modeExterne && identiteExterne && identiteExterne.catalogue)) return <BarreChef boutons={[{ label: "Produits des étiquettes (DLC)", icone: Printer, onClick: () => ouvrirControle("catalogueDlc", "etiquettes") }]} />;
+        if (tab === "fiches") return <BarreChef boutons={[
+          { label: "Créer une fiche technique", icone: Sparkles, fond: grad("#E0457B", "#A3174F"), onClick: () => ouvrirControle("creationFiche", "fiches") },
+          { label: "Ma carte", icone: UtensilsCrossed, fond: grad("#E08A2C", "#B45309"), onClick: () => ouvrirControle("carte", "fiches") },
+        ]} />;
+        return null;
+  })();
+
   return (
     <NettoyageContext.Provider value={valeurNettoyageFin}>
     <AccesContext.Provider value={{ estResponsable: chefComplet || currentUserId === "direction", estSecond: moiSecond }}>
@@ -24484,37 +24516,7 @@ function KitchenApp({ identiteExterne } = {}) {
             </div>
           </div>
         )}
-        {peutParametrage && (() => {
-          const HIST = { haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" };
-          const grad = (a, b) => `linear-gradient(160deg, ${a} 0%, ${b} 100%)`;
-          if (tab === "taches") return <BarreChef boutons={[
-            { label: "Modifier les horaires", icone: Clock, fond: grad("#2563B8", "#1D4E89"), onClick: () => { setRetourPlanning("taches"); setTab("horaires"); } },
-            { label: "Réservations", icone: CalendarDays, fond: grad("#0E7490", "#155E75"), onClick: () => { setRetourPlanning("taches"); setTab("reservations"); } },
-            { label: "Nettoyages à valider", icone: SprayCan, fond: grad("#B83A6B", "#8B2450"), onClick: () => ouvrirControle("planning", "taches") },
-            { label: "Historique de la journée", icone: ClipboardList, fond: grad("#7C6BC4", "#4B3C94"), onClick: () => ouvrirControle("historiqueJour", "taches") },
-          ]} />;
-          if (tab === "haccp") return <BarreChef boutons={[
-            { label: "Historique des températures", icone: Thermometer, onClick: () => ouvrirControle("temperatures", "haccp") },
-            { label: "Historique du refroidissement", icone: Snowflake, onClick: () => ouvrirControle("cellule", "haccp") },
-            { label: "Historique des huiles de friture", icone: Droplets, onClick: () => ouvrirControle("huile", "haccp") },
-            { label: "Historique du maintien au chaud", icone: Soup, onClick: () => ouvrirControle("maintien", "haccp") },
-            { label: "Historique des cuissons", icone: Flame, onClick: () => ouvrirControle("cuisson", "haccp") },
-          ]} />;
-          if (HIST[tab]) return <BarreChef boutons={[{ label: "Historique", icone: ClipboardList, onClick: () => ouvrirControle(HIST[tab], tab) }]} />;
-          if (tab === "tracabilite") return <BarreChef boutons={[{ label: "Historique de la traçabilité", icone: Camera, onClick: () => ouvrirControle("tracabilite", "tracabilite") }]} />;
-          if (tab === "reception") return <BarreChef boutons={[
-            { label: "Vérifier les réceptions", icone: ClipboardCheck, onClick: () => ouvrirControle("reception", "reception") },
-            { label: "Livraisons reçues", icone: ClipboardList, onClick: () => ouvrirControle("commandes", "reception") },
-            { label: "Notifications fournisseur", icone: Mail, onClick: () => ouvrirControle("notifications", "reception") },
-            { label: "Fournisseurs et produits", icone: ShoppingCart, onClick: () => ouvrirControle("fournisseur", "reception") },
-          ]} />;
-          if (tab === "etiquettes" && !(modeExterne && identiteExterne && identiteExterne.catalogue)) return <BarreChef boutons={[{ label: "Produits des étiquettes (DLC)", icone: Printer, onClick: () => ouvrirControle("catalogueDlc", "etiquettes") }]} />;
-          if (tab === "fiches") return <BarreChef boutons={[
-            { label: "Créer une fiche technique", icone: Sparkles, fond: grad("#E0457B", "#A3174F"), onClick: () => ouvrirControle("creationFiche", "fiches") },
-            { label: "Ma carte", icone: UtensilsCrossed, fond: grad("#E08A2C", "#B45309"), onClick: () => ouvrirControle("carte", "fiches") },
-          ]} />;
-          return null;
-        })()}
+        {barreChefEl && !barreChefEl.props.bas && barreChefEl}
         {tab === "haccp" && (
           <div>
             <SectionHeader title="Contrôles en cuisine" fonction="haccp" icone={Thermometer} subtitle="Les cinq contrôles de la cuisine : températures, refroidissement, huile, maintien au chaud et cuissons" />
@@ -24610,6 +24612,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} />
         )}
         </ZoneContext.Provider>
+        {barreChefEl && barreChefEl.props.bas && barreChefEl}
       </main>
       {/* La barre d'onglets mobile du bas a été retirée : la navigation se fait maintenant
           depuis les grandes tuiles de la page d'accueil, avec un bouton "maison" dans l'en-tête
