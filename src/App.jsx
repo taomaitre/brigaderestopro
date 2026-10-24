@@ -381,14 +381,18 @@ function jouerRafaleBips(nombre, delaiMs = 350) {
 
 const NAV = [
   { id: "taches", label: "Tâches du jour", icon: ListChecks },
-  { id: "stock", label: "Stock", icon: Package },
-  { id: "reception", label: "Réception des marchandises", icon: Truck },
   { id: "etiquettes", label: "Étiquettes (DLC)", icon: Printer },
   { id: "tracabilite", label: "Traçabilité", icon: Camera },
-  { id: "haccp", label: "Contrôles en cuisine", icon: Thermometer },
+  { id: "reception", label: "Réception des marchandises", icon: Truck },
+  { id: "stock", label: "Stock", icon: Package },
+  { id: "haccpTemp", label: "Températures frigos et congélateurs", icon: Thermometer },
+  { id: "haccpRefroid", label: "Refroidissement rapide", icon: Snowflake },
+  { id: "haccpHuile", label: "Suivi d'huile de friture", icon: Droplets },
+  { id: "haccpChaud", label: "Maintien au chaud", icon: Soup },
+  { id: "haccpCuisson", label: "Cuisson", icon: Flame },
   { id: "fiches", label: "Fiches techniques", icon: BookOpen },
-  { id: "lexique", label: "Lexique et réglementation", icon: BookOpen },
   { id: "controle", label: "Suivi et contrôle", icon: ClipboardCheck, chefOnly: true },
+  { id: "lexique", label: "Lexique et réglementation", icon: BookOpen },
   { id: "historique", label: "Historique", icon: Clock, directionOnly: true },
 ];
 
@@ -396,7 +400,7 @@ const NAV = [
 const NAV_HACCP = [
   { id: "haccpTemp", label: "Températures frigos et congélateurs", icon: Thermometer },
   { id: "haccpRefroid", label: "Refroidissement rapide (cellule)", icon: Snowflake },
-  { id: "haccpHuile", label: "Huile de friture", icon: Droplets },
+  { id: "haccpHuile", label: "Suivi d'huile de friture", icon: Droplets },
   { id: "haccpChaud", label: "Maintien au chaud", icon: Soup },
   { id: "haccpCuisson", label: "Cuisson", icon: Flame },
 ];
@@ -433,13 +437,17 @@ const FICHES_TUILES = [
 const ACCUEIL_TUILES = [
   { id: "taches", label: "Tâches du jour", desc: "Consultez et gérez les tâches de la journée", icon: ListChecks, fond: "linear-gradient(120deg, #1F8F5F 0%, #146B45 100%)", ombre: "rgba(20,107,69,0.35)" },
   { id: "etiquettes", label: "Étiquettes (DLC)", desc: "Créez et imprimez vos étiquettes de traçabilité", icon: Printer, fond: "linear-gradient(120deg, #8B5CF6 0%, #6027C9 100%)", ombre: "rgba(96,39,201,0.35)" },
-  { id: "stock", label: "Stock", desc: "Gérez vos produits, vos quantités et vos inventaires", icon: Package, fond: "linear-gradient(120deg, #F59E0B 0%, #C26A00 100%)", ombre: "rgba(194,106,0,0.35)" },
-  { id: "reception", label: "Réception des marchandises", desc: "Enregistrez vos livraisons et vos fournisseurs", icon: Truck, fond: "linear-gradient(120deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" },
   { id: "tracabilite", label: "Traçabilité", desc: "Photographiez les étiquettes, suivez les lots", icon: Camera, fond: "linear-gradient(120deg, #14A5B8 0%, #0B7285 100%)", ombre: "rgba(11,114,133,0.35)" },
-  { id: "haccp", label: "Contrôles en cuisine", desc: "Suivi des températures, refroidissements, maintien au chaud, cuissons et huiles de friture", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
+  { id: "reception", label: "Réception des marchandises", desc: "Enregistrez vos livraisons et vos fournisseurs", icon: Truck, fond: "linear-gradient(120deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" },
+  { id: "stock", label: "Stock", desc: "Gérez vos produits, vos quantités et vos inventaires", icon: Package, fond: "linear-gradient(120deg, #F59E0B 0%, #C26A00 100%)", ombre: "rgba(194,106,0,0.35)" },
+  { id: "haccpTemp", label: "Températures frigos et congélateurs", desc: "Suivez et enregistrez les températures de vos équipements", icon: Thermometer },
+  { id: "haccpRefroid", label: "Refroidissement rapide", desc: "Contrôlez vos cycles de refroidissement et vos enregistrements", icon: Snowflake },
+  { id: "haccpHuile", label: "Suivi d'huile de friture", desc: "Suivez la qualité et la durée d'utilisation de vos huiles", icon: Droplets },
+  { id: "haccpChaud", label: "Maintien au chaud", desc: "Vérifiez et enregistrez le maintien au chaud de vos plats", icon: Soup },
+  { id: "haccpCuisson", label: "Cuisson", desc: "Enregistrez les températures à cœur de vos cuissons", icon: Flame },
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
-  { id: "lexique", label: "Lexique et réglementation", desc: "Les règles et les textes officiels, expliqués simplement", icon: BookOpen, fond: "linear-gradient(120deg, #0E8F7E 0%, #086356 100%)", ombre: "rgba(8,99,86,0.35)" },
   { id: "controle", label: "Suivi et contrôle", desc: "Alertes, TIAC, rappels de produits, contrôle d'hygiène (DDPP), allergènes, origine des viandes", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
+  { id: "lexique", label: "Lexique et réglementation", desc: "Les règles et les textes officiels, expliqués simplement", icon: BookOpen, fond: "linear-gradient(120deg, #0E8F7E 0%, #086356 100%)", ombre: "rgba(8,99,86,0.35)" },
   { id: "historique", label: "Historique", desc: "Tous les historiques : journée, températures, huiles, refroidissement, cuissons, traçabilité…", icon: Clock, fond: "linear-gradient(120deg, #7C6BC4 0%, #4B3C94 100%)", ombre: "rgba(75,60,148,0.35)", directionOnly: true },
 ];
 // Chaque fonction a SA couleur (jamais deux fonctions identiques, pour que le cerveau retienne la couleur et l'emplacement),
@@ -490,7 +498,7 @@ const COULEURS_FONCTION = {
 };
 COULEURS_FONCTION.planning = COULEURS_FONCTION.taches;
 // Les tuiles de l'accueil et du hub lisent la même table : une fonction = une seule couleur partout.
-ACCUEIL_TUILES.forEach((t) => { const c = COULEURS_FONCTION[t.id]; if (c) { t.fond = c.fond; t.ombre = c.ombre; } });
+ACCUEIL_TUILES.forEach((t) => { const c = COULEURS_FONCTION[({ haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" })[t.id] || t.id]; if (c) { t.fond = c.fond; t.ombre = c.ombre; } });
 ["haccp", "taches", "stock", "reception", "etiquettes", "tracabilite", "fiches", "controle", "comptes"].forEach((id) => { const c = COULEURS_FONCTION[id]; if (c) TUILE_COULEURS[id] = { fond: c.fond, ombre: c.ombre }; });
 // Couleur d'une zone (titre teinté, filet du haut) déduite de la table
 const zoneDepuisFonction = (id) => {
@@ -23187,7 +23195,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const memoriserFicheOrigine = (nom) => { const f = fichesRef.current.find((x) => x.nom === nom); setFicheRetourId(f ? f.id : null); };
   const retourPagePrecedente = () => {
     if (tabPrecedent === "fiches") { if (ficheRetourId) setFicheAutoOuvrirId(ficheRetourId); setFicheRetourId(null); setTab("fiches"); }
-    else setTab(tabPrecedent && tabPrecedent !== tab ? tabPrecedent : "haccp");
+    else setTab(tabPrecedent && tabPrecedent !== tab ? tabPrecedent : "accueil");
   };
   // Bouton retour du téléphone : sur n'importe quel écran autre que l'Accueil, il ramène à l'écran d'avant (les écrans qui ont
   // leur propre bouton Retour passent avant, voir BoutonRetour). Sur l'Accueil : un premier appui affiche un message,
