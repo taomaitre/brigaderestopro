@@ -3907,7 +3907,8 @@ function CarteRemplacantChef({ employees, remplacants, setRemplacants, logActivi
   );
 }
 
-function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }) {
+function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity, remplacants = [], setRemplacants }) {
+  const [devientRemplacant, setDevientRemplacant] = useState(false);
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
   const [poste, setPoste] = useState("");
@@ -3940,9 +3941,10 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
       const nomComplet = `${prenom.trim()} ${nom.trim()}`;
       const emp = await gestion.creer({ nom: nom.trim(), prenom: prenom.trim(), poste, role: statut, services: servicesEffectifs, email: email.trim().toLowerCase() });
       logActivity("Équipe", "Compte créé", `${nomComplet} (${LIBELLE_STATUT[statut] || statut})`);
+      if (devientRemplacant && setRemplacants && emp && emp.id) setRemplacants([...remplacants, emp.id]);
       const rep = await gestion.inviter(emp.id);
       setMessage(resultatInvitation(nomComplet, rep));
-      setNom(""); setPrenom(""); setPoste(""); setStatut("cuisinier"); setEmail(""); setServices(["Cuisine"]);
+      setNom(""); setPrenom(""); setPoste(""); setStatut("cuisinier"); setEmail(""); setServices(["Cuisine"]); setDevientRemplacant(false);
     } catch (e) {
       setMessage({ type: "erreur", texte: "Impossible de créer le compte : " + e.message });
     } finally { setEnCours(false); }
@@ -4021,6 +4023,12 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
             );
           })}
         </div>
+        {setRemplacants && !estGestion && (
+          <label className="flex items-start gap-2 text-sm text-[var(--ink)] mb-4 cursor-pointer">
+            <input type="checkbox" className="mt-1" checked={devientRemplacant} onChange={(e) => setDevientRemplacant(e.target.checked)} />
+            <span><strong>Remplaçant du chef</strong> : les jours de repos du chef, cette personne reçoit l'accès à Suivi et contrôle et fait le « Contrôle obligatoire ».</span>
+          </label>
+        )}
         <button onClick={creer} disabled={!pret || enCours} className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
           <Plus size={18} /> {enCours ? "Création…" : "Créer le compte"}
         </button>
@@ -4075,7 +4083,12 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
                         : <span className="text-xs font-semibold inline-flex items-center gap-1.5" style={{ color: "#14653A" }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#1E7B4B" }} /> Actif</span>}
                     </td>
                     <td className="py-2.5 text-right whitespace-nowrap">
-                      {e.email && e.codeDefini === false && <button onClick={() => renvoyer(e)} className="text-xs font-semibold text-[var(--accent)] underline mr-3">Renvoyer l'invitation</button>}
+                      {setRemplacants && !e.estDirection && (!e.estChef || e.remplaceChef) && (
+                        <label className="inline-flex items-center gap-1 text-xs text-[var(--ink)] mr-3 cursor-pointer" title="Remplace le chef les jours de repos">
+                          <input type="checkbox" checked={remplacants.includes(e.id)} onChange={() => { const actif = remplacants.includes(e.id); setRemplacants(actif ? remplacants.filter((x) => x !== e.id) : [...remplacants, e.id]); logActivity("Équipe", actif ? "Remplaçant du chef retiré" : "Remplaçant du chef ajouté", e.nom); }} /> Remplaçant du chef
+                        </label>
+                      )}
+                      {e.email && <button onClick={() => renvoyer(e)} className="text-xs font-semibold text-[var(--accent)] underline mr-3">{e.codeDefini === false ? "Renvoyer l'invitation" : "Envoyer le code par e-mail (changer de code)"}</button>}
                       {e.id === currentUserId
                         ? <span className="text-xs text-[var(--steel)] italic">Compte actuel</span>
                         : <button onClick={() => setSuppression(e)} className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-[var(--line)] text-[var(--ink)]" title="Supprimer ce compte"><Trash2 size={14} /> Supprimer</button>}
@@ -4982,13 +4995,13 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, modeParametra
       </>)}
 
       {sousEcran === "sauvegarde" && identiteExterneCG && identiteExterneCG.exporterSauvegarde && <EcranSauvegarde exporter={identiteExterneCG.exporterSauvegarde} />}
-      {sousEcran === "comptes" && setRemplacantsChef && (
-        <CarteRemplacantChef employees={employees} remplacants={remplacantsChef || []} setRemplacants={setRemplacantsChef} logActivity={logActivity} persiste={!gestionComptes} />
-      )}
       {sousEcran === "comptes" && gestionComptes && (
-        <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} />
+        <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} remplacants={remplacantsChef || []} setRemplacants={setRemplacantsChef} />
       )}
 
+      {sousEcran === "comptes" && !gestionComptes && setRemplacantsChef && (
+        <CarteRemplacantChef employees={employees} remplacants={remplacantsChef || []} setRemplacants={setRemplacantsChef} logActivity={logActivity} persiste={false} />
+      )}
       {sousEcran === "comptes" && !gestionComptes && (
         <div className="mb-6 space-y-6">
           <Card>
