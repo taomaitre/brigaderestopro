@@ -11,6 +11,10 @@ ALIAS=(); [ -n "$REACT_DIR" ] && ALIAS=(--alias:react="$REACT_DIR/react" --alias
 "$ESB" src/main.jsx --bundle --minify --loader:.js=jsx --jsx=automatic --outfile="$OUT/app.js" \
   --alias:@supabase/supabase-js="$RACINE/tests/banc/sb.js" --alias:xlsx="$RACINE/tests/banc/xl.js" \
   --define:process.env.NODE_ENV=\"production\" --define:import.meta.env='{}' --log-level=error "${ALIAS[@]}"
+"$ESB" tests/banc/reel.jsx --bundle --minify --loader:.js=jsx --jsx=automatic --outfile="$OUT/reel.js" \
+  --alias:@supabase/supabase-js="$RACINE/tests/banc/sb.js" --alias:xlsx="$RACINE/tests/banc/xl.js" \
+  --define:process.env.NODE_ENV=\"production\" --define:import.meta.env='{}' --log-level=error "${ALIAS[@]}"
 "$TW" -c tailwind.config.js -i src/index.css -o "$OUT/tw.css" >/dev/null 2>&1
 cp tests/banc/index.html "$OUT/index.html"
+sed 's/app.js/reel.js/' tests/banc/index.html > "$OUT/reel.html"
 echo BUILD_OK

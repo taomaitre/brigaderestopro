@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { analyserCommandeLocale, rapprocher as rapprocherVocal, reponseOuiNon, pluriel as pluralVocal } from './analyseVocale.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
+import LexiqueReglementaire from './LexiqueReglementaire.jsx';
 import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
@@ -107,6 +109,7 @@ const BookOpen = makeIcon([P("M12 7v14"), P("M3 18a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1
 const Camera = makeIcon([P("M14.5 4h-5L7 7H4a2 2 0 0 0-2 2v9a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-3l-2.5-3z"), C(12, 13, 3)]);
 const Mail = makeIcon([RC(2, 4, 20, 16, 2), P("m22 6-8.97 6.7a2 2 0 0 1-2.06 0L2 6")]);
 const Search = makeIcon([C(11, 11, 8), L(21, 21, 16.65, 16.65)]);
+const Settings = makeIcon([P("M12.22 2h-.44a2 2 0 0 0-2 2v.18a2 2 0 0 1-1 1.73l-.43.25a2 2 0 0 1-2 0l-.15-.08a2 2 0 0 0-2.73.73l-.22.38a2 2 0 0 0 .73 2.73l.15.1a2 2 0 0 1 1 1.72v.51a2 2 0 0 1-1 1.74l-.15.09a2 2 0 0 0-.73 2.73l.22.38a2 2 0 0 0 2.73.73l.15-.08a2 2 0 0 1 2 0l.43.25a2 2 0 0 1 1 1.73V20a2 2 0 0 0 2 2h.44a2 2 0 0 0 2-2v-.18a2 2 0 0 1 1-1.73l.43-.25a2 2 0 0 1 2 0l.15.08a2 2 0 0 0 2.73-.73l.22-.39a2 2 0 0 0-.73-2.73l-.15-.08a2 2 0 0 1-1-1.74v-.5a2 2 0 0 1 1-1.74l.15-.09a2 2 0 0 0 .73-2.73l-.22-.38a2 2 0 0 0-2.73-.73l-.15.08a2 2 0 0 1-2 0l-.43-.25a2 2 0 0 1-1-1.73V4a2 2 0 0 0-2-2z"), C(12, 12, 3)]);
 const Sliders = makeIcon([L(4, 21, 4, 14), L(4, 10, 4, 3), L(12, 21, 12, 12), L(12, 8, 12, 3), L(20, 21, 20, 16), L(20, 12, 20, 3), L(1, 14, 7, 14), L(9, 8, 15, 8), L(17, 16, 23, 16)]);
 const Loader2 = makeIcon([P("M21 12a9 9 0 1 1-6.219-8.56")]);
 const XCircle = makeIcon([C(12, 12, 10), L(15, 9, 9, 15), L(9, 9, 15, 15)]);
@@ -379,20 +382,26 @@ function jouerRafaleBips(nombre, delaiMs = 350) {
 
 const NAV = [
   { id: "taches", label: "Tâches du jour", icon: ListChecks },
-  { id: "stock", label: "Stock", icon: Package },
-  { id: "reception", label: "Réception des marchandises", icon: Truck },
   { id: "etiquettes", label: "Étiquettes (DLC)", icon: Printer },
   { id: "tracabilite", label: "Traçabilité", icon: Camera },
-  { id: "haccp", label: "Contrôles en cuisine", icon: Thermometer },
+  { id: "reception", label: "Réception des marchandises", icon: Truck },
+  { id: "stock", label: "Stock", icon: Package },
+  { id: "haccpTemp", label: "Températures frigos et congélateurs", icon: Thermometer },
+  { id: "haccpRefroid", label: "Refroidissement rapide et congélation", icon: Snowflake },
+  { id: "haccpHuile", label: "Suivi d'huile de friture", icon: Droplets },
+  { id: "haccpChaud", label: "Maintien au chaud", icon: Soup },
+  { id: "haccpCuisson", label: "Cuisson", icon: Flame },
   { id: "fiches", label: "Fiches techniques", icon: BookOpen },
-  { id: "controle", label: "Contrôle & Gestion", icon: ClipboardCheck, chefOnly: true },
+  { id: "controle", label: "Suivi et contrôle", icon: ClipboardCheck, chefOnly: true },
+  { id: "lexique", label: "Lexique et réglementation", icon: BookOpen },
+  { id: "historique", label: "Historique", icon: Clock, directionOnly: true },
 ];
 
 // Les cinq contrôles HACCP sont regroupés derrière une seule icône « HACCP » (menu de tuiles).
 const NAV_HACCP = [
   { id: "haccpTemp", label: "Températures frigos et congélateurs", icon: Thermometer },
-  { id: "haccpRefroid", label: "Refroidissement rapide (cellule)", icon: Snowflake },
-  { id: "haccpHuile", label: "Huile de friture", icon: Droplets },
+  { id: "haccpRefroid", label: "Refroidissement rapide et congélation", icon: Snowflake },
+  { id: "haccpHuile", label: "Suivi d'huile de friture", icon: Droplets },
   { id: "haccpChaud", label: "Maintien au chaud", icon: Soup },
   { id: "haccpCuisson", label: "Cuisson", icon: Flame },
 ];
@@ -429,12 +438,18 @@ const FICHES_TUILES = [
 const ACCUEIL_TUILES = [
   { id: "taches", label: "Tâches du jour", desc: "Consultez et gérez les tâches de la journée", icon: ListChecks, fond: "linear-gradient(120deg, #1F8F5F 0%, #146B45 100%)", ombre: "rgba(20,107,69,0.35)" },
   { id: "etiquettes", label: "Étiquettes (DLC)", desc: "Créez et imprimez vos étiquettes de traçabilité", icon: Printer, fond: "linear-gradient(120deg, #8B5CF6 0%, #6027C9 100%)", ombre: "rgba(96,39,201,0.35)" },
-  { id: "stock", label: "Stock", desc: "Gérez vos produits, vos quantités et vos inventaires", icon: Package, fond: "linear-gradient(120deg, #F59E0B 0%, #C26A00 100%)", ombre: "rgba(194,106,0,0.35)" },
-  { id: "reception", label: "Réception des marchandises", desc: "Enregistrez vos livraisons et vos fournisseurs", icon: Truck, fond: "linear-gradient(120deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" },
   { id: "tracabilite", label: "Traçabilité", desc: "Photographiez les étiquettes, suivez les lots", icon: Camera, fond: "linear-gradient(120deg, #14A5B8 0%, #0B7285 100%)", ombre: "rgba(11,114,133,0.35)" },
-  { id: "haccp", label: "Contrôles en cuisine", desc: "Suivi des températures, refroidissements, maintien au chaud, cuissons et huiles de friture", icon: Thermometer, fond: "linear-gradient(120deg, #D4A017 0%, #9A7000 100%)", ombre: "rgba(154,112,0,0.35)" },
+  { id: "reception", label: "Réception des marchandises", desc: "Enregistrez vos livraisons et vos fournisseurs", icon: Truck, fond: "linear-gradient(120deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" },
+  { id: "stock", label: "Stock", desc: "Gérez vos produits, vos quantités et vos inventaires", icon: Package, fond: "linear-gradient(120deg, #F59E0B 0%, #C26A00 100%)", ombre: "rgba(194,106,0,0.35)" },
+  { id: "haccpTemp", label: "Températures frigos et congélateurs", desc: "Suivez et enregistrez les températures de vos équipements", icon: Thermometer },
+  { id: "haccpRefroid", label: "Refroidissement rapide et congélation", desc: "Contrôlez vos cycles de refroidissement et vos enregistrements", icon: Snowflake },
+  { id: "haccpHuile", label: "Suivi d'huile de friture", desc: "Suivez la qualité et la durée d'utilisation de vos huiles", icon: Droplets },
+  { id: "haccpChaud", label: "Maintien au chaud", desc: "Vérifiez et enregistrez le maintien au chaud de vos plats", icon: Soup },
+  { id: "haccpCuisson", label: "Cuisson", desc: "Enregistrez les températures à cœur de vos cuissons", icon: Flame },
   { id: "fiches", label: "Fiches techniques", desc: "Consultez et créez vos recettes et fiches de production", icon: BookOpen, fond: "linear-gradient(120deg, #E0457B 0%, #A3174F 100%)", ombre: "rgba(163,23,79,0.35)" },
-  { id: "controle", label: "Contrôle & Gestion", desc: "Équipe, contrôles, cuisine, hygiène et suivi de l'activité", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
+  { id: "controle", label: "Suivi et contrôle", desc: "Alertes, TIAC, rappels de produits, contrôle d'hygiène (DDPP), allergènes, origine des viandes", icon: ClipboardCheck, fond: "linear-gradient(120deg, #5B6B8C 0%, #34405C 100%)", ombre: "rgba(52,64,92,0.35)", chefOnly: true },
+  { id: "lexique", label: "Lexique et réglementation", desc: "Les règles et les textes officiels, expliqués simplement", icon: BookOpen, fond: "linear-gradient(120deg, #0E8F7E 0%, #086356 100%)", ombre: "rgba(8,99,86,0.35)" },
+  { id: "historique", label: "Historique", desc: "Tous les historiques : journée, températures, huiles, refroidissement, cuissons, traçabilité…", icon: Clock, fond: "linear-gradient(120deg, #7C6BC4 0%, #4B3C94 100%)", ombre: "rgba(75,60,148,0.35)", directionOnly: true },
 ];
 // Chaque fonction a SA couleur (jamais deux fonctions identiques, pour que le cerveau retienne la couleur et l'emplacement),
 // et une même fonction garde la même couleur partout (écran HACCP, accueil, Contrôle & Gestion).
@@ -484,7 +499,7 @@ const COULEURS_FONCTION = {
 };
 COULEURS_FONCTION.planning = COULEURS_FONCTION.taches;
 // Les tuiles de l'accueil et du hub lisent la même table : une fonction = une seule couleur partout.
-ACCUEIL_TUILES.forEach((t) => { const c = COULEURS_FONCTION[t.id]; if (c) { t.fond = c.fond; t.ombre = c.ombre; } });
+ACCUEIL_TUILES.forEach((t) => { const c = COULEURS_FONCTION[({ haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" })[t.id] || t.id]; if (c) { t.fond = c.fond; t.ombre = c.ombre; } });
 ["haccp", "taches", "stock", "reception", "etiquettes", "tracabilite", "fiches", "controle", "comptes"].forEach((id) => { const c = COULEURS_FONCTION[id]; if (c) TUILE_COULEURS[id] = { fond: c.fond, ombre: c.ombre }; });
 // Couleur d'une zone (titre teinté, filet du haut) déduite de la table
 const zoneDepuisFonction = (id) => {
@@ -1416,7 +1431,7 @@ const LOGOS_TITRE = [
   ["Planning employé", "planningEmploye", () => Clock], ["Horaires", "planningEmploye", () => Clock], ["Réservations", "reservationsClient", () => CalendarDays],
   ["Création de fiche", "creationFiche", () => Sparkles], ["Fournisseurs et produits", "fournisseur", () => ShoppingCart], ["Allergènes", "allergenes", () => AlertTriangle],
   ["Origine des viandes", "origine", () => MapPin], ["Procédure de TIAC", "tiac", () => Activity], ["Stock", "stock", () => Package], ["Étiquettes", "etiquettes", () => Printer],
-  ["Contrôles en cuisine", "haccp", () => Thermometer], ["Contrôle & Gestion", "controle", () => ClipboardCheck], ["Tableau de bord", "controle", () => ClipboardCheck], ["Inventaire", "stock", () => ClipboardCheck],
+  ["Contrôles en cuisine", "haccp", () => Thermometer], ["Contrôle & Gestion", "controle", () => ClipboardCheck], ["Suivi et contrôle", "controle", () => ClipboardCheck], ["Tableau de bord", "controle", () => ClipboardCheck], ["Inventaire", "stock", () => ClipboardCheck],
 ];
 // ---- Bouton « retour » du téléphone ----
 // Chaque écran qui affiche un bouton Retour s'inscrit dans une pile (le dernier ouvert est au-dessus). Le bouton retour
@@ -1485,6 +1500,30 @@ function BoutonRetour({ onClick, children, className = "" }) {
       style={{ borderColor: z.bord, backgroundColor: z.fond, color: z.texte }}>
       <ArrowLeft size={18} strokeWidth={2.5} /> {children}
     </button>
+  );
+}
+
+// Rangée de gros boutons réservés au chef et au directeur, placée en haut d'une tuile (jamais visible par les employés).
+const FichesNomsContext = React.createContext([]);
+function BarreChef({ titre = "", boutons, bas = false, centre = false }) {
+  const liste = (boutons || []).filter(Boolean);
+  if (!liste.length) return null;
+  return (
+    <div className={bas ? "mt-8" : "mb-4"}>
+      <div className="flex flex-wrap justify-center gap-2">
+        {liste.map((b) => {
+          const Ic = b.icone;
+          return (
+            <button key={b.label} type="button" onClick={b.onClick}
+              className={`min-h-[56px] rounded-xl px-3 py-2 flex items-center gap-2.5 text-sm font-bold text-white active:scale-95 transition-transform justify-center text-center min-w-[220px]`}
+              style={{ background: b.fond || "linear-gradient(160deg, #5B6B8C 0%, #34405C 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+              {Ic && <Ic size={20} className="shrink-0" />}
+              <span className="leading-tight">{b.label}</span>
+            </button>
+          );
+        })}
+      </div>
+    </div>
   );
 }
 
@@ -2167,9 +2206,9 @@ function LignePms({ ok, children }) {
 const PMS_ETAPES_HACCP = [
   { etape: "Réception", limite: "Selon le produit : haché et poisson +2 °C, abats et plats cuisinés +3 °C, autres produits frais +4 °C, surgelés −18 °C", surveillance: "Température à cœur et aspect à chaque livraison", action: "Refus et renvoi, notification au fournisseur", ouvrir: "commandes", libelle: "Livraisons reçues" },
   { etape: "Stockage froid", limite: "Norme de chaque enceinte (réfrigérateur 0 à +4 °C, congélateur −18 °C)", surveillance: "Relevés et sondes", action: "Recontrôle sous 30 min, puis anomalie et devenir des produits", ouvrir: "temperatures", libelle: "Températures" },
-  { etape: "Cuisson", limite: "63 °C à cœur (général) ; viande hachée 71 °C ; volaille hachée 74 °C ; poisson 60 à 80 °C selon la durée ; coquillages 90 °C", surveillance: "Sonde à cœur", action: "Poursuite de cuisson ou rejet", ouvrir: "cuisson", libelle: "Cuisson" },
-  { etape: "Refroidissement", limite: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C", surveillance: "Chronomètre et alarme", action: "Produit non conforme jeté", ouvrir: "cellule", libelle: "Refroidissement" },
-  { etape: "Maintien au chaud", limite: "63 °C ou plus", surveillance: "Contrôle en service", action: "Une régénération à 65 °C ou plus, sinon destruction", ouvrir: "maintien", libelle: "Maintien au chaud" },
+  { etape: "Cuisson", limite: "Barèmes indicatifs du guide Restaurateur (page 180) : viande hachée 71 °C ; volaille hachée 74 °C ; viandes coupées 63 °C ; poisson de 60 °C (1 min) à 80 °C (15 min) ; coquillages 90 °C. Volaille entière et autres préparations : aucun barème officiel, le chef décide", surveillance: "Sonde à cœur", action: "Poursuite de cuisson ou rejet", ouvrir: "cuisson", libelle: "Cuisson" },
+  { etape: "Refroidissement", limite: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C (source : arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective ; aucune durée fixée pour la remise directe)", surveillance: "Chronomètre et alarme", action: "Produit non conforme jeté", ouvrir: "cellule", libelle: "Refroidissement" },
+  { etape: "Maintien au chaud", limite: "63 °C ou plus", surveillance: "Contrôle en service", action: "Décision du chef (aucune règle écrite sous 63 °C), à noter dans le PMS", ouvrir: "maintien", libelle: "Maintien au chaud" },
   { etape: "Huile de friture", limite: "Test du bain conforme", surveillance: "Photo de la bandelette, validation", action: "Renouvellement de l'huile, alerte", ouvrir: "huile", libelle: "Huile de friture" },
 ];
 
@@ -2325,7 +2364,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <Card>
             <h3 className="font-semibold">Intoxication alimentaire collective (TIAC)</h3>
-            <p className="text-sm text-[var(--ink)]">Arrêter l'usage des produits suspects et les isoler, conserver échantillons et traçabilité, prévenir l'ARS et la DDPP, réunir menus, listes de malades, personnel en service. La procédure en 7 étapes est dans « Veille sanitaire » de l'accueil Contrôle & Gestion.</p>
+            <p className="text-sm text-[var(--ink)]">Arrêter l'usage des produits suspects et les isoler, conserver échantillons et traçabilité, prévenir l'ARS et la DDPP, réunir menus, listes de malades, personnel en service. La procédure en 7 étapes est dans « Veille sanitaire » de l'accueil Suivi et contrôle.</p>
           </Card>
           <Card>
             <h3 className="font-semibold">Retrait et rappel de produits</h3>
@@ -3850,7 +3889,7 @@ function CarteRemplacantChef({ employees, remplacants, setRemplacants, logActivi
   return (
     <Card className="mb-4">
       <h3 className="font-semibold text-[var(--ink)] mb-1">Remplaçant du chef (jours de repos)</h3>
-      <p className="text-sm text-[var(--steel)] mb-3">Les jours où le chef est en repos (aucun horaire dans le planning), la personne cochée reçoit l'accès à Contrôle & Gestion et fait le « Contrôle obligatoire ». Les autres jours, elle garde son accès habituel.</p>
+      <p className="text-sm text-[var(--steel)] mb-3">Les jours où le chef est en repos (aucun horaire dans le planning), la personne cochée reçoit l'accès à Suivi et contrôle et fait le « Contrôle obligatoire ». Les autres jours, elle garde son accès habituel.</p>
       {candidats.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun autre compte disponible.</p>}
       <div className="flex flex-wrap gap-2">
         {candidats.map((e) => {
@@ -3868,7 +3907,8 @@ function CarteRemplacantChef({ employees, remplacants, setRemplacants, logActivi
   );
 }
 
-function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }) {
+function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity, remplacants = [], setRemplacants }) {
+  const [devientRemplacant, setDevientRemplacant] = useState(false);
   const [nom, setNom] = useState("");
   const [prenom, setPrenom] = useState("");
   const [poste, setPoste] = useState("");
@@ -3901,9 +3941,10 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
       const nomComplet = `${prenom.trim()} ${nom.trim()}`;
       const emp = await gestion.creer({ nom: nom.trim(), prenom: prenom.trim(), poste, role: statut, services: servicesEffectifs, email: email.trim().toLowerCase() });
       logActivity("Équipe", "Compte créé", `${nomComplet} (${LIBELLE_STATUT[statut] || statut})`);
+      if (devientRemplacant && setRemplacants && emp && emp.id) setRemplacants([...remplacants, emp.id]);
       const rep = await gestion.inviter(emp.id);
       setMessage(resultatInvitation(nomComplet, rep));
-      setNom(""); setPrenom(""); setPoste(""); setStatut("cuisinier"); setEmail(""); setServices(["Cuisine"]);
+      setNom(""); setPrenom(""); setPoste(""); setStatut("cuisinier"); setEmail(""); setServices(["Cuisine"]); setDevientRemplacant(false);
     } catch (e) {
       setMessage({ type: "erreur", texte: "Impossible de créer le compte : " + e.message });
     } finally { setEnCours(false); }
@@ -3982,6 +4023,12 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
             );
           })}
         </div>
+        {setRemplacants && !estGestion && (
+          <label className="flex items-start gap-2 text-sm text-[var(--ink)] mb-4 cursor-pointer">
+            <input type="checkbox" className="mt-1" checked={devientRemplacant} onChange={(e) => setDevientRemplacant(e.target.checked)} />
+            <span><strong>Remplaçant du chef</strong> : les jours de repos du chef, cette personne reçoit l'accès à Suivi et contrôle et fait le « Contrôle obligatoire ».</span>
+          </label>
+        )}
         <button onClick={creer} disabled={!pret || enCours} className="inline-flex items-center gap-2 rounded-xl px-6 py-3 text-base font-bold text-white disabled:opacity-40" style={{ backgroundColor: "#1E7B4B" }}>
           <Plus size={18} /> {enCours ? "Création…" : "Créer le compte"}
         </button>
@@ -4036,7 +4083,12 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
                         : <span className="text-xs font-semibold inline-flex items-center gap-1.5" style={{ color: "#14653A" }}><span className="w-2 h-2 rounded-full" style={{ backgroundColor: "#1E7B4B" }} /> Actif</span>}
                     </td>
                     <td className="py-2.5 text-right whitespace-nowrap">
-                      {e.email && e.codeDefini === false && <button onClick={() => renvoyer(e)} className="text-xs font-semibold text-[var(--accent)] underline mr-3">Renvoyer l'invitation</button>}
+                      {setRemplacants && !e.estDirection && (!e.estChef || e.remplaceChef) && (
+                        <label className="inline-flex items-center gap-1 text-xs text-[var(--ink)] mr-3 cursor-pointer" title="Remplace le chef les jours de repos">
+                          <input type="checkbox" checked={remplacants.includes(e.id)} onChange={() => { const actif = remplacants.includes(e.id); setRemplacants(actif ? remplacants.filter((x) => x !== e.id) : [...remplacants, e.id]); logActivity("Équipe", actif ? "Remplaçant du chef retiré" : "Remplaçant du chef ajouté", e.nom); }} /> Remplaçant du chef
+                        </label>
+                      )}
+                      {e.email && <button onClick={() => renvoyer(e)} className="text-xs font-semibold text-[var(--accent)] underline mr-3">{e.codeDefini === false ? "Renvoyer l'invitation" : "Envoyer le code par e-mail (changer de code)"}</button>}
                       {e.id === currentUserId
                         ? <span className="text-xs text-[var(--steel)] italic">Compte actuel</span>
                         : <button onClick={() => setSuppression(e)} className="inline-flex items-center gap-1 text-xs font-semibold rounded-lg px-2.5 py-1.5 border border-[var(--line)] text-[var(--ink)]" title="Supprimer ce compte"><Trash2 size={14} /> Supprimer</button>}
@@ -4055,16 +4107,18 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity }
   );
 }
 
-function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, modeParametrage, modeHistorique, cibleInit, onCibleOuverte, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
+  const [panneauATraiterOuvert, setPanneauATraiterOuvert] = useState(false); // le cadre « Alertes, éléments à vérifier et à contrôler » est replié par défaut
   const [ligneATraiterOuverte, setLigneATraiterOuverte] = useState(null); // ligne de « À traiter » dépliée (liste détaillée)
   const [releve, setReleve] = useState(false);
   const [pmsImpression, setPmsImpression] = useState(false);
   const [releveMensuel, setReleveMensuel] = useState(false);
   const [moisReleve, setMoisReleve] = useState(todayISO().slice(0, 7));
   const [referentielActif, setReferentielActif] = useState(!!produitAOuvrirInit);
+  const [referentielVue, setReferentielVue] = useState(produitAOuvrirInit ? "produits" : null); // "fournisseurs" | "produits" | null (les deux)
   const [produitAOuvrir, setProduitAOuvrir] = useState(produitAOuvrirInit || null);
   useEffect(() => { if (produitAOuvrirInit && onProduitOuvert) onProduitOuvert(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
   const ctxNettoyageCG = React.useContext(NettoyageContext);
@@ -4073,6 +4127,8 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
   const [rechercheTracabilite, setRechercheTracabilite] = useState("");
   const [remarqueEnCours, setRemarqueEnCours] = useState(null);
   const [sousEcran, setSousEcran] = useState(null);
+  // Ouverture directe depuis un bouton du chef placé dans une autre tuile (Stock, Fiches techniques, Réception…) : on revient à cette tuile.
+  const retourExterne = React.useRef(cibleInit && cibleInit.retourTab ? cibleInit.retourTab : null).current;
   const [rechercheCG, setRechercheCG] = useState("");
   const [impressionDossier, setImpressionDossier] = useState(null);
   const [choixFiche, setChoixFiche] = useState(null); // création de fiche : null | "dupliquer" | "modifier"
@@ -4155,15 +4211,16 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
     { id: "rappelconso", label: "Rappels de produits (RappelConso)", icon: AlertTriangle, section: "urgence" },
     { id: "planning", label: "Tâches du jour", icon: ListChecks, section: "controle" },
     { id: "temperatures", label: "Températures frigos et congélateurs", icon: Thermometer, section: "controle" },
-    { id: "huile", label: "Huile de friture", icon: Droplets, section: "controle" },
+    { id: "huile", label: "Suivi d'huile de friture", icon: Droplets, section: "controle" },
     { id: "cuisson", label: "Cuisson", icon: Flame, section: "controle" },
-    { id: "cellule", label: "Refroidissement rapide (cellule)", icon: Snowflake, section: "controle" },
+    { id: "cellule", label: "Refroidissement rapide et congélation", icon: Snowflake, section: "controle" },
     { id: "maintien", label: "Maintien au chaud", icon: Soup, section: "controle" },
     { id: "tracabilite", label: "Traçabilité", icon: Camera, section: "controle" },
     { id: "historiqueJour", label: "Historique de la journée", icon: ClipboardList, section: "controle" },
     { id: "alertes", label: "Alertes qualité", icon: Bell, section: "controle" },
     { id: "commandes", label: "Livraisons reçues", icon: ClipboardList, section: "reception" },
-    { id: "fournisseur", label: "Fournisseurs et produits", icon: ShoppingCart, section: "reception" },
+    { id: "fournisseur", label: "Fournisseurs", icon: ShoppingCart, section: "reception" },
+    { id: "produits", label: "Produits", icon: Package, section: "reception" },
     { id: "notifications", label: "Notifications fournisseur", icon: Mail, section: "reception" },
     { id: "creationFiche", label: "Création de fiche technique", icon: Sparkles, section: "cuisine" },
     { id: "carte", label: "Ma carte", icon: UtensilsCrossed, section: "cuisine" },
@@ -4173,6 +4230,7 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
     { id: "pmsPrestataires", label: "Prestataires", icon: PhoneCall, section: "hygiene" },
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
+    { id: "lexique", label: "Lexique et réglementation", icon: BookOpen, section: "hygiene" },
     { id: "planningEmploye", label: "Planning employé et heures de service", icon: Clock, section: "equipe", tab: "horaires" },
     { id: "reservationsClient", label: "Réservations client", icon: CalendarDays, section: "equipe", tab: "reservations" },
     { id: "comptes", label: "Gestion des comptes", icon: Users, section: "reglages" },
@@ -4193,10 +4251,80 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
     if (tuile && tuile.tab) return setTab(tuile.tab);
     if (id === "reception") return setVerifReceptionsActif(true);
-    if (id === "fournisseur") return setReferentielActif(true);
+    if (id === "fournisseur") { setReferentielVue("fournisseurs"); return setReferentielActif(true); }
+    if (id === "produits") { setReferentielVue("produits"); return setReferentielActif(true); }
     if (id === "tracabilite") return setTracabiliteCompleteActif(true);
     setSousEcran(id);
   };
+  useEffect(() => {
+    if (!cibleInit) return;
+    if (cibleInit.sousEcran) { const t = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === cibleInit.sousEcran); if (t) setSectionActive(t.section); ouvrirSousTuile(cibleInit.sousEcran); }
+    if (onCibleOuverte) onCibleOuverte();
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  // Les overlays rendent la main : vers la tuile d'origine si on vient d'un bouton du chef, sinon on reste ici.
+  const finOverlay = () => { if (retourExterne) setTab(retourExterne); };
+
+  // ---- Paramétrage (engrenage de la barre du haut) : mêmes écrans que Contrôle & Gestion, rangés dans une seule fenêtre ----
+  // Liste à gauche, page à droite ; les droits sont ceux de tuileVisible (rien n'est élargi).
+  const PARAM_GROUPES = [
+    { titre: "Le restaurant", ids: ["comptes", "@horaires", "@reservations"] },
+    { titre: "Produits", ids: ["fournisseur", "produits"] },
+    { titre: "Matériel", ids: ["appareilsFroid"] },
+    { titre: "Cuisine", ids: ["creationFiche", "carte"] },
+    { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires"] },
+  ];
+  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Nettoyages à valider", pmsPrestataires: "Prestataires" };
+  const PARAM_EXTRAS = { "@horaires": ["horaires", "Horaires de l'équipe", Clock, "#2563B8", "#1D4E89"], "@reservations": ["reservations", "Réservations client", CalendarDays, "#0E7490", "#155E75"] };
+  const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
+  const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
+  // Menu du Paramétrage : dans la bande noire de gauche (grand écran) ou en haut de la page (téléphone).
+  const construireMenuParam = (sombre) => (
+    <>
+      {sombre && (
+        <div className="px-1 pb-2">
+          <button type="button" onClick={() => onQuitterParam && onQuitterParam()} className="flex items-center gap-2 text-sm font-medium px-2 py-2 rounded-lg w-full text-left" style={{ color: "#C5CEDA" }}><ChevronLeft size={16} /> Retour à l'accueil</button>
+          <div className="flex items-center gap-2.5 px-2 pt-2 pb-1">
+            <span className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(160deg,#64748B,#334155)" }}><Settings size={20} /></span>
+            <span className="text-lg font-bold text-white leading-tight">Paramétrage</span>
+          </div>
+        </div>
+      )}
+      {PARAM_GROUPES.map((g) => {
+        const items = g.ids.map((id) => (id.startsWith("@") ? (ouvrirPlanning ? { extra: PARAM_EXTRAS[id] } : null) : (() => { const t = paramTuile(id); return t && tuileVisible(t) ? { t } : null; })())).filter(Boolean);
+        if (!items.length) return null;
+        return (
+          <div key={g.titre} className={sombre ? "mb-3" : "mb-4"}>
+            <div className="text-[11px] font-bold uppercase tracking-wide mb-1.5 px-2" style={{ color: sombre ? "#7C8AA0" : "var(--steel)" }}>{g.titre}</div>
+            <div className="space-y-1">
+              {items.map((it) => {
+                const id = it.extra ? it.extra[0] : it.t.id;
+                const Ic = it.extra ? it.extra[2] : it.t.icon;
+                const fond = it.extra ? `linear-gradient(160deg, ${it.extra[3]} 0%, ${it.extra[4]} 100%)` : couleurSousTuile(it.t.id, paramCouleurDefaut).fond;
+                const libelle = it.extra ? it.extra[1] : (PARAM_LIBELLES[it.t.id] || it.t.label);
+                const actif = !it.extra && ((sousEcran === it.t.id) || (referentielActif && ((it.t.id === "fournisseur" && referentielVue === "fournisseurs") || (it.t.id === "produits" && referentielVue === "produits"))));
+                return (
+                  <button key={id} type="button" onClick={() => { setReferentielActif(false); if (it.extra) ouvrirPlanning(id); else ouvrirSousTuile(it.t.id); }} aria-current={actif ? "page" : undefined}
+                    className="w-full flex items-center gap-3 px-2.5 py-2 min-h-[48px] rounded-xl text-left text-[15px] font-medium transition-colors"
+                    style={sombre ? (actif ? { backgroundColor: "#1F6B47", color: "#fff", boxShadow: "inset 4px 0 0 #6EE7A8" } : { color: "#C5CEDA" }) : (actif ? { background: "var(--accent-soft)", color: "var(--accent)", border: "2px solid var(--accent)" } : { background: "#fff", color: "var(--ink)", border: "2px solid var(--line)" })}>
+                    <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: fond }}><Ic size={18} /></span>
+                    <span className="flex-1 leading-tight">{libelle}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+    </>
+  );
+  // Tuile « Suivi et contrôle » (remplace Contrôle & Gestion) : six rubriques.
+  const SUIVI_IDS = ["allergenes", "origine", "rappelconso", "dossierControle", "tiac"];
+  const SUIVI_LIBELLES = { alertes: "Alertes qualité", tiac: "Procédure de TIAC", rappelconso: "Rappels de produits (RappelConso)", dossierControle: "Contrôle hygiène (DDPP)", allergenes: "Allergènes", origine: "Origine des viandes" };
+  const SUIVI_DESCRIPTIONS = { alertes: "Les anomalies relevées par l'équipe", tiac: "Intoxication alimentaire : que faire, que déclarer", rappelconso: "Les rappels de produits officiels", dossierControle: "Le dossier à présenter à l'inspecteur", allergenes: "Les 14 allergènes de vos plats et produits", origine: "L'origine des viandes à afficher" };
+  // Tuile « Historique » (directeur) : un bouton par historique, celui de la journée en premier.
+  const HISTORIQUE_IDS = ["historiqueJour", "temperatures", "huile", "cellule", "cuisson", "maintien", "tracabilite", "commandes"];
+  const HISTORIQUE_LIBELLES = { historiqueJour: "Historique de la journée", temperatures: "Historique des températures", huile: "Historique des huiles de friture", cellule: "Historique du refroidissement", cuisson: "Historique des cuissons", maintien: "Historique du maintien au chaud", tracabilite: "Historique de la traçabilité", commandes: "Livraisons reçues" };
+  const paramCouleurDefaut = { fond: "linear-gradient(160deg, #64748B 0%, #334155 100%)", ombre: "rgba(51,65,85,0.35)" };
 
   const marquerEnvoyee = (id, mode) => setNotificationsFournisseur(notificationsFournisseur.map((n) => (n.id === id ? { ...n, envoyee: true, modeTraitement: mode || "mail", traiteParId: currentUserId, traiteLe: new Date().toISOString() } : n)));
   const enregistrerEmailFournisseur = (fournisseur, email) => {
@@ -4240,6 +4368,7 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
   const relevesFroidDuJour = relevesFroid.filter((r) => r.date === today);
   const surveillancesDuJour = surveillancesFroid.filter((s) => s.date === today);
 
+  const menuParamSombre = modeParametrage && slotMenuParam ? createPortal(construireMenuParam(true), slotMenuParam) : null;
   if (pmsImpression) {
     return <PmsDossierImprimable reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onBack={() => setPmsImpression(false)} />;
   }
@@ -4250,28 +4379,59 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
   }
 
   if (referentielActif) {
-    return <ReferentielProduits stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); }} />;
+    return <>{menuParamSombre}<ReferentielProduits vue={referentielVue} stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); finOverlay(); }} /></>;
   }
 
   if (verifReceptionsActif) {
-    return <VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => setVerifReceptionsActif(false)} memoireSeule={!!stockCatalogue} />;
+    return <>{menuParamSombre}<VerificationReceptions receptions={receptions} setReceptions={setReceptions} employees={employees} onBack={() => { setVerifReceptionsActif(false); finOverlay(); }} memoireSeule={!!stockCatalogue} /></>;
   }
 
   if (tracabiliteCompleteActif) {
-    return <TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => setTracabiliteCompleteActif(false)} />;
+    return <>{menuParamSombre}<TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => { setTracabiliteCompleteActif(false); finOverlay(); }} /></>;
   }
 
   const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", dossierControle: "dossierControle", comptes: "comptes", rappelconso: "rappelconso", alertes: "alertes", notifications: "notifications", appareilsFroid: "temperatures" })[sousEcran] || ({ equipe: "planningEmploye", controle: "controle", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "controle";
   return (
     <ZoneContext.Provider value={zoneDepuisFonction(fonctionZoneControle)}>
-    <div>
-      {!sectionActive ? (
+    <div className={modeParametrage ? "md:flex md:gap-6 md:items-start" : undefined}>
+      {menuParamSombre}
+      {modeParametrage && (
+        <nav aria-label="Paramétrage" className={`${slotMenuParam ? "md:hidden" : "md:w-72 md:shrink-0"} ${sousEcran ? "hidden md:block" : ""} mb-4`} style={slotMenuParam && sousEcran ? { display: "none" } : undefined}>
+          <SectionHeader title="Paramétrage" subtitle="Tous les réglages au même endroit" permanent icone={Settings} />
+          {construireMenuParam(false)}
+        </nav>
+      )}
+      <div className={modeParametrage ? "flex-1 min-w-0" : undefined}>
+      {modeParametrage && sousEcran && (
+        <>
+          <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3 md:hidden">Retour au Paramétrage</BoutonRetour>
+          {!PARAM_ENTETE_PROPRE.includes(sousEcran) && paramTuile(sousEcran) && (
+            <SectionHeader title={PARAM_LIBELLES[sousEcran] || paramTuile(sousEcran).label} icone={paramTuile(sousEcran).icon} fonction={COULEURS_FONCTION[sousEcran] ? sousEcran : undefined} />
+          )}
+        </>
+      )}
+      {modeParametrage && !sousEcran && (
+        <p className="hidden md:block text-sm text-[var(--steel)] pt-2">Choisissez un réglage dans la liste à gauche.</p>
+      )}
+      {modeParametrage ? null : modeHistorique && !sectionActive ? (
       <>
-      <SectionHeader title="Contrôle & Gestion" subtitle="Vue d'ensemble du chef — qui a fait quoi aujourd'hui"
+        <SectionHeader title="Historique" subtitle="Tous les historiques au même endroit, en commençant par celui de la journée" permanent icone={Clock} />
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 mb-8">
+          {HISTORIQUE_IDS.map((id) => {
+            const t = paramTuile(id); if (!t || !tuileVisible(t)) return null;
+            const sec = SECTIONS_CG.find((x) => x.id === t.section); const c = couleurSousTuile(t.id, sec.couleur);
+            return <TuilePetite key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={HISTORIQUE_LIBELLES[t.id] || t.label}
+              onClick={() => { setSectionActive(t.section); ouvrirSousTuile(t.id); }} />;
+          })}
+        </div>
+      </>
+      ) : !sectionActive ? (
+      <>
+      <SectionHeader title="Suivi et contrôle" subtitle="Alertes, TIAC, rappels de produits et contrôle d'hygiène (DDPP)" icone={ClipboardCheck}
         action={<button onClick={() => setTab("equipe")} className="text-xs text-[var(--accent)] font-medium">Journal d'activité complet →</button>} />
 
       {/* Barre de recherche : tape « tiac », « allergène », « température »… et la bonne rubrique s'ouvre. */}
-      <div className="relative mb-4">
+      <div className="relative mb-4 hidden">
         <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
         <input value={rechercheCG} onChange={(e) => setRechercheCG(e.target.value)} placeholder="Chercher une rubrique (TIAC, allergènes, température, fournisseur…)"
           className="w-full rounded-xl border border-[var(--line)] bg-white pl-10 pr-3 py-3 text-sm text-[var(--ink)]" />
@@ -4309,16 +4469,16 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
         const aTraiter = [
           { n: rappelsAtraiter, texte: pl(rappelsAtraiter, "rappel de produit à traiter", "rappels de produits à traiter"), bouton: "Traiter", niveau: 0, agir: () => { setSectionActive("urgence"); setSousEcran("rappelconso"); } },
           { n: froidEnAttente.length, texte: pl(froidEnAttente.length, "frigo / congélateur à recontrôler", "frigos / congélateurs à recontrôler"), bouton: "Recontrôler", niveau: 0, agir: () => setTab("haccpTemp") },
+          { n: enAttente.length, texte: pl(enAttente.length, "notification fournisseur à envoyer", "notifications fournisseur à envoyer"), bouton: "Envoyer", niveau: 0, agir: () => { setSectionActive("reception"); setSousEcran("notifications"); } },
           { n: refrDepasses.length, texte: pl(refrDepasses.length, "refroidissement au-delà de la durée maximale", "refroidissements au-delà de la durée maximale"), bouton: "Terminer", niveau: 0, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
           { n: cuisDepassees.length, texte: pl(cuisDepassees.length, "cuisson à contrôler (durée atteinte)", "cuissons à contrôler (durée atteinte)"), bouton: "Terminer", niveau: 0, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
           { n: dlcAujourdhui, texte: pl(dlcAujourdhui, "produit à DLC aujourd'hui", "produits à DLC aujourd'hui"), bouton: "Voir", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("historiqueJour"); } },
-          { n: alertesNonVues.length, texte: pl(alertesNonVues.length, "alerte qualité à lire", "alertes qualité à lire"), bouton: "Lire", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("alertes"); } },
-          { n: enAttente.length, texte: pl(enAttente.length, "notification fournisseur à envoyer", "notifications fournisseur à envoyer"), bouton: "Envoyer", niveau: 1, agir: () => { setSectionActive("reception"); setSousEcran("notifications"); } },
+          { n: alertesNonVues.length, texte: pl(alertesNonVues.length, "anomalie signalée par l'équipe à lire", "anomalies signalées par l'équipe à lire"), bouton: "Lire", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("alertes"); } },
           { n: nettoAValider, texte: pl(nettoAValider, "nettoyage à valider", "nettoyages à valider"), bouton: "Valider", niveau: 1, agir: () => { setSectionActive("controle"); setSousEcran("planning"); } },
-          { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); },
-            detail: [...incomplets].sort((p1, p2) => String(p1.nom).localeCompare(String(p2.nom), "fr")).map((x) => ({ id: x.id, libelle: x.nom, sous: [!x.prixUnitaire && "prix manquant", !x.reference && "référence manquante", estAValider(x.note) && "à vérifier"].filter(Boolean).join(" · "), agir: () => { setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielActif(true); } })) },
-          { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => setReferentielActif(true),
-            detail: fournisseursIncomplets.map((f) => ({ id: f.id || f.nom, libelle: f.nom, sous: "jours de commande / livraison à renseigner", agir: () => setReferentielActif(true) })) },
+          { n: incomplets.length, texte: pl(incomplets.length, "produit à compléter (prix, référence)", "produits à compléter (prix, référence)"), bouton: "Compléter", niveau: 2, agir: () => { const x = incomplets[0]; setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielVue("produits"); setReferentielActif(true); },
+            detail: [...incomplets].sort((p1, p2) => String(p1.nom).localeCompare(String(p2.nom), "fr")).map((x) => ({ id: x.id, libelle: x.nom, sous: [!x.prixUnitaire && "prix manquant", !x.reference && "référence manquante", estAValider(x.note) && "à vérifier"].filter(Boolean).join(" · "), agir: () => { setProduitAOuvrir({ id: x.id, focus: !x.prixUnitaire ? "prix_achat" : "reference" }); setReferentielVue("produits"); setReferentielActif(true); } })) },
+          { n: fournisseursIncomplets.length, texte: pl(fournisseursIncomplets.length, "fournisseur sans jours de commande / livraison", "fournisseurs sans jours de commande / livraison"), bouton: "Compléter", niveau: 2, agir: () => { setReferentielVue("fournisseurs"); setReferentielActif(true); },
+            detail: fournisseursIncomplets.map((f) => ({ id: f.id || f.nom, libelle: f.nom, sous: "jours de commande / livraison à renseigner", agir: () => { setReferentielVue("fournisseurs"); setReferentielActif(true); } })) },
           // Rappel « sauvegarde hebdomadaire » retiré le 14/10 (voir la tuile Sauvegarde, désactivée).
           { n: sansPoste.length, texte: pl(sansPoste.length, "employé sans poste", "employés sans poste"), bouton: "Corriger", niveau: 2, agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); },
             detail: sansPoste.map((e) => ({ id: e.id, libelle: e.name || e.nom || "Employé", sous: "poste à renseigner", agir: () => { setSectionActive("reglages"); setSousEcran("comptes"); } })) },
@@ -4326,12 +4486,17 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
         const coulNiveau = ["#B42318", "#B7791F", "#1D4ED8"];
         return (
           <Card className="mb-6">
-            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">À traiter {aTraiter.length > 0 && <span className="normal-case font-normal">— par ordre de priorité</span>}</h3>
+            <h3 className="text-sm font-semibold text-[var(--steel)] uppercase tracking-wide mb-2">Alertes, éléments à vérifier et à contrôler</h3>
             <BandeauEcheancesPms alertes={alertesEcheancesPms(reglagesEtablissement && reglagesEtablissement.pms, todayISO(), compteDirection)} onOuvrir={(cible) => { setSectionActive("hygiene"); setSousEcran(cible); }} />
             {aTraiter.length === 0 ? (
-              <p className="text-sm text-[var(--accent)]">✓ Rien à traiter pour le moment.</p>
+              <p className="text-sm text-[var(--accent)]">✓ Rien à vérifier ni à contrôler pour le moment.</p>
             ) : (
-              <div className="space-y-3">
+              <>
+              <div className="flex items-center gap-3 rounded-xl border-2 bg-white pl-3 pr-2 py-2 mb-3" style={{ borderColor: coulNiveau[Math.min(...aTraiter.map((x) => x.niveau))], borderLeftWidth: 6 }}>
+                <span className="flex-1 min-w-0 text-sm font-semibold text-[var(--ink)]">{aTraiter.reduce((t, x) => t + x.n, 0)} {aTraiter.reduce((t, x) => t + x.n, 0) > 1 ? "éléments à vérifier ou à contrôler" : "élément à vérifier ou à contrôler"}</span>
+                <button type="button" onClick={() => setPanneauATraiterOuvert((v) => !v)} className="min-h-[44px] px-4 rounded-xl text-sm font-bold text-white shrink-0 inline-flex items-center gap-1.5" style={{ background: "#1D4ED8" }}>{panneauATraiterOuvert ? "Fermer" : "Choisir"}{panneauATraiterOuvert ? <ChevronUp size={16} /> : <ChevronDown size={16} />}</button>
+              </div>
+              {panneauATraiterOuvert && <div className="space-y-3">
                 {[[0, "Urgent"], [1, "À faire aujourd'hui"], [2, "À compléter (moins urgent)"]].map(([niv, titreGroupe]) => {
                   const lignes = aTraiter.filter((x) => x.niveau === niv);
                   if (lignes.length === 0) return null;
@@ -4367,7 +4532,8 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
                     </div>
                   );
                 })}
-              </div>
+              </div>}
+              </>
             )}
           </Card>
         );
@@ -4401,33 +4567,14 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
       )}
 
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        {SECTIONS_CG.map((x) => {
-          const Icon = x.icon;
-          const nb = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && tuileVisible(t)).length;
-          if (nb === 0) return null;
-          if (["equipe", "cuisine"].includes(x.id)) return null; // affichées plus bas, directement en tuiles
+        {SUIVI_IDS.map((id) => {
+          const t = paramTuile(id); if (!t || !tuileVisible(t)) return null;
+          const sec = SECTIONS_CG.find((x) => x.id === t.section); const c = couleurSousTuile(t.id, sec.couleur);
           return (
-            <TuileGrande key={x.id} fond={x.couleur.fond} ombre={x.couleur.ombre} icone={x.icon} titre={x.label}
-              desc={<>{x.desc}{!x.urgence && <span className="block text-xs text-white/80 mt-1">{nb} rubrique{nb > 1 ? "s" : ""}</span>}</>}
-              className={x.urgence ? "sm:col-span-2 ring-2 ring-red-300" : ""}
-              onClick={() => { setSousEcran(null); setSectionActive(x.id); }} />
-          );
-        })}
-      </div>
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
-        {SECTIONS_CG.filter((x) => ["cuisine", "equipe"].includes(x.id)).map((x) => {
-          const tuiles = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === x.id && tuileVisible(t));
-          if (tuiles.length === 0) return null;
-          return (
-            <div key={x.id}>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">{x.label}</p>
-              <div className="grid grid-cols-2 gap-3">
-                {tuiles.map((t) => {
-                  const c = couleurSousTuile(t.id, x.couleur);
-                  return <TuilePetite key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={t.label} onClick={() => { setSectionActive(x.id); ouvrirSousTuile(t.id); }} />;
-                })}
-              </div>
-            </div>
+            <TuileGrande key={t.id} fond={c.fond} ombre={c.ombre} icone={t.icon} titre={SUIVI_LIBELLES[t.id] || t.label}
+              desc={SUIVI_DESCRIPTIONS[t.id]}
+              className={t.id === "tiac" ? "sm:col-span-2 ring-2 ring-red-300" : ""}
+              onClick={() => { setSectionActive(t.section); ouvrirSousTuile(t.id); }} />
           );
         })}
       </div>
@@ -4437,12 +4584,12 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
       </>
       ) : (
       <>
-      {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} />}
-      {sousEcran
-        ? (["equipe", "cuisine"].includes(sectionActive)
-            ? <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>
-            : <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3">Retour à {sectionInfo.label}</BoutonRetour>)
-        : <BoutonRetour onClick={() => { setSousEcran(null); setSectionActive(null); }} className="mb-3">Retour à Contrôle & Gestion</BoutonRetour>}
+      {sousEcran && NORMES_SOUS_ECRAN[sousEcran] && <BandeauNormes label={NORMES_SOUS_ECRAN[sousEcran]} permanent={sousEcran === "tiac"} />}
+      {modeParametrage ? null : (
+        <BoutonRetour onClick={() => { if (retourExterne) { setTab(retourExterne); return; } setSousEcran(null); setSectionActive(null); }} className="mb-3">
+          {retourExterne ? "Retour" : (modeHistorique ? "Retour à Historique" : "Retour à Suivi et contrôle")}
+        </BoutonRetour>
+      )}
 
       {!sousEcran && <SectionHeader title={sectionInfo.label} subtitle={sectionInfo.desc} fonction={({ equipe: "planningEmploye", controle: "taches", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "pms"} icone={sectionInfo.icon} />}
       {sousEcran && ["temperatures", "cellule", "cuisson", "maintien", "huile", "allergenes", "origine", "tiac", "comptes", "planning"].includes(sousEcran) && (() => {
@@ -4750,6 +4897,7 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
         </div>
       )}
 
+      {sousEcran === "lexique" && <LexiqueReglementaire />}
       {sousEcran === "origine" && (
         <div className="mb-6 space-y-6">
           <ChipsResume items={[[`${stock.length} produit(s)`], [`${stock.filter((x) => origineProduits[x.nom]).length} origine renseignée`, "ok"], [`${stock.filter((x) => !origineProduits[x.nom]).length} à compléter`, stock.some((x) => !origineProduits[x.nom]) ? "attention" : "ok"]]} />
@@ -4841,19 +4989,19 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
       )}
 
       {sousEcran === "tiac" && (<>
-        <BoutonInfosNormes ficheKey="tiac" onClick={setInfosTiac} label="Procédure de déclaration d'une TIAC" />
+        <BoutonInfosNormes ficheKey="tiac" onClick={setInfosTiac} label="Procédure de déclaration d'une TIAC" permanent />
         {infosTiac && <ModalInfosNormes fiche={FICHES_NORMES[infosTiac] || infosTiac} onClose={() => setInfosTiac(null)} />}
         <DeclarationTiac employees={employees} activityLog={activityLog} receptions={receptions} preparations={preparations} produits={produits} reservations={reservations} currentUserId={currentUserId} logActivity={logActivity} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} />
       </>)}
 
       {sousEcran === "sauvegarde" && identiteExterneCG && identiteExterneCG.exporterSauvegarde && <EcranSauvegarde exporter={identiteExterneCG.exporterSauvegarde} />}
-      {sousEcran === "comptes" && setRemplacantsChef && (
-        <CarteRemplacantChef employees={employees} remplacants={remplacantsChef || []} setRemplacants={setRemplacantsChef} logActivity={logActivity} persiste={!gestionComptes} />
-      )}
       {sousEcran === "comptes" && gestionComptes && (
-        <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} />
+        <GestionComptesEquipe employees={employees} currentUserId={currentUserId} gestion={gestionComptes} logActivity={logActivity} remplacants={remplacantsChef || []} setRemplacants={setRemplacantsChef} />
       )}
 
+      {sousEcran === "comptes" && !gestionComptes && setRemplacantsChef && (
+        <CarteRemplacantChef employees={employees} remplacants={remplacantsChef || []} setRemplacants={setRemplacantsChef} logActivity={logActivity} persiste={false} />
+      )}
       {sousEcran === "comptes" && !gestionComptes && (
         <div className="mb-6 space-y-6">
           <Card>
@@ -4978,6 +5126,7 @@ function Controle({ exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, rem
         </div>
       )}
 
+      </div>
     </div>
     </ZoneContext.Provider>
   );
@@ -5161,11 +5310,12 @@ const MARQUE_A_VALIDER = "À VALIDER — ";
 const NOTE_A_VALIDER = MARQUE_A_VALIDER + "nouveau produit créé à la réception, fiche à compléter et à valider par le chef.";
 const estAValider = (note) => String(note || "").startsWith(MARQUE_A_VALIDER);
 
-function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProduit }) {
+function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrirProduit }) {
   const [catOuverte, setCatOuverte] = useState(null);
   const [fournisseurOuvert, setFournisseurOuvert] = useState(null);
   // Édition (uniquement quand l'écran est branché sur la nouvelle base : prop `gestion`)
   const [edition, setEdition] = useState(() => {
+    if (ouvrirProduit && ouvrirProduit.nouveau && gestion) return { table: "produits", id: null, valeurs: {} };
     const p = ouvrirProduit && gestion ? stock.find((x) => x.id === ouvrirProduit.id) : null;
     return p && p.brut ? { table: "produits", id: p.id, valeurs: p.brut, focus: ouvrirProduit.focus } : null;
   }); // { table, id|null, valeurs }
@@ -5193,8 +5343,8 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
   return (
     <div>
       <BandeauNormes label="Fournisseurs et produits — traçabilité : Règlement (CE) n° 178/2002, art. 18 · allergènes : Règlement (UE) n° 1169/2011, art. 44" />
-      <BoutonRetour onClick={onBack} className="mb-4">Retour au contrôle</BoutonRetour>
-      <SectionHeader title="Fournisseurs et produits" subtitle="Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison." />
+      <BoutonRetour onClick={onBack} className="mb-4">Retour</BoutonRetour>
+      <SectionHeader title={vue === "fournisseurs" ? "Fournisseurs" : vue === "produits" ? "Produits" : "Fournisseurs et produits"} subtitle={vue === "fournisseurs" ? "Coordonnées, jours de commande et de livraison de chaque fournisseur" : "Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison."} />
 
       {aValider.length > 0 && !edition && (
         <div className="mb-4 rounded-xl border-2 p-4" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
@@ -5217,12 +5367,12 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
       )}
       {gestion && !edition && (
         <div className="flex gap-2 mb-4">
-          <button onClick={() => setEdition({ table: "fournisseurs", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un fournisseur</button>
-          <button onClick={() => setEdition({ table: "produits", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un produit</button>
+          {vue !== "produits" && <button onClick={() => setEdition({ table: "fournisseurs", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un fournisseur</button>}
+          {vue !== "fournisseurs" && <button onClick={() => setEdition({ table: "produits", id: null, valeurs: {} })} className="px-3 py-1.5 rounded-lg text-xs font-medium bg-[var(--accent)] text-white">+ Ajouter un produit</button>}
         </div>
       )}
       {gestion && !edition && <ImportCatalogue stock={stock} fournisseurs={fournisseurs} gestion={gestion} />}
-      {fournisseurs && (fournisseurs.length > 0 || gestion) && (
+      {vue !== "produits" && fournisseurs && (fournisseurs.length > 0 || gestion) && (
         <div className="mb-5">
           <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mb-2">Fournisseurs</div>
           <div className="space-y-2">
@@ -5257,18 +5407,18 @@ function ReferentielProduits({ stock, fournisseurs, gestion, onBack, ouvrirProdu
               );
             })}
           </div>
-          <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mt-5 mb-2">Produits</div>
+          {vue !== "fournisseurs" && <div className="text-xs font-semibold uppercase tracking-wide text-[var(--steel)] mt-5 mb-2">Produits</div>}
         </div>
       )}
 
-      <div className="flex flex-wrap items-center gap-2 mb-3">
+      {vue !== "fournisseurs" && <div className="flex flex-wrap items-center gap-2 mb-3">
         <input className={`${inputCls} flex-1 min-w-[200px]`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={rechercheProduit} onChange={(e) => setRechercheProduit(e.target.value)} />
         <div className="flex gap-1">
           <button type="button" onClick={() => { setGroupement("fournisseur"); setCatOuverte(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${groupement === "fournisseur" ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--cadre)] text-[var(--steel)]"}`}>Par fournisseur</button>
           <button type="button" onClick={() => { setGroupement("categorie"); setCatOuverte(null); }} className={`px-3 py-1.5 rounded-lg text-xs font-medium border ${groupement === "categorie" ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "border-[var(--cadre)] text-[var(--steel)]"}`}>Par catégorie</button>
         </div>
-      </div>
-      {(
+      </div>}
+      {vue !== "fournisseurs" && (
         <div className="space-y-2">
           {groupes.map((cat) => (
             <Card key={cat} className="!p-0 overflow-hidden">
@@ -5482,7 +5632,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
             <label className="block text-xs text-[var(--steel)]">Catégorie (choisir dans la liste)
               <select value={categorieNouvelle ? "__nouvelle__" : (v.categorie || "")} onChange={(e) => { if (e.target.value === "__nouvelle__") { setCategorieNouvelle(true); maj("categorie", ""); } else { setCategorieNouvelle(false); maj("categorie", e.target.value); } }} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">— Choisir —</option>
-                {[...new Set([...categories, ...(v.categorie && !categories.includes(v.categorie) && !categorieNouvelle ? [v.categorie] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}
+                {[...new Set([...categories, "Boissons", "Produits d'hygiène", ...(v.categorie && !categories.includes(v.categorie) && !categorieNouvelle ? [v.categorie] : [])])].map((c) => <option key={c} value={c}>{c}</option>)}
                 <option value="__nouvelle__">+ Nouvelle catégorie…</option>
               </select>
               {categorieNouvelle && <input autoComplete="off" value={v.categorie || ""} onChange={(e) => maj("categorie", e.target.value)} placeholder="Nom de la nouvelle catégorie" className="mt-1 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white" />}
@@ -5499,7 +5649,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
               const saisi = v.delai_apres_ouverture_jours == null || v.delai_apres_ouverture_jours === "" ? null : Number(v.delai_apres_ouverture_jours);
               return (
                 <div className="sm:col-span-2 rounded-lg px-3 py-2 text-xs leading-relaxed" style={{ backgroundColor: "#FDF0D5", color: "#6B4A00", border: "1px solid #F0D590" }}>
-                  <p><b>À savoir avant de modifier une DLC.</b> Les durées proposées par le logiciel reprennent le tableau « Durées de conservation (DLC) — Normes HACCP » : ce sont des repères issus de la formation HACCP et de sources professionnelles, pas un texte de loi. Aucun organisme officiel ne fixe une DLC pour chaque produit ; la réglementation demande à chaque établissement de fixer et de justifier lui-même ses durées (guides de bonnes pratiques d'hygiène).</p>
+                  <p><b>À savoir avant de modifier une DLC.</b> Les durées proposées par le logiciel reprennent le tableau « Durées de conservation (DLC) — Règles et repères HACCP » : ce sont des repères issus de la formation HACCP et de sources professionnelles, pas un texte de loi. Aucun organisme officiel ne fixe une DLC pour chaque produit ; la réglementation demande à chaque établissement de fixer et de justifier lui-même ses durées (guides de bonnes pratiques d'hygiène).</p>
                   <p className="mt-1">⚠ Toute modification peut être dangereuse pour la santé des clients. Il est conseillé de la faire valider par un laboratoire agréé. Cela ne vous empêche pas de la modifier : vous en restez responsable.</p>
                   {rep && saisi != null && saisi !== rep.jours && <p className="mt-1 font-semibold">Cette durée ({saisi} j) diffère du repère du tableau pour ce produit : {rep.repere}.</p>}
                 </div>
@@ -6088,10 +6238,9 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div className="hc-compact">
-      <BoutonInfosNormes ficheKey="temperatureFrigo" onClick={ouvrirNormes} label="Températures & rangement — Normes HACCP" />
+      <BoutonInfosNormes ficheKey="temperatureFrigo" onClick={ouvrirNormes} label="Températures & rangement — Règles et repères HACCP" />
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
         <div className="lg:shrink-0"><SectionHeader title="Températures frigos et congélateurs" subtitle="Relevés de température et alertes" /></div>
-        <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="temperatures" items={[[Thermometer, equipementsFroid.length, "équipements suivis"], [ClipboardCheck, relevesFroid.filter((r) => r.date === todayISO()).length, "relevés aujourd'hui"], [AlertTriangle, relevesFroid.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", relevesFroid.some((r) => r.date === todayISO() && r.conforme === false)]]} /></div>
       </div>
       <HaccpTemperatures tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} logActivity={logActivity} who={who} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
@@ -6106,12 +6255,11 @@ function HaccpRefroidPage({ fiches, onCuissonRefroidie, onMaintienRefroidi, cuis
   return (
     <div className="hc-compact">
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-2">
-      <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire les règles officielles : de +63 °C à +10 °C en moins de 2 h." />
-      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire les règles officielles : passer sous −18 °C en moins de 4 h 30." />
+      <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire : +63 °C à +10 °C en moins de 2 h (arrêté du 21/12/2009, annexe IV, restauration collective) ; en remise directe aucune durée n'est fixée." />
+      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire : congélation à −18 °C (arrêté du 21/12/2009, annexe I) ; aucun texte lu ne fixe de durée de surgélation." />
       </div>
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
-        <div className="lg:shrink-0"><SectionHeader title="Refroidissement rapide (cellule)" subtitle="Suivi des refroidissements et de la cellule" /></div>
-        <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="cellule" items={[[Clock, refroidissements.filter((r) => r.statut === "en-cours").length, "en cours"], [CheckCircle2, refroidissements.filter((r) => r.statut === "termine" && r.date === todayISO()).length, "terminés aujourd'hui"], [AlertTriangle, refroidissements.filter((r) => r.date === todayISO() && r.conforme === false).length, "non conformes", refroidissements.some((r) => r.date === todayISO() && r.conforme === false)]]} /></div>
+        <div className="lg:shrink-0"><SectionHeader title="Refroidissement rapide et congélation" subtitle="Suivi des refroidissements, des congélations et de la cellule" /></div>
       </div>
       <HaccpRefroidissement fiches={fiches} onCuissonRefroidie={onCuissonRefroidie} onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
@@ -6125,9 +6273,9 @@ function HaccpHuilePage({ huileTests, employees, onEnregistrerTest }) {
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div className="hc-compact">
-      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Normes HACCP" texte="Cliquez pour lire les règles officielles : test de l'huile après chaque utilisation, voyant vert = huile bonne, voyant jaune = à changer." />
-      <SectionHeader title="Huile de friture" subtitle="Tests et suivi des bains d'huile" />
-      <TuilesResume fonction="huile" items={[[Droplets, huileTests.filter((h) => h.date === todayISO()).length, "tests aujourd'hui"], [CheckCircle2, huileTests.length ? (huileTests[0].resultat || "—") : "—", "dernier résultat", false, (() => { const r = huileTests.length ? (huileTests[0].resultat || "") : ""; if (/non conforme|à changer|mauvaise/i.test(r)) return { fond: "#FDE4E8", couleur: "#B4233A" }; if (/limite/i.test(r)) return { fond: "#FDEBD3", couleur: "#B8620B" }; if (r) return { fond: "#EAF6EF", couleur: "#14653A" }; return undefined; })()]]} />
+      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Règles et repères HACCP" texte="Cliquez pour lire : test de l'huile après chaque utilisation (source réglementaire à confirmer)." />
+      <SectionHeader title="Suivi d'huile de friture" subtitle="Tests et suivi des bains d'huile" />
+      <TuilesResume fonction="huile" items={[[CheckCircle2, huileTests.length ? (huileTests[0].resultat || "—") : "—", huileTests.length && huileTests[0].bain ? `dernier résultat — ${huileTests[0].bain}` : "dernier résultat", false, (() => { const r = huileTests.length ? (huileTests[0].resultat || "") : ""; if (/non conforme|à changer|mauvaise/i.test(r)) return { fond: "#FDE4E8", couleur: "#B4233A" }; if (/limite/i.test(r)) return { fond: "#FDEBD3", couleur: "#B8620B" }; if (r) return { fond: "#EAF6EF", couleur: "#14653A" }; return undefined; })()]]} />
       {onEnregistrerTest && <HuileSaisie onEnregistrerTest={onEnregistrerTest} />}
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
@@ -6246,10 +6394,9 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div className="hc-compact">
-      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire les règles officielles : 63 °C minimum en permanence, une seule régénération à 65 °C ou plus." />
+      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire : 63 °C minimum (guide Restaurateur page 180 et arrêté du 21/12/2009) ; sous 63 °C, aucune règle écrite : le chef décide." />
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
         <div className="lg:shrink-0"><SectionHeader title="Maintien au chaud" subtitle="Suivi des produits maintenus au chaud" /></div>
-        <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="maintien" items={[[Soup, entriesMaintienChaud.filter((e) => e.statut === "en-cours").length, "en cours"], [CheckCircle2, entriesMaintienChaud.filter((e) => e.date === todayISO() && e.statut === "termine").length, "terminés aujourd'hui"]]} /></div>
       </div>
       <MaintienChaud currentUserId={currentUserId} logActivity={logActivity} who={who} catalogue={catalogueMaintienChaud} setCatalogue={setCatalogueMaintienChaud} entries={entriesMaintienChaud} setEntries={setEntriesMaintienChaud} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} ouvrirNormes={ouvrirNormes} produitSuggere={maintienChaudSuggere} setProduitSuggere={setMaintienChaudSuggere} onLancerRefroidissement={onLancerRefroidissement} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
@@ -6263,10 +6410,9 @@ function HaccpCuissonPage({ ajouterModele, signalerAjout, cuissons, setCuissons,
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div className="hc-compact">
-      <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" texte="Cliquez pour lire les règles officielles : température à cœur à atteindre selon le produit (63 °C en général, 71 °C viande hachée, 74 °C volaille hachée…)." />
+      <BoutonInfosNormes ficheKey="cuisson" onClick={ouvrirNormes} label="Cuisson — toutes les normes (four, plancha, friture)" texte="Cliquez pour lire : barèmes indicatifs du guide Restaurateur (page 180) : 71 °C viande hachée, 74 °C volaille hachée, 63 °C viandes coupées…" />
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
         <div className="lg:shrink-0"><SectionHeader title="Cuisson" subtitle="Lancer une cuisson selon les fiches techniques ou créer une cuisson personnalisée" /></div>
-        <div className="lg:w-[58%] min-w-0"><TuilesResume fonction="cuisson" items={[[Flame, cuissons.filter((c) => c.statut === "en-cours").length, "en cours"], [CheckCircle2, cuissons.filter((c) => c.date === todayISO() && c.statut === "termine").length, "terminées aujourd'hui"], [AlertTriangle, cuissons.filter((c) => c.date === todayISO() && c.conforme === false).length, "non conformes", cuissons.some((c) => c.date === todayISO() && c.conforme === false)]]} /></div>
       </div>
       <HaccpCuisson ajouterModele={ajouterModele} signalerAjout={signalerAjout} cuissons={cuissons} setCuissons={setCuissons} currentUserId={currentUserId} logActivity={logActivity} who={who} produitSuggere={cuissonSuggere} setProduitSuggere={setCuissonSuggere} ouvrirNormes={ouvrirNormes} catalogue={catalogueCuisson} setCatalogue={setCatalogueCuisson} refroidissements={refroidissements} setRefroidissements={setRefroidissements} ajouterAlerteControle={ajouterAlerteControle} onLancerRefroidissement={onLancerRefroidissement} proposerEtiquetteRapide={proposerEtiquetteRapide} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
@@ -7840,7 +7986,7 @@ function ProtocolesMultiNet({ cleaning, setCleaning, zonesNettoyage, setZonesNet
   return (
     <div>
       <div className="rounded-xl border-2 border-[var(--accent)] bg-[var(--accent-soft)] p-3 mb-3 text-sm text-[var(--ink)] space-y-1.5">
-        <p><strong>Important :</strong> le protocole ne peut se remplir automatiquement, avec le bon dosage et le bon temps de contact, que si chaque produit et sa fiche technique sont enregistrés dans l'onglet <button type="button" className="underline font-semibold text-[var(--accent)]" onClick={onOuvrirProduits}>Mes produits et fiches techniques</button>. Tant que ce n'est pas fait, les protocoles proposés ici sont des modèles généraux à vérifier et à adapter.</p>
+        <p><strong>Important :</strong> le protocole ne peut se remplir automatiquement, avec le bon dosage et le bon temps de contact, que si chaque produit et sa fiche technique sont enregistrés dans l'onglet <button type="button" className="underline font-semibold text-[var(--accent)]" onClick={onOuvrirProduits}>Produits de nettoyage et fiches techniques</button>. Tant que ce n'est pas fait, les protocoles proposés ici sont des modèles généraux à vérifier et à adapter.</p>
         <p><strong>Cette page est facultative.</strong> Elle sert au chef qui veut décrire précisément comment nettoyer. Le chef peut aussi se contenter du planning (page 2) et laisser ses employés nettoyer comme ils le font, avec les moyens déjà mis en place dans l'établissement.</p>
       </div>
       <p className="text-sm text-[var(--steel)] mb-3">Cochez une ou plusieurs <strong>zones</strong>, puis des <strong>surfaces</strong> et/ou du <strong>matériel</strong>, puis choisissez le <strong>produit</strong> et le <strong>protocole</strong> : ils seront mis en place d'un seul coup sur toutes les combinaisons cochées. Tout est pré-rempli et modifiable.</p>
@@ -8428,7 +8574,7 @@ function ProtocolesNettoyageZones({ cleaning, setCleaning, zonesNettoyage, setZo
   return (
     <div>
       <div className="flex flex-wrap gap-1.5 mb-4">
-        {[["zones", "Par zone : produit et protocole"], ["produits", "Mes produits et fiches techniques"], ["libres", "Protocoles libres"]].map(([k, lib]) => (
+        {[["zones", "Par zone : produit et protocole"], ["produits", "Produits de nettoyage et fiches techniques"], ["libres", "Protocoles libres"]].map(([k, lib]) => (
           <button key={k} type="button" onClick={() => setOnglet(k)} className={`px-3 py-2 rounded-full text-sm font-medium border ${onglet === k ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`}>{lib}</button>
         ))}
       </div>
@@ -8599,7 +8745,7 @@ function GardeCodeChef({ verifierCodeChef, onAutorise, onRetour }) {
     <div className="max-w-md mx-auto mt-10">
       <form onSubmit={valider} className="bg-white border border-[var(--cadre)] rounded-2xl p-6 shadow-sm text-center">
         <div className="w-14 h-14 rounded-full mx-auto mb-3 flex items-center justify-center text-2xl" style={{ backgroundColor: "#FDE4E8" }}>🔒</div>
-        <h2 className="text-lg font-bold text-[var(--ink)] mb-1">Contrôle & Gestion</h2>
+        <h2 className="text-lg font-bold text-[var(--ink)] mb-1">Suivi et contrôle</h2>
         <p className="text-sm text-[var(--steel)] mb-4">Zone réservée au responsable cuisine et au directeur. Saisissez votre code à 4 chiffres pour continuer.</p>
         <input autoFocus type="password" inputMode="numeric" maxLength={4} value={code} onChange={(e) => setCode(e.target.value.replace(/\D/g, ""))} placeholder="Code (4 chiffres)"
           className="w-full h-12 text-center text-xl tracking-[0.4em] border-2 border-[var(--cadre)] rounded-lg bg-white" />
@@ -9280,9 +9426,15 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
     if (!carteJ) return [];
     return platsAuCarte(carteJ, auj).map((id) => fiches.find((f) => f.id === id)).filter(Boolean);
   }, [cartes, fiches]);
+  // Un seul carré au-dessus de la liste : « Carte du jour » si la carte change selon les jours ou les périodes
+  // (les plats prévus aujourd'hui, rien d'autre), sinon « Carte fixe » (carte à l'année ou aucune carte) avec les 10 fiches les plus ouvertes.
+  const carteDuJourActive = React.useMemo(() => {
+    const tr = [...(cartes || [])].sort((x, y) => (x.debut || "").localeCompare(y.debut || ""));
+    return tr.length > 0 && tr[0].typeCarte !== "fixe" && fichesDuJour.length > 0;
+  }, [cartes, fichesDuJour]);
   const fichesFavorites = React.useMemo(() => fiches
-    .filter((f) => ouverturesRecentes(f.id) >= AUTOMATISME_REPETITIONS && !fichesDuJour.some((d) => d.id === f.id))
-    .sort((a, b) => ouverturesRecentes(b.id) - ouverturesRecentes(a.id)).slice(0, 5), [fiches, usage, fichesDuJour]); // eslint-disable-line react-hooks/exhaustive-deps
+    .filter((f) => ouverturesRecentes(f.id) >= 1)
+    .sort((a, b) => ouverturesRecentes(b.id) - ouverturesRecentes(a.id)).slice(0, 10), [fiches, usage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // La recherche filtre directement la liste affichée (plutôt que de simplement faire défiler
   // jusqu'au premier résultat) : plus fiable, et le résultat reste visible même s'il y a beaucoup
@@ -9323,19 +9475,18 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
     <div>
       <SectionHeader title="Préparation culinaire" subtitle={`${fiches.length} fiches techniques — recettes et préparations de référence`} />
 
-      {(fichesDuJour.length > 0 || fichesFavorites.length > 0) && (
+      {(carteDuJourActive || fichesFavorites.length > 0) && (
         <Card className="mb-5">
-          {fichesDuJour.length > 0 && (
-            <div className={fichesFavorites.length > 0 ? "mb-3" : ""}>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">À la carte aujourd'hui</p>
+          {carteDuJourActive ? (
+            <div>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Carte du jour</p>
               <div className="flex flex-wrap gap-2">
                 {fichesDuJour.map((f) => <button key={f.id} type="button" onClick={() => setSelectedId(f.id)} className="min-h-[48px] px-4 rounded-xl text-sm font-bold text-white" style={{ background: COULEURS_FONCTION.fiches.fond }}>{f.nom}</button>)}
               </div>
             </div>
-          )}
-          {fichesFavorites.length > 0 && (
+          ) : (
             <div>
-              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Mes fiches les plus ouvertes</p>
+              <p className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Carte fixe — les fiches les plus ouvertes</p>
               <div className="flex flex-wrap gap-2">
                 {fichesFavorites.map((f) => <button key={f.id} type="button" onClick={() => setSelectedId(f.id)} className="min-h-[48px] px-4 rounded-xl text-sm font-bold border-2" style={{ borderColor: "#8C5E22", color: "#8C5E22", background: "#FBF3E8" }}>{f.nom}</button>)}
               </div>
@@ -9405,7 +9556,7 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
 /* ================================================================================
    CRÉATION D'UNE FICHE TECHNIQUE — questionnaire complet (7 étapes), photo IA,
    fiche A4 en direct, liens automatiques stock / HACCP / étiquette / traçabilité.
-   Vit dans Contrôle & Gestion → Gestion (réservé Chef / Directeur) — voir
+   Vit dans Suivi et contrôle → Gestion (réservé Chef / Directeur) — voir
    SOUS_TUILES_CONTROLE_TOUTES (id "creationFiche") plus haut.
    ================================================================================ */
 
@@ -9566,7 +9717,7 @@ function NormeAutreBloc({ titre, norme, note, autre, valeur, justif, unite, text
       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">{titre}</div>
       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!autre ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
         <input type="radio" className="mt-0.5" checked={!autre} onChange={onNorme} />
-        <span><strong>Norme officielle : {norme}</strong>{note && <span className="block text-xs text-[var(--steel)]">{note}</span>}</span>
+        <span><strong>Référence retenue : {norme}</strong>{note && <span className="block text-xs text-[var(--steel)]">{note}</span>}</span>
       </label>
       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${autre ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
         <input type="radio" className="mt-0.5" checked={!!autre} onChange={onAutre} />
@@ -9579,7 +9730,7 @@ function NormeAutreBloc({ titre, norme, note, autre, valeur, justif, unite, text
                 : <span className="flex items-center gap-2"><span>≥ +</span><input className={`${inputCls} w-24`} type="number" step="1" value={valeur} onChange={(e) => onValeur(e.target.value)} /><span>{unite || "°C"}</span></span>}
               <input className={`${inputCls} mt-2`} value={justif || ""} onChange={(e) => onJustif(e.target.value)} placeholder="Justification / preuve (ex. analyse de laboratoire du 12/09, étude, avis du consultant HACCP)" />
               <span className="block text-xs text-[var(--steel)] mt-1">Conseil : notez ici la preuve que votre méthode est sûre (résultat d'analyse de laboratoire avec sa date, étude, avis de votre consultant HACCP) et gardez le document dans votre plan de maîtrise sanitaire.</span>
-              <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la norme officielle pour cette fiche. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
+              <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la référence retenue pour cette fiche. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
             </span>
           )}
         </span>
@@ -10481,7 +10632,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">T° à cœur visée</div>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                         <input type="radio" className="mt-0.5" checked={!perso} onChange={() => majProcede("cuisson", { coeurAutre: false, coeurPerso: "", coeurJustif: "" })} />
-                        <span><strong>Norme officielle : ≥ +{fam.seuil} °C à cœur</strong><span className="block text-xs text-[var(--steel)]">{fam.note}</span></span>
+                        <span><strong>Référence retenue : ≥ +{fam.seuil} °C à cœur</strong><span className="block text-xs text-[var(--steel)]">{fam.note}</span></span>
                       </label>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                         <input type="radio" className="mt-0.5" checked={perso} onChange={() => majProcede("cuisson", { coeurAutre: true, coeurPerso: c.coeurPerso || "" })} />
@@ -10496,7 +10647,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                               </span>
                               <input className={`${inputCls} mt-2`} value={c.coeurJustif || ""} onChange={(e) => majProcede("cuisson", { coeurJustif: e.target.value })} placeholder="Justification / preuve (ex. analyse de laboratoire du 12/09, étude de cuisson, avis du consultant HACCP)" />
                               <span className="block text-xs text-[var(--steel)] mt-1">Conseil : notez ici la preuve que votre méthode est sûre (résultat d'analyse de laboratoire avec sa date, étude de cuisson, avis de votre consultant HACCP) et gardez le document dans votre plan de maîtrise sanitaire pour un contrôle.</span>
-                              <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la norme officielle pour cette fiche et pour l'écran Cuisson. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
+                              <span className="block text-xs text-[var(--steel)] mt-1.5">Cette valeur remplace la référence retenue pour cette fiche et pour l'écran Cuisson. Elle est inscrite sur la fiche et relève de la seule responsabilité de l'établissement, qui doit pouvoir prouver que sa méthode est sûre.</span>
                             </span>
                           )}
                         </span>
@@ -10528,7 +10679,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
                 <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
               </div>
-              {avecModes && <NormeAutreBloc titre="Norme de refroidissement" norme="+63 °C → +10 °C à cœur en moins de 2 h" note="Référence officielle (GBPH Restaurateur) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C."
+              {avecModes && <NormeAutreBloc titre="Norme de refroidissement" norme="+63 °C → +10 °C à cœur en moins de 2 h" note="Source : arrêté du 21/12/2009, annexe IV point 1 (écrit pour la restauration collective) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C. Pour un restaurant traditionnel (remise directe), aucune durée n'est fixée : le chef peut choisir « Autre » et justifier."
                 autre={S.procedes.refroid.autre} texte valeur={S.procedes.refroid.cibleTxt || ""} justif={S.procedes.refroid.justif}
                 onNorme={() => majProcede("refroid", { autre: false, cibleTxt: "", justif: "" })} onAutre={() => majProcede("refroid", { autre: true })}
                 onValeur={(v) => majProcede("refroid", { cibleTxt: v })} onJustif={(v) => majProcede("refroid", { justif: v })} />}
@@ -10552,7 +10703,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && !avecModes && <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>}
                 {modeFiche === "expert" && <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>}
               </div>
-              {avecModes && <NormeAutreBloc titre="Norme de maintien au chaud" norme="≥ +63 °C à cœur" note="Référence officielle (barèmes ANSES, GBPH Restaurateur) : plats préparés maintenus à +63 °C minimum."
+              {avecModes && <NormeAutreBloc titre="Norme de maintien au chaud" norme="≥ +63 °C à cœur" note="Source : guide Restaurateur 2015, page imprimée 180 (« maintien à 63 °C ») ; arrêté du 21/12/2009 : 63 °C minimum."
                 autre={S.procedes.maintien.autre} valeur={S.procedes.maintien.autre ? S.procedes.maintien.temp : ""} justif={S.procedes.maintien.justif}
                 onNorme={() => majProcede("maintien", { autre: false, temp: 63, justif: "" })} onAutre={() => majProcede("maintien", { autre: true, temp: "" })}
                 onValeur={(v) => majProcede("maintien", { temp: v })} onJustif={(v) => majProcede("maintien", { justif: v })} />}
@@ -10582,7 +10733,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   </select>
                 </Field>)}
               </div>
-              {avecModes && <NormeAutreBloc titre="Norme de remise en température" norme="+10 °C → ≥ +75 °C à cœur en moins d'1 h" note="Référence officielle (barèmes ANSES) : réchauffage des plats préparés à +75 °C à cœur."
+              {avecModes && <NormeAutreBloc titre="Norme de remise en température" norme="+10 °C → ≥ +75 °C à cœur en moins d'1 h" note="Source : guide Restaurateur 2015, page imprimée 180 (barèmes ANSES, indicatifs) : réchauffage des plats préparés à +75 °C minimum. Arrêté du 21/12/2009, annexe IV (restauration collective) : 63 °C minimum."
                 autre={S.procedes.remise.autre} valeur={S.procedes.remise.autre ? S.procedes.remise.cible : ""} justif={S.procedes.remise.justif}
                 onNorme={() => majProcede("remise", { autre: false, cible: 75, justif: "" })} onAutre={() => majProcede("remise", { autre: true, cible: "" })}
                 onValeur={(v) => majProcede("remise", { cible: v })} onJustif={(v) => majProcede("remise", { justif: v })} />}
@@ -10760,7 +10911,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       <details open={avecModes ? true : undefined} className="mb-5 bg-white border border-[var(--cadre)] rounded-xl">
         <summary className="px-5 py-3.5 cursor-pointer font-semibold text-[var(--ink)] text-sm">Réglages de l'établissement <span className="font-normal text-[var(--steel)]">— débloquent le procédé congélation</span></summary>
         <div className="px-5 pb-4 space-y-2.5">
-          <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong>{avecModes ? "" : " — modifiable dans Contrôle & Gestion → Déclaration TIAC."}</p>
+          <p className="text-xs text-[var(--steel)]">Nom de l'établissement (en-tête des fiches) : <strong>{etablissementNom}</strong>{avecModes ? "" : " — modifiable dans Suivi et contrôle → Déclaration TIAC."}</p>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={!!congelPms} onChange={(e) => setCongelPms(e.target.checked)} className="mt-0.5" /><span>La congélation est décrite dans notre PMS</span></label>
           <label className="flex items-start gap-2 text-sm"><input type="checkbox" checked={!!celluleDispo} onChange={(e) => setCelluleDispo(e.target.checked)} className="mt-0.5" /><span>L'établissement dispose d'une cellule de refroidissement</span></label>
         </div>
@@ -12508,6 +12659,23 @@ function HaccpTemperatures({
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
   };
 
+  // « Correction apportée » : l'employé a agi sur un appareil hors norme ; il note la température au laser et ce qu'il a fait, le chef est prévenu.
+  const [correctionOuverte, setCorrectionOuverte] = useState(null);
+  const enregistrerCorrection = (eq) => {
+    const s = saisieManuelle[eq.id];
+    if (!s || s.valeur === undefined || s.valeur === "" || !(s.note || "").trim()) return;
+    const conforme = equipementConforme(eq, s.valeur);
+    const heure = new Date().toTimeString().slice(0, 5);
+    setRelevesFroid((prev) => [{ id: uid(), equipementId: eq.id, valeur: s.valeur, date: todayISO(), heure, employeeId: currentUserId, conforme, manuel: true, note: `Correction apportée : ${s.note.trim()}` }, ...prev]);
+    logActivity("HACCP", "Correction apportée (température)", `${eq.nom} : ${s.valeur}°C au thermomètre laser — ${s.note.trim()}`);
+    ajouterAlerteControle({ id: uid(), date: todayISO(), heure, type: "Température", employeeId: currentUserId, titre: `${eq.nom} — correction apportée`, detail: `${s.note.trim()} — contrôle au thermomètre laser : ${s.valeur}°C (${conforme ? "conforme" : "toujours hors norme"}).`, conforme });
+    if (!conforme && equipementEcartAnomalie(eq, s.valeur)) {
+      setSurveillancesFroid((prev) => [{ id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false }, ...prev]);
+    }
+    setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
+    setCorrectionOuverte(null);
+  };
+
   // Relevé à la main, matin ou soir : l'heure réelle est conservée ; le créneau est noté pour classer le relevé.
   const enregistrerReleveCreneau = (eq, creneau) => {
     const cle = `${eq.id}|${creneau}`;
@@ -12556,7 +12724,7 @@ function HaccpTemperatures({
     });
   };
 
-  const jourReleve = todayISO(); // pas d'historique sur l'écran employé : il est dans Contrôle & Gestion
+  const jourReleve = todayISO(); // pas d'historique sur l'écran employé : il est dans Suivi et contrôle
   const dernierReleve = (eqId) => {
     const releves = relevesFroid.filter((r) => r.equipementId === eqId && r.date <= jourReleve);
     if (releves.length === 0) return null;
@@ -12665,7 +12833,7 @@ function HaccpTemperatures({
                 <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Norme</th>
                 <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Dernier relevé</th>
                 <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Statut</th>
-                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Contrôle manuel (thermomètre laser)</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Correction</th>
               </tr>
             </thead>
             <tbody>
@@ -12697,11 +12865,18 @@ function HaccpTemperatures({
                     </td>
                     <td className="px-3 py-1.5 align-middle whitespace-nowrap">{!dr ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#EEF1F5", color: "#475569" }}>Non relevé</span> : dr.conforme === false ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FDECEC", color: "#B3261E" }}>Hors norme</span> : <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#E4F4EA", color: "#15803D" }}>Conforme</span>}</td>
                     <td className="px-3 py-1.5 align-middle">
-                      <div className="flex items-center gap-1.5">
-                        <input className={`${inputCls} !w-16 !py-1.5`} type="number" step="0.1" placeholder="°C" value={s.valeur ?? ""} onChange={(e) => majSaisie(eq.id, "valeur", e.target.value)} />
-                        <input className={`${inputCls} !w-36 !py-1.5`} placeholder="Note (optionnel)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
-                        <Button variant="ghost" onClick={() => enregistrerSaisieManuelle(eq)} disabled={s.valeur === undefined || s.valeur === ""}>Enregistrer</Button>
-                      </div>
+                      {dr && dr.conforme === false ? (
+                        correctionOuverte === eq.id ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <input className={`${inputCls} !w-20 !py-1.5`} type="number" step="0.1" placeholder="°C laser" value={s.valeur ?? ""} onChange={(e) => majSaisie(eq.id, "valeur", e.target.value)} />
+                            <input className={`${inputCls} !w-52 !py-1.5`} placeholder="Ce qui a été fait (obligatoire)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
+                            <Button onClick={() => enregistrerCorrection(eq)} disabled={s.valeur === undefined || s.valeur === "" || !(s.note || "").trim()}>Valider</Button>
+                            <Button variant="ghost" onClick={() => setCorrectionOuverte(null)}>Annuler</Button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setCorrectionOuverte(eq.id)} className="min-h-[40px] px-3 rounded-lg text-sm font-bold text-white" style={{ background: "linear-gradient(160deg, #D64545 0%, #A62828 100%)" }}>Correction apportée</button>
+                        )
+                      ) : <span className="text-xs text-[var(--steel)]">—</span>}
                     </td>
                   </tr>
                 );
@@ -12766,6 +12941,7 @@ const DEFAULT_PRODUITS_MAINTIEN_CHAUD = ["Sauce champignons & parmesan", "Sauce 
 // refroidissement rapide, où l'alarme de durée s'applique (normes propres à ce module).
 
 function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, ajouterAlerteControle, produitSuggere, setProduitSuggere, onLancerRefroidissement, proposerEtiquetteRapide }) {
+  const nomsFichesListe = React.useContext(FichesNomsContext);
   const [selection, setSelection] = useState([]);
   const [appareil, setAppareil] = useState("Bain-marie");
   const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
@@ -12854,7 +13030,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${catalogue.length})`} sous="Produits ayant un maintien au chaud">
             <input className={`${inputCls} mb-2`} value={rechercheFiche} onChange={(ev) => setRechercheFiche(ev.target.value)} placeholder="Rechercher un produit…" />
-            {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun produit dans la liste pour le moment : ils apparaîtront ici dès que vos fiches seront enregistrées (le chef peut aussi en ajouter dans Contrôle & Gestion). En attendant, saisissez le produit à droite.</p>}
+            {catalogue.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun produit dans la liste pour le moment : ils apparaîtront ici dès que vos fiches seront enregistrées (le chef peut aussi en ajouter dans Suivi et contrôle). En attendant, saisissez le produit à droite.</p>}
             <div className="space-y-1.5 max-h-[26rem] lg:max-h-[calc(100vh-30rem)] overflow-y-auto pr-1">
               {catalogue.filter((nom) => nom.toLowerCase().includes(rechercheFiche.trim().toLowerCase())).map((nom) => (
                 <label key={nom} className={`flex items-center gap-2 text-sm px-3 py-2 rounded-lg border cursor-pointer ${selection.includes(nom) ? "border-[#1E7B4B] bg-[#EAF6EF] text-[#14653A] font-medium" : "border-[var(--line)] text-[var(--ink)] bg-white"}`}>
@@ -12876,7 +13052,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                 ))}
               </div>
             ) : (
-              <div className="mb-3"><Field label="Nom du produit *"><input className={inputCls} value={mNom} onChange={(ev) => setMNom(ev.target.value)} placeholder="Ex. : Sauce poivre" /></Field></div>
+              <div className="mb-3"><Field label="Nom du produit *"><input className={inputCls} list="liste-fiches-maintien" value={mNom} onChange={(ev) => setMNom(ev.target.value)} placeholder="Choisir dans la liste ou écrire" /><datalist id="liste-fiches-maintien">{nomsFichesListe.map((n) => <option key={n} value={n} />)}</datalist></Field></div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <Field label="Appareil *">
@@ -12937,12 +13113,12 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                       <strong>{e.refroidissementVerdict.conforme ? "Refroidissement conforme." : "Refroidissement NON CONFORME : produit à détruire."}</strong> {e.refroidissementVerdict.detail}
                     </div>
                   )}
-                  {sous63 && <p className="text-sm font-semibold rounded-lg p-2 mb-2" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>Température inférieure à 63 °C : une seule régénération à 65 °C ou plus est autorisée, une deuxième descente impose la destruction du produit.</p>}
+                  {sous63 && <p className="text-sm font-semibold rounded-lg p-2 mb-2" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>Température inférieure à 63 °C (minimum du guide et de l'arrêté). Aucune règle écrite ne fixe la conduite à tenir : le chef décide (régénérer ou détruire) et le note dans le PMS.</p>}
 
                   <div className="flex flex-wrap items-end gap-2">
                     <label className="flex flex-col gap-1 text-sm">
                       <span className="text-xs text-[var(--steel)]">Température de fin de maintien (°C) *</span>
-                      <input className={`${inputCls} w-44`} type="number" step="0.1" inputMode="decimal" placeholder="Ex. : 65" value={t} onChange={(ev) => setTempFin({ ...tempFin, [e.id]: ev.target.value })} />
+                      <input className={`${inputCls} w-44`} type="number" step="0.1" inputMode="decimal" placeholder="Température relevée" value={t} onChange={(ev) => setTempFin({ ...tempFin, [e.id]: ev.target.value })} />
                     </label>
                     <Button variant="ghost" onClick={() => arreter(e)} disabled={t === "" || e.arrete}><Square size={14} /> Arrêter le maintien</Button>
                     <button onClick={() => versRefroidissement(e)} disabled={t === "" || e.refroidissementLance}
@@ -13340,11 +13516,11 @@ function EtiquetteCuisson({ c, who }) {
 // officiels, pas une simplification) : la règle générale est 63°C, mais viande hachée et volaille
 // ont des seuils officiels plus élevés. On ne compare donc plus toutes les cuissons au même chiffre.
 const CUISSON_FAMILLES = [
-  { id: "general", label: "Général (viande en morceau entier, légumes, plats, sauces...)", seuil: 63, note: "Norme officielle (barèmes ANSES, GBPH Restaurateur) : +63 °C à cœur." },
-  { id: "viandeHachee", label: "Viande hachée (bœuf, veau, agneau, porc : steak haché, bolognaise, lasagne...)", seuil: 71, note: "Norme officielle (barèmes ANSES) : +71 °C à cœur pendant 15 secondes." },
-  { id: "volaille", label: "Volaille hachée", seuil: 74, note: "Norme officielle (barèmes ANSES) : +74 °C à cœur pendant 15 secondes. Il n'existe pas de valeur officielle chiffrée pour la volaille en morceau entier : utilise « Autre valeur »." },
-  { id: "poisson", label: "Poisson", seuil: 60, note: "Norme officielle (barèmes ANSES) : de 1 minute à +60 °C jusqu'à 15 minutes à +80 °C à cœur (plus la température est basse, plus le temps doit être long)." },
-  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Norme officielle (barèmes ANSES) : +90 °C à cœur pendant 2 minutes." },
+  { id: "general", label: "Général (viande en morceau entier, légumes, plats, sauces...)", seuil: 63, note: "Barème du guide Restaurateur (page 180) : viandes coupées de bœuf, veau, agneau, jambon, 63 °C pendant 15 s. Pour les autres préparations, aucun barème : le chef choisit (« Autre valeur ») et justifie." },
+  { id: "viandeHachee", label: "Viande hachée (bœuf, veau, agneau, porc : steak haché, bolognaise, lasagne...)", seuil: 71, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +71 °C à cœur pendant 15 secondes." },
+  { id: "volaille", label: "Volaille hachée", seuil: 74, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +74 °C à cœur pendant 15 secondes. Il n'existe pas de valeur officielle chiffrée pour la volaille en morceau entier : utilise « Autre valeur »." },
+  { id: "poisson", label: "Poisson", seuil: 60, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : de 1 minute à +60 °C jusqu'à 15 minutes à +80 °C à cœur (plus la température est basse, plus le temps doit être long)." },
+  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +90 °C à cœur pendant 2 minutes." },
 ];
 const cuissonSeuilMin = (familleId) => (CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0]).seuil;
 const cuissonFamille = (familleId) => CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0];
@@ -13375,6 +13551,7 @@ function modeCuissonDepuisAppareil(app) {
 const APPAREILS_CUISSON = ["Four à pizza", "Four Rational", "Four Atoll Speed / Mery Chef", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
 
 function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
+  const nomsFichesListe = React.useContext(FichesNomsContext);
   const [resultatCuisson, setResultatCuisson] = useState(null);
   const [selection, setSelection] = useState([]);
   const [recherche, setRecherche] = useState("");
@@ -13568,7 +13745,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
               <div>
                 <p className="text-xs text-[var(--steel)] mb-3">Renseignez les paramètres vous-même.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                  <Field label="Nom du produit *"><input className={inputCls} value={mNom} onChange={(e) => setMNom(e.target.value)} placeholder="Ex. : Pizza margherita" /></Field>
+                  <Field label="Nom du produit *"><input className={inputCls} list="liste-fiches-cuisson" value={mNom} onChange={(e) => setMNom(e.target.value)} placeholder="Choisir dans la liste ou écrire" /><datalist id="liste-fiches-cuisson">{nomsFichesListe.map((n) => <option key={n} value={n} />)}</datalist></Field>
                   <Field label="Appareil *">
                     <select className={inputCls} value={mAppareil} onChange={(e) => { setMAppareil(e.target.value); const m = modeCuissonDepuisAppareil(e.target.value); if (m) setMMode(m); }}>
                       {APPAREILS_CUISSON.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -13775,7 +13952,7 @@ function HistoriqueCuissons({ cuissons, who }) {
 }
 
 function HaccpHuile({ huileTests, who, manuelPossible, historiqueComplet = false }) {
-  const estResponsable = historiqueComplet; // l'historique complet n'est montré que dans Contrôle & Gestion
+  const estResponsable = historiqueComplet; // l'historique complet n'est montré que dans Suivi et contrôle
   const [photoVue, setPhotoVue] = useState(null);
   const bon = (r) => ["Conforme", "Conservée", "Bonne", "Conservée (matin)", "Filtration (matin)"].includes(r);
   const limiteR = (r) => /Limite/.test(r || "");
@@ -14137,7 +14314,7 @@ function SelectionEtiquettesModal({ produitsInitiaux, nbInitiaux = {}, produits,
 }
 
 function EditeurEtiquette({ nom, historique: historiqueComplet, creerEtiquetteDlc, currentUserId, who, onBack, produits, avecHistorique = false }) {
-  const estResponsable = avecHistorique; // historique complet réservé à Contrôle & Gestion
+  const estResponsable = avecHistorique; // historique complet réservé à Suivi et contrôle
   const historique = estResponsable ? historiqueComplet : historiqueComplet.slice(0, 1);
   const [quantiteUtilisee, setQuantiteUtilisee] = useState("");
   const [nbEtiquettes, setNbEtiquettes] = useState(1);
@@ -14379,6 +14556,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
   const champsObligatoiresManquants = [!nom && "nom du produit", !lot && "numéro de lot", !dlcDate && "DLC/DDM"].filter(Boolean);
   const pretAConfirmer = champsObligatoiresManquants.length === 0;
 
+  const [faireEtiquette, setFaireEtiquette] = useState(null); // null = question posée, true / false = réponse
   const confirmer = () => {
     if (!pretAConfirmer) return;
     const entry = creerEtiquetteDlc({
@@ -14434,7 +14612,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
   const nouveau = () => {
     setPhotos([]); setAnalyseFaite(false); setEchecAnalyse(false);
     setNom(""); setLot(""); setDlcDate(""); setAllergenes(""); setOrigine(""); setCodeUsine(""); setDelaiApresOuvertureJours("");
-    setQuantiteUtilisee("1"); setNbEtiquettes(1); setEntreeCreee(null);
+    setQuantiteUtilisee("1"); setNbEtiquettes(1); setEntreeCreee(null); setFaireEtiquette(null);
   };
 
   if (entreeCreee) {
@@ -14444,13 +14622,22 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
         <p className="text-sm text-[var(--ink)] mb-3 print:hidden">
           <strong>{entreeCreee.nomLibre}</strong>{entreeCreee.lot ? ` — lot ${entreeCreee.lot}` : ""} — DLC/DDM {entreeCreee.dlcDate}</p>
         {entreeCreee.retrait ? <p className="text-base font-semibold mb-3 print:hidden" style={{ color: "#14653A" }}>{entreeCreee.retrait.qteTxt} retiré(s) du stock : {entreeCreee.retrait.nom} (reste {entreeCreee.retrait.resteTxt})</p> : <p className="text-sm mb-3 print:hidden" style={{ color: "#8A5A00" }}>Aucun produit du stock ne correspond à « {entreeCreee.nomLibre} » : rien n'a été retiré du stock.</p>}
-        <div className="flex flex-wrap gap-3 mb-4">
+        {faireEtiquette === null && (
+          <div className="rounded-xl border-2 p-4 mb-4 print:hidden" style={{ borderColor: "#6027C9", backgroundColor: "#F5F0FF" }}>
+            <p className="text-base font-bold text-[var(--ink)] mb-3 text-center">Faire une étiquette DLC pour ce produit ?</p>
+            <div className="flex gap-3 justify-center">
+              <button type="button" onClick={() => setFaireEtiquette(true)} className="min-h-[52px] min-w-[120px] rounded-xl text-white font-bold text-base" style={{ backgroundColor: "#1E7B4B" }}>Oui</button>
+              <button type="button" onClick={() => setFaireEtiquette(false)} className="min-h-[52px] min-w-[120px] rounded-xl font-bold text-base border-2" style={{ borderColor: "#6027C9", color: "#6027C9", backgroundColor: "#fff" }}>Non</button>
+            </div>
+          </div>
+        )}
+        {faireEtiquette === true && <div className="flex flex-wrap gap-3 mb-4">
           {Array.from({ length: entreeCreee.nbEtiquettes || 1 }, (_, i) => (
             <EtiquetteDlcImprimable key={i} produitNom={entreeCreee.nomLibre} lot={entreeCreee.lot} dlcDate={entreeCreee.dlcDate} date={entreeCreee.date} heure={entreeCreee.heure} who={who} employeeId={entreeCreee.employeeId} cuissonInfo={entreeCreee.cuissonInfo} refroidissementInfo={entreeCreee.refroidissementInfo} maintienInfo={entreeCreee.maintienInfo} decongelationInfo={entreeCreee.decongelationInfo} />
           ))}
-        </div>
+        </div>}
         <div className="flex gap-2 print:hidden">
-          <Button onClick={() => window.print()}><Printer size={16} /> Imprimer {entreeCreee.nbEtiquettes > 1 ? `les ${entreeCreee.nbEtiquettes} étiquettes` : "l'étiquette"}</Button>
+          {faireEtiquette === true && <Button onClick={() => window.print()}><Printer size={16} /> Imprimer {entreeCreee.nbEtiquettes > 1 ? `les ${entreeCreee.nbEtiquettes} étiquettes` : "l'étiquette"}</Button>}
           <button type="button" onClick={nouveau} className="inline-flex items-center gap-3 cursor-pointer"><span className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={26} /></span><span className="text-sm font-semibold text-[var(--ink)]">Enregistrer un autre produit</span></button>
         </div>
       </Card>
@@ -14579,7 +14766,7 @@ function TracabilitePage({ preparations, creerEtiquetteDlc, enregistrerTracabili
 
   return (
     <div>
-      <BoutonInfosNormes ficheKey="tracabilite" onClick={ouvrirNormes} label="Qu'est-ce qu'une traçabilité et comment bien la faire" texte="Cliquez pour lire les règles officielles : informations à conserver, durée de conservation, rappel de produits." />
+      <BoutonInfosNormes ficheKey="tracabilite" onClick={ouvrirNormes} label="Qu'est-ce qu'une traçabilité et comment bien la faire" texte="Cliquez pour lire : informations à conserver, durée de conservation, rappel de produits." />
       <SectionHeader title="Traçabilité" fonction="tracabilite" icone={Camera} subtitle={sansIA ? "Photographiez l'étiquette du produit : la photo est conservée et classée par jour" : "Enregistrez la traçabilité d'un produit par photo, ou recherchez une traçabilité déjà enregistrée"} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
 
@@ -14631,7 +14818,7 @@ function genererLot(nom) {
   return `${abreviationLot(nom)}${dateLotDuJour()}`;
 }
 
-// DLC après ouverture : repères du tableau « Durées de conservation (DLC) — Normes HACCP » (fiche FICHES_NORMES.dlc).
+// DLC après ouverture : repères du tableau « Durées de conservation (DLC) — Règles et repères HACCP » (fiche FICHES_NORMES.dlc).
 // Utilisés UNIQUEMENT quand le produit n'a pas de délai après ouverture enregistré. Quand le tableau donne une
 // fourchette (« 2 à 3 jours »), on retient la valeur la plus prudente (la plus courte). Un produit qui ne correspond
 // à aucune ligne du tableau n'a pas de délai : il faut le renseigner dans sa fiche, on n'invente rien.
@@ -14958,10 +15145,9 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
 
         {/* Produits sélectionnés */}
         <div className="rounded-xl border border-[var(--cadre)] bg-white self-start overflow-hidden" style={{ borderTop: `3px solid ${zoneDepuisFonction("etiquettes").bord}` }}>
-          <div className="flex items-center justify-between gap-2 px-4 py-3 border-b border-[var(--line)]" style={{ background: zoneDepuisFonction("etiquettes").fond }}>
+          <div className="flex items-center justify-center gap-2 px-4 py-3 border-b border-[var(--line)]" style={{ background: zoneDepuisFonction("etiquettes").fond }}>
             <span className="flex items-center gap-2.5 min-w-0"><span className="w-9 h-9 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: `linear-gradient(160deg, ${zoneDepuisFonction("etiquettes").bord}, ${zoneDepuisFonction("etiquettes").texte})` }}><Printer size={20} /></span><h3 className="text-base font-bold" style={{ color: zoneDepuisFonction("etiquettes").texte }}>Produits sélectionnés ({produitsSel.length})</h3></span>
-            {produitsSel.length > 0 && <button type="button" onClick={() => { setSelection([]); setNbParProduit({}); setQteParProduit({}); setDecongParProduit({}); }} className="text-sm font-semibold" style={{ color: "#6027C9" }}>Tout effacer</button>}
-          </div>
+            </div>
           {produitsSel.length === 0 && <p className="px-4 py-6 text-sm text-[var(--steel)]">Cochez un ou plusieurs produits dans la liste.</p>}
           {produitsSel.map((p) => (
             <div key={p.id} className="px-4 py-3 border-b border-[var(--line)] last:border-b-0">
@@ -14973,7 +15159,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, -1)} aria-label={`Une étiquette de moins pour ${p.nom}`}>−</button>
                 <span className="min-w-[4.5rem] text-center text-sm font-semibold text-[var(--ink)]">{nbDe(p.id)} étiquette{nbDe(p.id) > 1 ? "s" : ""}</span>
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, 1)} aria-label={`Une étiquette de plus pour ${p.nom}`}>+</button>
-                <button type="button" onClick={() => toggleSelection(p.id)} className="ml-auto w-9 h-9 flex items-center justify-center text-[#6027C9]" aria-label={`Retirer ${p.nom}`}><Trash2 size={18} /></button>
+                
               </div>
               {categorieDeProduitDlc(p) === "Surgelés" && (
                 <div className="mt-3 pt-3 border-t border-[var(--line)]">
@@ -15015,7 +15201,6 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             )}
             {produitsSel.length > 0 && (
               <div className="mt-4 space-y-3">
-                <p className="text-xs font-semibold text-[var(--ink)] text-center">Aperçu des étiquettes qui seront imprimées</p>
                 {lignesDepuisSelection().map((l) => (
                   l.dlcDate ? (
                     <div key={l.produitId} className="overflow-hidden">
@@ -15166,6 +15351,9 @@ function CelluleQuantite({ valeur, pas, onSet, fond, texte, label }) {
 function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle }) {
   const acces = useAcces();
   const rapideStock = React.useContext(RapideContext);
+  const [suppOuverte, setSuppOuverte] = useState(false);
+  const [rechercheSupp, setRechercheSupp] = useState("");
+  const [produitASupp, setProduitASupp] = useState(null);
   const [produitSansDroit, setProduitSansDroit] = useState(null);
   const [infosStockage, setInfosStockage] = useState(null);
   const [item, setItem] = useState({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" });
@@ -15181,6 +15369,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [vueListeCommande, setVueListeCommande] = useState(false);
   const [vueEnvoyerCommande, setVueEnvoyerCommande] = useState(false);
   const [inventaireActif, setInventaireActif] = useState(false);
+  const [produitDetail, setProduitDetail] = useState(null); // chef : id du produit dont on ouvre la page
+  const estChefStock = !!acces.estResponsable;
+  const peutGererProduits = estChefStock && !!(rapideStock && rapideStock.produitsModifiables && rapideStock.ouvrirProduitAcompleter);
   const today = todayISO();
   const addItem = () => {
     if (!item.nom) return;
@@ -15329,6 +15520,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   );
   const aller = (etat) => { setCategorieChoisie("__tous__"); setFiltreEtat(etat); setRecherche(""); setFiltresOuverts(etat !== "tous"); setTimeout(() => { const el = document.getElementById("stock-tableau"); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); }, 50); };
 
+  const produitOuvert = produitDetail ? stock.find((x) => x.id === produitDetail) : null;
+  if (produitOuvert) {
+    return <PageProduit s={produitOuvert} onBack={() => setProduitDetail(null)} onModifier={peutGererProduits ? () => rapideStock.ouvrirProduitAcompleter(produitOuvert.id, "nom") : null} />;
+  }
   return (
     <div>
       <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
@@ -15336,22 +15531,53 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
         <BookOpen size={22} className="shrink-0" style={{ color: "#c0392b" }} />
         <span className="min-w-0">
-          <span className="block text-sm font-bold uppercase tracking-wide">⚠ Gestion du stock — Normes HACCP</span>
-          <span className="block text-xs font-normal mt-0.5">Cliquez pour lire les règles officielles : stockage, températures, DLC/DDM, rotation des produits (FIFO).</span>
+          <span className="block text-sm font-bold uppercase tracking-wide">⚠ Gestion du stock — Règles et repères HACCP</span>
+          <span className="block text-xs font-normal mt-0.5">Cliquez pour lire : stockage, températures, DLC/DDM, rotation des produits (FIFO).</span>
         </span>
       </button>
       <SectionHeader title="Stock" fonction="stock" icone={Package} subtitle="Gérez vos produits, vos quantités et vos inventaires" />
-      <div className="relative mb-3">
-        <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
-        <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+      <div className="flex flex-wrap items-center gap-2 mb-3">
+        {peutGererProduits && (
+          <>
+            <button type="button" onClick={() => rapideStock.ajouterProduit()} className="min-h-[48px] px-5 rounded-xl text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+              <Plus size={18} /> Ajouter un produit
+            </button>
+            <button type="button" onClick={() => { setRechercheSupp(""); setProduitASupp(null); setSuppOuverte(true); }} className="min-h-[48px] px-5 rounded-xl text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #D64545 0%, #A62828 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+              <Trash2 size={18} /> Supprimer un produit
+            </button>
+          </>
+        )}
+        <div className="relative flex-1 min-w-[220px]">
+          <IcLoupe size={16} className="absolute left-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" />
+          <input className={`${inputCls} w-full !pl-9`} placeholder="Rechercher un produit, une référence, un fournisseur…" value={recherche} onChange={(e) => setRecherche(e.target.value)} />
+        </div>
       </div>
 
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-2 mb-3">
-        {carteKpi("Produits référencés", stock.length, Package, "#DDF3E6", "#B3E0C5", "#14653A", () => aller("tous"))}
-        {carteKpi("Produits en alerte", alertes.length, AlertTriangle, "#FDE4E8", "#F6B8C2", "#B4233A", () => aller("alerte"), "sous le stock à avoir")}
-        {carteKpi("À commander", alertesHorsPanier.length, ShoppingCart, "#FFF0D2", "#F3D69A", "#8A5300", () => aller("alerte"), "pas encore au panier")}
-        {carteKpi("Commande", lignesPanier.length, ClipboardList, "#E3EDFB", "#BCD3F2", "#1B4F9C", () => setVueListeCommande(true), lignesPanier.length ? "produit(s) au panier — voir" : "panier vide")}
-      </div>
+      {suppOuverte && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={() => setSuppOuverte(false)}>
+          <div className="bg-white rounded-xl max-w-md w-full p-5 max-h-[85vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+            {!produitASupp ? (
+              <>
+                <h2 className="font-bold text-[var(--ink)] mb-1">Supprimer un produit</h2>
+                <p className="text-xs text-[var(--steel)] mb-3">Choisissez le produit à supprimer du stock.</p>
+                <input className={`${inputCls} w-full mb-3`} autoFocus placeholder="Rechercher un produit…" value={rechercheSupp} onChange={(e) => setRechercheSupp(e.target.value)} />
+                <div className="overflow-y-auto border border-[var(--line)] rounded-lg divide-y divide-[var(--line)]">
+                  {stock.filter((x) => !rechercheSupp.trim() || (x.nom || "").toLowerCase().includes(rechercheSupp.trim().toLowerCase())).slice(0, 80).map((x) => (
+                    <button key={x.id} type="button" onClick={() => setProduitASupp(x)} className="w-full text-left px-3 py-2.5 text-sm text-[var(--ink)] hover:bg-[var(--bg)]">{x.nom}</button>
+                  ))}
+                </div>
+                <button type="button" onClick={() => setSuppOuverte(false)} className="mt-3 min-h-[44px] rounded-lg border border-[var(--cadre)] text-sm font-medium">Annuler</button>
+              </>
+            ) : (
+              <ModalConfirmerSuppression
+                libelle={produitASupp.nom}
+                onAnnuler={() => setProduitASupp(null)}
+                onConfirmer={() => { removeItem(produitASupp.id); logActivity && logActivity("Stock", "Produit supprimé", produitASupp.nom); setProduitASupp(null); setSuppOuverte(false); }}
+              />
+            )}
+          </div>
+        </div>
+      )}
 
       {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
 
@@ -15399,7 +15625,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             return (
               <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
                 <div className="col-span-2 lg:col-span-1 min-w-0">
-                  <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>
+                  {estChefStock ? <button type="button" onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
                   {s.reference ? <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference}</div> : null}
                   {estAValider(s.note) && (
@@ -15426,7 +15652,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </div>
       </div>
 
-      {/* Catalogue retiré de l'écran Stock : l'ajout/suppression de produits se fait dans Contrôle & Gestion */}
+      {/* Catalogue retiré de l'écran Stock : l'ajout/suppression de produits se fait dans Suivi et contrôle */}
       {false && (
         <Card className="mb-6" id="stock-catalogue">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer le catalogue produits</h3>
@@ -15490,6 +15716,24 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </Card>
       )}
 
+      {estChefStock ? (
+        <div className="grid grid-cols-2 gap-3 mt-6">
+          <button type="button" onClick={() => setInventaireActif(true)}
+            className="min-h-[96px] rounded-2xl px-4 py-3 flex flex-col items-center justify-center gap-1 text-white font-bold active:scale-95 transition-transform"
+            style={{ background: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", boxShadow: estDernierJourDuMois(today) ? "0 0 0 4px #6EE7A8, 0 6px 14px rgba(0,0,0,0.2)" : "0 6px 14px rgba(0,0,0,0.2)" }}>
+            <ClipboardList size={28} />
+            <span className="text-lg">Inventaire</span>
+            <span className="text-xs font-normal text-white/85">{estDernierJourDuMois(today) ? "À faire aujourd'hui (fin de mois)" : "Fiche d'inventaire du mois"}</span>
+          </button>
+          <button type="button" onClick={() => setVueListeCommande(true)}
+            className="min-h-[96px] rounded-2xl px-4 py-3 flex flex-col items-center justify-center gap-1 text-white font-bold active:scale-95 transition-transform"
+            style={{ background: "linear-gradient(160deg, #3B82F6 0%, #1D4ED8 100%)", boxShadow: "0 6px 14px rgba(0,0,0,0.2)" }}>
+            <ShoppingCart size={28} />
+            <span className="text-lg">Commander</span>
+            <span className="text-xs font-normal text-white/85">{lignesPanier.length ? `${lignesPanier.length} produit${lignesPanier.length > 1 ? "s" : ""} au panier` : "Panier vide"}</span>
+          </button>
+        </div>
+      ) : (
       <Card className={`text-center mt-6 ${estDernierJourDuMois(today) ? "border-[var(--accent)] bg-[var(--accent-soft)]" : ""}`}>
         <div className="flex items-center justify-center gap-2 mb-2">
           <ClipboardList size={20} className="text-[var(--accent)]" />
@@ -15502,6 +15746,47 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </p>
         <Button onClick={() => setInventaireActif(true)}>Générer la fiche d'inventaire</Button>
       </Card>
+      )}
+    </div>
+  );
+}
+
+// Page d'un produit (chef) : tout ce qu'on sait du produit au même endroit, avec le bouton Modifier.
+function PageProduit({ s, onBack, onModifier }) {
+  const b = s.brut || {};
+  const ligne = (libelle, valeur) => (
+    <div key={libelle} className="grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)] gap-3 py-2 border-t border-[var(--line)] first:border-t-0">
+      <span className="text-sm text-[var(--steel)]">{libelle}</span>
+      <span className={`text-sm break-words ${valeur ? "font-semibold text-[var(--ink)]" : "italic text-[var(--steel)]"}`}>{valeur || "À renseigner"}</span>
+    </div>
+  );
+  const jours = (n) => (n === null || n === undefined || n === "" ? "" : `${n} jour${Number(n) > 1 ? "s" : ""}`);
+  const allergenes = Array.isArray(b.allergenes_norme) && b.allergenes_norme.length ? b.allergenes_norme.join(", ") : "";
+  return (
+    <div>
+      <BoutonRetour onClick={onBack} className="mb-3">Retour au stock</BoutonRetour>
+      <SectionHeader title={s.nom} fonction="stock" icone={Package} subtitle={s.categorie || "Produit"} permanent />
+      <Card className="mb-4">
+        {ligne("Référence fournisseur", s.reference)}
+        {ligne("Fournisseur", s.fournisseur)}
+        {ligne("Catégorie", s.categorie)}
+        {ligne("Unité de comptage", s.unite)}
+        {ligne("Conditionnement", s.conditionnement)}
+        {b.prix_achat != null && ligne("Prix d'achat", `${b.prix_achat} €`)}
+        {b.conservation && ligne("Famille de température", b.conservation)}
+        {ligne("Stock actuel", `${s.quantite ?? 0} ${s.unite || ""}`.trim())}
+        {ligne("Stock à avoir", s.cible ? `${s.cible} ${s.unite || ""}`.trim() : "")}
+        {ligne("Dernier lot", s.lot)}
+        {ligne("DLC", s.dlc)}
+        {(b.delai_apres_ouverture_jours != null || b.delai_jours_dlc != null) && ligne("DLC après ouverture", jours(b.delai_apres_ouverture_jours != null ? b.delai_apres_ouverture_jours : b.delai_jours_dlc))}
+        {b.decongel_jours != null && ligne("Décongélation", jours(b.decongel_jours))}
+        {ligne("Allergènes", allergenes)}
+      </Card>
+      {onModifier && (
+        <button type="button" onClick={onModifier} className="min-h-[56px] w-full sm:w-auto px-8 rounded-xl text-base font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+          <IcCrayon size={20} /> Modifier le produit
+        </button>
+      )}
     </div>
   );
 }
@@ -15690,14 +15975,14 @@ function trouverFicheCorrespondante(nomRecherche, fiches, ficheNomExact) {
 
 const FICHES_NORMES = {
   reception: {
-    titre: "Réception des marchandises — Normes HACCP",
+    titre: "Réception des marchandises — Règles et repères HACCP",
     sections: [
       {
         titre: "Qui / Quand",
         contenu: "Selon l'organisation du service — À chaque livraison, dès l'arrivée du camion jusqu'à la fin du rangement en stock. Aucune denrée ne doit rester hors température plus que le temps strictement nécessaire au contrôle.",
       },
       {
-        titre: "Températures obligatoires à la réception, par famille de produits",
+        titre: "Températures à la réception, par famille de produits (maximums de conservation : arrêté du 21/12/2009, annexe I)",
         type: "tableau",
         colonnes: ["Famille de produits", "Température à réception"],
         contenu: [
@@ -15746,7 +16031,7 @@ const FICHES_NORMES = {
   },
 
   tracabilite: {
-    titre: "Traçabilité — Normes HACCP",
+    titre: "Traçabilité — Règles et repères HACCP",
     sections: [
       {
         titre: "Qu'est-ce que la traçabilité",
@@ -15784,7 +16069,7 @@ const FICHES_NORMES = {
   },
 
   tiac: {
-    titre: "Déclaration d'une TIAC (Toxi-Infection Alimentaire Collective) — Normes HACCP",
+    titre: "Déclaration d'une TIAC (Toxi-Infection Alimentaire Collective) — Règles et repères HACCP",
     sections: [
       { titre: "1. Avertir le responsable de l'établissement", contenu: "Prévenir immédiatement le responsable dès le signalement de cas suspects." },
       {
@@ -15815,7 +16100,7 @@ const FICHES_NORMES = {
   },
 
   lavageLegumes: {
-    titre: "Lavage des fruits et légumes — Normes HACCP",
+    titre: "Lavage des fruits et légumes — Règles et repères HACCP",
     sections: [
       { titre: "Qui / Quand / Où", contenu: "Personnel chargé de la légumerie — Avant de consommer ou d'utiliser les fruits et légumes (sauf légumes de 4e et 5e gamme et fruits dont la peau n'est pas consommée : banane, orange, clémentine…) — À la légumerie ou zone de plonge si opérations séparées dans le temps et matériel dédié." },
       {
@@ -15842,18 +16127,18 @@ const FICHES_NORMES = {
   },
 
   dlc: {
-    titre: "Durées de conservation (DLC) — Normes HACCP",
+    titre: "Durées de conservation (DLC) — Règles et repères HACCP",
     sections: [
       {
         titre: "Ce qui est vraiment fixé par la réglementation",
-        contenu: "Il n'existe pas de tableau légal unique fixant la DLC de chaque produit. La seule règle réellement imposée par un texte officiel est la règle « J+3 » pour les plats cuisinés à l'avance en restauration collective (arrêté du 21 décembre 2009, Annexe IV, point 4) : pas plus de 3 jours après fabrication, sauf étude de vieillissement validée en laboratoire.",
+        contenu: "Il n'existe pas de tableau légal unique fixant la DLC de chaque produit. La règle chiffrée la plus connue est la règle « J+3 » pour les plats cuisinés à l'avance et conservés au froid (arrêté du 21 décembre 2009, annexe IV, point 4) : la DLC ne peut pas dépasser le troisième jour après la fabrication, en l'absence d'études de durée de vie. Cette annexe est écrite pour la restauration collective : un restaurant traditionnel relève de la remise directe (annexe V), qui ne la reprend pas. Pour un restaurant traditionnel, aucune durée n'est imposée par cet arrêté : le chef fixe la DLC et la justifie dans son PMS.",
       },
       {
         titre: "Pour tout le reste",
         contenu: "La réglementation demande à chaque établissement de fixer et de justifier lui-même sa propre DLC interne, en s'appuyant sur les Guides de Bonnes Pratiques d'Hygiène (GBPH) de son secteur. Le tableau ci-dessous, largement utilisé en formation HACCP, vous est donc mis à disposition comme base de connaissance (viandes, poissons, charcuterie, produits laitiers, sauces, etc.) — ce n'est pas une loi, mais une base sérieuse et croisée sur plusieurs sources professionnelles.",
       },
       {
-        titre: "Tableau de repères",
+        titre: "Tableau de repères (source non identifiée : à ne pas citer comme norme)",
         type: "tableau",
         contenu: [
           { categorie: "Viandes", produit: "Viande crue (steak, escalope...)", duree: "2 à 3 jours" },
@@ -15892,7 +16177,7 @@ const FICHES_NORMES = {
   },
 
   bph: {
-    titre: "Bonnes pratiques d'hygiène (BPH) — Boîtes de conserve / Planches à découper — Normes HACCP",
+    titre: "Bonnes pratiques d'hygiène (BPH) — Boîtes de conserve / Planches à découper — Règles et repères HACCP",
     sections: [
       {
         titre: "Protocole d'ouverture d'une boîte à conserve",
@@ -15923,7 +16208,7 @@ const FICHES_NORMES = {
   },
 
   huileFreture: {
-    titre: "Huile de friture — Normes HACCP",
+    titre: "Huile de friture — Règles et repères HACCP",
     sections: [
       {
         titre: "1. Après chaque utilisation — Contrôle visuel et olfactif",
@@ -15942,8 +16227,16 @@ const FICHES_NORMES = {
   },
 
   refroidissementSansCellule: {
-    titre: "Refroidissement rapide sans cellule — Normes HACCP",
+    titre: "Refroidissement rapide sans cellule — Règles et repères HACCP",
     sections: [
+      {
+        titre: "Statut de ces règles (source)",
+        contenu: [
+          "Texte européen : règlement (CE) 852/2004, annexe II chapitre IX point 6 : refroidir « dès que possible » après le traitement thermique, à une température qui n'entraîne pas de risque pour la santé. Aucune durée chiffrée.",
+          "Texte français : arrêté du 21/12/2009, annexe IV point 1 (version en vigueur depuis le 09/05/2020) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C, puis conservation entre 0 °C et +3 °C ; autre méthode possible avec une analyse des dangers validée. Cette annexe vise la restauration collective. Un restaurant traditionnel relève de la remise directe (annexe V), qui ne reprend pas cette règle.",
+          "Pour un restaurant traditionnel (remise directe), aucune durée de refroidissement n'est fixée : le chef décide. Le mode opératoire ci-dessous (bac d'eau glacée, épaisseur de 5 cm, étiquetage J+1) n'est fixé par aucun texte lu.",
+        ],
+      },
       {
         titre: "Mode opératoire",
         contenu: [
@@ -15959,15 +16252,23 @@ const FICHES_NORMES = {
           "10. Sortir les préparations et les stocker immédiatement entre 0°C et 3°C.",
           "11. Enregistrer l'heure et la température de sortie du bac.",
           "12. Calculer la durée de refroidissement — La durée est la différence entre entrée et sortie : en moins de 2 heures.",
-          "13. Étiquetage des préparations culinaires élaborées à l'avance :\n    → DLC sur les produits invendus (fin de service) : J+1\n    → DLC sur les préparations culinaires élaborées à l'avance : J+3",
+          "13. Étiquetage des préparations culinaires élaborées à l'avance :\n    → DLC sur les produits invendus (fin de service) : J+1 (aucun texte lu : choix du chef)\n    → DLC sur les préparations culinaires élaborées à l'avance : J+3 (arrêté du 21/12/2009, annexe IV : écrit pour la restauration collective)",
         ],
       },
     ],
   },
 
   refroidissementAvecCellule: {
-    titre: "Surgélation avec cellule de refroidissement — Normes HACCP",
+    titre: "Surgélation avec cellule de refroidissement — Règles et repères HACCP",
     sections: [
+      {
+        titre: "Statut de ces règles (source)",
+        contenu: [
+          "Arrêté du 21/12/2009, annexe I (températures de conservation) : −18 °C pour les glaces, viandes hachées, préparations de viandes et produits de la pêche congelés ; −12 °C pour les autres denrées congelées. Tableau lu sur une copie préfectorale et dans le guide (page 179) : à reconfirmer sur Légifrance.",
+          "Aucun texte lu ne fixe de durée de surgélation (le logiciel utilise 4 h 30) : le chef décide.",
+          "Décongélation : arrêté du 21/12/2009, annexe VI (texte lu sur Légifrance le 20/10/2026), applicable à tous les établissements.",
+        ],
+      },
       {
         titre: "Mode opératoire",
         contenu: [
@@ -15990,27 +16291,39 @@ const FICHES_NORMES = {
           "1. Enlever tout emballage des produits, y compris les films plastiques.",
           "2. Placer les produits sur une grille au-dessus d'un récipient adapté pour recueillir l'exsudat.",
           "3. Protéger par un couvercle ou film. Ajouter une étiquette portant la date de décongélation.",
-          "4. Acheminer rapidement dans la chambre froide entre 0°C et 3°C.",
-          "⚠ Les steaks hachés ne subissent jamais de décongélation — cuisson directe sans décongélation préalable.",
+          "4. Décongeler en enceinte réfrigérée entre 0 °C et la température maximale de conservation de la denrée, à défaut entre 0 °C et +4 °C (arrêté du 21/12/2009, annexe VI). Autre méthode possible avec une analyse des dangers validée.",
+          "⚠ L'annexe VI autorise la cuisson ou la remise en température sans décongélation préalable.",
           "⚠ Réchauffage (recuire) des plats cuisinés sans décongélation préalable.",
           "⚠ Ne congelez que les aliments très frais, sains et mûrs à point.",
-          "⚠ Interdiction de surgeler un produit décongelé ou en cours de décongélation.",
-          "⚠ Durée de vie d'un produit décongelé : 48 heures.",
+          "⚠ Un produit décongelé (hors surgelé) ne peut pas être recongelé, sauf analyse des dangers validée (arrêté du 21/12/2009, annexe VI point 3).",
+          "⚠ Durée de vie après décongélation : aucune durée fixée par l'arrêté (conservation selon l'annexe I). Le chef fixe la durée et la justifie dans le PMS.",
         ],
       },
     ],
   },
 
   cuisson: {
-    titre: "Cuisson — Normes HACCP",
+    titre: "Cuisson — Règles et repères HACCP",
     sections: [
-      { titre: "Règle générale — 63°C à cœur", contenu: "≥ 63°C à cœur pour tous les produits (sauf exceptions ci-dessous), maintenus au moins 2 minutes pour garantir la destruction des agents pathogènes. En dessous de 63°C, le produit est non conforme : remise en cuisson obligatoire ou élimination." },
-      { titre: "Cas particuliers par famille de produits", contenu: [
-        "Viandes hachées (steaks hachés, sauces bolognaise…) : ≥ 71°C à cœur.",
-        "Volailles (poulet, dinde…) : ≥ 80°C à cœur.",
-        "Poissons : ≥ 63°C à cœur.",
-        "Œufs : le jaune et le blanc doivent être coagulés (aucun doute possible).",
-        "Bavette, entrecôte bleue/saignante : la réglementation impose en théorie 63°C, mais en restauration commerciale une cuisson à la demande du client est tolérée avec traçabilité.",
+      { titre: "Statut de ces valeurs (source)", contenu: [
+        "Aucun texte français ou européen lu ne fixe une température de cuisson par type de viande. L'arrêté du 21/12/2009 ne donne que 63 °C, pour le maintien au chaud et la remise en température en restauration collective.",
+        "Les barèmes ci-dessous sont recommandés par l'ANSES et repris, à titre indicatif, par le guide de bonnes pratiques « Restaurateur » (novembre 2015, page imprimée 180, page 187 du PDF). Ce guide est d'application volontaire ; son respect est un moyen de justification privilégié du respect des règlements 852/2004 et 853/2004 (avis du JO du 15/06/2015). Les barèmes restent sous la responsabilité du professionnel.",
+        "Quand aucun texte n'existe, c'est le chef qui décide, avec sa justification dans le PMS.",
+      ]},
+      { titre: "Barèmes du guide Restaurateur (page 180)", contenu: [
+        "Viandes hachées : 71 °C à cœur, ou 2 min à 70 °C. Bœuf, veau, agneau, porc hachés : 71 °C pendant 15 s (fiche Yersinia citée par le guide).",
+        "Volaille hachée : 74 °C pendant 15 s.",
+        "Viandes coupées de bœuf, veau, agneau, jambon : 63 °C pendant 15 s.",
+        "Plats préparés, viandes : maintien à 63 °C, réchauffage à 75 °C minimum.",
+        "Poissons : de 1 min à 60 °C jusqu'à 15 min à 80 °C. Un poisson « rosé à l'arête » ne permet pas d'éliminer d'éventuels parasites.",
+        "Coquillages : 2 min à 90 °C.",
+        "Préparations liquides d'œufs entiers : 5 min à 60 °C.",
+        "Sanglier, cheval : 63 °C, ou 3 min à 58 °C, ou 4 h à 51 °C.",
+      ]},
+      { titre: "Sans barème officiel : le chef décide", contenu: [
+        "Volaille en morceau entier (poulet, dinde), canard, magret : aucun barème officiel trouvé. Le chef choisit la température (« Autre valeur ») et la justifie dans le PMS. Question en attente auprès de la DDPP.",
+        "Autres préparations (légumes, plats, sauces), œufs : aucun barème trouvé ; le chef décide.",
+        "Cuisson saignante ou bleue d'une pièce entière : aucun texte lu ne l'autorise ni ne l'interdit expressément ; le barème du guide pour les viandes coupées est 63 °C pendant 15 s. Décision du chef, à justifier dans le PMS.",
       ]},
       { titre: "Méthode — Cuisson au four (Rational / Atoll Speed / four à pizza)", contenu: [
         "1. Préchauffer le four à la température souhaitée.",
@@ -16036,17 +16349,17 @@ const FICHES_NORMES = {
         "3. Secouer légèrement le panier pour éviter que les produits ne collent.",
         "4. Égoutter soigneusement après cuisson.",
         "5. Ne jamais plonger des produits humides ou mouillés dans l'huile chaude.",
-        "Test bandelette obligatoire : chauffer l'huile à 180°C, plonger le testeur 10 secondes. Voyant vert = huile bonne. Voyant jaune = TPM + 24 → à changer, vidanger et nettoyer la friteuse.",
+        "Test de l'huile (la limite légale de composés polaires n'a pas été relue dans les textes) : chauffer l'huile à 180°C, plonger le testeur 10 secondes. Voyant vert = huile bonne. Voyant jaune = TPM + 24 → à changer, vidanger et nettoyer la friteuse.",
       ]},
-      { titre: "Après cuisson", contenu: "Stocker immédiatement au chaud (≥ 63°C) pour le service, ou démarrer un refroidissement rapide (cellule ou bain de glace). Ne jamais laisser un produit entre 10°C et 63°C plus de 2h (zone de danger bactériologique)." },
+      { titre: "Après cuisson", contenu: "Au chaud : 63 °C minimum. Sinon démarrer un refroidissement rapide (cellule ou bain de glace). Pour la restauration collective, l'arrêté du 21/12/2009 (annexe IV) fixe 2 h maximum entre +63 °C et +10 °C ; en remise directe aucune durée n'est fixée." },
     ],
   },
 
   maintienChaud: {
-    titre: "Maintien au chaud — Normes HACCP",
+    titre: "Maintien au chaud — Règles et repères HACCP",
     sections: [
-      { titre: "Température minimale de maintien", contenu: "≥ 63°C en permanence, aussi longtemps que le produit reste en service. En dessous, le produit entre dans la zone de danger bactériologique (+4°C à +63°C) — aucune durée maximale officielle n'est fixée tant que les 63°C sont tenus." },
-      { titre: "En cas de descente sous 63°C", contenu: "Régénération possible une seule fois à ≥65°C. Une deuxième descente sous 63°C impose la destruction du produit." },
+      { titre: "Température minimale de maintien", contenu: "63 °C minimum, aussi longtemps que le produit reste en service. Sources : guide Restaurateur 2015, page imprimée 180 (« maintien à 63 °C ») ; arrêté du 21/12/2009, annexe IV point 3 (restauration collective) ; annexe I, tableau « température minimale en liaison chaude » (valeur à reconfirmer sur Légifrance). Une température plus basse n'est admise qu'avec une analyse des dangers validée. Aucune durée maximale de maintien n'a été trouvée dans les textes lus." },
+      { titre: "En cas de descente sous 63°C", contenu: "Aucun texte lu ne fixe la conduite à tenir sous 63 °C (régénération, nombre de fois, destruction) : le chef décide et l'inscrit dans le PMS. Pour information : le guide Restaurateur (page 180) indique 75 °C minimum pour le réchauffage des plats préparés ; l'arrêté (annexe IV, restauration collective) indique 63 °C." },
       { titre: "Procédure", contenu: [
         "1. Préchauffer le bain-marie avant d'y placer les produits.",
         "2. Vérifier régulièrement la température de l'eau ET du produit.",
@@ -16059,14 +16372,14 @@ const FICHES_NORMES = {
   },
 
   temperatureFrigo: {
-    titre: "Températures & stockage frigo / congélateur — Normes HACCP",
+    titre: "Températures & stockage frigo / congélateur — Règles et repères HACCP",
     sections: [
       {
         titre: "Qui / Quand",
         contenu: "Personne en service — Contrôle et enregistrement le matin en arrivant (avant toute ouverture de porte) et le soir (juste avant de quitter l'établissement), plus tout contrôle aléatoire au thermomètre laser.",
       },
       {
-        titre: "Températures de conservation obligatoires",
+        titre: "Températures de conservation par enceinte (réglages de la cuisine)",
         type: "tableau",
         colonnes: ["Enceinte", "Température"],
         contenu: [
@@ -16076,8 +16389,20 @@ const FICHES_NORMES = {
         ],
       },
       {
-        titre: "⚠ Aucune tolérance",
-        contenu: "Aucune tolérance sur ces températures — contrôle obligatoire matin et soir, sans exception ni marge : tout écart doit déclencher une vérification immédiate.",
+        titre: "Maximums fixés par l'arrêté du 21/12/2009 (annexe I), selon le produit",
+        contenu: [
+          "Viandes hachées : +2 °C ; abats : +3 °C ; préparations de viandes : +4 °C.",
+          "Volailles, lagomorphes, ratites, petit gibier : +4 °C ; viandes d'ongulés : +7 °C (carcasses, gros morceaux) ou +4 °C (découpe).",
+          "Produits de la pêche frais : +2 °C ; ovoproduits : +4 °C ; lait cru : +4 °C.",
+          "Autres denrées très périssables : +4 °C ; autres denrées périssables : +8 °C ; préparations culinaires élaborées à l'avance : +3 °C.",
+          "Congelé : −18 °C (glaces, viandes hachées, préparations de viandes, produits de la pêche) ; −12 °C pour les autres denrées congelées. Tolérance : +3 °C en surface, brièvement, lors du chargement et du déchargement.",
+          "Source : tableau lu sur une copie préfectorale et dans le guide (page 179) ; à reconfirmer sur Légifrance, car les tableaux de l'annexe I n'étaient pas affichés dans la copie reçue le 20/10/2026. Le règlement 853/2004 peut fixer d'autres températures pour certains produits.",
+          "Un autre couple température et durée est admis s'il figure dans un guide validé ou résulte d'une analyse des dangers validée (arrêté, article 3).",
+        ],
+      },
+      {
+        titre: "Fréquence des relevés",
+        contenu: "Aucun texte lu ne fixe la fréquence des relevés de température pour un restaurant traditionnel : le chef décide. Au-delà d'un maximum de l'annexe I, la denrée n'est plus conforme à l'arrêté (sauf guide validé ou analyse des dangers validée, article 3).",
       },
       {
         titre: "En cas de température non conforme",
@@ -16122,7 +16447,7 @@ const FICHES_NORMES = {
         titre: "Identification et traçabilité",
         contenu: [
           "Tout produit entamé ou préparé doit porter une étiquette DLC : nom, date de fabrication/ouverture, DLC.",
-          "Préparations maison : DLC J+1 pour les produits invendus, J+3 pour les préparations élaborées à l'avance.",
+          "Préparations maison : DLC J+1 pour les produits invendus (aucun texte lu : choix du chef), J+3 pour les préparations élaborées à l'avance (arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective).",
           "Conserver les étiquettes d'origine jusqu'à épuisement du lot.",
           "En cas de doute sur un produit sans étiquette : le détruire.",
         ],
@@ -16134,7 +16459,7 @@ const FICHES_NORMES = {
           "Ne pas surcharger — l'air doit circuler entre les produits.",
           "Nettoyage sol selon planning quotidien, nettoyage complet selon planning mensuel.",
           "Contrôle des joints et poignées de porte régulièrement — dégivrage régulier.",
-          "Présence obligatoire d'un thermomètre par enceinte, contrôlé régulièrement.",
+          "Un thermomètre par enceinte, contrôlé régulièrement (règlement 852/2004, annexe II chapitre I point 2 d : températures « qui puissent être vérifiées et si nécessaire enregistrées »).",
           "En cas de panne : alerter immédiatement et transvaser les produits dans une autre enceinte froide.",
         ],
       },
@@ -16142,7 +16467,7 @@ const FICHES_NORMES = {
   },
 
   stock: {
-    titre: "Gestion du stock — Normes HACCP",
+    titre: "Gestion du stock — Règles et repères HACCP",
     sections: [
       {
         titre: "Principe général",
@@ -16250,7 +16575,12 @@ function ModalInfosNormes({ fiche, onClose }) {
   );
 }
 
-function BoutonInfosNormes({ ficheKey, onClick, label, texte }) {
+// Les rectangles rouges « Règles et repères HACCP » restent affichés pour l'équipe jusqu'à cette date (6 mois après leur correction, décision de Loïc le 20/10/2026) ;
+// ensuite ils disparaissent et seul le Lexique (Contrôle & Gestion > PMS et réglementation > Lexique et réglementation) reste. La procédure TIAC reste toujours affichée.
+const RECTANGLES_NORMES_JUSQU_AU = "2027-04-20";
+const rectanglesNormesActifs = () => new Date().toISOString().slice(0, 10) <= RECTANGLES_NORMES_JUSQU_AU;
+function BoutonInfosNormes({ ficheKey, onClick, label, texte, permanent }) {
+  if (!permanent && !rectanglesNormesActifs()) return null;
   // Bandeau réglementaire compact : une seule ligne sur grand écran, le titre seul sur téléphone (le texte complet s'ouvre au clic).
   return (
     <button onClick={() => onClick(ficheKey)}
@@ -16258,8 +16588,8 @@ function BoutonInfosNormes({ ficheKey, onClick, label, texte }) {
       style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
       <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
       <span className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-2">
-        <span className="text-xs font-bold uppercase tracking-wide">⚠ {label || "Informations importantes — Normes HACCP"}</span>
-        <span className="hidden lg:inline text-xs font-normal">{texte ? texte.replace(/^Cliquez pour lire les règles officielles : /, "") : "Cliquez pour lire les règles officielles."}</span>
+        <span className="text-xs font-bold uppercase tracking-wide">⚠ {label || "Informations importantes — Règles et repères HACCP"}</span>
+        <span className="hidden lg:inline text-xs font-normal">{texte ? texte.replace(/^Cliquez pour lire : /, "") : "Cliquez pour lire les règles, leur source et leur statut."}</span>
       </span>
       <span className="shrink-0 text-xs font-bold underline">Lire</span>
     </button>
@@ -16267,7 +16597,8 @@ function BoutonInfosNormes({ ficheKey, onClick, label, texte }) {
 }
 
 // Rectangle rouge réglementaire (non cliquable) : rappelle la norme ou le texte en vigueur, tout en haut d'une page.
-function BandeauNormes({ label }) {
+function BandeauNormes({ label, permanent }) {
+  if (!permanent && !rectanglesNormesActifs()) return null;
   return (
     <div className="mb-4 w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left shadow-sm text-white" style={{ backgroundColor: "#C1432D" }}>
       <BookOpen size={20} className="shrink-0" />
@@ -16277,6 +16608,13 @@ function BandeauNormes({ label }) {
 }
 
 // Textes réglementaires affichés en haut des écrans de Contrôle & Gestion (vérifiés sur les textes officiels).
+// Fiches revues le 20/10/2026 contre les textes (voir le Lexique). Les autres portent un marqueur : leurs sources restent à contrôler.
+// La fiche TIAC reste telle quelle (décision de Loïc le 20/10/2026).
+const FICHES_NORMES_REVUES = ["refroidissementSansCellule", "refroidissementAvecCellule", "cuisson", "maintienChaud", "temperatureFrigo", "dlc", "reception", "tiac"];
+Object.keys(FICHES_NORMES).forEach((k) => {
+  if (!FICHES_NORMES_REVUES.includes(k)) FICHES_NORMES[k].sections.push({ titre: "Statut de cette fiche", contenu: "Cette fiche reprend la version précédente du logiciel. Ses sources sont en cours de vérification contre les textes officiels : voir le Lexique et réglementation pour les règles déjà vérifiées." });
+});
+
 const NORMES_SOUS_ECRAN = {
   historiqueJour: "Historique de la journée — enregistrements des autocontrôles : Règlement (CE) n° 852/2004, art. 5",
   origine: "Origine des viandes — décret n° 2025-141 du 13/02/2025 (en vigueur le 19/02/2025) modifiant le décret n° 2002-1465 : bœuf né / élevé / abattu ; porc, ovin, volaille élevé / abattu",
@@ -17038,7 +17376,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
         </div>
         <p className="text-sm text-[var(--steel)] mb-2">{entreesFinalisees.filter((e) => e.conforme).length} article(s) ajoutés au stock{nonConformesActuels.length ? `, ${nonConformesActuels.length} à retourner au fournisseur` : ""}.</p>
         {nonConformesActuels.length > 0 && (
-          <p className="text-sm text-[var(--steel)] mb-5">{modeManuel ? "Le chef et le directeur ont été prévenus dans leur onglet Contrôle & Gestion : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire." : "Le chef a été notifié dans son onglet Contrôle pour la suite — vous n'avez rien d'autre à faire."}</p>
+          <p className="text-sm text-[var(--steel)] mb-5">{modeManuel ? "Le chef et le directeur ont été prévenus dans leur onglet Suivi et contrôle : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire." : "Le chef a été notifié dans son onglet Contrôle pour la suite — vous n'avez rien d'autre à faire."}</p>
         )}
         <Button onClick={onDone}>Terminer</Button>
       </Card>
@@ -17150,7 +17488,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
       )}
 
       {step === 2 && !IA_ACTIVEE && (
-        <StepShell titre="Bon de livraison" sousTitre="Photographiez le bon (plusieurs photos si le bon fait plusieurs pages) — la ou les photos sont archivées et consultables depuis Contrôle & Gestion → Réception, même sur une réception conforme." onPrev={() => setStep(1)} nextLabel="Suivant" onNext={() => setStep(3)} nextDisabled={photosBon.length === 0}>
+        <StepShell titre="Bon de livraison" sousTitre="Photographiez le bon (plusieurs photos si le bon fait plusieurs pages) — la ou les photos sont archivées et consultables depuis Suivi et contrôle → Réception, même sur une réception conforme." onPrev={() => setStep(1)} nextLabel="Suivant" onNext={() => setStep(3)} nextDisabled={photosBon.length === 0}>
           {photosBon.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               {photosBon.map((p, i) => (
@@ -17966,7 +18304,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
       <Card>
         <div className="flex items-center gap-2 mb-1"><CheckCircle2 size={22} className="text-[var(--accent)]" /><h3 className="font-semibold text-lg text-[var(--ink)]">Réception validée</h3></div>
         <p className="text-sm text-[var(--steel)] mb-2">{produitsF.filter((p) => p.conforme).length} article(s) ajouté(s) au stock{nonConformes.length ? `, ${nonConformes.length} à retourner ou à réclamer au fournisseur` : ""}.</p>
-        {nonConformes.length > 0 && <p className="text-sm text-[var(--steel)] mb-5">Le chef et le directeur ont été prévenus dans leur onglet Contrôle & Gestion : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire.</p>}
+        {nonConformes.length > 0 && <p className="text-sm text-[var(--steel)] mb-5">Le chef et le directeur ont été prévenus dans leur onglet Suivi et contrôle : ce sont eux qui vérifient et envoient le mail au fournisseur (ou le traitent par téléphone) — vous n'avez rien d'autre à faire.</p>}
         <Button onClick={onDone}>Terminer</Button>
       </Card>
     );
@@ -18392,7 +18730,7 @@ function Reception({ fournisseursPlanning, optionsExterne, stock, commandesHisto
 
   return (
     <div>
-      <BoutonInfosNormes ficheKey="reception" onClick={(k) => setFicheReception(FICHES_NORMES[k])} label="Réception des marchandises — Normes HACCP" texte="Cliquez pour lire les règles officielles : contrôle à la livraison, températures, étiquetage, produits non conformes." />
+      <BoutonInfosNormes ficheKey="reception" onClick={(k) => setFicheReception(FICHES_NORMES[k])} label="Réception des marchandises — Règles et repères HACCP" texte="Cliquez pour lire : contrôle à la livraison, températures, étiquetage, produits non conformes." />
       <SectionHeader
         title="Réception des marchandises"
         subtitle="Réception des marchandises, contrôle HACCP et suivi des lots"
@@ -19711,7 +20049,7 @@ Une entrée par réservation visible. Si une information est illisible ou absent
   return (
     <div>
       {onBack && (
-        <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
+        <BoutonRetour onClick={onBack} className="mb-4">Retour à Suivi et contrôle</BoutonRetour>
       )}
       {!integre && <SectionHeader title="Réservations client" subtitle="Gestion des réservations et des services" />}
 
@@ -22463,7 +22801,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
   return (
     <div>
       {onBack && (
-        <BoutonRetour onClick={onBack} className="mb-4">Retour à Contrôle & Gestion</BoutonRetour>
+        <BoutonRetour onClick={onBack} className="mb-4">Retour à Suivi et contrôle</BoutonRetour>
       )}
       <SectionHeader
         title="Planning employé et heures de service"
@@ -22747,7 +23085,10 @@ function KitchenApp({ identiteExterne } = {}) {
   const [huileTestActif, setHuileTestActif] = useState(null);
   const [huileMatinActif, setHuileMatinActif] = useState(null);
   const [etiquetteRapideNb, setEtiquetteRapideNb] = useState({});
-  const [produitAOuvrirApp, setProduitAOuvrirApp] = useState(null); // produit à compléter à ouvrir directement dans Contrôle & Gestion
+  const [produitAOuvrirApp, setProduitAOuvrirApp] = useState(null); // produit à compléter à ouvrir directement dans Suivi et contrôle
+  const [slotParam, setSlotParam] = useState(null); // emplacement du menu du Paramétrage dans la bande noire
+  const [cibleControleApp, setCibleControleApp] = useState(null); // écran à ouvrir directement depuis un bouton du chef : { sousEcran, retourTab }
+  const [retourPlanning, setRetourPlanning] = useState(null); // tuile d'où le chef a ouvert les horaires / réservations
   const [etiquetteRapideDemandee, setEtiquetteRapideDemandee] = useState(null); // tableau de noms de produits — voir proposerEtiquetteRapide
 
   const [employeesStockes, setEmployeesStockes] = useStored("planning-employees", DEFAULT_EMPLOYEES);
@@ -22962,7 +23303,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const memoriserFicheOrigine = (nom) => { const f = fichesRef.current.find((x) => x.nom === nom); setFicheRetourId(f ? f.id : null); };
   const retourPagePrecedente = () => {
     if (tabPrecedent === "fiches") { if (ficheRetourId) setFicheAutoOuvrirId(ficheRetourId); setFicheRetourId(null); setTab("fiches"); }
-    else setTab(tabPrecedent && tabPrecedent !== tab ? tabPrecedent : "haccp");
+    else setTab(tabPrecedent && tabPrecedent !== tab ? tabPrecedent : "accueil");
   };
   // Bouton retour du téléphone : sur n'importe quel écran autre que l'Accueil, il ramène à l'écran d'avant (les écrans qui ont
   // leur propre bouton Retour passent avant, voir BoutonRetour). Sur l'Accueil : un premier appui affiche un message,
@@ -23910,7 +24251,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const nbNotifications = (alertesControle || []).filter((a) => !a.vue).length;
 
   const moi = modeExterne
-    ? { id: identiteExterne.employeId, nom: identiteExterne.employeNom, poste: identiteExterne.employePoste, estChef: !!identiteExterne.estChef, estSecond: !!identiteExterne.estSecond }
+    ? { id: identiteExterne.employeId, nom: identiteExterne.employeNom, poste: identiteExterne.employePoste, estChef: !!identiteExterne.estChef, estSecond: !!identiteExterne.estSecond, estDirection: identiteExterne.employeRole === "directeur" }
     : currentUserId === "direction"
       ? { id: "direction", nom: "Direction", poste: "Direction", estChef: true }
       : employees.find((e) => e.id === currentUserId);
@@ -23927,6 +24268,13 @@ function KitchenApp({ identiteExterne } = {}) {
   const debloqueParConnexion = !!(identiteExterne && identiteExterne.debloqueParConnexion); // chef / directeur qui a saisi son code à la connexion
   const chefComplet = !!moi?.estChef || (porteParCode && (controleDebloque || debloqueParConnexion));
   const chefAcces = chefComplet || moiSecond;
+  // Paramétrage (engrenage) : chef et directeur seulement (pas le second de cuisine, pas les employés).
+  const peutParametrage = !!chefComplet;
+  // Historique (tuile du directeur) : directeur seulement.
+  const estDirectionApp = currentUserId === "direction" || !!moi?.estDirection;
+  const peutHistorique = estDirectionApp && !!chefComplet;
+  // Ouvre un écran de « Suivi et contrôle » depuis un bouton du chef, avec retour vers la tuile d'origine.
+  const ouvrirControle = (sousEcran, retourTab) => { setCibleControleApp({ sousEcran, retourTab }); setTab("controle"); };
   // Bandeau « Maintenant » de l'accueil : ma prochaine tâche, ce qui est en cours, ce qui est en retard.
   const maintenantHM = new Date().toTimeString().slice(0, 5);
   const minutesDepuis = (ts) => Math.max(0, Math.round((Date.now() - ts) / 60000));
@@ -23946,14 +24294,20 @@ function KitchenApp({ identiteExterne } = {}) {
     ...(prochaineTache ? [{ cle: "proch", couleur: "#146B45", texte: `Prochaine tâche : ${prochaineTache.heure} · ${prochaineTache.titre}`, cible: "taches", bouton: "Voir" }] : []),
   ].slice(0, 4);
   badges.taches = tachesRetard.length;
-  const navItems = NAV.filter((n) => !n.chefOnly || peutVoirControle);
+  // Le directeur n'a que la partie suivi et gestion : Suivi et contrôle, Historique, Paramétrage, Planning et Réservations
+  // (jamais Stock, Réception, Étiquettes, Traçabilité, Contrôles en cuisine, Fiches techniques, Tâches : c'est le travail de la cuisine).
+  const directionSeule = estDirectionApp;
+  const navItems = NAV.filter((n) => (!n.chefOnly || peutVoirControle) && (!n.directionOnly || peutHistorique) && (!directionSeule || ["controle", "historique"].includes(n.id)));
 
   useEffect(() => {
+    if (directionSeule && moi && !["accueil", "controle", "parametrage", "historique", "reservations", "horaires", "equipe"].includes(tab)) setTab("accueil");
     if (tab === "controle" && moi && !peutVoirControle) setTab("taches");
-  }, [tab, moi, currentUserId, peutVoirControle]);
+    if (tab === "parametrage" && moi && !peutParametrage) setTab("taches");
+    if (tab === "historique" && moi && !peutHistorique) setTab("taches");
+  }, [tab, moi, currentUserId, peutVoirControle, peutParametrage, peutHistorique]);
 
   // Contrôle & Gestion (et ses écrans de gestion) : code du chef / directeur redemandé à chaque entrée.
-  const ONGLETS_CHEF = ["controle", "reservations", "horaires"];
+  const ONGLETS_CHEF = ["controle", "parametrage", "historique", "reservations", "horaires"];
   useEffect(() => { if (!ONGLETS_CHEF.includes(tab)) setControleDebloque(false); }, [tab]);
   useEffect(() => { if (verrouille) setControleDebloque(false); }, [verrouille]);
   useEffect(() => { setControleDebloque(false); }, [currentUserId]);
@@ -23987,7 +24341,7 @@ function KitchenApp({ identiteExterne } = {}) {
     }
   }
 
-  if (tab === "controle" && !chefAcces && !bloqueChef) {
+  if ((tab === "controle" && !chefAcces && !bloqueChef) || (tab === "parametrage" && !peutParametrage && !bloqueChef) || (tab === "historique" && !peutHistorique && !bloqueChef)) {
     return null;
   }
 
@@ -24002,8 +24356,32 @@ function KitchenApp({ identiteExterne } = {}) {
     .sort((a, b) => a.debutTs - b.debutTs)[0];
 
   const valeurNettoyageFin = modeExterne ? { cleaning, executions: pmsExecutions, setExecutions: setPmsExecutions, shifts } : null;
-  const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule, employees, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, ouvrirProduitAcompleter: (id, focus) => { setProduitAOuvrirApp({ id, focus }); setTab("controle"); } };
+  const valeurRapide = { setCuissons, setRefroidissements, setEntriesMaintienChaud, logActivity: logActivitySafe, currentUserId, ajouterAlerteControle, ajouterTacheNettoyageCellule, employees, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, ouvrirProduitAcompleter: (id, focus) => { setProduitAOuvrirApp({ id, focus }); setCibleControleApp({ retourTab: "stock" }); setTab("controle"); }, ajouterProduit: () => { setProduitAOuvrirApp({ nouveau: true }); setCibleControleApp({ retourTab: "stock" }); setTab("controle"); }, produitsModifiables: !!(modeExterne && identiteExterne && identiteExterne.catalogue) };
+  const barreChefEl = !peutParametrage ? null : (() => {
+        const HIST = { haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" };
+        const grad = (a, b) => `linear-gradient(160deg, ${a} 0%, ${b} 100%)`;
+        if (tab === "taches") return <BarreChef centre boutons={[
+            { label: "Historique de la journée", icone: ClipboardList, fond: grad("#7C6BC4", "#4B3C94"), onClick: () => ouvrirControle("historiqueJour", "taches") },
+          ]} />;
+        if (tab === "haccp") return <BarreChef bas boutons={[
+          { label: "Historique des températures", icone: Thermometer, onClick: () => ouvrirControle("temperatures", "haccp") },
+          { label: "Historique du refroidissement", icone: Snowflake, onClick: () => ouvrirControle("cellule", "haccp") },
+          { label: "Historique des huiles de friture", icone: Droplets, onClick: () => ouvrirControle("huile", "haccp") },
+          { label: "Historique du maintien au chaud", icone: Soup, onClick: () => ouvrirControle("maintien", "haccp") },
+          { label: "Historique des cuissons", icone: Flame, onClick: () => ouvrirControle("cuisson", "haccp") },
+        ]} />;
+        if (HIST[tab]) return <BarreChef bas boutons={[{ label: "Historique", icone: ClipboardList, onClick: () => ouvrirControle(HIST[tab], tab) }]} />;
+        if (tab === "tracabilite") return <BarreChef bas boutons={[{ label: "Historique de la traçabilité", icone: Camera, onClick: () => ouvrirControle("tracabilite", "tracabilite") }]} />;
+        if (tab === "reception") return <BarreChef boutons={[
+          { label: "Livraisons reçues", icone: ClipboardList, onClick: () => ouvrirControle("commandes", "reception") },
+          { label: "Notifications fournisseur", icone: Mail, onClick: () => ouvrirControle("notifications", "reception") },
+        ]} />;
+        if (tab === "etiquettes" && !(modeExterne && identiteExterne && identiteExterne.catalogue)) return <BarreChef boutons={[{ label: "Produits des étiquettes (DLC)", icone: Printer, onClick: () => ouvrirControle("catalogueDlc", "etiquettes") }]} />;
+        return null;
+  })();
+
   return (
+    <FichesNomsContext.Provider value={(fiches || []).map((f) => f.nom).filter(Boolean)}>
     <NettoyageContext.Provider value={valeurNettoyageFin}>
     <AccesContext.Provider value={{ estResponsable: chefComplet || currentUserId === "direction", estSecond: moiSecond }}>
     <RapideContext.Provider value={valeurRapide}>
@@ -24131,6 +24509,13 @@ function KitchenApp({ identiteExterne } = {}) {
               <div className="text-2xl font-bold leading-none">Bonjour <span style={{ color: "#6EE7A8" }}>{(moi?.nom || "").split(" ")[0]}</span></div>
               <div className="text-sm text-white/90 mt-1">Que souhaitez-vous faire aujourd'hui ?</div>
             </div>
+            {peutParametrage && (
+              <button type="button" onClick={() => setTab("parametrage")} title="Paramétrage" aria-label="Paramétrage"
+                className="w-12 h-12 rounded-xl flex items-center justify-center shadow transition-colors"
+                style={tab === "parametrage" ? { backgroundColor: "#6EE7A8", color: "#121821" } : { backgroundColor: "#FFFFFF", color: "#121821" }}>
+                <Settings size={24} />
+              </button>
+            )}
             <div className="relative">
               <button onClick={() => setMenuProfil(!menuProfil)} className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-white hover:bg-white/90 shadow" title="Mon compte">
                 <span className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base" style={{ backgroundColor: "#2F8F63", color: "#fff" }}>{initials(moi?.nom)}</span>
@@ -24149,7 +24534,8 @@ function KitchenApp({ identiteExterne } = {}) {
       )}
       {modeExterne && (
         <aside className="hidden md:flex md:flex-col w-60 shrink-0 md:col-start-1 md:row-start-2 md:sticky md:top-[4.25rem] md:self-start p-3 gap-1 overflow-y-auto" style={{ backgroundColor: "#151C26", height: "calc(100vh - 4.25rem)" }}>
-          {[{ id: "accueil", label: "Accueil", icon: ChefHat }, ...navItems].map((n) => {
+          {tab === "parametrage" && peutParametrage ? <div ref={setSlotParam} className="flex flex-col" /> : null}
+          {!(tab === "parametrage" && peutParametrage) && ([{ id: "accueil", label: "Accueil", icon: ChefHat }, ...navItems].map((n) => {
             const actif = tab === n.id || (n.id === "haccp" && NAV_HACCP.some((x) => x.id === tab));
             return (
               <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
@@ -24162,7 +24548,7 @@ function KitchenApp({ identiteExterne } = {}) {
                 {badges[n.id] > 0 && <span className="text-[11px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#E5243B", color: "#fff" }}>{badges[n.id]}</span>}
               </button>
             );
-          })}
+          }))}
         </aside>
       )}
       {!modeExterne && (
@@ -24194,6 +24580,13 @@ function KitchenApp({ identiteExterne } = {}) {
             </button>
           ))}
         </nav>
+        {peutParametrage && (
+          <button type="button" onClick={() => setTab("parametrage")}
+            className={`mt-4 flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium text-left transition-colors ${tab === "parametrage" ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--steel)] hover:bg-[var(--bg)]"}`}>
+            <Settings size={17} />
+            Paramétrage
+          </button>
+        )}
       </aside>
       )}
 
@@ -24206,12 +24599,21 @@ function KitchenApp({ identiteExterne } = {}) {
           </div>
           <HorlogeCompacte />
         </div>
-        {typeAppareil === "tablette" && (
-          <button onClick={switchAccount} className="flex items-center gap-2 shrink-0">
-            <Avatar nom={moi?.nom} size={28} />
-            <span className="text-xs text-[var(--ink)] font-medium">{moi?.nom}</span>
-          </button>
-        )}
+        <div className="flex items-center gap-3 shrink-0">
+          {peutParametrage && (
+            <button type="button" onClick={() => setTab("parametrage")} title="Paramétrage" aria-label="Paramétrage"
+              className="w-11 h-11 rounded-xl flex items-center justify-center border-2 transition-colors"
+              style={tab === "parametrage" ? { backgroundColor: "var(--accent)", borderColor: "var(--accent)", color: "#fff" } : { backgroundColor: "#fff", borderColor: "var(--line)", color: "var(--ink)" }}>
+              <Settings size={22} />
+            </button>
+          )}
+          {typeAppareil === "tablette" && (
+            <button onClick={switchAccount} className="flex items-center gap-2 shrink-0">
+              <Avatar nom={moi?.nom} size={28} />
+              <span className="text-xs text-[var(--ink)] font-medium">{moi?.nom}</span>
+            </button>
+          )}
+        </div>
       </header>
 
       {tab !== "accueil" && tab !== "fiches" && !NAV_HACCP.some((n) => n.id === tab) && (
@@ -24254,7 +24656,7 @@ function KitchenApp({ identiteExterne } = {}) {
         <ZoneContext.Provider value={zoneDepuisFonction({ taches: vueTaches === "reservations" ? "reservationsClient" : "taches", stock: "stock", reception: "reception", etiquettes: "etiquettes", tracabilite: "tracabilite", haccp: "haccp", haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson", fiches: "fiches", controle: "controle", reservations: "reservationsClient", equipe: "comptes", horaires: "planningEmploye" }[tab])}>
         {tab === "accueil" && (
           <div>
-            {lignesMaintenant.length > 0 && (
+            {lignesMaintenant.length > 0 && !directionSeule && (
               <div className="rounded-2xl border-2 bg-white p-3 mb-4" style={{ borderColor: "#CBD5E1" }}>
                 <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-2">Maintenant</div>
                 <ul className="space-y-2">
@@ -24269,14 +24671,19 @@ function KitchenApp({ identiteExterne } = {}) {
             )}
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-3 mb-6">
               {[
-                ...ACCUEIL_TUILES.filter((t) => !t.chefOnly || peutVoirControle),
+                ...ACCUEIL_TUILES.filter((t) => (!t.chefOnly || peutVoirControle) && (!t.directionOnly || peutHistorique) && (!directionSeule || ["controle", "historique"].includes(t.id))),
+                ...(directionSeule ? [
+                  { id: "horaires", label: "Planning employé", desc: "Horaires, heures de service et équipe du jour", icon: Clock, ...COULEURS_FONCTION.planningEmploye, retour: "accueil" },
+                  { id: "reservations", label: "Réservations client", desc: "Réservations du restaurant", icon: CalendarDays, ...COULEURS_FONCTION.reservationsClient, retour: "accueil" },
+                ] : []),
               ].map((t) => {
                 return <TuileGrande key={t.id} fond={t.fond} ombre={t.ombre} icone={t.icon} titre={t.label} desc={t.desc} badge={badges[t.id]}
-                  className={t.large ? "lg:col-span-2" : ""} onClick={() => { setTab(t.cible || t.id); setSelectedEmployeeId(null); }} />;
+                  className={t.large ? "lg:col-span-2" : ""} onClick={() => { if (t.retour) setRetourPlanning(t.retour); setTab(t.cible || t.id); setSelectedEmployeeId(null); }} />;
               })}
             </div>
           </div>
         )}
+        {barreChefEl && !barreChefEl.props.bas && barreChefEl}
         {tab === "haccp" && (
           <div>
             <SectionHeader title="Contrôles en cuisine" fonction="haccp" icone={Thermometer} subtitle="Les cinq contrôles de la cuisine : températures, refroidissement, huile, maintien au chaud et cuissons" />
@@ -24358,20 +24765,27 @@ function KitchenApp({ identiteExterne } = {}) {
             onConsommeOuvrirIdAuto={() => setFicheAutoOuvrirId(null)}
           />
         )}
+        {tab === "lexique" && (
+          <div>
+            <BoutonRetour onClick={() => setTab("accueil")}>Retour</BoutonRetour>
+            <LexiqueReglementaire />
+          </div>
+        )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
-        {tab === "controle" && !bloqueChef && (
-          <Controle exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+        {(tab === "controle" || (tab === "parametrage" && peutParametrage) || (tab === "historique" && peutHistorique)) && !bloqueChef && (
+          <Controle key={tab} slotMenuParam={tab === "parametrage" ? slotParam : null} onQuitterParam={() => setTab("accueil")} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setRetourPlanning("parametrage"); setTab(cible); } : undefined} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
-          <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setTab("controle")} />
+          <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} />
         )}
         {tab === "equipe" && (
           <Equipe employees={employees} shifts={shifts} activityLog={activityLog} tasks={tasks} toggleTask={toggleTaskShared} currentUserId={currentUserId} selectedEmployeeId={selectedEmployeeId} setSelectedEmployeeId={setSelectedEmployeeId} />
         )}
         {tab === "horaires" && !bloqueChef && (
-          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setTab("controle")} nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} />
+          <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} />
         )}
         </ZoneContext.Provider>
+        {barreChefEl && barreChefEl.props.bas && barreChefEl}
       </main>
       {/* La barre d'onglets mobile du bas a été retirée : la navigation se fait maintenant
           depuis les grandes tuiles de la page d'accueil, avec un bouton "maison" dans l'en-tête
@@ -24398,6 +24812,7 @@ function KitchenApp({ identiteExterne } = {}) {
     </RapideContext.Provider>
     </AccesContext.Provider>
     </NettoyageContext.Provider>
+    </FichesNomsContext.Provider>
   );
 }
 
