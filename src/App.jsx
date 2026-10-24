@@ -1503,6 +1503,7 @@ function BoutonRetour({ onClick, children, className = "" }) {
 }
 
 // Rangée de gros boutons réservés au chef et au directeur, placée en haut d'une tuile (jamais visible par les employés).
+const FichesNomsContext = React.createContext([]);
 function BarreChef({ titre = "", boutons, bas = false, centre = false }) {
   const liste = (boutons || []).filter(Boolean);
   if (!liste.length) return null;
@@ -12882,6 +12883,7 @@ const DEFAULT_PRODUITS_MAINTIEN_CHAUD = ["Sauce champignons & parmesan", "Sauce 
 // refroidissement rapide, où l'alarme de durée s'applique (normes propres à ce module).
 
 function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogue, entries, setEntries, ajouterAlerteControle, produitSuggere, setProduitSuggere, onLancerRefroidissement, proposerEtiquetteRapide }) {
+  const nomsFichesListe = React.useContext(FichesNomsContext);
   const [selection, setSelection] = useState([]);
   const [appareil, setAppareil] = useState("Bain-marie");
   const [heureDebut, setHeureDebut] = useState(new Date().toTimeString().slice(0, 5));
@@ -12992,7 +12994,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                 ))}
               </div>
             ) : (
-              <div className="mb-3"><Field label="Nom du produit *"><input className={inputCls} value={mNom} onChange={(ev) => setMNom(ev.target.value)} placeholder="Ex. : Sauce poivre" /></Field></div>
+              <div className="mb-3"><Field label="Nom du produit *"><input className={inputCls} list="liste-fiches-maintien" value={mNom} onChange={(ev) => setMNom(ev.target.value)} placeholder="Choisir dans la liste ou écrire" /><datalist id="liste-fiches-maintien">{nomsFichesListe.map((n) => <option key={n} value={n} />)}</datalist></Field></div>
             )}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
               <Field label="Appareil *">
@@ -13491,6 +13493,7 @@ function modeCuissonDepuisAppareil(app) {
 const APPAREILS_CUISSON = ["Four à pizza", "Four Rational", "Four Atoll Speed / Mery Chef", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
 
 function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
+  const nomsFichesListe = React.useContext(FichesNomsContext);
   const [resultatCuisson, setResultatCuisson] = useState(null);
   const [selection, setSelection] = useState([]);
   const [recherche, setRecherche] = useState("");
@@ -13684,7 +13687,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
               <div>
                 <p className="text-xs text-[var(--steel)] mb-3">Renseignez les paramètres vous-même.</p>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
-                  <Field label="Nom du produit *"><input className={inputCls} value={mNom} onChange={(e) => setMNom(e.target.value)} placeholder="Ex. : Pizza margherita" /></Field>
+                  <Field label="Nom du produit *"><input className={inputCls} list="liste-fiches-cuisson" value={mNom} onChange={(e) => setMNom(e.target.value)} placeholder="Choisir dans la liste ou écrire" /><datalist id="liste-fiches-cuisson">{nomsFichesListe.map((n) => <option key={n} value={n} />)}</datalist></Field>
                   <Field label="Appareil *">
                     <select className={inputCls} value={mAppareil} onChange={(e) => { setMAppareil(e.target.value); const m = modeCuissonDepuisAppareil(e.target.value); if (m) setMMode(m); }}>
                       {APPAREILS_CUISSON.map((a) => <option key={a} value={a}>{a}</option>)}
@@ -14495,6 +14498,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
   const champsObligatoiresManquants = [!nom && "nom du produit", !lot && "numéro de lot", !dlcDate && "DLC/DDM"].filter(Boolean);
   const pretAConfirmer = champsObligatoiresManquants.length === 0;
 
+  const [faireEtiquette, setFaireEtiquette] = useState(null); // null = question posée, true / false = réponse
   const confirmer = () => {
     if (!pretAConfirmer) return;
     const entry = creerEtiquetteDlc({
@@ -14550,7 +14554,7 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
   const nouveau = () => {
     setPhotos([]); setAnalyseFaite(false); setEchecAnalyse(false);
     setNom(""); setLot(""); setDlcDate(""); setAllergenes(""); setOrigine(""); setCodeUsine(""); setDelaiApresOuvertureJours("");
-    setQuantiteUtilisee("1"); setNbEtiquettes(1); setEntreeCreee(null);
+    setQuantiteUtilisee("1"); setNbEtiquettes(1); setEntreeCreee(null); setFaireEtiquette(null);
   };
 
   if (entreeCreee) {
@@ -14560,13 +14564,22 @@ function AjoutTracabilitePhotoIA({ creerEtiquetteDlc, who, allergenesStandard, s
         <p className="text-sm text-[var(--ink)] mb-3 print:hidden">
           <strong>{entreeCreee.nomLibre}</strong>{entreeCreee.lot ? ` — lot ${entreeCreee.lot}` : ""} — DLC/DDM {entreeCreee.dlcDate}</p>
         {entreeCreee.retrait ? <p className="text-base font-semibold mb-3 print:hidden" style={{ color: "#14653A" }}>{entreeCreee.retrait.qteTxt} retiré(s) du stock : {entreeCreee.retrait.nom} (reste {entreeCreee.retrait.resteTxt})</p> : <p className="text-sm mb-3 print:hidden" style={{ color: "#8A5A00" }}>Aucun produit du stock ne correspond à « {entreeCreee.nomLibre} » : rien n'a été retiré du stock.</p>}
-        <div className="flex flex-wrap gap-3 mb-4">
+        {faireEtiquette === null && (
+          <div className="rounded-xl border-2 p-4 mb-4 print:hidden" style={{ borderColor: "#6027C9", backgroundColor: "#F5F0FF" }}>
+            <p className="text-base font-bold text-[var(--ink)] mb-3 text-center">Faire une étiquette DLC pour ce produit ?</p>
+            <div className="flex gap-3 justify-center">
+              <button type="button" onClick={() => setFaireEtiquette(true)} className="min-h-[52px] min-w-[120px] rounded-xl text-white font-bold text-base" style={{ backgroundColor: "#1E7B4B" }}>Oui</button>
+              <button type="button" onClick={() => setFaireEtiquette(false)} className="min-h-[52px] min-w-[120px] rounded-xl font-bold text-base border-2" style={{ borderColor: "#6027C9", color: "#6027C9", backgroundColor: "#fff" }}>Non</button>
+            </div>
+          </div>
+        )}
+        {faireEtiquette === true && <div className="flex flex-wrap gap-3 mb-4">
           {Array.from({ length: entreeCreee.nbEtiquettes || 1 }, (_, i) => (
             <EtiquetteDlcImprimable key={i} produitNom={entreeCreee.nomLibre} lot={entreeCreee.lot} dlcDate={entreeCreee.dlcDate} date={entreeCreee.date} heure={entreeCreee.heure} who={who} employeeId={entreeCreee.employeeId} cuissonInfo={entreeCreee.cuissonInfo} refroidissementInfo={entreeCreee.refroidissementInfo} maintienInfo={entreeCreee.maintienInfo} decongelationInfo={entreeCreee.decongelationInfo} />
           ))}
-        </div>
+        </div>}
         <div className="flex gap-2 print:hidden">
-          <Button onClick={() => window.print()}><Printer size={16} /> Imprimer {entreeCreee.nbEtiquettes > 1 ? `les ${entreeCreee.nbEtiquettes} étiquettes` : "l'étiquette"}</Button>
+          {faireEtiquette === true && <Button onClick={() => window.print()}><Printer size={16} /> Imprimer {entreeCreee.nbEtiquettes > 1 ? `les ${entreeCreee.nbEtiquettes} étiquettes` : "l'étiquette"}</Button>}
           <button type="button" onClick={nouveau} className="inline-flex items-center gap-3 cursor-pointer"><span className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={26} /></span><span className="text-sm font-semibold text-[var(--ink)]">Enregistrer un autre produit</span></button>
         </div>
       </Card>
@@ -24309,6 +24322,7 @@ function KitchenApp({ identiteExterne } = {}) {
   })();
 
   return (
+    <FichesNomsContext.Provider value={(fiches || []).map((f) => f.nom).filter(Boolean)}>
     <NettoyageContext.Provider value={valeurNettoyageFin}>
     <AccesContext.Provider value={{ estResponsable: chefComplet || currentUserId === "direction", estSecond: moiSecond }}>
     <RapideContext.Provider value={valeurRapide}>
@@ -24738,6 +24752,7 @@ function KitchenApp({ identiteExterne } = {}) {
     </RapideContext.Provider>
     </AccesContext.Provider>
     </NettoyageContext.Provider>
+    </FichesNomsContext.Provider>
   );
 }
 
