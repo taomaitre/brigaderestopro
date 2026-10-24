@@ -12625,6 +12625,23 @@ function HaccpTemperatures({
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
   };
 
+  // « Correction apportée » : l'employé a agi sur un appareil hors norme ; il note la température au laser et ce qu'il a fait, le chef est prévenu.
+  const [correctionOuverte, setCorrectionOuverte] = useState(null);
+  const enregistrerCorrection = (eq) => {
+    const s = saisieManuelle[eq.id];
+    if (!s || s.valeur === undefined || s.valeur === "" || !(s.note || "").trim()) return;
+    const conforme = equipementConforme(eq, s.valeur);
+    const heure = new Date().toTimeString().slice(0, 5);
+    setRelevesFroid((prev) => [{ id: uid(), equipementId: eq.id, valeur: s.valeur, date: todayISO(), heure, employeeId: currentUserId, conforme, manuel: true, note: `Correction apportée : ${s.note.trim()}` }, ...prev]);
+    logActivity("HACCP", "Correction apportée (température)", `${eq.nom} : ${s.valeur}°C au thermomètre laser — ${s.note.trim()}`);
+    ajouterAlerteControle({ id: uid(), date: todayISO(), heure, type: "Température", employeeId: currentUserId, titre: `${eq.nom} — correction apportée`, detail: `${s.note.trim()} — contrôle au thermomètre laser : ${s.valeur}°C (${conforme ? "conforme" : "toujours hors norme"}).`, conforme });
+    if (!conforme && equipementEcartAnomalie(eq, s.valeur)) {
+      setSurveillancesFroid((prev) => [{ id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false }, ...prev]);
+    }
+    setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
+    setCorrectionOuverte(null);
+  };
+
   // Relevé à la main, matin ou soir : l'heure réelle est conservée ; le créneau est noté pour classer le relevé.
   const enregistrerReleveCreneau = (eq, creneau) => {
     const cle = `${eq.id}|${creneau}`;
@@ -12782,7 +12799,7 @@ function HaccpTemperatures({
                 <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Norme</th>
                 <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Dernier relevé</th>
                 <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Statut</th>
-                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Contrôle manuel (thermomètre laser)</th>
+                <th className="text-left px-3 py-1.5 font-semibold text-[var(--ink)] border-b border-[var(--line)]">Correction</th>
               </tr>
             </thead>
             <tbody>
@@ -12814,11 +12831,18 @@ function HaccpTemperatures({
                     </td>
                     <td className="px-3 py-1.5 align-middle whitespace-nowrap">{!dr ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#EEF1F5", color: "#475569" }}>Non relevé</span> : dr.conforme === false ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FDECEC", color: "#B3261E" }}>Hors norme</span> : <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#E4F4EA", color: "#15803D" }}>Conforme</span>}</td>
                     <td className="px-3 py-1.5 align-middle">
-                      <div className="flex items-center gap-1.5">
-                        <input className={`${inputCls} !w-16 !py-1.5`} type="number" step="0.1" placeholder="°C" value={s.valeur ?? ""} onChange={(e) => majSaisie(eq.id, "valeur", e.target.value)} />
-                        <input className={`${inputCls} !w-36 !py-1.5`} placeholder="Note (optionnel)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
-                        <Button variant="ghost" onClick={() => enregistrerSaisieManuelle(eq)} disabled={s.valeur === undefined || s.valeur === ""}>Enregistrer</Button>
-                      </div>
+                      {dr && dr.conforme === false ? (
+                        correctionOuverte === eq.id ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <input className={`${inputCls} !w-20 !py-1.5`} type="number" step="0.1" placeholder="°C laser" value={s.valeur ?? ""} onChange={(e) => majSaisie(eq.id, "valeur", e.target.value)} />
+                            <input className={`${inputCls} !w-52 !py-1.5`} placeholder="Ce qui a été fait (obligatoire)" value={s.note ?? ""} onChange={(e) => majSaisie(eq.id, "note", e.target.value)} />
+                            <Button onClick={() => enregistrerCorrection(eq)} disabled={s.valeur === undefined || s.valeur === "" || !(s.note || "").trim()}>Valider</Button>
+                            <Button variant="ghost" onClick={() => setCorrectionOuverte(null)}>Annuler</Button>
+                          </div>
+                        ) : (
+                          <button type="button" onClick={() => setCorrectionOuverte(eq.id)} className="min-h-[40px] px-3 rounded-lg text-sm font-bold text-white" style={{ background: "linear-gradient(160deg, #D64545 0%, #A62828 100%)" }}>Correction apportée</button>
+                        )
+                      ) : <span className="text-xs text-[var(--steel)]">—</span>}
                     </td>
                   </tr>
                 );
