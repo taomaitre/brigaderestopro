@@ -38,7 +38,7 @@ const verifier = (cond, msg) => { if (!cond) throw new Error(msg); };
 
 await parcours('Connexion chef + toutes les tuiles de l’accueil s’ouvrent sans erreur', async () => {
   const { p, ctx, erreurs } = await ouvrir({});
-  const tuiles = ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Étiquettes (DLC)', 'Traçabilité', 'Températures frigos et congélateurs', 'Refroidissement rapide', 'Suivi d\'huile de friture', 'Maintien au chaud', 'Cuisson', 'Fiches techniques', 'Suivi et contrôle'];
+  const tuiles = ['Tâches du jour', 'Stock', 'Réception des marchandises', 'Étiquettes (DLC)', 'Traçabilité', 'Températures frigos et congélateurs', 'Refroidissement rapide et congélation', 'Suivi d\'huile de friture', 'Maintien au chaud', 'Cuisson', 'Fiches techniques', 'Suivi et contrôle'];
   for (const t of tuiles) {
     await cliquer(p, t);
     verifier(!/Something went wrong|Erreur inattendue/.test(await p.innerText('body')), `écran d'erreur sur « ${t} »`);
@@ -92,13 +92,15 @@ await parcours('Accueil : les 12 tuiles dans l’ordre voulu, sans « Contrôles
   const { p, ctx } = await ouvrir({});
   const t = await p.innerText('body');
   verifier(!t.includes('Contrôles en cuisine'), '« Contrôles en cuisine » est encore là');
-  const ordre = ['Tâches du jour', 'Étiquettes (DLC)', 'Traçabilité', 'Réception des marchandises', 'Stock', 'Températures frigos et congélateurs', 'Refroidissement rapide', 'Suivi d\'huile de friture', 'Maintien au chaud', 'Cuisson', 'Fiches techniques', 'Suivi et contrôle'];
+  const ordre = ['Tâches du jour', 'Étiquettes (DLC)', 'Traçabilité', 'Réception des marchandises', 'Stock', 'Températures frigos et congélateurs', 'Refroidissement rapide et congélation', 'Suivi d\'huile de friture', 'Maintien au chaud', 'Cuisson', 'Fiches techniques', 'Suivi et contrôle'];
   const corps = await p.locator('main').innerText();
   let pos = -1;
   for (const x of ordre) { const i = corps.indexOf(x, pos + 1); verifier(i > pos, `« ${x} » absent ou hors ordre`); pos = i; }
   await cliquer(p, 'Suivi d\'huile de friture');
   await p.waitForTimeout(800);
-  verifier(/réservé au chef/i.test(await p.innerText('body')), 'l’historique du chef est absent');
+  const txt = await p.innerText('body');
+  verifier(/Historique/.test(txt), 'l’historique du chef est absent');
+  verifier(!/réservé au chef/i.test(txt), 'l’étiquette « Réservé au chef » ne doit plus apparaître');
   await ctx.close();
 });
 
