@@ -832,12 +832,13 @@ export default function ConnexionReelle() {
         setPmsDonnees((d) => ({ ...d, charge: true, complet: false, prestataires: [], formations: [], documents: [] }));
         return;
       }
-      const [rp, rf, rd] = await Promise.all([
+      const [rp, rf, rd, rpt] = await Promise.all([
         supabasePublic.from("prestataires").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_formations").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_documents").select("*").order("created_at", { ascending: false }),
+        supabasePublic.from("pms_points").select("*"), // points du PMS (fait / incomplet / pas fait) ; absent tant que la table n'est pas créée
       ]);
-      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], formations: rf.data || [], documents: rd.data || [] }));
+      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], formations: rf.data || [], documents: rd.data || [], points: (rpt && rpt.data) || [] }));
     } catch (e) { console.error("Dossier PMS non chargé :", e); }
   }
   const versNull = (v) => (v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim());
@@ -912,6 +913,23 @@ export default function ConnexionReelle() {
     const { data, error } = await supabasePublic.storage.from("pms-documents").createSignedUrl(doc.chemin, 120);
     if (error || !data) { console.error("Lien du document indisponible :", error); return null; }
     return data.signedUrl;
+  }
+  // Un point du PMS : état (fait / incomplet / pas_fait), note, action prévue, responsable, échéance. Une ligne par établissement et par point.
+  async function enregistrerPointPms(pointId, champs) {
+    const actuel = (pmsDonnees.points || []).find((l) => l.point_id === pointId) || {};
+    const ligne = {
+      etablissement_id: session.etablissement.id, point_id: pointId,
+      etat: champs.etat !== undefined ? champs.etat : (actuel.etat || null),
+      note: champs.note !== undefined ? versNull(champs.note) : (actuel.note || null),
+      action: champs.action !== undefined ? versNull(champs.action) : (actuel.action || null),
+      responsable: champs.responsable !== undefined ? versNull(champs.responsable) : (actuel.responsable || null),
+      echeance: champs.echeance !== undefined ? versNull(champs.echeance) : (actuel.echeance || null),
+      updated_at: new Date().toISOString(),
+    };
+    const rep = await supabasePublic.from("pms_points").upsert(ligne, { onConflict: "etablissement_id,point_id" });
+    if (rep.error) { console.error("Point PMS non enregistré :", rep.error); return false; }
+    setPmsDonnees((d) => ({ ...d, points: [...(d.points || []).filter((l) => l.point_id !== pointId), ligne] }));
+    return true;
   }
   async function terminerDemarragePms(valeur) {
     setPmsDonnees((d) => ({ ...d, demarrageTermine: !!valeur }));
@@ -1396,7 +1414,7 @@ export default function ConnexionReelle() {
       },
       reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
         suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
-        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
+        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,

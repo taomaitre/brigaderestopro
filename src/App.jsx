@@ -5,6 +5,7 @@ import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { analyserCommandeLocale, rapprocher as rapprocherVocal, reponseOuiNon, pluriel as pluralVocal } from './analyseVocale.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
+import { PMS_POINTS, ETATS_POINT_PMS, pointsDeCategorie, bilanPointsPms } from './pmsPoints.js';
 import LexiqueReglementaire from './LexiqueReglementaire.jsx';
 import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
@@ -2225,6 +2226,178 @@ const PMS_ETAPES_HACCP = [
   { etape: "Huile de friture", limite: "Test du bain conforme", surveillance: "Photo de la bandelette, validation", action: "Renouvellement de l'huile, alerte", ouvrir: "huile", libelle: "Huile de friture" },
 ];
 
+/* ---------- PMS — points à suivre (fait / incomplet / pas fait, note, action prévue) ---------- */
+
+// Constat du logiciel pour un point (jamais bloquant, ne remplace pas la réponse de la personne) : true, false ou undefined (pas de constat).
+function constatPointPms(cle, ctx) {
+  if (!cle) return undefined;
+  const { fiche, docs, formations, prestataires, equipe, donnees } = ctx;
+  const doc = (c) => docs.some((d) => d.categorie === c);
+  const form = (t) => formations.some((f) => f.type === t);
+  const nbD = (k) => (donnees && Array.isArray(donnees[k]) ? donnees[k].length : 0);
+  if (cle.startsWith("presta:")) return prestataires.some((p) => p.type === cle.slice(7));
+  switch (cle) {
+    case "declaration": return !!fiche.dateDeclarationActivite && doc("declaration_activite");
+    case "referent": return !!String(fiche.responsableHygiene || "").trim();
+    case "fiche": return FICHE_ETAB_CHAMPS.filter((c) => c.requis).every((c) => String(fiche[c.cle] || "").trim() !== "");
+    case "formation14": return form("hygiene_14h");
+    case "formationHaccp": return form("haccp");
+    case "instructions": return form("instructions");
+    case "consigneSante": return form("consigne_sante");
+    case "equipe": return equipe.length > 0;
+    case "plan": return docs.some((d) => d.categorie === "plan" || d.categorie === "plan_cuisine");
+    case "fds": return doc("fds");
+    case "eau": {
+      const o = fiche.origineEau;
+      if (!o) return false;
+      return o === "Source privée (puits, forage)" ? doc("autorisation_eau_privee") && doc("analyse_eau") : doc("attestation_eau");
+    }
+    case "analyses": return doc("rapport_laboratoire");
+    case "documents": return docs.length > 0;
+    case "receptions": return nbD("receptions") > 0;
+    case "temperatures": return nbD("relevesFroid") > 0;
+    case "cuissons": return nbD("cuissons") > 0;
+    case "refroidissements": return nbD("refroidissements") > 0;
+    case "huiles": return nbD("huileTests") > 0;
+    case "etiquettes": return nbD("preparations") > 0;
+    default: return undefined;
+  }
+}
+
+function PointPms({ p, rep, ctx, equipe, enregistrer }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [brouillon, setBrouillon] = useState(null); // modifications en cours de saisie, envoyées à la sortie du champ
+  const z = React.useContext(ZoneContext);
+  const valeur = (k) => (brouillon && brouillon[k] !== undefined ? brouillon[k] : (rep && rep[k]) || "");
+  const etat = (rep && rep.etat) || "";
+  const constat = constatPointPms(p.auto, ctx);
+  const envoyer = async (k, v) => { setBrouillon(null); await enregistrer(p.id, { [k]: v }); };
+  const aRegler = etat === "incomplet" || etat === "pas_fait" || !etat;
+  const info = ETATS_POINT_PMS.find((e) => e.value === etat);
+  return (
+    <div className="rounded-xl border border-[var(--cadre)] bg-white mb-2" data-pms-point={p.id}>
+      <div className="p-3">
+        <div className="flex items-start gap-2">
+          <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: z ? z.fond : "#eee", color: z ? z.texte : "#333" }}>{p.mod}</span>
+          <div className="min-w-0 flex-1">
+            <p className="text-sm font-semibold text-[var(--ink)] leading-snug">{p.titre}</p>
+            {constat !== undefined && (
+              <p className="text-xs mt-0.5" style={{ color: constat ? "#1E7B4B" : "#B7791F" }}>{constat ? "Le logiciel constate : renseigné" : "Le logiciel constate : rien de renseigné pour l'instant"}</p>
+            )}
+          </div>
+        </div>
+        <div className="flex flex-wrap items-center gap-2 mt-2">
+          {ETATS_POINT_PMS.map((e) => (
+            <button key={e.value} type="button" aria-pressed={etat === e.value} onClick={() => enregistrer(p.id, { etat: e.value })}
+              className="min-h-[40px] px-3 rounded-full border-2 text-sm font-bold"
+              style={etat === e.value ? { background: e.couleur, borderColor: e.couleur, color: "#fff" } : { background: "#fff", borderColor: e.couleur, color: e.couleur }}>{e.label}</button>
+          ))}
+          <button type="button" className="ml-auto text-xs underline text-[var(--steel)] min-h-[40px] px-1" onClick={() => setOuvert(!ouvert)}>{ouvert ? "Fermer le détail" : "Détail, note et action"}</button>
+        </div>
+        {!ouvert && info && (valeur("note") || valeur("action")) && (
+          <p className="text-xs text-[var(--steel)] mt-1 line-clamp-2">{valeur("action") ? `À faire : ${valeur("action")}` : valeur("note")}</p>
+        )}
+      </div>
+      {ouvert && (
+        <div className="px-3 pb-3 border-t border-[var(--cadre)] pt-2 text-sm text-[var(--ink)] space-y-2">
+          <p><span className="text-xs font-semibold text-[var(--steel)] uppercase">Pour vous aider</span><br />{p.aide}</p>
+          <p><span className="text-xs font-semibold text-[var(--steel)] uppercase">Base légale</span><br />{p.base}</p>
+          <Field label="Note (date, nom, fichier, ce qui a été fait…)">
+            <textarea rows={2} className={`${inputCls} w-full min-w-0`} value={valeur("note")} onChange={(e) => setBrouillon({ ...(brouillon || {}), note: e.target.value })} onBlur={() => brouillon && brouillon.note !== undefined && envoyer("note", brouillon.note)} />
+          </Field>
+          {aRegler && (
+            <>
+              <p className="text-xs text-[var(--steel)]"><span className="font-semibold">Action conseillée :</span> {p.action}</p>
+              <Field label="Ce qui va être mis en place pour corriger">
+                <textarea rows={2} className={`${inputCls} w-full min-w-0`} value={valeur("action")} placeholder={p.action} onChange={(e) => setBrouillon({ ...(brouillon || {}), action: e.target.value })} onBlur={() => brouillon && brouillon.action !== undefined && envoyer("action", brouillon.action)} />
+              </Field>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                <Field label="Responsable">
+                  <select className={`${inputCls} w-full min-w-0`} value={valeur("responsable")} onChange={(e) => envoyer("responsable", e.target.value)}>
+                    <option value="">—</option>
+                    {equipe.map((m) => <option key={m.id} value={m.name || m.nom}>{m.name || m.nom}</option>)}
+                  </select>
+                </Field>
+                <Field label="Échéance">
+                  <input type="date" className={`${inputCls} w-full min-w-0`} value={valeur("echeance")} onChange={(e) => envoyer("echeance", e.target.value)} />
+                </Field>
+              </div>
+            </>
+          )}
+          {rep && rep.updated_at && <p className="text-xs text-[var(--steel)]">Dernière mise à jour : {new Date(rep.updated_at).toLocaleDateString("fr-FR")}</p>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function PmsPointsListe({ lettre, pms, ctx, equipe, locales, setLocales }) {
+  const reponses = pmsReponsesPoints(pms, locales);
+  const enregistrer = async (id, champs) => {
+    if (pms && pms.enregistrerPoint) { const ok = await pms.enregistrerPoint(id, champs); if (ok) return; }
+    setLocales((l) => ({ ...l, [id]: { ...(l[id] || {}), ...champs, updated_at: new Date().toISOString() } }));
+  };
+  const liste = pointsDeCategorie(lettre);
+  if (!liste.length) return null;
+  const b = bilanPointsPms(reponses, liste);
+  return (
+    <div className="mt-4">
+      <SousTitrePms>Points à suivre — {b.fait} fait{b.fait > 1 ? "s" : ""}, {b.incomplet} incomplet{b.incomplet > 1 ? "s" : ""}, {b.pas_fait} pas fait{b.pas_fait > 1 ? "s" : ""}</SousTitrePms>
+      {liste.map((p) => <PointPms key={p.id} p={p} rep={reponses[p.id]} ctx={ctx} equipe={equipe} enregistrer={enregistrer} />)}
+    </div>
+  );
+}
+
+function pmsReponsesPoints(pms, locales) {
+  const r = {};
+  ((pms && pms.points) || []).forEach((l) => { r[l.point_id] = l; });
+  Object.keys(locales || {}).forEach((id) => { r[id] = { ...(r[id] || {}), ...locales[id] }; });
+  return r;
+}
+
+// Tableau récapitulatif de toutes les parties + plan d'action (points non faits avec l'action prévue).
+function PmsBilanPoints({ pms, locales }) {
+  const reponses = pmsReponsesPoints(pms, locales);
+  const b = bilanPointsPms(reponses);
+  return (
+    <Card className="mb-4">
+      <h3 className="font-semibold text-[var(--ink)]">Où en est votre PMS ?</h3>
+      <p className="text-sm text-[var(--steel)] mb-2">{b.fait} point{b.fait > 1 ? "s" : ""} fait{b.fait > 1 ? "s" : ""} sur {b.total} · {b.incomplet} incomplet{b.incomplet > 1 ? "s" : ""} · {b.pas_fait} pas fait{b.pas_fait > 1 ? "s" : ""} ou pas encore renseigné{b.pas_fait > 1 ? "s" : ""}.</p>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm">
+          <thead><tr className="text-left text-xs uppercase text-[var(--steel)]"><th className="py-1 pr-2">Partie</th><th className="px-2">Fait</th><th className="px-2">Incomplet</th><th className="px-2">Pas fait</th></tr></thead>
+          <tbody>
+            {PMS_CATEGORIES.map((c) => { const bc = bilanPointsPms(reponses, pointsDeCategorie(c.num)); return (
+              <tr key={c.id} className="border-t border-[var(--cadre)]"><td className="py-1 pr-2 font-semibold" style={{ color: c.zone.texte }}>{c.num} — {c.titre}</td><td className="px-2 text-[#1E7B4B] font-bold">{bc.fait}</td><td className="px-2 text-[#B7791F] font-bold">{bc.incomplet}</td><td className="px-2 text-[#C1432D] font-bold">{bc.pas_fait}</td></tr>
+            ); })}
+          </tbody>
+        </table>
+      </div>
+    </Card>
+  );
+}
+
+function PmsPlanAction({ pms, locales }) {
+  const reponses = pmsReponsesPoints(pms, locales);
+  const aFaire = PMS_POINTS.filter((p) => { const e = reponses[p.id] && reponses[p.id].etat; return e !== "fait"; });
+  const fr = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("fr-FR") : "");
+  return (
+    <Card>
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Plan d'action : ce qui reste à faire ou à rectifier</h3>
+      {aFaire.length === 0 ? <p className="text-sm text-[var(--ink)]">Tous les points sont faits.</p> : (
+        <ul className="text-sm text-[var(--ink)] divide-y divide-[var(--cadre)]">
+          {aFaire.map((p) => { const r = reponses[p.id] || {}; return (
+            <li key={p.id} className="py-1.5">
+              <span className="font-semibold">{p.cat} · {p.mod} — {p.titre}</span>
+              <br /><span className="text-xs text-[var(--steel)]">{r.etat === "incomplet" ? "Incomplet" : "Pas fait"} · {r.action || p.action}{r.responsable ? ` · ${r.responsable}` : ""}{r.echeance ? ` · avant le ${fr(r.echeance)}` : ""}</span>
+            </li>
+          ); })}
+        </ul>
+      )}
+    </Card>
+  );
+}
+
 function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes, comptes, onOuvrir }) {
   const fiche = reglages.fiche || {};
   const nous = todayISO();
@@ -2257,11 +2430,15 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
   ];
   const nbOk = controle.filter((c) => c.ok).length;
 
+  const ctx = { fiche, docs, formations, prestataires, equipe, donnees };
+  const [locales, setLocales] = useState({}); // repli si l'enregistrement en base n'est pas disponible (banc de test)
+  const liste = (lettre) => <PmsPointsListe lettre={lettre} pms={pms} ctx={ctx} equipe={equipe} locales={locales} setLocales={setLocales} />;
   const aller = (id) => { const el = document.getElementById(`pms-${id}`); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); };
   const cat = (id) => PMS_CATEGORIES.find((c) => c.id === id);
 
   return (
     <div>
+      <PmsBilanPoints pms={pms} locales={locales} />
       <div className="flex flex-wrap gap-2 mb-4">
         {PMS_CATEGORIES.map((c) => (
           <button key={c.id} type="button" onClick={() => aller(c.id)} className="inline-flex items-center gap-2 min-h-[40px] pl-1.5 pr-3 rounded-full border-2 text-sm font-bold bg-white" style={{ borderColor: c.zone.bord, color: c.zone.texte }}>
@@ -2283,6 +2460,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
           <h3 className="font-semibold">Santé et hygiène du personnel</h3>
           <p className="text-sm text-[var(--ink)]">Toute personne atteinte d'une maladie transmissible par les aliments, de plaies ou d'infections cutanées, ou de diarrhée ne manipule pas les denrées et signale immédiatement ses symptômes à l'exploitant. Consigne à remettre et à afficher, avec la méthode de lavage des mains. Les signalements sont consignés (date, décision) sans détail médical.</p>
         </Card>
+      {liste("A")}
       </BandePms>
 
       <BandePms cat={cat("locaux")} statut={`${attendusPresents}/${TYPES_PRESTATAIRE_ATTENDUS.length} prestataires`}>
@@ -2303,6 +2481,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
           <h3 className="font-semibold">Eau</h3>
           <p className="text-sm text-[var(--ink)]">{origineEau ? `Origine indiquée : ${origineEau}.` : "Origine de l'eau non indiquée : à renseigner dans la partie A."}{manquantsEau.length > 0 ? ` Pièce(s) à joindre : ${manquantsEau.map((c) => libelleDe(CATEGORIES_DOCUMENT, c)).join(" · ")}.` : (origineEau ? " Pièce justificative jointe." : "")}</p>
         </Card>
+      {liste("B")}
       </BandePms>
 
       <BandePms cat={cat("fournisseurs")} statut={`${compte(4)} réception${compte(4) > 1 ? "s" : ""} en 30 j`}>
@@ -2328,6 +2507,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
           <h3 className="font-semibold">Bons de livraison, étiquettes, lots, factures</h3>
           <p className="text-sm text-[var(--ink)]">À conserver au moins 6 mois pour les produits périssables (date limite de moins de 3 mois ou sans date) et 5 ans pour les autres. Le logiciel conserve la traçabilité 5 ans. Pour les autres enregistrements (températures, cuissons, refroidissements, maintiens au chaud, tests d'huile), les textes ne fixent aucune durée : le logiciel les garde 6 mois (nouveau mode). Les photos de traçabilité sont retirées après 6 mois, le texte reste 5 ans.</p>
         </Card>
+      {liste("C")}
       </BandePms>
 
       <BandePms cat={cat("haccp")} statut="6 points suivis">
@@ -2354,6 +2534,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
           <h3 className="font-semibold">Contrôle interne et laboratoire</h3>
           <p className="text-sm text-[var(--ink)]">Contrôle journalier, registre mensuel, audit interne et revue annuelle du PMS. Aucune fréquence légale fixe d'analyses pour un restaurant classique : indiquez votre laboratoire dans la partie B et joignez les résultats dans la partie G.</p>
         </Card>
+      {liste("D")}
       </BandePms>
 
       <BandePms cat={cat("tracabilite")} statut={`${compte(5)} étiquette${compte(5) > 1 ? "s" : ""} en 30 j`}>
@@ -2384,6 +2565,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
             <p className="text-sm text-[var(--ink)]">Identifier le lot, isoler le stock concerné, informer le fournisseur et, si le produit est dangereux, la DDPP ; tracer la décision et la date. Le logiciel vérifie automatiquement vos produits sur RappelConso (DGCCRF).</p>
           </Card>
         </div>
+      {liste("E")}
       </BandePms>
 
       <BandePms cat={cat("nonconf")}>
@@ -2392,11 +2574,13 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
           <h3 className="font-semibold">Alertes générées par le logiciel</h3>
           <p className="text-sm text-[var(--ink)]">Température hors norme, cuisson ou refroidissement non conforme, réception refusée, huile à changer : chaque alerte garde la date, l'auteur, la cause et la décision prise. Audits internes, veille réglementaire, traitement des réclamations et réunions d'équipe complètent ce suivi.</p>
         </Card>
+      {liste("F")}
       </BandePms>
 
       <BandePms cat={cat("documents")} statut={`${docs.length} pièce${docs.length > 1 ? "s" : ""}`}>
         <SousTitrePms>13 — Pièces jointes avec échéance</SousTitrePms>
         <PmsDocuments pms={pms} reglages={reglages} />
+      {liste("G")}
       </BandePms>
 
       <BandePms cat={cat("synthese")} statut={`${nbOk}/${controle.length} points en règle`}>
@@ -2407,6 +2591,9 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
         </Card>
         <SousTitrePms>15 — Enregistrements du logiciel</SousTitrePms>
         <PmsSyntheseLogiciel donnees={donnees} />
+        <SousTitrePms>16 — Plan d'action</SousTitrePms>
+        <PmsPlanAction pms={pms} locales={locales} />
+        {liste("H")}
       </BandePms>
     </div>
   );
