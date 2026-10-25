@@ -503,6 +503,13 @@ const zoneDepuisFonction = (id) => {
   const m = /(#[0-9A-Fa-f]{6}) 0%, (#[0-9A-Fa-f]{6})/.exec(c.fond); if (!m) return null;
   return { bord: m[1], fond: `${m[1]}22`, texte: m[2] };
 };
+// Couleurs de RÔLE (validées par Loïc le 25/10) : la même sur toutes les pages, quelle que soit la fonction de la page.
+// principal = couleur de la fonction (ZoneContext) ; contrôle = ambre ; historique = vert sapin ; information = bleu très pâle.
+const ROLES_COULEUR = {
+  controle: { bord: "#F59E0B", fond: "#F59E0B22", texte: "#B45309" },
+  historique: { bord: "#0F766E", fond: "#0F766E22", texte: "#134E4A" },
+  information: { bord: "#60A5FA", fond: "#EFF6FF", texte: "#1E3A8A" },
+};
 const ZoneContext = React.createContext(null);
 const couleurSousTuile = (id, parDefaut) => {
   return COULEURS_FONCTION[id] || parDefaut;
@@ -1502,8 +1509,11 @@ function BoutonRetour({ onClick, children, className = "" }) {
 // Rangée de gros boutons réservés au chef et au directeur, placée en haut d'une tuile (jamais visible par les employés).
 const FichesNomsContext = React.createContext([]);
 function BarreChef({ titre = "", boutons, bas = false, centre = false }) {
+  const zPage = React.useContext(ZoneContext);
   const liste = (boutons || []).filter(Boolean);
   if (!liste.length) return null;
+  // Couleur d'un bouton : Historique = vert sapin (rôle historique) ; sinon la couleur de la fonction de la page.
+  const fondBouton = (b) => (/^Historique/i.test(b.label) ? COULEURS_FONCTION.historique.fond : (zPage ? `linear-gradient(160deg, ${zPage.bord} 0%, ${zPage.texte} 100%)` : COULEURS_FONCTION.historique.fond));
   return (
     <div className={bas ? "mt-8" : "mb-4"}>
       <div className="flex flex-wrap justify-center gap-2">
@@ -1512,7 +1522,7 @@ function BarreChef({ titre = "", boutons, bas = false, centre = false }) {
           return (
             <button key={b.label} type="button" onClick={b.onClick}
               className={`min-h-[56px] rounded-xl px-3 py-2 flex items-center gap-2.5 text-sm font-bold text-white active:scale-95 transition-transform justify-center text-center min-w-[220px]`}
-              style={{ background: b.fond || "linear-gradient(160deg, #5B6B8C 0%, #34405C 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+              style={{ background: fondBouton(b), boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
               {Ic && <Ic size={20} className="shrink-0" />}
               <span className="leading-tight">{b.label}</span>
             </button>
@@ -12894,7 +12904,7 @@ function HaccpTemperatures({
               const pret = Date.now() >= s.rappelTs;
               const form = anomalieForm[s.id];
               return (
-                <div key={s.id} className="border border-[var(--warn)]/40 bg-[var(--warn-soft)] rounded-lg p-3">
+                <div key={s.id} className="border rounded-lg p-3" style={{ borderColor: ROLES_COULEUR.controle.bord, backgroundColor: ROLES_COULEUR.controle.fond }}>
                   <div className="text-sm text-[var(--ink)] font-medium">{eq?.nom} — relevé initial {s.valeurInitiale}°C à {s.heureDetection}</div>
                   <div className="text-xs text-[var(--steel)] mb-2">{minutes} min écoulées {pret ? "— recontrôle possible" : `— possible dans ${30 - minutes} min`}</div>
                   {!form ? (
@@ -19794,8 +19804,9 @@ const couvertsDe = (list) => list.reduce((n, r) => n + (Number(r.personnes) || 0
 const RESA_VIDE = { date: "", heure: "", nom: "", contact: "", personnes: "", telephone: "", email: "", type: "", demandes: "", notesCuisine: "", table: "", statut: "à confirmer", duree: "90" };
 
 // Carte d'information cliquable (même style partout : titre complet, chiffre, précision)
-function CarteZone({ icone: Ic, titre, sous, action, className = "", id, children }) {
-  const z = React.useContext(ZoneContext) || { bord: "#475569", fond: "#47556922", texte: "#1E293B" };
+function CarteZone({ icone: Ic, titre, sous, action, className = "", id, role, children }) {
+  const zPage = React.useContext(ZoneContext) || { bord: "#475569", fond: "#47556922", texte: "#1E293B" };
+  const z = (role && ROLES_COULEUR[role]) || zPage;
   return (
     <div id={id} className={`bg-white border border-[var(--cadre)] rounded-xl overflow-hidden ${className}`} style={{ borderTop: `3px solid ${z.bord}` }}>
       <div className="px-3 py-2 flex items-center gap-2.5 flex-wrap" style={{ background: z.fond }}>
@@ -24359,7 +24370,7 @@ function KitchenApp({ identiteExterne } = {}) {
         const HIST = { haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" };
         const grad = (a, b) => `linear-gradient(160deg, ${a} 0%, ${b} 100%)`;
         if (tab === "taches") return <BarreChef centre boutons={[
-            { label: "Historique de la journée", icone: ClipboardList, fond: grad("#7C6BC4", "#4B3C94"), onClick: () => ouvrirControle("historiqueJour", "taches") },
+            { label: "Historique de la journée", icone: ClipboardList, onClick: () => ouvrirControle("historiqueJour", "taches") },
           ]} />;
         if (tab === "haccp") return <BarreChef bas boutons={[
           { label: "Historique des températures", icone: Thermometer, onClick: () => ouvrirControle("temperatures", "haccp") },
