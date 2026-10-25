@@ -458,49 +458,45 @@ const degrade = (c1, c2) => {
   return { fond: `linear-gradient(160deg, ${c1} 0%, ${c2} 100%)`, ombre: `rgba(${(n >> 16) & 255},${(n >> 8) & 255},${n & 255},0.35)` };
 };
 const COULEURS_FONCTION = {
-  // Tuiles de l'accueil (une couleur par grande fonction)
-  taches: degrade("#1F8F5F", "#146B45"),
-  etiquettes: degrade("#8B5CF6", "#6027C9"),
-  stock: degrade("#FB923C", "#C2410C"),
-  reception: degrade("#3B82F6", "#1D4ED8"),
-  tracabilite: degrade("#14A5B8", "#0B7285"),
-  haccp: degrade("#D4A017", "#9A7000"),
-  fiches: degrade("#C1893C", "#8C5E22"),
-  controle: degrade("#5B6B8C", "#34405C"),
-  // Contrôles HACCP
-  temperatures: degrade("#4F46E5", "#312E81"),
-  cellule: degrade("#4FC3F7", "#1E88C7"),
-  huile: degrade("#84CC16", "#4D7C0F"),
-  maintien: degrade("#F4623A", "#B3300F"),
-  cuisson: degrade("#10B981", "#047857"),
-  // Équipe et gestion
-  planningEmploye: degrade("#7E22CE", "#581C87"),
-  reservationsClient: degrade("#C026D3", "#86198F"),
-  comptes: degrade("#475569", "#1E293B"),
-  // Cuisine
-  creationFiche: degrade("#A0522D", "#5C2E14"),
-  carte: degrade("#E07A5F", "#B5523B"),
-  fournisseur: degrade("#2F55C7", "#1E3A8A"),
-  commandes: degrade("#3B82F6", "#1D4ED8"),
-  // Hygiène
-  pms: degrade("#DB2777", "#831843"),
-  pmsDossier: degrade("#9F1239", "#4C0519"),
-  dossierControle: degrade("#7C3AED", "#4C1D95"),
-  pmsPrestataires: degrade("#0D9488", "#115E59"),
-  allergenes: degrade("#EAB308", "#A16207"),
-  origine: degrade("#0EA5E9", "#075985"),
+  // Palette du 24/10 (une fonction = UNE couleur, jamais deux fonctions de la même couleur ; rouge = alerte seulement).
+  // Les écrans qui dépendent d'une fonction reprennent sa couleur (voir les alias plus bas).
+  taches: degrade("#1F8F5F", "#146B45"),          // Tâches du jour : vert
+  etiquettes: degrade("#7C3AED", "#4C1D95"),      // Étiquettes : violet
+  tracabilite: degrade("#14A5B8", "#0B7285"),     // Traçabilité : turquoise
+  reception: degrade("#A0522D", "#6B3A1E"),       // Réception : marron
+  stock: degrade("#FB923C", "#C2410C"),           // Stock : orange
+  temperatures: degrade("#2563EB", "#1E3A8A"),    // Températures : bleu franc
+  cellule: degrade("#4FC3F7", "#1E88C7"),         // Refroidissement : bleu ciel
+  huile: degrade("#E0A800", "#A87900"),           // Huile : jaune doré
+  maintien: degrade("#EC4899", "#9D174D"),        // Maintien au chaud : rose
+  cuisson: degrade("#B7410E", "#7A2A08"),         // Cuisson : rouille
+  fiches: degrade("#4F46E5", "#312E81"),          // Fiches techniques : indigo
+  controle: degrade("#7A8B2E", "#4D5A14"),        // Suivi et contrôle : vert olive
+  lexique: degrade("#A78BFA", "#7C5CD6"),         // Lexique : lilas
+  historique: degrade("#0F766E", "#134E4A"),      // Historique (direction) : vert sapin
+  pms: degrade("#A21CAF", "#701A75"),             // PMS (hygiène) : prune
+  // Alertes : le rouge n'est utilisé que pour elles
   tiac: degrade("#DC2626", "#7F1D1D"),
   dlc: degrade("#EF4444", "#B91C1C"),
   rappelconso: degrade("#DC2626", "#7F1D1D"),
-  notifications: degrade("#3B82F6", "#1D4ED8"),
   alertes: degrade("#F59E0B", "#B45309"),
-  historiqueJour: degrade("#0F766E", "#134E4A"),
-  preparations: degrade("#E07A5F", "#B5523B"),
 };
+// Alias : un écran qui appartient à une fonction prend la couleur de cette fonction.
+Object.assign(COULEURS_FONCTION, {
+  haccp: COULEURS_FONCTION.temperatures,
+  commandes: COULEURS_FONCTION.reception, notifications: COULEURS_FONCTION.reception, fournisseur: COULEURS_FONCTION.reception,
+  creationFiche: COULEURS_FONCTION.fiches, carte: COULEURS_FONCTION.fiches, preparations: COULEURS_FONCTION.fiches,
+  planningEmploye: COULEURS_FONCTION.taches, reservationsClient: COULEURS_FONCTION.taches,
+  allergenes: COULEURS_FONCTION.controle, origine: COULEURS_FONCTION.controle,
+  historiqueJour: COULEURS_FONCTION.historique, comptes: COULEURS_FONCTION.historique,
+  pmsDossier: COULEURS_FONCTION.pms, dossierControle: COULEURS_FONCTION.pms, pmsPrestataires: COULEURS_FONCTION.pms,
+  produits: COULEURS_FONCTION.stock, appareilsFroid: COULEURS_FONCTION.temperatures,
+  haccpTemp: COULEURS_FONCTION.temperatures, haccpRefroid: COULEURS_FONCTION.cellule, haccpHuile: COULEURS_FONCTION.huile, haccpChaud: COULEURS_FONCTION.maintien, haccpCuisson: COULEURS_FONCTION.cuisson,
+});
 COULEURS_FONCTION.planning = COULEURS_FONCTION.taches;
 // Les tuiles de l'accueil et du hub lisent la même table : une fonction = une seule couleur partout.
 ACCUEIL_TUILES.forEach((t) => { const c = COULEURS_FONCTION[({ haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" })[t.id] || t.id]; if (c) { t.fond = c.fond; t.ombre = c.ombre; } });
-["haccp", "taches", "stock", "reception", "etiquettes", "tracabilite", "fiches", "controle", "comptes"].forEach((id) => { const c = COULEURS_FONCTION[id]; if (c) TUILE_COULEURS[id] = { fond: c.fond, ombre: c.ombre }; });
+["haccp", "taches", "stock", "reception", "etiquettes", "tracabilite", "fiches", "controle", "comptes", "lexique", "historique"].forEach((id) => { const c = COULEURS_FONCTION[id]; if (c) TUILE_COULEURS[id] = { fond: c.fond, ombre: c.ombre }; });
 // Couleur d'une zone (titre teinté, filet du haut) déduite de la table
 const zoneDepuisFonction = (id) => {
   const c = COULEURS_FONCTION[id]; if (!c) return null;
@@ -4274,7 +4270,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
     { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires"] },
   ];
   const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Nettoyages à valider", pmsPrestataires: "Prestataires" };
-  const PARAM_EXTRAS = { "@horaires": ["horaires", "Horaires de l'équipe", Clock, "#2563B8", "#1D4E89"], "@reservations": ["reservations", "Réservations client", CalendarDays, "#0E7490", "#155E75"] };
+  const PARAM_EXTRAS = { "@horaires": ["horaires", "Horaires de l'équipe", Clock, "#1F8F5F", "#146B45"], "@reservations": ["reservations", "Réservations client", CalendarDays, "#1F8F5F", "#146B45"] };
   const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
   const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
   // Menu du Paramétrage : dans la bande noire de gauche (grand écran) ou en haut de la page (téléphone).
@@ -4284,7 +4280,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         <div className="px-1 pb-2">
           <button type="button" onClick={() => onQuitterParam && onQuitterParam()} className="flex items-center gap-2 text-sm font-medium px-2 py-2 rounded-lg w-full text-left" style={{ color: "#C5CEDA" }}><ChevronLeft size={16} /> Retour à l'accueil</button>
           <div className="flex items-center gap-2.5 px-2 pt-2 pb-1">
-            <span className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: "linear-gradient(160deg,#64748B,#334155)" }}><Settings size={20} /></span>
+            <span className="w-9 h-9 rounded-lg flex items-center justify-center text-white shrink-0" style={{ background: COULEURS_FONCTION.historique.fond }}><Settings size={20} /></span>
             <span className="text-lg font-bold text-white leading-tight">Paramétrage</span>
           </div>
         </div>
@@ -4324,7 +4320,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   // Tuile « Historique » (directeur) : un bouton par historique, celui de la journée en premier.
   const HISTORIQUE_IDS = ["historiqueJour", "temperatures", "huile", "cellule", "cuisson", "maintien", "tracabilite", "commandes"];
   const HISTORIQUE_LIBELLES = { historiqueJour: "Historique de la journée", temperatures: "Historique des températures", huile: "Historique des huiles de friture", cellule: "Historique du refroidissement", cuisson: "Historique des cuissons", maintien: "Historique du maintien au chaud", tracabilite: "Historique de la traçabilité", commandes: "Livraisons reçues" };
-  const paramCouleurDefaut = { fond: "linear-gradient(160deg, #64748B 0%, #334155 100%)", ombre: "rgba(51,65,85,0.35)" };
+  const paramCouleurDefaut = COULEURS_FONCTION.historique;
 
   const marquerEnvoyee = (id, mode) => setNotificationsFournisseur(notificationsFournisseur.map((n) => (n.id === id ? { ...n, envoyee: true, modeTraitement: mode || "mail", traiteParId: currentUserId, traiteLe: new Date().toISOString() } : n)));
   const enregistrerEmailFournisseur = (fournisseur, email) => {
