@@ -1423,7 +1423,7 @@ function TuilesResume({ fonction, items }) {
 
 // Même fonction = même couleur et même logo partout : le logo du titre vient de la table couleurSousTuile.
 const LOGOS_TITRE = [
-  ["Températures", "temperatures", () => Thermometer], ["Refroidissement", "cellule", () => Snowflake], ["Huile", "huile", () => Droplets],
+  ["Températures", "temperatures", () => Thermometer], ["Refroidissement", "cellule", () => Snowflake], ["Huile", "huile", () => Droplets], ["Suivi d'huile", "huile", () => Droplets],
   ["Maintien au chaud", "maintien", () => Soup], ["Cuisson", "cuisson", () => Flame], ["Planning de nettoyage", "pms", () => SprayCan],
   ["Protocoles de nettoyage", "pms", () => SprayCan], ["Plan de nettoyage", "pms", () => SprayCan], ["PMS — plan de nettoyage", "pms", () => SprayCan], ["PMS — dossier", "pmsDossier", () => Building2],
   ["Prestataires", "pmsPrestataires", () => PhoneCall], ["Ma carte", "carte", () => UtensilsCrossed], ["Fiches techniques", "creationFiche", () => Sparkles],
@@ -1550,8 +1550,12 @@ function useSousTitreTemporaire(cle) {
   return visible;
 }
 
+// Emplacement des boutons du chef (Livraisons reçues, Historique de la journée…) : juste SOUS le titre de l'écran,
+// après le rectangle rouge « Normes HACCP » (ordre voulu : rectangle rouge, titre, boutons du chef, page).
+const BarreChefSlotContext = React.createContext(null);
 function SectionHeader({ title, subtitle, action, fonction, icone, permanent }) {
   const zone = React.useContext(ZoneContext);
+  const reclamerEmplacement = React.useContext(BarreChefSlotContext);
   const logo = typeof title === "string" ? LOGOS_TITRE.find(([debut]) => title.startsWith(debut)) : null;
   const Ic = icone || (logo ? logo[2]() : ClipboardList);
   const cle = fonction || (logo ? logo[1] : null);
@@ -1560,6 +1564,7 @@ function SectionHeader({ title, subtitle, action, fonction, icone, permanent }) 
   const zoneTitre = (cle && zoneDepuisFonction(cle)) || zone;
   const sousTitreVisible = useSousTitreTemporaire(typeof title === "string" ? title : cle);
   return (
+    <>
     <div className="flex items-start justify-between mb-3 gap-3 flex-wrap">
       <div className="flex items-center gap-3">
         <span className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ background: coul.fond, boxShadow: `0 4px 10px ${coul.ombre}` }}><Ic size={22} /></span>
@@ -1570,6 +1575,8 @@ function SectionHeader({ title, subtitle, action, fonction, icone, permanent }) 
       </div>
       {action}
     </div>
+    {reclamerEmplacement && <div ref={reclamerEmplacement} />}
+    </>
   );
 }
 
@@ -3995,8 +4002,8 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity, 
         </div>
         {aide && (
           <div className="mb-4 rounded-lg p-3 text-sm text-[var(--ink)]" style={{ backgroundColor: "#EAF1FB" }}>
-            <p className="mb-1"><strong>Gestion</strong> = accès à Contrôle &amp; Gestion (chef de cuisine et directeur uniquement). Il se coche tout seul selon le statut choisi.</p>
-            <p>Les autres cases indiquent les services où l'employé travaille. Les employés n'ont jamais accès à Contrôle &amp; Gestion.</p>
+            <p className="mb-1"><strong>Gestion</strong> = accès à Suivi et contrôle et au Paramétrage (chef de cuisine et directeur uniquement). Il se coche tout seul selon le statut choisi.</p>
+            <p>Les autres cases indiquent les services où l'employé travaille. Les employés n'ont jamais accès à Suivi et contrôle ni au Paramétrage.</p>
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
@@ -12777,7 +12784,7 @@ function HaccpTemperatures({
         <div className="rounded-xl px-3 py-1.5 text-[11px] leading-snug text-[var(--ink)]" style={{ background: "#FFF8E1", border: "1px solid #E0C46B" }}>
           <b>Relevé à la main, matin et soir.</b> Notez la température de chaque appareil avec un thermomètre. Conseil : un petit thermomètre posé à l'intérieur de l'appareil donne la température de l'air ; un thermomètre laser ne mesure que la surface. Tout relevé hors norme est enregistré comme non conforme, avec votre nom, la date et l'heure.
         </div>
-        {sansSonde.length === 0 && <Card><p className="text-sm text-[var(--steel)]">Tous vos appareils sont suivis par sonde. Pour relever un appareil à la main, passez-le en « relevé à la main » dans Contrôle &amp; Gestion → Appareils de froid.</p></Card>}
+        {sansSonde.length === 0 && <Card><p className="text-sm text-[var(--steel)]">Tous vos appareils sont suivis par sonde. Pour relever un appareil à la main, passez-le en « relevé à la main » dans Paramétrage → Appareils de froid.</p></Card>}
         <div className="grid grid-cols-1 xl:grid-cols-2 gap-3 items-start">
         {familles.filter((f) => f.liste.length > 0).map((f) => (
           <div key={f.cle} className="rounded-xl overflow-hidden border-2 bg-white" style={{ borderColor: f.couleur }}>
@@ -12817,7 +12824,7 @@ function HaccpTemperatures({
   return (
     <div>
       <div className="flex flex-wrap gap-2 mb-4">
-        {[["sonde", "📡 Températures avec sonde", "#0E7490"], ["manuel", "✋ Températures manuelles", "#B45309"]].map(([v, l, c]) => (
+        {[["sonde", "📡 Températures avec sonde", "#2563EB"], ["manuel", "✋ Températures manuelles", "#B45309"]].map(([v, l, c]) => (
           <button key={v} type="button" onClick={() => setVueReleves(v)} className="px-4 py-2.5 min-h-[44px] rounded-xl text-sm font-bold border-2"
             style={vue === v ? { background: c, color: "#fff", borderColor: c } : { background: "#fff", color: c, borderColor: c }}>{l}</button>
         ))}
@@ -13061,7 +13068,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
             ) : (
               <div className="mb-3"><Field label="Nom du produit *"><input className={inputCls} list="liste-fiches-maintien" value={mNom} onChange={(ev) => setMNom(ev.target.value)} placeholder="Choisir dans la liste ou écrire" /><datalist id="liste-fiches-maintien">{nomsFichesListe.map((n) => <option key={n} value={n} />)}</datalist></Field></div>
             )}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+            <div className="grid grid-cols-1 gap-3 mb-3">
               <Field label="Appareil *">
                 <select className={inputCls} value={appareil} onChange={(ev) => setAppareil(ev.target.value)}>
                   <option value="Bain-marie">Bain-marie</option>
@@ -13740,7 +13747,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
                     </div>
                   ))}
                 </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-1 gap-3 mb-3">
                   <Field label="Heure de départ *"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
                   <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : quantité, préparation, observations…" /></Field>
                 </div>
@@ -13751,7 +13758,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
             ) : (
               <div>
                 <p className="text-xs text-[var(--steel)] mb-3">Renseignez les paramètres vous-même.</p>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-3">
+                <div className="grid grid-cols-1 gap-3 mb-3">
                   <Field label="Nom du produit *"><input className={inputCls} list="liste-fiches-cuisson" value={mNom} onChange={(e) => setMNom(e.target.value)} placeholder="Choisir dans la liste ou écrire" /><datalist id="liste-fiches-cuisson">{nomsFichesListe.map((n) => <option key={n} value={n} />)}</datalist></Field>
                   <Field label="Appareil *">
                     <select className={inputCls} value={mAppareil} onChange={(e) => { setMAppareil(e.target.value); const m = modeCuissonDepuisAppareil(e.target.value); if (m) setMMode(m); }}>
@@ -22146,8 +22153,8 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         )}
         {vueAccueil === "planning" && currentUserId === "direction" && (
           <Card className="mb-4">
-            <p className="text-sm text-[var(--ink)] mb-3"><b>Compte Direction :</b> pas de planning personnel ici. Pour voir ce qui est fait aujourd'hui, ce qui manque et valider, ouvrez Contrôle &amp; Gestion.</p>
-            <button type="button" onClick={() => setTab("controle")} className="min-h-[44px] px-5 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Ouvrir Contrôle &amp; Gestion</button>
+            <p className="text-sm text-[var(--ink)] mb-3"><b>Compte Direction :</b> pas de planning personnel ici. Pour voir ce qui est fait aujourd'hui, ce qui manque et valider, ouvrez Suivi et contrôle.</p>
+            <button type="button" onClick={() => setTab("controle")} className="min-h-[44px] px-5 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Ouvrir Suivi et contrôle</button>
           </Card>
         )}
         {vueTemps === "jour" && vueAccueil === "planning" && currentUserId !== "direction" && (
@@ -22756,7 +22763,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
         </div>
       </div>
       {employees.length === 0 ? (
-        <Card><p className="text-sm text-[var(--steel)]">Aucun employé enregistré pour l'instant. Créez les comptes de l'équipe dans Contrôle &amp; Gestion → Comptes : ils apparaîtront ici automatiquement.</p></Card>
+        <Card><p className="text-sm text-[var(--steel)]">Aucun employé enregistré pour l'instant. Créez les comptes de l'équipe dans Paramétrage → Comptes de l'équipe : ils apparaîtront ici automatiquement.</p></Card>
       ) : (
         <div className="space-y-3">
           {employees.map((emp, idx) => {
@@ -23095,6 +23102,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const [etiquetteRapideNb, setEtiquetteRapideNb] = useState({});
   const [produitAOuvrirApp, setProduitAOuvrirApp] = useState(null); // produit à compléter à ouvrir directement dans Suivi et contrôle
   const [slotParam, setSlotParam] = useState(null); // emplacement du menu du Paramétrage dans la bande noire
+  const [slotBarreChef, setSlotBarreChef] = useState(null); // emplacement des boutons du chef, sous le titre de l'écran
+  const reclamerSlotBarreChef = React.useCallback((el) => { setSlotBarreChef((prev) => (el ? (prev && prev.isConnected ? prev : el) : (prev && !prev.isConnected ? null : prev))); }, []);
   const [cibleControleApp, setCibleControleApp] = useState(null); // écran à ouvrir directement depuis un bouton du chef : { sousEcran, retourTab }
   const [planningParam, setPlanningParam] = useState(null); // horaires / réservations ouverts depuis le Paramétrage (le menu reste affiché)
   const [retourPlanning, setRetourPlanning] = useState(null); // tuile d'où le chef a ouvert les horaires / réservations
@@ -24394,6 +24403,7 @@ function KitchenApp({ identiteExterne } = {}) {
     <NettoyageContext.Provider value={valeurNettoyageFin}>
     <AccesContext.Provider value={{ estResponsable: chefComplet || currentUserId === "direction", estSecond: moiSecond }}>
     <RapideContext.Provider value={valeurRapide}>
+    <BarreChefSlotContext.Provider value={reclamerSlotBarreChef}>
     <div className={`min-h-screen flex flex-col ${modeExterne ? "md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[auto_1fr]" : "md:flex-row"}`} style={{
       "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
@@ -24548,7 +24558,7 @@ function KitchenApp({ identiteExterne } = {}) {
             const actif = tab === n.id || (n.id === "haccp" && NAV_HACCP.some((x) => x.id === tab));
             return (
               <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
-                className="relative flex items-center gap-3 px-3 py-3 min-h-[48px] rounded-xl text-[15px] font-medium text-left transition-colors"
+                className="relative shrink-0 flex items-center gap-3 px-3 py-3 min-h-[48px] rounded-xl text-[15px] font-medium text-left transition-colors"
                 style={actif ? { backgroundColor: "#1F6B47", color: "#fff", boxShadow: "inset 4px 0 0 #6EE7A8" } : { color: "#C5CEDA" }}
                 onMouseEnter={(e) => { if (!actif) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.07)"; }}
                 onMouseLeave={(e) => { if (!actif) e.currentTarget.style.backgroundColor = "transparent"; }}>
@@ -24692,7 +24702,7 @@ function KitchenApp({ identiteExterne } = {}) {
             </div>
           </div>
         )}
-        {barreChefEl && !barreChefEl.props.bas && barreChefEl}
+        {barreChefEl && !barreChefEl.props.bas && (slotBarreChef && slotBarreChef.isConnected ? createPortal(barreChefEl, slotBarreChef) : barreChefEl)}
         {tab === "haccp" && (
           <div>
             <SectionHeader title="Contrôles en cuisine" fonction="haccp" icone={Thermometer} subtitle="Les cinq contrôles de la cuisine : températures, refroidissement, huile, maintien au chaud et cuissons" />
@@ -24716,7 +24726,7 @@ function KitchenApp({ identiteExterne } = {}) {
           </div>
         )}
         {NAV_HACCP.some((n) => n.id === tab) && (
-          <div className="mb-2"><BoutonRetour onClick={retourPagePrecedente} className="!h-9">Retour</BoutonRetour></div>
+          <div className="mb-2 md:hidden"><BoutonRetour onClick={retourPagePrecedente} className="!h-9">Retour</BoutonRetour></div>
         )}
         {tab === "taches" && (
           <>
@@ -24776,7 +24786,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "lexique" && (
           <div>
-            <BoutonRetour onClick={() => setTab("accueil")}>Retour</BoutonRetour>
+            <BoutonRetour onClick={() => setTab("accueil")} className="md:hidden">Retour</BoutonRetour>
             <LexiqueReglementaire />
           </div>
         )}
@@ -24818,6 +24828,7 @@ function KitchenApp({ identiteExterne } = {}) {
         />
       )}
     </div>
+    </BarreChefSlotContext.Provider>
     </RapideContext.Provider>
     </AccesContext.Provider>
     </NettoyageContext.Provider>
