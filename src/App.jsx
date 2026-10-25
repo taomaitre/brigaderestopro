@@ -1849,7 +1849,7 @@ function PmsPrestataires({ pms, editable }) {
           {ligne("Contact", n.contact, "À renseigner")}
           {ligne("N° de contrat", n.contrat, "À renseigner")}
           {ligne("Dernier passage", p && p.date_dernier_passage ? fmt(p.date_dernier_passage) : null, "Date à renseigner")}
-          {ligne("Prochain passage", p && p.date_prochaine_echeance ? <ChipEcheance date={p.date_prochaine_echeance} /> : null, s && s.freq ? `À programmer (conseillé : ${libelleDe(FREQUENCES_RAPPEL, s.freq).toLowerCase()})` : "À programmer")}
+          {ligne("Prochain passage", p && p.date_prochaine_echeance ? <ChipEcheance date={p.date_prochaine_echeance} /> : null, "À programmer")}
           {n.libre && <p className="text-xs text-[var(--steel)] mt-1 break-words">{n.libre}</p>}
           {editable && !ouverte && (
             <div className="flex flex-wrap gap-2 mt-3">
@@ -2220,9 +2220,9 @@ function LignePms({ ok, children }) {
 const PMS_ETAPES_HACCP = [
   { etape: "Réception", limite: "Selon le produit : haché et poisson +2 °C, abats et plats cuisinés +3 °C, autres produits frais +4 °C, surgelés −18 °C", surveillance: "Température à cœur et aspect à chaque livraison", action: "Refus et renvoi, notification au fournisseur", ouvrir: "commandes", libelle: "Livraisons reçues" },
   { etape: "Stockage froid", limite: "Norme de chaque enceinte (réfrigérateur 0 à +4 °C, congélateur −18 °C)", surveillance: "Relevés et sondes", action: "Recontrôle sous 30 min, puis anomalie et devenir des produits", ouvrir: "temperatures", libelle: "Températures" },
-  { etape: "Cuisson", limite: "Barèmes indicatifs du guide Restaurateur (page 180) : viande hachée 71 °C ; volaille hachée 74 °C ; viandes coupées 63 °C ; poisson de 60 °C (1 min) à 80 °C (15 min) ; coquillages 90 °C. Volaille entière et autres préparations : aucun barème officiel, le chef décide", surveillance: "Sonde à cœur", action: "Poursuite de cuisson ou rejet", ouvrir: "cuisson", libelle: "Cuisson" },
+  { etape: "Cuisson", limite: "Barèmes indicatifs du guide Restaurateur (page 180) : viande hachée 71 °C ; volaille hachée 74 °C ; viandes coupées 63 °C ; poisson de 60 °C (1 min) à 80 °C (15 min) ; coquillages 90 °C. Volaille entière et autres préparations : aucun barème officiel", surveillance: "Sonde à cœur", action: "Poursuite de cuisson ou rejet", ouvrir: "cuisson", libelle: "Cuisson" },
   { etape: "Refroidissement", limite: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C (source : arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective ; aucune durée fixée pour la remise directe)", surveillance: "Chronomètre et alarme", action: "Produit non conforme jeté", ouvrir: "cellule", libelle: "Refroidissement" },
-  { etape: "Maintien au chaud", limite: "63 °C ou plus", surveillance: "Contrôle en service", action: "Décision du chef (aucune règle écrite sous 63 °C), à noter dans le PMS", ouvrir: "maintien", libelle: "Maintien au chaud" },
+  { etape: "Maintien au chaud", limite: "63 °C ou plus", surveillance: "Contrôle en service", action: "Aucune règle écrite sous 63 °C", ouvrir: "maintien", libelle: "Maintien au chaud" },
   { etape: "Huile de friture", limite: "Test du bain conforme", surveillance: "Photo de la bandelette, validation", action: "Renouvellement de l'huile, alerte", ouvrir: "huile", libelle: "Huile de friture" },
 ];
 
@@ -2307,9 +2307,9 @@ function PointPms({ p, rep, ctx, equipe, enregistrer }) {
           </Field>
           {aRegler && (
             <>
-              <p className="text-xs text-[var(--steel)]"><span className="font-semibold">Action conseillée :</span> {p.action}</p>
+              
               <Field label="Ce qui va être mis en place pour corriger">
-                <textarea rows={2} className={`${inputCls} w-full min-w-0`} value={valeur("action")} placeholder={p.action} onChange={(e) => setBrouillon({ ...(brouillon || {}), action: e.target.value })} onBlur={() => brouillon && brouillon.action !== undefined && envoyer("action", brouillon.action)} />
+                <textarea rows={2} className={`${inputCls} w-full min-w-0`} value={valeur("action")} onChange={(e) => setBrouillon({ ...(brouillon || {}), action: e.target.value })} onBlur={() => brouillon && brouillon.action !== undefined && envoyer("action", brouillon.action)} />
               </Field>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 <Field label="Responsable">
@@ -2389,7 +2389,7 @@ function PmsPlanAction({ pms, locales }) {
           {aFaire.map((p) => { const r = reponses[p.id] || {}; return (
             <li key={p.id} className="py-1.5">
               <span className="font-semibold">{p.cat} · {p.mod} — {p.titre}</span>
-              <br /><span className="text-xs text-[var(--steel)]">{r.etat === "incomplet" ? "Incomplet" : "Pas fait"} · {r.action || p.action}{r.responsable ? ` · ${r.responsable}` : ""}{r.echeance ? ` · avant le ${fr(r.echeance)}` : ""}</span>
+              <br /><span className="text-xs text-[var(--steel)]">{r.etat === "incomplet" ? "Incomplet" : "Pas fait"} · {r.action || "action à préciser"}{r.responsable ? ` · ${r.responsable}` : ""}{r.echeance ? ` · avant le ${fr(r.echeance)}` : ""}</span>
             </li>
           ); })}
         </ul>
@@ -6528,7 +6528,7 @@ function HuileSaisie({ onEnregistrerTest }) {
             <Field label="Date et heure"><input className={inputCls} value={dateHeure} readOnly /></Field>
           </div>
           <p className="text-sm text-[var(--ink)] mb-0.5">Photo de la bandelette ou du test <span className="text-[var(--steel)]">(facultative)</span></p>
-          <p className="text-xs text-[var(--steel)] mb-2">Conseillée : elle certifie votre contrôle et reste consultable par le chef et le directeur.</p>
+          <p className="text-xs text-[var(--steel)] mb-2">Elle reste consultable par le chef et le directeur.</p>
           {photo ? (
             <div>
               <img src={photo} alt="Bandelette" className="w-full max-h-64 object-cover rounded-xl border border-[var(--cadre)] mb-2" />
@@ -6595,7 +6595,7 @@ function HaccpChaudPage({ currentUserId, employees, logActivity, catalogueMainti
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div className="hc-compact">
-      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire : 63 °C minimum (guide Restaurateur page 180 et arrêté du 21/12/2009) ; sous 63 °C, aucune règle écrite : le chef décide." />
+      <BoutonInfosNormes ficheKey="maintienChaud" onClick={ouvrirNormes} label="Maintien au chaud — Normes et protocole" texte="Cliquez pour lire : 63 °C minimum (guide Restaurateur page 180 et arrêté du 21/12/2009) ; sous 63 °C, aucune règle écrite." />
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
         <div className="lg:shrink-0"><SectionHeader title="Maintien au chaud" subtitle="Suivi des produits maintenus au chaud" /></div>
       </div>
@@ -11082,7 +11082,6 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   <div className="mt-3 rounded-lg px-3 py-2.5 text-xs flex flex-wrap items-center gap-2" style={{ backgroundColor: "var(--bg)", color: "var(--steel)" }}>
                     <span>Estimation indicative du prix de vente : <strong>{est.toFixed(2).replace(".", ",")} € TTC</strong> (coût matière ≈ {taux} % du prix de vente HT, TVA {tva} %). Vous pouvez la modifier librement.</span>
                     <button type="button" className="underline font-semibold" onClick={() => champ("prixVente", est.toFixed(2).replace(".", ","))}>Utiliser cette estimation</button>
-                    <span className="w-full">Repère usuel en restauration : coût matière de 25 à 35 % du prix de vente HT (soit un coefficient d'environ 3 à 4). Aide au calcul, pas une obligation ; la TVA applicable dépend de votre activité.</span>
                   </div>
                 );
               })()}
@@ -13314,7 +13313,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
                       <strong>{e.refroidissementVerdict.conforme ? "Refroidissement conforme." : "Refroidissement NON CONFORME : produit à détruire."}</strong> {e.refroidissementVerdict.detail}
                     </div>
                   )}
-                  {sous63 && <p className="text-sm font-semibold rounded-lg p-2 mb-2" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>Température inférieure à 63 °C (minimum du guide et de l'arrêté). Aucune règle écrite ne fixe la conduite à tenir : le chef décide (régénérer ou détruire) et le note dans le PMS.</p>}
+                  {sous63 && <p className="text-sm font-semibold rounded-lg p-2 mb-2" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>Température inférieure à 63 °C (minimum du guide et de l'arrêté). Aucune règle écrite ne fixe la conduite à tenir.</p>}
 
                   <div className="flex flex-wrap items-end gap-2">
                     <label className="flex flex-col gap-1 text-sm">
@@ -16435,7 +16434,7 @@ const FICHES_NORMES = {
         contenu: [
           "Texte européen : règlement (CE) 852/2004, annexe II chapitre IX point 6 : refroidir « dès que possible » après le traitement thermique, à une température qui n'entraîne pas de risque pour la santé. Aucune durée chiffrée.",
           "Texte français : arrêté du 21/12/2009, annexe IV point 1 (version en vigueur depuis le 09/05/2020) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C, puis conservation entre 0 °C et +3 °C ; autre méthode possible avec une analyse des dangers validée. Cette annexe vise la restauration collective. Un restaurant traditionnel relève de la remise directe (annexe V), qui ne reprend pas cette règle.",
-          "Pour un restaurant traditionnel (remise directe), aucune durée de refroidissement n'est fixée : le chef décide. Le mode opératoire ci-dessous (bac d'eau glacée, épaisseur de 5 cm, étiquetage J+1) n'est fixé par aucun texte lu.",
+          "Pour un restaurant traditionnel (remise directe), aucune durée de refroidissement n'est fixée par les textes lus.",
         ],
       },
       {
@@ -16466,7 +16465,7 @@ const FICHES_NORMES = {
         titre: "Statut de ces règles (source)",
         contenu: [
           "Arrêté du 21/12/2009, annexe I (températures de conservation) : −18 °C pour les glaces, viandes hachées, préparations de viandes et produits de la pêche congelés ; −12 °C pour les autres denrées congelées. Tableau lu sur une copie préfectorale et dans le guide (page 179) : à reconfirmer sur Légifrance.",
-          "Aucun texte lu ne fixe de durée de surgélation (le logiciel utilise 4 h 30) : le chef décide.",
+          "Aucun texte lu ne fixe de durée de surgélation (le logiciel utilise 4 h 30, valeur sans source).",
           "Décongélation : arrêté du 21/12/2009, annexe VI (texte lu sur Légifrance le 20/10/2026), applicable à tous les établissements.",
         ],
       },
@@ -16521,10 +16520,10 @@ const FICHES_NORMES = {
         "Préparations liquides d'œufs entiers : 5 min à 60 °C.",
         "Sanglier, cheval : 63 °C, ou 3 min à 58 °C, ou 4 h à 51 °C.",
       ]},
-      { titre: "Sans barème officiel : le chef décide", contenu: [
+      { titre: "Sans barème officiel", contenu: [
         "Volaille en morceau entier (poulet, dinde), canard, magret : aucun barème officiel trouvé. Le chef choisit la température (« Autre valeur ») et la justifie dans le PMS. Question en attente auprès de la DDPP.",
-        "Autres préparations (légumes, plats, sauces), œufs : aucun barème trouvé ; le chef décide.",
-        "Cuisson saignante ou bleue d'une pièce entière : aucun texte lu ne l'autorise ni ne l'interdit expressément ; le barème du guide pour les viandes coupées est 63 °C pendant 15 s. Décision du chef, à justifier dans le PMS.",
+        "Autres préparations (légumes, plats, sauces), œufs : aucun barème trouvé.",
+        "Cuisson saignante ou bleue d'une pièce entière : aucun texte lu ne l'autorise ni ne l'interdit expressément ; le barème du guide pour les viandes coupées est 63 °C pendant 15 s.",
       ]},
       { titre: "Méthode — Cuisson au four (Rational / Atoll Speed / four à pizza)", contenu: [
         "1. Préchauffer le four à la température souhaitée.",
@@ -16560,7 +16559,7 @@ const FICHES_NORMES = {
     titre: "Maintien au chaud — Règles et repères HACCP",
     sections: [
       { titre: "Température minimale de maintien", contenu: "63 °C minimum, aussi longtemps que le produit reste en service. Sources : guide Restaurateur 2015, page imprimée 180 (« maintien à 63 °C ») ; arrêté du 21/12/2009, annexe IV point 3 (restauration collective) ; annexe I, tableau « température minimale en liaison chaude » (valeur à reconfirmer sur Légifrance). Une température plus basse n'est admise qu'avec une analyse des dangers validée. Aucune durée maximale de maintien n'a été trouvée dans les textes lus." },
-      { titre: "En cas de descente sous 63°C", contenu: "Aucun texte lu ne fixe la conduite à tenir sous 63 °C (régénération, nombre de fois, destruction) : le chef décide et l'inscrit dans le PMS. Pour information : le guide Restaurateur (page 180) indique 75 °C minimum pour le réchauffage des plats préparés ; l'arrêté (annexe IV, restauration collective) indique 63 °C." },
+      { titre: "En cas de descente sous 63°C", contenu: "Aucun texte lu ne fixe la conduite à tenir sous 63 °C (régénération, nombre de fois, destruction). Pour information : le guide Restaurateur (page 180) indique 75 °C minimum pour le réchauffage des plats préparés ; l'arrêté (annexe IV, restauration collective) indique 63 °C." },
       { titre: "Procédure", contenu: [
         "1. Préchauffer le bain-marie avant d'y placer les produits.",
         "2. Vérifier régulièrement la température de l'eau ET du produit.",
@@ -16603,7 +16602,7 @@ const FICHES_NORMES = {
       },
       {
         titre: "Fréquence des relevés",
-        contenu: "Aucun texte lu ne fixe la fréquence des relevés de température pour un restaurant traditionnel : le chef décide. Au-delà d'un maximum de l'annexe I, la denrée n'est plus conforme à l'arrêté (sauf guide validé ou analyse des dangers validée, article 3).",
+        contenu: "Aucun texte lu ne fixe la fréquence des relevés de température pour un restaurant traditionnel. Au-delà d'un maximum de l'annexe I, la denrée n'est plus conforme à l'arrêté (sauf guide validé ou analyse des dangers validée, article 3).",
       },
       {
         titre: "En cas de température non conforme",
@@ -17051,7 +17050,7 @@ function HuileTestModal({ titre, onConfirm, onClose, onAnnuler }) {
         )}
         <h3 className="font-semibold text-[var(--ink)] mb-1">Test de l'huile de friture</h3>
         <p className="text-xs text-[var(--steel)] mb-4">« {titre} » validé.</p>
-        <p className="text-sm text-[var(--ink)] mb-1">Photographiez la bandelette de test <span className="text-[var(--steel)]">(facultatif, conseillé)</span>.</p>
+        <p className="text-sm text-[var(--ink)] mb-1">Photographiez la bandelette de test <span className="text-[var(--steel)]">(facultatif)</span>.</p>
         <PhotoInput value={photo} onChange={setPhoto} label="Photographier la bandelette" />
         <div className="flex gap-2 mt-5 pt-4 border-t border-[var(--line)]">
           <button onClick={() => choisir("Bonne")} className="flex-1 rounded-xl px-3 py-3 text-sm font-bold text-white" style={{ backgroundColor: "#1E7B4B" }}>Huile conforme</button>
@@ -18535,7 +18534,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
             </div>
           )}
           <div className="mt-6 flex flex-col items-center text-center">
-            <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo du bon <span className="font-normal text-[var(--steel)]">(facultative, conseillée)</span></p>
+            <p className="text-sm font-semibold text-[var(--ink)] mb-2">Photo du bon <span className="font-normal text-[var(--steel)]">(facultative)</span></p>
             {photosBon.length > 0 && (
               <div className="flex flex-wrap justify-center gap-2 mb-3">
                 {photosBon.map((p, i) => (
@@ -18814,7 +18813,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
             <div className="mt-3 rounded-xl p-4 border-2 space-y-2" style={{ borderColor: "#F6B8C2", backgroundColor: "#FFF5F6" }}>
               <ChampCauseNC value={b.raisonPb} onChange={(v) => maj({ raisonPb: v })} />
               <input className={`${inputCls} w-full`} type="number" inputMode="decimal" placeholder="Quantité concernée (par défaut : tout)" value={b.quantitePb} onChange={(e) => maj({ quantitePb: e.target.value })} />
-              <div className="flex items-center gap-3"><PhotoInput rond value={b.photoPb} onChange={(v) => maj({ photoPb: v })} label="Photographier le produit" /><span className="text-xs text-[var(--ink)]">Photo du produit (conseillée)</span></div>
+              <div className="flex items-center gap-3"><PhotoInput rond value={b.photoPb} onChange={(v) => maj({ photoPb: v })} label="Photographier le produit" /><span className="text-xs text-[var(--ink)]">Photo du produit (facultative)</span></div>
             </div>
           )}
           </div>
