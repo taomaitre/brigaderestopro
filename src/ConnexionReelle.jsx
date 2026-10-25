@@ -31,6 +31,28 @@ const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`
 
 const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
 
+// Une adresse = un établissement (décision du 24/10). Chaque client a son sous-domaine ; un compte d'un autre
+// établissement n'ouvre jamais le logiciel d'une autre adresse (isolement). Autres adresses (ordinateur de Loïc,
+// adresse principale, futurs clients non encore listés) : aucune restriction.
+const ETABLISSEMENT_PAR_ADRESSE = {
+  "macuisine.brigaderestopro.fr": "c1b9b852-a333-433b-8cff-14ffdcff3c1f",
+  "demo.brigaderestopro.fr": "02073db5-5cff-46ee-8d35-eade94601f94",
+};
+const ETABLISSEMENT_DE_CETTE_ADRESSE = (() => {
+  try { return ETABLISSEMENT_PAR_ADRESSE[String(window.location.hostname || "").toLowerCase()] || null; } catch (e) { return null; }
+})();
+// Adresse d'un client (sous-domaine autre que la démo) : pas de « Changer d'établissement ».
+const ADRESSE_CLIENT = (() => {
+  try {
+    const hote = String(window.location.hostname || "").toLowerCase();
+    return /^[a-z0-9-]+\.brigaderestopro\.fr$/.test(hote) && !/^(demo|www)\./.test(hote);
+  } catch (e) { return false; }
+})();
+const MESSAGE_AUTRE_ADRESSE = "Ce compte n'appartient pas à cette adresse. Utilisez l'adresse de votre établissement.";
+function etablissementAutorise(id) {
+  return !ETABLISSEMENT_DE_CETTE_ADRESSE || id === ETABLISSEMENT_DE_CETTE_ADRESSE;
+}
+
 // En ligne (hors ordinateur de Loïc) : plus de bandeau noir « Prévisualisation » au-dessus de l'application.
 const ADRESSE_EN_LIGNE = (() => {
   try {
@@ -1098,6 +1120,10 @@ export default function ConnexionReelle() {
         const { data, error } = await supabasePublic.auth.verifyOtp({ token_hash: rep.token_hash, type: rep.type });
         if (error) throw error;
         const meta = data.user.user_metadata || {};
+        if (!etablissementAutorise(meta.etablissement_id)) {
+          try { await supabasePublic.auth.signOut(); } catch (e3) { /* pas grave */ }
+          throw new Error(MESSAGE_AUTRE_ADRESSE);
+        }
         setSession({
           token: data.session.access_token,
           etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" },
@@ -1149,6 +1175,10 @@ export default function ConnexionReelle() {
       const { data, error } = await supabasePublic.auth.signInWithPassword({ email, password: motDePasse });
       if (error) throw error;
       const meta = data.user.user_metadata || {};
+      if (!etablissementAutorise(meta.etablissement_id)) {
+        try { await supabasePublic.auth.signOut(); } catch (e3) { /* pas grave */ }
+        throw new Error(MESSAGE_AUTRE_ADRESSE);
+      }
       setSession({
         token: data.session.access_token,
         etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" },
@@ -1157,7 +1187,7 @@ export default function ConnexionReelle() {
       chargerEquipe(data.session.access_token, null);
       setChoixNoms(true);
     } catch (e2) {
-      setErreur("Connexion impossible : " + e2.message);
+      setErreur(e2.message === MESSAGE_AUTRE_ADRESSE ? e2.message : "Connexion impossible : " + e2.message);
     } finally {
       setEnCours(false);
     }
@@ -1250,6 +1280,7 @@ export default function ConnexionReelle() {
         const s = data && data.session;
         const meta = (s && s.user && s.user.user_metadata) || {};
         if (!s || !meta.etablissement_id) return;
+        if (!etablissementAutorise(meta.etablissement_id)) { try { await supabasePublic.auth.signOut(); } catch (e3) { /* pas grave */ } return; }
         const rep = await appelerEmployes(s.access_token, "lister", {});
         if (annule) return;
         const liste = rep.employes || [];
@@ -1635,7 +1666,7 @@ export default function ConnexionReelle() {
               </form>
             </div>
           )}
-          <button onClick={seDeconnecter} className="block mx-auto text-sm text-[var(--steel)] mt-4 underline">← Changer d'établissement</button>
+          {!ADRESSE_CLIENT && <button onClick={seDeconnecter} className="block mx-auto text-sm text-[var(--steel)] mt-4 underline">← Changer d'établissement</button>}
         </CarteConnexion>
         <BandeauFonctions />
         <VersionConnexion />
