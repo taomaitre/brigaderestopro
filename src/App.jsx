@@ -15753,7 +15753,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 
   const produitOuvert = produitDetail ? stock.find((x) => x.id === produitDetail) : null;
   if (produitOuvert) {
-    return <PageProduit s={produitOuvert} onBack={() => setProduitDetail(null)} onModifier={peutGererProduits ? () => rapideStock.ouvrirProduitAcompleter(produitOuvert.id, "nom") : null} />;
+    return <PageProduit s={produitOuvert} onBack={() => setProduitDetail(null)} onModifier={peutGererProduits ? () => rapideStock.ouvrirProduitAcompleter(produitOuvert.id, "nom") : null} onSupprimer={peutGererProduits ? () => { removeItem(produitOuvert.id); logActivity && logActivity("Stock", "Produit supprimé", produitOuvert.nom); setProduitDetail(null); } : null} />;
   }
   return (
     <div>
@@ -15983,7 +15983,8 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 }
 
 // Page d'un produit (chef) : tout ce qu'on sait du produit au même endroit, avec le bouton Modifier.
-function PageProduit({ s, onBack, onModifier }) {
+function PageProduit({ s, onBack, onModifier, onSupprimer }) {
+  const [confirmerSupp, setConfirmerSupp] = useState(false);
   const b = s.brut || {};
   const ligne = (libelle, valeur) => (
     <div key={libelle} className="grid grid-cols-[minmax(7rem,11rem)_minmax(0,1fr)] gap-3 py-2 border-t border-[var(--line)] first:border-t-0">
@@ -16019,6 +16020,12 @@ function PageProduit({ s, onBack, onModifier }) {
           <IcCrayon size={20} /> Modifier le produit
         </button>
       )}
+      {onSupprimer && (
+        <button type="button" onClick={() => setConfirmerSupp(true)} className="mt-3 min-h-[48px] w-full sm:w-auto px-6 rounded-xl text-sm font-bold text-white flex items-center justify-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #D64545 0%, #A62828 100%)" }}>
+          <Trash2 size={18} /> Supprimer ce produit (doublon ou fiche erronée)
+        </button>
+      )}
+      {confirmerSupp && <ModalConfirmerSuppression libelle={s.nom} onAnnuler={() => setConfirmerSupp(false)} onConfirmer={() => { setConfirmerSupp(false); onSupprimer(); }} />}
     </div>
   );
 }
