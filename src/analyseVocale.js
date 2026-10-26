@@ -116,3 +116,77 @@ export function reponseOuiNon(texte) {
 }
 
 export function pluriel(n, mot) { return `${n} ${mot}${n > 1 ? "s" : ""}`; }
+
+// ───────────── Phrases à plusieurs actions ─────────────
+// « Je prépare 20 lasagnes, enlève le stock pour 20 lasagnes, je les ai mises en cellule, fais-moi 20 étiquettes. »
+// On découpe en morceaux, on repère l'action de chaque morceau, puis l'application relit la liste et attend « oui ».
+const MOTS_VIDES_MULTI = new Set("vais viens prepare prepares preparer prepares prepar fabrique fabriquer cuisine cuisiner mis mise mises mettre supprime supprimes supprimer retire retires retirer enleve enleves enlever sors sortir deduis stock du dans jai ai fait faits faite deja".split(" "));
+const UNITES_VOIX = { kg: "kg", kilo: "kg", kilos: "kg", kilogramme: "kg", kilogrammes: "kg", g: "g", gramme: "g", grammes: "g", gr: "g", l: "L", litre: "L", litres: "L", cl: "cl", ml: "ml" };
+
+function produitDuMorceau(n) {
+  return motsDuProduit(n).filter((m) => !MOTS_VIDES_MULTI.has(m)).join(" ");
+}
+function nombreDecimal(n) {
+  const m = n.match(/\b(\d+)(?:[.,](\d+))?\b/);
+  if (m) return parseFloat(m[1] + (m[2] ? "." + m[2] : ""));
+  for (const mot of n.split(" ")) { if (NOMBRES[mot] && mot !== "un" && mot !== "une") return NOMBRES[mot]; }
+  return null;
+}
+
+// Renvoie une liste d'actions { action, produit, nb?, quantite?, unite? } ou null si la phrase n'est pas de ce type.
+// Actions : retirer_stock (quantité + unité), destocker_fiche (ingrédients d'une fiche × nb), etiquette_dlc, demarrer_refroidissement,
+// demarrer_cuisson, demarrer_maintien_chaud, production (= destocker_fiche + étiquettes, utilisé quand « j'ai préparé N X »).
+export function analyserPhraseMultiple(texte) {
+  if (!norm(texte)) return null;
+  const morceaux = String(texte).split(/[.;!?,\n]+/).flatMap((brut) => norm(brut).split(/\s+(?:puis|et puis|ensuite|apres|et)\s+/)).map((m) => m.trim()).filter(Boolean);
+  const actions = [];
+  let ctxProduit = "", ctxNb = null, derniereProd = null;
+  const poser = (a) => { actions.push(a); };
+  for (const m0 of morceaux) {
+    let m = m0;
+    const avantPour = (s) => s.split(/\bpour\b/)[0];
+    // 1. Retrait / déduction de stock
+    if (/\b(retire|retires|retirer|enleve|enleves|enlever|supprime|supprimes|supprimer|sors|sortir|deduis|deduire|decompte)\b/.test(m) && /\b(stock|stocks)\b|\b(kg|kilos?|grammes?|litres?|g|cl|ml)\b/.test(m) && !/\betiquettes?\b/.test(m)) {
+      const pour = m.match(/\bpour\s+(\S+)\s+(.+)$/);
+      if (/\bstock\b/.test(m) && pour && nombreDecimal(pour[1])) {
+        const nb = nombreDecimal(pour[1]); const produit = produitDuMorceau(pour[2]);
+        if (produit) { ctxProduit = produit; ctxNb = nb; poser({ action: "destocker_fiche", produit, nb }); continue; }
+      }
+      const q = m.match(/\b(\d+(?:[.,]\d+)?|un|une)\s*(kg|kilos?|kilogrammes?|grammes?|gr|g|litres?|l|cl|ml)\b\s*(?:d|de|du|des)?\s*(.*)$/);
+      if (q) {
+        const produit = produitDuMorceau(q[3].replace(/\b(du|le|de|dans le)\s+stock\b.*$/, ""));
+        if (produit) { poser({ action: "retirer_stock", produit, quantite: parseFloat(q[1].replace(",", ".")) || 1, unite: UNITES_VOIX[q[2]] || q[2] }); continue; }
+      }
+      return null; // cas flou : on laisse l'IA / l'ancien chemin
+    }
+    // 2. « J'ai préparé 5 crèmes brûlées » : production réalisée (stock + étiquettes)
+    const prod = m.match(/\b(?:j ai|on a|je viens de|nous avons)\s+(?:prepare|fait|fabrique|cuisine)\s+(.+)$/);
+    if (prod || (derniereProd && !INTENTIONS.some((it) => it.re.test(m)) && nombreDecimal(m) && produitDuMorceau(avantPour(m)))) {
+      const reste = prod ? prod[1] : m;
+      const nb = nombreDecimal(avantPour(reste)) || 1; const produit = produitDuMorceau(avantPour(reste));
+      if (produit) {
+        if (derniereProd && derniereProd.produit === produit) derniereProd.nb += nb;
+        else { derniereProd = { action: "production", produit, nb }; poser(derniereProd); }
+        ctxProduit = produit; ctxNb = derniereProd.nb; continue;
+      }
+    }
+    // 3. « Je vais préparer 20 lasagnes » : simple contexte (rien n'est exécuté)
+    const vais = m.match(/\b(?:je vais|je prepare|on va|je dois|il faut)\s+(?:preparer|faire|fabriquer|cuisiner)?\s*(.+)$/);
+    if (vais && !INTENTIONS.some((it) => it.re.test(m))) {
+      const produit = produitDuMorceau(avantPour(vais[1]));
+      if (produit) { ctxProduit = produit; ctxNb = nombreDecimal(vais[1]) || ctxNb; continue; }
+    }
+    // 4. Étapes HACCP et étiquettes
+    let trouve = null;
+    for (const it of INTENTIONS) { const mm = m.match(it.re); if (mm && (trouve === null || mm.index < trouve.index)) trouve = { ...it, index: mm.index }; }
+    if (trouve && ["etiquette_dlc", "demarrer_refroidissement", "demarrer_cuisson", "demarrer_maintien_chaud"].includes(trouve.action)) {
+      const produit = produitDuMorceau(m) || ctxProduit;
+      if (!produit) return null;
+      if (trouve.action === "etiquette_dlc") poser({ action: "etiquette_dlc", produit, nb: nombreDecimal(m) || ctxNb || 1 });
+      else poser({ action: trouve.action, produit });
+      continue;
+    }
+    return null; // un morceau incompris : on n'exécute rien de la phrase, l'ancien chemin prend le relais
+  }
+  return actions.length ? actions : null;
+}

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from
 import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
-import { analyserCommandeLocale, rapprocher as rapprocherVocal, reponseOuiNon, pluriel as pluralVocal } from './analyseVocale.js';
+import { analyserCommandeLocale, analyserPhraseMultiple, rapprocher as rapprocherVocal, reponseOuiNon, pluriel as pluralVocal } from './analyseVocale.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { PMS_POINTS, ETATS_POINT_PMS, pointsDeCategorie, bilanPointsPms } from './pmsPoints.js';
@@ -24346,7 +24346,74 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [stock, setStock, logActivitySafe]);
 
   // Renvoie : une phrase (action faite), { question, run } (à confirmer par oui/non) ou { nonCompris } (à redire).
+  const introuvableMulti = (p) => ({ nonCompris: `Je ne trouve pas « ${p} ». Redites le nom du produit.` });
   const executerCommande = useCallback(async (texte) => {
+    // Phrase à plusieurs actions (« je prépare 20 lasagnes, enlève le stock, mets-les en cellule, fais 20 étiquettes ») :
+    // on relit toute la liste, on attend un seul « oui », puis tout s'exécute. Un morceau incompris = on n'exécute rien ici.
+    const multi = analyserPhraseMultiple(texte);
+    if (multi && (multi.length >= 2 || ["retirer_stock", "destocker_fiche", "production"].includes(multi[0].action))) {
+      const pas = []; // { texte, run }
+      const nbTxt = (n) => String(Math.round(n * 100) / 100).replace(".", ",");
+      const ficheDe = (p) => rapprocherVocal(p, fiches, (f) => f.nom) || trouverFicheCorrespondante(p, fiches, null);
+      const destocker = (fiche, nb) => {
+        const base = parseFloat(String((fiche.formulaire && fiche.formulaire.rendement && fiche.formulaire.rendement.portions) || "").replace(",", "."));
+        const facteur = base > 0 ? nb / base : nb;
+        const ings = (fiche.ingredients || []).map((ing) => ({ ...ing, qte: (parseFloat(String(ing.quantite == null ? "" : ing.quantite).replace(",", ".")) || 0) * facteur })).filter((i) => i.qte > 0);
+        return { facteur, ings, base };
+      };
+      const etiquette = (item, nb) => ({ texte: `imprimer ${pluralVocal(nb, "étiquette")} de ${item.nom}`, run: () => { proposerEtiquetteRapide(item.nom, nb); return `${pluralVocal(nb, "étiquette")} de « ${item.nom} » prête${nb > 1 ? "s" : ""}.`; } });
+      const stockFiche = (fiche, nb) => {
+        const { facteur, ings, base } = destocker(fiche, nb);
+        if (!ings.length) return { erreur: `La fiche « ${fiche.nom} » n'a pas d'ingrédients à retirer du stock.` };
+        return { texte: `retirer du stock les ingrédients de ${nbTxt(nb)} ${fiche.nom} (recette × ${nbTxt(facteur)}${base > 0 ? `, base ${nbTxt(base)} portions` : ""})`, run: () => {
+          setStock((prev) => {
+            let next = prev;
+            ings.forEach((ing) => {
+              let qte = ing.qte;
+              const parId = ing.lienType === "stock" && ing.lienId ? next.find((x) => x.id === ing.lienId) : null;
+              const it = parId || trouverCorrespondance(ing.nom, next, (x) => x.nom);
+              if (!it) return;
+              if (ing.unite && it.unite) { const c = convertirQuantiteCout(qte, ing.unite, it.unite); if (c) qte = c.val; }
+              qte = Math.round(qte * 1000) / 1000;
+              next = next.map((x) => (x.id === it.id ? { ...x, quantite: Math.max(0, Math.round((Number(x.quantite) - qte) * 1000) / 1000) } : x));
+            });
+            return next;
+          });
+          logActivitySafe("Stock", "Destockage vocal depuis une fiche technique", `${fiche.nom} × ${nbTxt(nb)} — ${ings.map((i) => i.nom).join(", ")}`);
+          return `Stock mis à jour pour ${nbTxt(nb)} ${fiche.nom}.`;
+        } };
+      };
+      for (const a of multi) {
+        if (a.action === "retirer_stock") {
+          const item = rapprocherVocal(a.produit, stock, (x) => x.nom) || trouverStockPourRetrait(a.produit, stock);
+          if (!item) return introuvableMulti(a.produit);
+          let qte = a.quantite;
+          if (a.unite && item.unite) { const c = convertirQuantiteCout(qte, a.unite, item.unite); if (c) qte = Math.round(c.val * 1000) / 1000; }
+          pas.push({ texte: `retirer ${libelleQte(item, qte)} de ${item.nom} du stock`, run: () => { mouvementStockShared(item.id, -qte, "commande vocale"); return `Stock : -${libelleQte(item, qte)} de ${item.nom}.`; } });
+        } else if (a.action === "destocker_fiche" || a.action === "production") {
+          const fiche = ficheDe(a.produit);
+          if (!fiche) return { nonCompris: `Je ne trouve pas de fiche technique « ${a.produit} ».` };
+          const sf = stockFiche(fiche, a.nb);
+          if (sf.erreur) return { nonCompris: sf.erreur };
+          pas.push(sf);
+          if (a.action === "production") pas.push(etiquette(fiche, a.nb));
+        } else if (a.action === "etiquette_dlc") {
+          const item = rapprocherVocal(a.produit, produits, (p) => p.nom) || rapprocherVocal(a.produit, fiches, (f) => f.nom) || rapprocherVocal(a.produit, stock, (x) => x.nom);
+          if (!item) return introuvableMulti(a.produit);
+          pas.push(etiquette(item, a.nb));
+        } else {
+          const fiche = ficheDe(a.produit);
+          if (!fiche) return { nonCompris: `Je ne trouve pas de fiche technique « ${a.produit} » pour démarrer cette étape.` };
+          const lib = { demarrer_refroidissement: ["mettre", "en refroidissement", demarrerRefroidissementDepuisFiche], demarrer_cuisson: ["mettre", "en cuisson", demarrerCuissonDepuisFiche], demarrer_maintien_chaud: ["mettre", "en maintien au chaud", demarrerMaintienChaudDepuisFiche] }[a.action];
+          pas.push({ texte: `${lib[0]} ${fiche.nom} ${lib[1]}`, run: () => { lib[2](fiche.nom); return `${fiche.nom} ${lib[1]} : reste à relever la température.`; } });
+        }
+      }
+      const liste = pas.map((p, i) => `${i + 1}) ${p.texte}`).join(", ");
+      return {
+        question: pas.length === 1 ? `Voulez-vous ${pas[0].texte} ?` : `Je vais faire ${pas.length} choses : ${liste}. Je valide ?`,
+        run: () => pas.map((p) => p.run()).filter(Boolean).join(" "),
+      };
+    }
     const interpretation = await interpreterCommande(texte);
     if (!interpretation) return { nonCompris: "Je n'ai pas compris la commande." };
     const { action, produit, quantite, motif, cible } = interpretation;
@@ -24410,7 +24477,7 @@ function KitchenApp({ identiteExterne } = {}) {
     }
 
     return { nonCompris: "Je n'ai pas compris la commande." };
-  }, [stock, produits, fiches, setTab, mouvementStockShared, proposerEtiquetteRapide, demarrerCuissonDepuisFiche, demarrerRefroidissementDepuisFiche, demarrerMaintienChaudDepuisFiche]);
+  }, [stock, produits, fiches, setTab, setStock, logActivitySafe, mouvementStockShared, proposerEtiquetteRapide, demarrerCuissonDepuisFiche, demarrerRefroidissementDepuisFiche, demarrerMaintienChaudDepuisFiche]);
 
   const goToEmployee = (id) => { setSelectedEmployeeId(id); setTab("equipe"); };
   // Connexion réelle : « changer de compte » ramène à la saisie du code personnel (un autre employé tape son code). Ancien mode : liste des comptes.
