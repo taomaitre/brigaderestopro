@@ -4474,7 +4474,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
     { titre: "Cuisine", ids: ["creationFiche", "carte"] },
     { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires"] },
   ];
-  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Nettoyages à valider", pmsPrestataires: "Prestataires" };
+  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Contrôle de la journée", pmsPrestataires: "Prestataires" };
   const PARAM_EXTRAS = { "@horaires": ["horaires", "Horaires de l'équipe", Clock, "#1F8F5F", "#146B45"], "@reservations": ["reservations", "Réservations client", CalendarDays, "#1F8F5F", "#146B45"] };
   const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
   const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
