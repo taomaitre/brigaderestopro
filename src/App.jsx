@@ -15887,7 +15887,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
       {false && (
         <Card className="mb-6" id="stock-catalogue">
           <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer le catalogue produits</h3>
-          <p className="text-xs text-[var(--steel)] mb-4">Réservé au chef — ajouter un nouveau produit au stock, ou en supprimer un qui n'est plus utilisé.</p>
+          <p className="text-xs text-[var(--steel)] mb-4">Ajouter un nouveau produit au stock, ou en supprimer un qui n'est plus utilisé.</p>
 
           {modeCatalogue === null && (
             <div className="flex flex-wrap gap-3">
