@@ -5651,7 +5651,7 @@ function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrir
                             ["Type", s.conservation ? (LIBELLE_CONSERVATION[s.conservation] || s.conservation) : "—"],
                             ["DLC après ouverture", (s.delaiOuverture != null ? s.delaiOuverture : s.dlcJours) != null ? `${s.delaiOuverture != null ? s.delaiOuverture : s.dlcJours} j` : "—"],
                             ["Origine", s.origineNorme || "—"],
-                            ["Allergènes", s.allergenesNorme || "—"],
+                            ["Allergènes", s.allergenesNorme || "À vérifier"],
                             ["Poids par pièce", s.poidsParPiece || "—"],
                           ].map(([k, val]) => (
                             <div key={k}><dt className="text-[var(--steel)]">{k}</dt><dd className="text-[var(--ink)] font-medium">{val}</dd></div>
