@@ -1,5 +1,5 @@
 -- Points du PMS suivis dans le Paramétrage (fait / incomplet / pas fait, note, action prévue, responsable, échéance).
--- NON APPLIQUÉE : à appliquer le lundi 26/10 avec l'accord de Loïc, avant la mise en ligne de la mise à jour.
+-- APPLIQUÉE le 26/10 avec l'accord de Loïc.
 create table public.pms_points (
   id uuid not null default gen_random_uuid(),
   etablissement_id uuid not null,
