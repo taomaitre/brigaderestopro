@@ -2,6 +2,7 @@ import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from
 import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
+import { normaliserGroupe, comparerGroupes } from './groupesStock.js';
 import { analyserCommandeLocale, analyserPhraseMultiple, rapprocher as rapprocherVocal, reponseOuiNon, pluriel as pluralVocal } from './analyseVocale.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
@@ -5136,7 +5137,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
   const [comptage, setComptage] = useState({});
   const [valide, setValide] = useState(false);
 
-  const parCategorie = stock.reduce((acc, s) => { (acc[s.categorie || "Sans catégorie"] = acc[s.categorie || "Sans catégorie"] || []).push(s); return acc; }, {});
+  const parCategorie = Object.fromEntries(Object.entries(stock.reduce((acc, s) => { const k = normaliserGroupe(s.categorie) || "Sans catégorie"; (acc[k] = acc[k] || []).push(s); return acc; }, {})).sort(([a], [b]) => comparerGroupes(a, b)));
 
   const validerInventaire = () => {
     let ecarts = 0;
@@ -5329,15 +5330,15 @@ function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrir
     finally { setEnregistrementEnCours(false); }
   };
 
-  const parCategorie = stock.reduce((acc, s) => { (acc[s.categorie] = acc[s.categorie] || []).push(s); return acc; }, {});
+  const parCategorie = Object.fromEntries(Object.entries(stock.reduce((acc, s) => { const k = normaliserGroupe(s.categorie); (acc[k] = acc[k] || []).push(s); return acc; }, {})).sort(([a], [b]) => comparerGroupes(a, b)));
   const categories = Object.keys(parCategorie);
   // Regroupement : par fournisseur (par défaut en gestion) ou par catégorie, avec recherche.
   const [groupement, setGroupement] = useState(gestion ? "fournisseur" : "categorie");
   const [rechercheProduit, setRechercheProduit] = useState("");
   const qProd = rechercheProduit.trim().toLowerCase();
   const stockFiltre = qProd ? stock.filter((s) => `${s.nom} ${s.reference || ""} ${s.fournisseur || ""} ${s.categorie || ""}`.toLowerCase().includes(qProd)) : stock;
-  const parGroupe = stockFiltre.reduce((acc, s) => { const k = groupement === "fournisseur" ? (s.fournisseur || "Sans fournisseur") : (s.categorie || "Autres"); (acc[k] = acc[k] || []).push(s); return acc; }, {});
-  const groupes = Object.keys(parGroupe).sort((a, b) => a.localeCompare(b));
+  const parGroupe = stockFiltre.reduce((acc, s) => { const k = groupement === "fournisseur" ? (s.fournisseur || "Sans fournisseur") : (normaliserGroupe(s.categorie) || "Autres"); (acc[k] = acc[k] || []).push(s); return acc; }, {});
+  const groupes = Object.keys(parGroupe).sort(groupement === "fournisseur" ? ((a, b) => a.localeCompare(b)) : comparerGroupes);
   const aValider = gestion ? stock.filter((s) => estAValider(s.note)) : [];
 
   return (
