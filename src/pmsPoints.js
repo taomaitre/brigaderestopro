@@ -26,7 +26,7 @@ export const PMS_POINTS = [
   { id: "a-sante", cat: "A", mod: "2.3", titre: "Personne malade ou blessée : pas de manipulation des denrées, information immédiate de l'exploitant",
     aide: "Aucune personne atteinte d'une maladie susceptible d'être transmise par les aliments, ou souffrant de plaies infectées, d'infections ou lésions cutanées ou de diarrhée, ne doit manipuler les denrées s'il existe un risque de contamination ; elle informe immédiatement l'exploitant.", base: "Règlement (CE) 852/2004, annexe II, chap. VIII point 2", auto: "consigneSante" },
   { id: "a-tenue", cat: "A", mod: "2.3", titre: "Hygiène personnelle, tenue, vestiaires",
-    aide: "Voir les textes cités.", base: "Règlement (CE) 852/2004, annexe II, chap. VIII ; Code du travail R.4228-5 et R.4228-6 (vestiaires)", },
+    aide: "Un niveau élevé de propreté personnelle est exigé, avec des tenues propres et adaptées au travail (chap. VIII). Des lavabos pour se laver les mains, avec eau chaude et froide et un moyen de nettoyage et de séchage hygiénique, sont prévus dans les locaux (chap. I). Des vestiaires sont exigés quand l'hygiène l'impose.", base: "Règlement (CE) 852/2004, annexe II, chap. I et chap. VIII ; Code du travail R.4228-5 et R.4228-6 (vestiaires)", },
   { id: "a-registre-personnel", cat: "A", mod: "2.1", titre: "Registre unique du personnel tenu (hors du logiciel)",
     aide: "Obligation d'employeur distincte du PMS ; ne rien saisir d'adresse personnelle, de date de naissance ni de santé dans le logiciel.", base: "Code du travail, art. L.1221-13 et D.1221-23", },
   { id: "a-equipe", cat: "A", mod: "2.1", titre: "Équipe créée dans le logiciel (un compte par personne, avec son poste)",
