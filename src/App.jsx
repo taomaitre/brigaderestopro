@@ -7,6 +7,7 @@ import { analyserCommandeLocale, analyserPhraseMultiple, rapprocher as rapproche
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { PMS_POINTS, ETATS_POINT_PMS, pointsDeCategorie, bilanPointsPms } from './pmsPoints.js';
+import { GRILLE_CHAPITRES, GRILLE_LIEN } from './grilleInspection.js';
 import LexiqueReglementaire from './LexiqueReglementaire.jsx';
 import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
@@ -2378,6 +2379,66 @@ function PmsBilanPoints({ pms, locales }) {
   );
 }
 
+
+// Préparation à l'inspection : la grille officielle (vade-mecum général et « Remise directe », ministère de l'Agriculture) dans l'ordre de l'inspecteur,
+// avec pour chaque item l'état de vos points du Dossier PMS. C'est une aide à la préparation : seule l'inspection donne une note.
+function PmsPreparationInspection({ pms, locales }) {
+  const reponses = pmsReponsesPoints(pms, locales);
+  const couleur = (e) => (ETATS_POINT_PMS.find((x) => x.value === e) || { couleur: "#C1432D" }).couleur;
+  const libelleEtat = { fait: "Fait", incomplet: "Incomplet", pas_fait: "Pas fait" };
+  const etatItem = (item) => {
+    const etats = item.points.map((id) => (reponses[id] && reponses[id].etat) || "pas_fait");
+    if (etats.some((e) => e === "pas_fait")) return "pas_fait";
+    if (etats.some((e) => e === "incomplet")) return "incomplet";
+    return "fait";
+  };
+  const tous = GRILLE_CHAPITRES.flatMap((c) => c.items.map((it) => ({ ...it, lettre: c.lettre, etat: etatItem(it) })));
+  const aTraiter = tous.filter((it) => it.etat !== "fait");
+  const prioritaires = aTraiter.filter((it) => it.d && it.d.length);
+  const titrePoint = (id) => { const p = PMS_POINTS.find((x) => x.id === id); return p ? p.titre : id; };
+  return (
+    <Card className="mb-4">
+      <h3 className="font-semibold text-[var(--ink)]">Préparation à l'inspection : la grille de l'inspecteur, point par point</h3>
+      <p className="text-sm text-[var(--steel)] mb-2">L'inspecteur suit une grille officielle publique : 6 chapitres (A à F). Ici, chaque ligne de la grille est reliée à vos points du Dossier PMS. Un « D » à l'inspection (écart majeur) fait tomber tout le chapitre : traitez d'abord les lignes en rouge. La note n'est donnée que par l'inspecteur.</p>
+      <p className="text-sm text-[var(--ink)] mb-3"><span className="font-bold">{tous.length - aTraiter.length}</span> ligne{tous.length - aTraiter.length > 1 ? "s" : ""} prête{tous.length - aTraiter.length > 1 ? "s" : ""} sur {tous.length}{prioritaires.length ? <> · <span className="font-bold" style={{ color: "#C1432D" }}>{prioritaires.length} à traiter en priorité</span></> : null}</p>
+      <div className="space-y-2">
+        {GRILLE_CHAPITRES.map((c) => (
+          <details key={c.lettre} className="rounded-xl border border-[var(--cadre)] bg-white">
+            <summary className="cursor-pointer px-3 py-2.5 text-sm font-bold text-[var(--ink)] flex items-center gap-2">
+              <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs shrink-0" style={{ background: "#475569" }}>{c.lettre}</span>
+              <span className="flex-1">{c.titre}</span>
+              <span className="text-xs font-semibold text-[var(--steel)]">{c.items.filter((it) => etatItem(it) === "fait").length}/{c.items.length} prêtes</span>
+            </summary>
+            <div className="px-3 pb-3 space-y-2">
+              {c.items.map((it) => { const e = etatItem(it); const urgent = e !== "fait" && it.d && it.d.length; return (
+                <details key={it.code} className="rounded-lg border" style={{ borderColor: urgent ? "#C1432D" : "var(--cadre)", borderLeftWidth: 5, borderLeftColor: couleur(e) }}>
+                  <summary className="cursor-pointer px-3 py-2 text-sm text-[var(--ink)] flex items-start gap-2">
+                    <span className="font-bold shrink-0">{it.code}</span>
+                    <span className="flex-1">{it.titre}</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white shrink-0" style={{ background: couleur(e) }}>{libelleEtat[e]}</span>
+                  </summary>
+                  <div className="px-3 pb-3 text-sm text-[var(--ink)] space-y-2">
+                    <p><span className="text-xs font-semibold text-[var(--steel)] uppercase">Ce que l'inspecteur regarde</span><br />{it.regarde}</p>
+                    {it.d && it.d.length > 0 && <div><span className="text-xs font-semibold uppercase" style={{ color: "#C1432D" }}>Écarts majeurs (note D)</span><ul className="list-disc pl-5">{it.d.map((x) => <li key={x}>{x}</li>)}</ul></div>}
+                    {it.c && it.c.length > 0 && <div><span className="text-xs font-semibold uppercase" style={{ color: "#B7791F" }}>Écarts moyens (note C)</span><ul className="list-disc pl-5">{it.c.map((x) => <li key={x}>{x}</li>)}</ul></div>}
+                    <div><span className="text-xs font-semibold text-[var(--steel)] uppercase">Vos points du Dossier PMS</span>
+                      <ul className="mt-0.5">{it.points.map((id) => { const et = (reponses[id] && reponses[id].etat) || "pas_fait"; return (
+                        <li key={id} className="flex items-start gap-2 py-0.5"><span className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style={{ background: couleur(et) }} /><span className="flex-1">{titrePoint(id)}</span><span className="text-xs text-[var(--steel)] shrink-0">{libelleEtat[et]}</span></li>
+                      ); })}</ul>
+                    </div>
+                    <p className="text-xs text-[var(--steel)]">Où le faire : {it.ou}</p>
+                  </div>
+                </details>
+              ); })}
+            </div>
+          </details>
+        ))}
+      </div>
+      <p className="text-xs text-[var(--steel)] mt-3">Sources : vade-mecum général V7 et vade-mecum « Remise directe » V3 (sept. 2026), vade-mecum « Retraits/rappels » V2. Liste : <a href={GRILLE_LIEN} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#1D4ED8" }}>agriculture.gouv.fr ↗</a>. Aide pédagogique : le PMS de l'établissement fait foi.</p>
+    </Card>
+  );
+}
+
 function PmsPlanAction({ pms, locales }) {
   const reponses = pmsReponsesPoints(pms, locales);
   const aFaire = PMS_POINTS.filter((p) => { const e = reponses[p.id] && reponses[p.id].etat; return e !== "fait"; });
@@ -2440,6 +2501,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
   return (
     <div>
       <PmsBilanPoints pms={pms} locales={locales} />
+      <PmsPreparationInspection pms={pms} locales={locales} />
       <div className="flex flex-wrap gap-2 mb-4">
         {PMS_CATEGORIES.map((c) => (
           <button key={c.id} type="button" onClick={() => aller(c.id)} className="inline-flex items-center gap-2 min-h-[40px] pl-1.5 pr-3 rounded-full border-2 text-sm font-bold bg-white" style={{ borderColor: c.zone.bord, color: c.zone.texte }}>

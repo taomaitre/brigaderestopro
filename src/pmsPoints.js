@@ -7,6 +7,9 @@ export const ETATS_POINT_PMS = [
   { value: "pas_fait", label: "Pas fait", couleur: "#C1432D" },
 ];
 
+const VMG_V7 = "Vade-mecum général V7 sept. 2026 (ministère de l'Agriculture)";
+const VMS_RD = "Vade-mecum sectoriel « Remise directe » V3 sept. 2026 (ministère de l'Agriculture)";
+
 export const PMS_POINTS = [
   // ---------- A — Société, direction, employés (modules 1 et 2) ----------
   { id: "a-declaration", cat: "A", mod: "1.3", titre: "Établissement notifié à l'autorité compétente (déclaration d'activité, Cerfa 13984)",
@@ -17,6 +20,8 @@ export const PMS_POINTS = [
     aide: "Exploitant et personne responsable de la mise au point et du maintien de la procédure HACCP.", base: "Règlement (CE) 852/2004, art. 1(1)(a) : « la responsabilité première en matière de sécurité alimentaire incombe à l'exploitant du secteur alimentaire » ; annexe II, chap. XII point 2", auto: "referent" },
   { id: "a-activite", cat: "A", mod: "1.2", titre: "Activité de l'établissement décrite",
     aide: "Description de l'activité, proportionnée à la nature et à la taille de l'entreprise.", base: "Règlement (CE) 852/2004, art. 5 §2 g)", auto: "fiche" },
+  { id: "a-effectif", cat: "A", mod: "1.2", titre: "Effectif au contact des denrées : 5 personnes ou moins ? (souplesse possible)",
+    aide: "Avec 5 personnes physiques ou moins au contact des denrées (cuisine, vente), l'établissement peut bénéficier de mesures de flexibilité : procédures orales acceptées, enregistrements limités aux écarts et aux mesures correctives pour les bonnes pratiques d'hygiène. Cuissons, refroidissements, maintien au chaud et préparations à risque restent à documenter complètement, sauf guide de bonnes pratiques évalué. La souplesse peut être suspendue si l'inspecteur constate des manquements.", base: VMG_V7 + ", chapitre II.B.3 (cite l'instruction DGAL/SDSSA/2018-924 du 7/01/2019, non relue)", },
   { id: "a-formation14", cat: "A", mod: "2.2", titre: "Formation hygiène de 14 h : au moins UNE personne de l'effectif formée (ou dérogation)",
     aide: "Pas d'obligation par employé. Dérogations : 3 ans d'expérience comme exploitant ou gestionnaire, ou diplôme de la liste de l'arrêté du 18/11/2024. Justificatifs présentables sur place.", base: "Code rural, art. L.233-4 et D.233-11 à D.233-13 ; arrêté du 12/02/2024", auto: "formation14" },
   { id: "a-formation-haccp", cat: "A", mod: "2.2", titre: "Formation HACCP de la personne qui établit et maintient le PMS",
@@ -35,8 +40,16 @@ export const PMS_POINTS = [
   // ---------- B — Locaux, nettoyage, prestataires (module 4) ----------
   { id: "b-plan", cat: "B", mod: "4.1", titre: "Locaux : conception et organisation",
     aide: "Les locaux sont propres et en bon état. Là où l'on prépare les denrées, les sols, murs et surfaces de travail sont lisses, lavables et non absorbants. Les toilettes n'ouvrent pas directement sur les locaux de manipulation. L'air ne circule pas d'une zone contaminée vers une zone propre (chap. I et II).", base: "Règlement (CE) 852/2004, annexe II, chap. I et II", auto: "plan" },
+  { id: "b-hotte", cat: "B", mod: "4.1", titre: "Hotte et ventilation : ramonage du conduit, certificat d'entretien hotte et VMC",
+    aide: "Le ramonage du conduit de la hotte d'extraction est réalisé périodiquement et le certificat d'entretien du conduit de la hotte et des VMC est disponible. L'inspecteur teste la capacité d'extraction avec une feuille d'essuie-tout devant la grille. Une casquette de hotte est préconisée pour éviter la condensation ; l'entrée d'air neuf doit être suffisante pour ne pas mettre la cuisine en dépression. Le texte ne fixe pas de fréquence : notez celle de votre prestataire.", base: VMS_RD + ", lignes B1L05 et B4L03", auto: "presta:entretien_materiel" },
+  { id: "b-salle", cat: "B", mod: "4.1", titre: "Salle de restaurant : pas de source de contamination pour les denrées",
+    aide: "Plantes éloignées des circuits des denrées. Seuls lieux de manipulation en salle : l'office (desserts, pain) et la desserte ou le chariot (découpe, flambage devant le client). Toilettes clients et personnel peuvent être communes ; elles peuvent donner sur la salle, mais pas sur une zone de manipulation.", base: VMS_RD + ", ligne B1L07", },
   { id: "b-equipements", cat: "B", mod: "4.2", titre: "Équipements entretenus et nettoyés",
     aide: "Les équipements sont nettoyés et désinfectés à une fréquence suffisante, et installés de façon à pouvoir aussi nettoyer la zone autour (chap. V).", base: "Règlement (CE) 852/2004, annexe II, chap. V", auto: "appareils" },
+  { id: "b-sondes", cat: "B", mod: "4.2", titre: "Sondes et thermomètres vérifiés",
+    aide: "L'étalonnage des appareils de mesure n'est pas exigé en remise directe, mais leur vérification l'est. Absence ou défaut de vérification : note C à l'inspection. Notez la date et le moyen de vérification (eau glacée, comparaison avec une sonde de référence…).", base: VMS_RD + ", ligne B2L04 ; " + VMG_V7 + ", ligne B2L01", },
+  { id: "b-produits-entretien", cat: "B", mod: "4.3", titre: "Produits d'entretien, de maintenance et contre les nuisibles : étiquetés, rangés loin des denrées",
+    aide: "Dans leur emballage d'origine ou un récipient fermé et étiqueté en permanence ; rangés dans un local ou un meuble à part, loin des denrées (petit stock d'appoint dans un meuble approprié toléré) ; fiches techniques conservées ; utilisés selon le mode d'emploi du fabricant. Produit contre les nuisibles : numéro d'autorisation sur l'étiquette. Pas de transvasement en bouteille non étiquetée. Biocides stockés près des denrées : note D.", base: VMG_V7 + ", lignes B3L02, B4L02, B5L02 ; " + VMS_RD + ", lignes B3L01 et B5L01", },
   { id: "b-nettoyage", cat: "B", mod: "4.3", titre: "Nettoyage à une fréquence suffisante pour éviter tout risque de contamination",
     aide: "Nettoyage « à une fréquence suffisante pour éviter tout risque de contamination » (annexe II, chap. V §1 a). Le texte ne fixe aucune fréquence chiffrée.", base: "Règlement (CE) 852/2004, annexe II, chap. I et V", auto: "nettoyage" },
   { id: "b-fds", cat: "B", mod: "4.3", titre: "Fiches de données de sécurité des produits",
@@ -48,7 +61,7 @@ export const PMS_POINTS = [
   { id: "b-dechets", cat: "B", mod: "4.4", titre: "Déchets et biodéchets",
     aide: "Les déchets sont retirés des locaux de manipulation aussi vite que possible et rangés dans des conteneurs fermés, avec une aire de stockage propre (chap. VI). Biodéchets : loi AGEC, texte non relu ici.", base: "Règlement (CE) 852/2004, annexe II, chap. VI ; loi AGEC (biodéchets)", auto: "presta:dechets" },
   { id: "b-huiles", cat: "B", mod: "4.4", titre: "Huiles usagées",
-    aide: "Aucun texte relu ici : rien d'autre n'est affiché tant que ce point n'est pas vérifié.", base: "Texte non relu", auto: "presta:huiles_usagees" },
+    aide: "Les huiles de friture usagées (HCU) ne vont ni aux ordures ménagères, ni dans les canalisations ou le bac à graisse, ni dans l'environnement (art. R.1331-2 du Code de la santé publique). Elles sont enlevées par une entreprise mandatée en vue de leur valorisation (biocarburant). Gardez le contrat et le bordereau d'enlèvement : l'inspecteur demande quoi, qui, quand, comment, et l'autorisation du collecteur. L'établissement de destination doit être approuvé par la DDecPP.", base: VMS_RD + ", ligne E2L02", auto: "presta:huiles_usagees" },
   { id: "b-labo", cat: "B", mod: "4.4", titre: "Laboratoire d'analyses",
     aide: "Aucun texte lu ne fixe de fréquence d'analyses pour un restaurant.", base: "Règlement (CE) 2073/2005 (critères microbiologiques)", auto: "presta:laboratoire" },
   { id: "b-eau", cat: "B", mod: "4.5", titre: "Approvisionnement en eau",
@@ -63,6 +76,8 @@ export const PMS_POINTS = [
     aide: "Chaque famille de denrées a sa température maximale à réception (annexe I). Exemples : +2 °C viandes hachées et produits de la pêche frais, +4 °C volailles, -18 °C glaces, viandes hachées et produits de la pêche congelés, -12 °C autres produits congelés. Les matières premières reconnues impropres sont refusées (chap. IX point 1).", base: "Arrêté du 21/12/2009, annexe I ; règlement (CE) 852/2004, annexe II, chap. IX", auto: "receptions" },
   { id: "c-limites", cat: "C", mod: "3.2", titre: "Limites de température à la réception",
     aide: "Maximales (sauf guide validé) : viande hachée +2 °C ; abats d'ongulés +3 °C ; préparations de viandes et volailles +4 °C ; autres très périssables +4 °C ; autres périssables +8 °C ; congelés −12 °C (glaces −18 °C).", base: "Arrêté du 21/12/2009, annexe I et art. 3", },
+  { id: "c-conditionnements", cat: "C", mod: "3.2", titre: "Emballages et conditionnements aptes au contact alimentaire",
+    aide: "Pas d'alvéoles d'œufs, de cartons ni de palettes en zone de production. Pas de bouteilles d'eau ni de pots de crème réutilisés comme contenants ; pas de sacs poubelle pour stocker des denrées (pain par exemple). Déclaration de conformité contact alimentaire des matériaux (bacs, couvercles, films). Bacs et couvercles déformés remplacés. Conditionnements sales ou non aptes : note D.", base: VMS_RD + ", lignes C402L01 à C402L03 ; règlement (CE) 1935/2004, art. 15", },
   { id: "c-tracabilite", cat: "C", mod: "3.3", titre: "Traçabilité amont",
     aide: "Savoir qui vous fournit et pouvoir le prouver. Aucune durée de conservation générale confirmée pour un restaurant dans nos lectures (le logiciel garde le texte 5 ans et les photos 6 mois).", base: "Règlement (CE) 178/2002, art. 18", },
 
@@ -77,10 +92,14 @@ export const PMS_POINTS = [
     aide: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C : texte écrit pour la restauration collective.", base: "Arrêté du 21/12/2009, annexe IV", auto: "refroidissements" },
   { id: "d-maintien", cat: "D", mod: "5.1", titre: "Maintien au chaud",
     aide: "Sous 63 °C, aucune règle écrite.", base: "Arrêté du 21/12/2009, annexe I (liaison chaude)", auto: "maintiens" },
+  { id: "d-dlc", cat: "D", mod: "5.1", titre: "Aucune DLC dépassée en cuisine ni exposée à la vente",
+    aide: "Produit dont la DLC est dépassée, exposé à la vente ou susceptible de l'être, reflétant une défaillance de maîtrise : note D (réception, températures, produits finis). Le logiciel affiche les produits à DLC du jour ; contrôle quotidien à faire.", base: VMG_V7 + ", lignes directrices de C3, C401, C6", },
   { id: "d-huile", cat: "D", mod: "5.1", titre: "Huile de friture",
-    aide: "Voir le guide cité.", base: "Guide du restaurateur 2015", auto: "huiles" },
+    aide: "Teneur en composés polaires : 25 % maximum ; polymères de triglycérides : 14 % maximum (décret 2008-184). Au-delà, l'huile devient une huile usagée. Recommandation : friture à moins de +175 °C, moins de 10 minutes, frites jaune or ; filtrer l'huile souvent et éliminer les résidus carbonés. L'établissement doit prouver la qualité testée régulièrement (bandelettes, testeur électronique). Le texte ne fixe pas de fréquence de test.", base: VMS_RD + ", ligne C403L08 ; décret n° 2008-184", auto: "huiles" },
   { id: "d-decongelation", cat: "D", mod: "5.1", titre: "Décongélation",
     aide: "Décongélation en enceinte réfrigérée entre 0 °C et la température maximale de conservation de la denrée, à défaut entre 0 °C et +4 °C. Autre méthode possible avec une analyse des dangers validée.", base: "Arrêté du 21/12/2009, annexe VI", },
+  { id: "d-legumes", cat: "D", mod: "5.1", titre: "Lavage des fruits et légumes",
+    aide: "Lavage dans un emplacement dédié (légumerie) ou dans la plonge si les opérations sont séparées dans le temps, ou avec un matériel dédié. Légumineuses sèches lavées selon leur fiche technique. Si décontamination : produit autorisé utilisé selon l'étiquette (produit chloré type eau de Javel) ; pas de pastilles de dichloroisocyanurate de sodium.", base: VMS_RD + ", ligne C403L04", },
   { id: "d-verification", cat: "D", mod: "5.2", titre: "Vérification périodique de l'efficacité des mesures",
     aide: "Procédures « exécutées périodiquement pour vérifier l'efficacité des mesures ». Le texte ne fixe aucune périodicité chiffrée ni revue annuelle.", base: "Règlement (CE) 852/2004, art. 5(2)(f)", },
   { id: "d-labo", cat: "D", mod: "5.3", titre: "Analyses de laboratoire",
@@ -93,16 +112,20 @@ export const PMS_POINTS = [
     aide: "Information sur les allergènes.", base: "Règlement (UE) 1169/2011, art. 44 ; décret 2015-447", auto: "allergenes" },
   { id: "e-origine", cat: "E", mod: "6.3", titre: "Origine des viandes",
     aide: "Obligatoire ; son absence peut être sanctionnée d'une contravention de 5ᵉ classe.", base: "Décret 2025-141", auto: "origine" },
+  { id: "e-affichette", cat: "E", mod: "6.3", titre: "Affichette du niveau d'hygiène (Alim'Confiance), si vous l'affichez",
+    aide: "Si l'exploitant choisit d'afficher son niveau d'hygiène : visible du client, non falsifiée, celle de l'établissement et du dernier contrôle, retirée un an après la date du contrôle. Falsification : note C.", base: VMS_RD + ", ligne C7L02", },
   { id: "e-tiac", cat: "E", mod: "6.4", titre: "Toxi-infection alimentaire collective (TIAC)",
     aide: "Procédure en 7 étapes dans « Procédure de TIAC ».", base: "Règlement (CE) 178/2002 (texte non relu)", },
   { id: "e-rappel", cat: "E", mod: "6.5", titre: "Retrait et rappel de produits",
-    aide: "Le logiciel vérifie vos produits sur RappelConso.", base: "Règlement (CE) 178/2002, art. 19", },
+    aide: "Le logiciel vérifie vos produits sur RappelConso. À l'inspection : produit rappelé encore présent plus d'une demi-journée après l'alerte = D. Retirer, isoler et marquer « non destiné à la consommation humaine », afficher l'information aux clients (au moins 15 jours d'ouverture pour les produits frais, 2 mois pour surgelés, conserves et secs), prévenir ceux à qui vous avez cédé le produit. Voir le lexique : « Contrôle officiel 4 ».", base: "Règlement (CE) 178/2002, art. 19 ; vade-mecum « Retraits/rappels en remise directe » V2 sept. 2026", },
 
   // ---------- F — Non-conformités (module 7) ----------
   { id: "f-registre", cat: "F", mod: "7", titre: "Actions correctives",
     aide: "Actions correctives (principe HACCP e).", base: "Règlement (CE) 852/2004, art. 5(2)(e)", auto: "alertes" },
   { id: "f-efficacite", cat: "F", mod: "7", titre: "Vérification de l'efficacité des actions correctives",
     aide: "Vérification de l'efficacité (principe HACCP f).", base: "Règlement (CE) 852/2004, art. 5(2)(e) et (f)", },
+  { id: "f-suites", cat: "F", mod: "7", titre: "Suites données au dernier contrôle et changements depuis (tenus par écrit)",
+    aide: "À l'ouverture du contrôle, l'inspecteur rappelle les non-conformités du contrôle précédent, demande ce qui a été fait (c'est la « réactivité », item D2) et ce qui a changé (travaux, nouveau matériel, nouveaux produits). Gardez la liste des écarts relevés, la date et la preuve de chaque correction.", base: VMG_V7 + ", chapitre II.C.2 et item D2", },
 
   // ---------- G — Documents (module 8) ----------
   { id: "g-echeances", cat: "G", mod: "8", titre: "Documents et dossiers prouvant l'application des mesures",
