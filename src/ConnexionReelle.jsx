@@ -24,12 +24,34 @@ import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois } from './ficheEtabli
 const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
 const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
 // Tables de l'établissement incluses dans la sauvegarde (la table des comptes n'est lisible que par les fonctions du serveur).
-const TABLES_SAUVEGARDE = ["etablissements", "fournisseurs", "prestataires", "produits", "lots_produits", "receptions", "receptions_photos_bon", "receptions_lignes", "notifications_fournisseurs", "fiches_techniques", "fiches_techniques_ingredients", "fiches_techniques_procedes", "fiches_techniques_allergenes", "fiches_techniques_etapes", "fiches_techniques_materiel", "cuissons", "maintiens_chaud", "refroidissements", "etiquettes", "tracabilites", "tracabilites_photos", "appareils", "releves_temperature", "huile_friture_tests", "allergenes_reference", "rappelconso_alertes", "tiac_declarations", "planning_creneaux", "taches", "reservations", "pms_taches", "pms_executions", "journal_activite", "inventaires_mensuels", "inventaires_lignes", "alertes_ia", "surveillances_temperature", "demandes_ajout", "cartes", "horaires_service", "pms_formations", "pms_documents"];
+const TABLES_SAUVEGARDE = ["etablissements", "fournisseurs", "prestataires", "produits", "lots_produits", "receptions", "receptions_photos_bon", "receptions_lignes", "notifications_fournisseurs", "fiches_techniques", "fiches_techniques_ingredients", "fiches_techniques_procedes", "fiches_techniques_allergenes", "fiches_techniques_etapes", "fiches_techniques_materiel", "cuissons", "maintiens_chaud", "refroidissements", "etiquettes", "tracabilites", "tracabilites_photos", "appareils", "releves_temperature", "huile_friture_tests", "allergenes_reference", "rappelconso_alertes", "tiac_declarations", "planning_creneaux", "taches", "reservations", "pms_taches", "pms_executions", "journal_activite", "inventaires_mensuels", "inventaires_lignes", "alertes_ia", "surveillances_temperature", "demandes_ajout", "cartes", "horaires_service", "pms_formations", "pms_documents", "pms_points"];
 const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
 const URL_FONCTION_IA = `${URL_PROJET}/functions/v1/ia-gemini`;
 const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`;
 
 const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
+
+// Une adresse = un établissement (décision du 24/10). Chaque client a son sous-domaine ; un compte d'un autre
+// établissement n'ouvre jamais le logiciel d'une autre adresse (isolement). Autres adresses (ordinateur de Loïc,
+// adresse principale, futurs clients non encore listés) : aucune restriction.
+const ETABLISSEMENT_PAR_ADRESSE = {
+  "macuisine.brigaderestopro.fr": "c1b9b852-a333-433b-8cff-14ffdcff3c1f",
+  "demo.brigaderestopro.fr": "02073db5-5cff-46ee-8d35-eade94601f94",
+};
+const ETABLISSEMENT_DE_CETTE_ADRESSE = (() => {
+  try { return ETABLISSEMENT_PAR_ADRESSE[String(window.location.hostname || "").toLowerCase()] || null; } catch (e) { return null; }
+})();
+// Adresse d'un client (sous-domaine autre que la démo) : pas de « Changer d'établissement ».
+const ADRESSE_CLIENT = (() => {
+  try {
+    const hote = String(window.location.hostname || "").toLowerCase();
+    return /^[a-z0-9-]+\.brigaderestopro\.fr$/.test(hote) && !/^(demo|www)\./.test(hote);
+  } catch (e) { return false; }
+})();
+const MESSAGE_AUTRE_ADRESSE = "Ce compte n'appartient pas à cette adresse. Utilisez l'adresse de votre établissement.";
+function etablissementAutorise(id) {
+  return !ETABLISSEMENT_DE_CETTE_ADRESSE || id === ETABLISSEMENT_DE_CETTE_ADRESSE;
+}
 
 // En ligne (hors ordinateur de Loïc) : plus de bandeau noir « Prévisualisation » au-dessus de l'application.
 const ADRESSE_EN_LIGNE = (() => {
@@ -370,7 +392,7 @@ export default function ConnexionReelle() {
       (rl.data || []).forEach((l) => { if (!dernierLot.has(l.produit_id)) dernierLot.set(l.produit_id, l); });
       setFournisseursCat(rf.data || []);
       const liste = (rp.data || []).map((p) => ({
-        id: p.id, nom: p.nom, categorie: p.categorie || "Autres", conservation: p.conservation || "",
+        id: p.id, nom: p.nom, categorie: p.conservation === "surgele" ? "Surgelés" : (p.categorie || "Autres"), conservation: p.conservation || "",
         typeDate: p.type_date || "", dlcJours: p.delai_jours_dlc == null ? null : Number(p.delai_jours_dlc), delaiOuverture: p.delai_apres_ouverture_jours == null ? null : Number(p.delai_apres_ouverture_jours),
         decongelMethode: p.decongel_methode || "", decongelJours: p.decongel_jours == null ? null : Number(p.decongel_jours), decongelSource: p.decongel_source || "",
         fournisseur: (p.fournisseurs && p.fournisseurs.nom) || "",
@@ -810,12 +832,13 @@ export default function ConnexionReelle() {
         setPmsDonnees((d) => ({ ...d, charge: true, complet: false, prestataires: [], formations: [], documents: [] }));
         return;
       }
-      const [rp, rf, rd] = await Promise.all([
+      const [rp, rf, rd, rpt] = await Promise.all([
         supabasePublic.from("prestataires").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_formations").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_documents").select("*").order("created_at", { ascending: false }),
+        supabasePublic.from("pms_points").select("*"), // points du PMS (fait / incomplet / pas fait) ; absent tant que la table n'est pas créée
       ]);
-      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], formations: rf.data || [], documents: rd.data || [] }));
+      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], formations: rf.data || [], documents: rd.data || [], points: (rpt && rpt.data) || [] }));
     } catch (e) { console.error("Dossier PMS non chargé :", e); }
   }
   const versNull = (v) => (v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim());
@@ -890,6 +913,23 @@ export default function ConnexionReelle() {
     const { data, error } = await supabasePublic.storage.from("pms-documents").createSignedUrl(doc.chemin, 120);
     if (error || !data) { console.error("Lien du document indisponible :", error); return null; }
     return data.signedUrl;
+  }
+  // Un point du PMS : état (fait / incomplet / pas_fait), note, action prévue, responsable, échéance. Une ligne par établissement et par point.
+  async function enregistrerPointPms(pointId, champs) {
+    const actuel = (pmsDonnees.points || []).find((l) => l.point_id === pointId) || {};
+    const ligne = {
+      etablissement_id: session.etablissement.id, point_id: pointId,
+      etat: champs.etat !== undefined ? champs.etat : (actuel.etat || null),
+      note: champs.note !== undefined ? versNull(champs.note) : (actuel.note || null),
+      action: champs.action !== undefined ? versNull(champs.action) : (actuel.action || null),
+      responsable: champs.responsable !== undefined ? versNull(champs.responsable) : (actuel.responsable || null),
+      echeance: champs.echeance !== undefined ? versNull(champs.echeance) : (actuel.echeance || null),
+      updated_at: new Date().toISOString(),
+    };
+    const rep = await supabasePublic.from("pms_points").upsert(ligne, { onConflict: "etablissement_id,point_id" });
+    if (rep.error) { console.error("Point PMS non enregistré :", rep.error); return false; }
+    setPmsDonnees((d) => ({ ...d, points: [...(d.points || []).filter((l) => l.point_id !== pointId), ligne] }));
+    return true;
   }
   async function terminerDemarragePms(valeur) {
     setPmsDonnees((d) => ({ ...d, demarrageTermine: !!valeur }));
@@ -1098,6 +1138,10 @@ export default function ConnexionReelle() {
         const { data, error } = await supabasePublic.auth.verifyOtp({ token_hash: rep.token_hash, type: rep.type });
         if (error) throw error;
         const meta = data.user.user_metadata || {};
+        if (!etablissementAutorise(meta.etablissement_id)) {
+          try { await supabasePublic.auth.signOut(); } catch (e3) { /* pas grave */ }
+          throw new Error(MESSAGE_AUTRE_ADRESSE);
+        }
         setSession({
           token: data.session.access_token,
           etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" },
@@ -1149,6 +1193,10 @@ export default function ConnexionReelle() {
       const { data, error } = await supabasePublic.auth.signInWithPassword({ email, password: motDePasse });
       if (error) throw error;
       const meta = data.user.user_metadata || {};
+      if (!etablissementAutorise(meta.etablissement_id)) {
+        try { await supabasePublic.auth.signOut(); } catch (e3) { /* pas grave */ }
+        throw new Error(MESSAGE_AUTRE_ADRESSE);
+      }
       setSession({
         token: data.session.access_token,
         etablissement: { id: meta.etablissement_id, nom: meta.nom_etablissement || "(nom inconnu)" },
@@ -1157,7 +1205,7 @@ export default function ConnexionReelle() {
       chargerEquipe(data.session.access_token, null);
       setChoixNoms(true);
     } catch (e2) {
-      setErreur("Connexion impossible : " + e2.message);
+      setErreur(e2.message === MESSAGE_AUTRE_ADRESSE ? e2.message : "Connexion impossible : " + e2.message);
     } finally {
       setEnCours(false);
     }
@@ -1250,6 +1298,7 @@ export default function ConnexionReelle() {
         const s = data && data.session;
         const meta = (s && s.user && s.user.user_metadata) || {};
         if (!s || !meta.etablissement_id) return;
+        if (!etablissementAutorise(meta.etablissement_id)) { try { await supabasePublic.auth.signOut(); } catch (e3) { /* pas grave */ } return; }
         const rep = await appelerEmployes(s.access_token, "lister", {});
         if (annule) return;
         const liste = rep.employes || [];
@@ -1365,7 +1414,7 @@ export default function ConnexionReelle() {
       },
       reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
         suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
-        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
+        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,
@@ -1635,7 +1684,7 @@ export default function ConnexionReelle() {
               </form>
             </div>
           )}
-          <button onClick={seDeconnecter} className="block mx-auto text-sm text-[var(--steel)] mt-4 underline">← Changer d'établissement</button>
+          {!ADRESSE_CLIENT && <button onClick={seDeconnecter} className="block mx-auto text-sm text-[var(--steel)] mt-4 underline">← Changer d'établissement</button>}
         </CarteConnexion>
         <BandeauFonctions />
         <VersionConnexion />

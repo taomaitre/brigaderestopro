@@ -18,4 +18,6 @@ const identite = {
   verifierCodeChef: estChef ? async () => ({ ok: true }) : undefined,
   changerDeCompte: () => {},
 };
+// ?pms=1 : abonnement Complet fictif (dossier PMS avec ses points), sans aucune base.
+if (q.get('pms') === '1') identite.reglagesEtablissement = { nom: 'Banc', fiche: {}, pms: { prestataires: [], formations: [], documents: [], points: [], demarrageTermine: true, enregistrerPrestataire: async () => true, enregistrerFormation: async () => true, ajouterDocument: async () => ({ ok: true }) } };
 ReactDOM.createRoot(document.getElementById('root')).render(<App identiteExterne={identite} />);

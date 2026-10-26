@@ -189,6 +189,12 @@ await parcours('Vrai mode, chef : le menu du Paramétrage est dans la bande noir
   await p.locator('aside button >> text="Fournisseurs"').first().click(); await p.waitForTimeout(1000);
   const t2 = await p.innerText('main');
   verifier(/Coordonnées, jours de commande et de livraison/.test(t2) && !/Ajouter un produit/.test(t2), 'l’écran Fournisseurs doit montrer les fournisseurs, sans « Ajouter un produit »');
+  await p.locator('aside button:has-text("Horaires de")').first().click(); await p.waitForTimeout(1000);
+  verifier(/Heures de service|Planning/.test(await p.innerText('main')), 'les horaires ne s’ouvrent pas depuis le Paramétrage');
+  verifier(/Comptes de/.test(await p.locator('aside').first().innerText()) && !/Tâches du jour/.test(await p.locator('aside').first().innerText()), 'le menu du Paramétrage doit rester à gauche quand on ouvre les horaires');
+  await p.locator('aside button:has-text("Réservations client")').first().click(); await p.waitForTimeout(1000);
+  verifier(/Comptes de/.test(await p.locator('aside').first().innerText()), 'le menu du Paramétrage doit rester à gauche pour les réservations');
+  await p.locator('aside button >> text="Fournisseurs"').first().click(); await p.waitForTimeout(800);
   await p.locator('aside >> text="Retour à l\'accueil"').first().click(); await p.waitForTimeout(800);
   verifier(/Suivi et contrôle/.test(await p.locator('aside').first().innerText()), 'le retour à l’accueil ne remet pas le menu normal');
   verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
