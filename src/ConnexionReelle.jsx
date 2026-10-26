@@ -382,7 +382,7 @@ export default function ConnexionReelle() {
     try {
       const [rf, rp, rl] = await Promise.all([
         supabasePublic.from("fournisseurs").select("id, nom, contact_nom, telephone, email, adresse, numero_client, jours_livraison, planning_commande, planning_livraison, note, coordonnees_a_completer").order("nom"),
-        supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, type_date, delai_jours_dlc, delai_apres_ouverture_jours, delai_apres_fabrication_jours, decongel_methode, decongel_jours, decongel_source, allergenes_norme, origine_norme, fournisseurs(nom)").order("nom"),
+        supabasePublic.from("produits").select("id, nom, reference, categorie, conservation, fournisseur_id, unite, quantite_stock, quantite_cible, prix_achat, conditionnement, prix_unite, poids_par_piece, reference_verifiee, note, type_date, delai_jours_dlc, delai_apres_ouverture_jours, decongel_methode, decongel_jours, decongel_source, allergenes_norme, origine_norme, fournisseurs(nom)").order("nom"),
         supabasePublic.from("lots_produits").select("produit_id, numero_lot, dlc, quantite_restante, date_reception").order("date_reception", { ascending: false }).limit(1000),
       ]);
       if (rf.error) throw rf.error;
@@ -393,7 +393,7 @@ export default function ConnexionReelle() {
       setFournisseursCat(rf.data || []);
       const liste = (rp.data || []).map((p) => ({
         id: p.id, nom: p.nom, categorie: p.categorie || "Autres", conservation: p.conservation || "",
-        typeDate: p.type_date || "", dlcJours: p.delai_jours_dlc == null ? null : Number(p.delai_jours_dlc), delaiOuverture: p.delai_apres_ouverture_jours == null ? null : Number(p.delai_apres_ouverture_jours), delaiFabrication: p.delai_apres_fabrication_jours == null ? null : Number(p.delai_apres_fabrication_jours),
+        typeDate: p.type_date || "", dlcJours: p.delai_jours_dlc == null ? null : Number(p.delai_jours_dlc), delaiOuverture: p.delai_apres_ouverture_jours == null ? null : Number(p.delai_apres_ouverture_jours),
         decongelMethode: p.decongel_methode || "", decongelJours: p.decongel_jours == null ? null : Number(p.decongel_jours), decongelSource: p.decongel_source || "",
         fournisseur: (p.fournisseurs && p.fournisseurs.nom) || "",
         reference: p.reference || "", conditionnement: p.conditionnement || "",
