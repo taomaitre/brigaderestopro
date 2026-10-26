@@ -5787,13 +5787,13 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     if (!String(v.nom || "").trim()) return;
     const sortie = {};
     const cles = estProduit
-      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours", "decongel_methode", "decongel_jours", "decongel_source", "allergenes_norme", "origine_norme"]
+      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours", "delai_apres_fabrication_jours", "decongel_methode", "decongel_jours", "decongel_source", "allergenes_norme", "origine_norme"]
       : [...CHAMPS_FOURNISSEUR.map((c) => c.cle), "jours_livraison", "planning_commande", "planning_livraison"];
     cles.forEach((c) => {
       let val = v[c];
       if (c === "reference_verifiee") val = !!val;
       else if (c === "prix_achat") val = val === "" || val == null ? null : Number(String(val).replace(",", "."));
-      else if (c === "delai_jours_dlc" || c === "delai_apres_ouverture_jours" || c === "decongel_jours") { const n = parseInt(String(val == null ? "" : val), 10); val = Number.isNaN(n) || n < 0 ? null : n; }
+      else if (c === "delai_jours_dlc" || c === "delai_apres_ouverture_jours" || c === "delai_apres_fabrication_jours" || c === "decongel_jours") { const n = parseInt(String(val == null ? "" : val), 10); val = Number.isNaN(n) || n < 0 ? null : n; }
       else if (c === "type_date") val = val === "DLC" || val === "DDM" ? val : null;
       else if (typeof val === "string") val = val.trim() === "" ? null : val.trim();
       else if (val === undefined) val = null;
@@ -5845,6 +5845,14 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
               </select>
             </label>
+            <label className="block text-xs text-[var(--steel)]">Type de date de l'emballage (DLC ou DDM)
+              <select value={v.type_date || ""} onChange={(e) => maj("type_date", e.target.value || null)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
+                <option value="">— Non précisé —</option>
+                <option value="DLC">DLC — date limite de consommation (« à consommer jusqu'au »)</option>
+                <option value="DDM">DDM — date de durabilité minimale (« à consommer de préférence avant »)</option>
+              </select>
+            </label>
+            {champTexte("delai_apres_fabrication_jours", "DLC / DDM après fabrication (en jours) — pour un produit fait maison ; c'est elle qui sert à l'étiquette. Vide si produit acheté")}
             {champTexte("delai_apres_ouverture_jours", "DLC après ouverture (en jours) — celle indiquée sur l'emballage du fabricant, sinon celle du tableau des DLC")}
             {(() => {
               const rep = repereDlcOuverture(v.nom, v.conservation === "surgele");
@@ -15998,6 +16006,8 @@ function PageProduit({ s, onBack, onModifier }) {
         {ligne("Dernier lot", s.lot)}
         {ligne("DLC", s.dlc)}
         {(b.delai_apres_ouverture_jours != null || b.delai_jours_dlc != null) && ligne("DLC après ouverture", jours(b.delai_apres_ouverture_jours != null ? b.delai_apres_ouverture_jours : b.delai_jours_dlc))}
+        {b.type_date && ligne("Type de date", b.type_date)}
+        {b.delai_apres_fabrication_jours != null && ligne("DLC / DDM après fabrication", jours(b.delai_apres_fabrication_jours))}
         {b.decongel_jours != null && ligne("Décongélation", jours(b.decongel_jours))}
         {ligne("Allergènes", allergenes)}
       </Card>
@@ -23596,7 +23606,7 @@ function KitchenApp({ identiteExterne } = {}) {
     const cat = catalogueExterne || [];
     const CAT_PAR_TYPE = { surgele: "Surgelés", viande: "Viandes", hache: "Viandes", abats: "Viandes", poisson: "Poissons", legume: "Fruits et légumes" };
     return cat.filter((c) => !["entretien", "emballage", "autre"].includes(c.conservation)).map((c) => {
-      const jours = c.delaiOuverture != null ? Number(c.delaiOuverture) : (c.dlcJours == null ? null : Number(c.dlcJours));
+      const jours = c.delaiOuverture != null ? Number(c.delaiOuverture) : (c.delaiFabrication != null ? Number(c.delaiFabrication) : (c.dlcJours == null ? null : Number(c.dlcJours)));
       return {
         id: c.id, nom: c.nom, poste: "", reference: c.reference || "", conservation: c.conservation || "", categorieCatalogue: c.categorie || "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
         typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), ddmExplicite: c.typeDate === "DDM", dlcJours: jours,
