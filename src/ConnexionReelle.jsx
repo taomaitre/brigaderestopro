@@ -392,7 +392,7 @@ export default function ConnexionReelle() {
       (rl.data || []).forEach((l) => { if (!dernierLot.has(l.produit_id)) dernierLot.set(l.produit_id, l); });
       setFournisseursCat(rf.data || []);
       const liste = (rp.data || []).map((p) => ({
-        id: p.id, nom: p.nom, categorie: p.categorie || "Autres", conservation: p.conservation || "",
+        id: p.id, nom: p.nom, categorie: p.conservation === "surgele" ? "Surgelés" : (p.categorie || "Autres"), conservation: p.conservation || "",
         typeDate: p.type_date || "", dlcJours: p.delai_jours_dlc == null ? null : Number(p.delai_jours_dlc), delaiOuverture: p.delai_apres_ouverture_jours == null ? null : Number(p.delai_apres_ouverture_jours),
         decongelMethode: p.decongel_methode || "", decongelJours: p.decongel_jours == null ? null : Number(p.decongel_jours), decongelSource: p.decongel_source || "",
         fournisseur: (p.fournisseurs && p.fournisseurs.nom) || "",
