@@ -15530,6 +15530,24 @@ function quantiteParConditionnement(s) {
   return null;
 }
 const arrondiQte = (n) => Math.round(n * 1000) / 1000;
+// Comptage en colis : un produit stocké en kg ou en L mais acheté en boîtes, sachets, cartons, bidons… se COMPTE en colis
+// (« 2 boîtes »), le stock reste enregistré en kg / L (coûts des fiches inchangés). Les produits vendus au poids
+// (viandes, charcuterie, fruits et légumes) restent comptés en kg. Même règle pour tous les établissements.
+const GROUPES_AU_POIDS = new Set(["Viandes & volaille", "Charcuterie", "Fruits & légumes"]);
+function infosColis(s) {
+  const u = String((s && s.unite) || "").toLowerCase();
+  if (u !== "kg" && u !== "l" && u !== "litre" && u !== "litres") return null;
+  const cond = String((s && s.conditionnement) || "");
+  if (!cond || GROUPES_AU_POIDS.has(normaliserGroupe(s.categorie)) || normaliserGroupe(s.categorie) === "Préparations maison") return null;
+  // Seulement les formats simples : « Sachet de 1 kg », « sac 10 kg — 1,60 € le kilo », « Boîte 5/1 — 2,12 kg… », « Bouteille verre 1 L ».
+  // Tout format plus compliqué (« Carton de 4 sachets de 2,5 kg ») reste compté en kg : on ne devine pas.
+  const m = cond.match(/^\s*(bo[iî]te|sachet|carton|sac|bidon|pot|bouteille|conserve|barquette|brique|bocal|tube|seau|bombe)s?\s+(?:[a-zéèêîôû]+\s+)?(?:\d+\/\d+\s*)?[\s—–\-]*(?:de\s+)?(\d+(?:[.,]\d+)?)\s*(kg|g|l|cl|ml)\b/i);
+  if (!m) return null;
+  const contenu = quantiteParConditionnement(s);
+  if (!contenu || contenu <= 0) return null;
+  return { contenu, nom: m[1].toLowerCase().replace("î", "i").replace("oite", "oîte") };
+}
+const fmtNb = (n) => String(Math.round(Number(n) * 100) / 100).replace(".", ",");
 
 // Quantité modifiable : champ + deux boutons empilés (+ au-dessus, − en dessous), un pas = un conditionnement.
 function CelluleQuantite({ valeur, pas, onSet, fond, texte, label }) {
@@ -15822,7 +15840,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           {liste.length === 0 ? (
             <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>
           ) : liste.map((s) => {
-            const bas = enAlerte(s); const pas = pasDe(s); const pasConnu = !!quantiteParConditionnement(s); const dp = dansPanier(s);
+            const bas = enAlerte(s); const pas = pasDe(s); const pasConnu = !!quantiteParConditionnement(s); const dp = dansPanier(s); const colis = infosColis(s);
             return (
               <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
                 <div className="col-span-2 lg:col-span-1 min-w-0">
@@ -15838,9 +15856,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   )}
                 </div>
                 <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>{s.dlc ? <>DLC : {s.dlc}<br /></> : null}{s.lot ? <>Lot : {s.lot}</> : null}{!s.dlc && !s.lot ? <span className="opacity-40">—</span> : null}</div>
-                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div><CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{libelleQte(s, s.quantite)}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
-                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div><CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} /></div>
-                <div className="text-sm text-[var(--ink)] leading-tight"><b>{s.unite || "—"}</b><div className="text-[11px] text-[var(--steel)]">{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `un clic = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `un clic = 1 ${s.unite || ""}`))}</div></div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div>{colis ? <><CelluleQuantite valeur={arrondiQte(Number(s.quantite) / colis.contenu)} pas={1} onSet={(n) => fixerQty(s.id, arrondiQte(n * colis.contenu))} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom} en ${colis.nom}s`} /><div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{fmtNb(Number(s.quantite) / colis.contenu)} {colis.nom}{Number(s.quantite) / colis.contenu >= 2 ? "s" : ""} = {fmtNb(s.quantite)} {s.unite}</div></> : <CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />}{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{libelleQte(s, s.quantite)}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div>{colis ? <CelluleQuantite valeur={arrondiQte(Number(s.cible || 0) / colis.contenu)} pas={1} onSet={(n) => fixerCible(s.id, arrondiQte(n * colis.contenu))} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom} en ${colis.nom}s`} /> : <CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} />}</div>
+                <div className="text-sm text-[var(--ink)] leading-tight"><b>{colis ? colis.nom : (s.unite || "—")}</b><div className="text-[11px] text-[var(--steel)]">{colis ? `1 ${colis.nom} = ${fmtNb(colis.contenu)} ${s.unite}` : s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `un clic = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `un clic = 1 ${s.unite || ""}`))}</div></div>
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
                   className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
               </div>
