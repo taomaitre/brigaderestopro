@@ -1,11 +1,132 @@
 // FICHIER GÉNÉRÉ par scripts/genererLexique.mjs à partir de docs/lexique-haccp.md : ne pas modifier à la main.
 // Chaque entrée porte sa source, son lien et son niveau de certitude (verifie / a-confirmer / mixte).
-export const LEXIQUE_DATE = "2026-10-20";
+export const LEXIQUE_DATE = "2026-10-26";
+export const LEXIQUE_GROUPES = [
+ {
+  "nom": "1 · Les bases : HACCP, PMS, qui contrôle",
+  "intro": "Les mots qu'on entend tout le temps, et quelles règles s'appliquent à votre restaurant."
+ },
+ {
+  "nom": "2 · Le froid et le chaud pendant le service",
+  "intro": "Les températures à connaître au quotidien."
+ },
+ {
+  "nom": "3 · La cuisson",
+  "intro": "Les températures de cuisson et leur origine."
+ },
+ {
+  "nom": "4 · Refroidir, réchauffer, congeler, décongeler",
+  "intro": "Tout ce qui se passe entre la cuisson et l'assiette. Les fiches « restauration collective » sont des règles écrites pour les collectivités ; pour un restaurant commercial, ce sont des repères."
+ },
+ {
+  "nom": "5 · Produits particuliers",
+  "intro": "Viande hachée, gibier, œufs, poisson."
+ },
+ {
+  "nom": "6 · Dates, allergènes et information du client",
+  "intro": "Ce que le client doit savoir, et les dates de vos produits."
+ },
+ {
+  "nom": "7 · Hygiène du personnel, locaux et nettoyage",
+  "intro": "Les règles de base de la cuisine : mains, tenue, locaux, déchets, nuisibles."
+ },
+ {
+  "nom": "8 · Les germes et les intoxications",
+  "intro": "Les bactéries qu'on rencontre en cuisine et ce qu'est une TIAC."
+ },
+ {
+  "nom": "9 · Analyses de laboratoire (règlement 2073/2005)",
+  "intro": "Les seuils officiels si vous faites analyser vos produits. Ce règlement ne fixe pas de fréquence d'analyses pour un restaurant."
+ },
+ {
+  "nom": "10 · Le contrôle officiel : le déroulement",
+  "intro": "Comment se passe une inspection."
+ },
+ {
+  "nom": "11 · Le contrôle officiel : les notes",
+  "intro": "Comment l'inspecteur note : A, B, C, D."
+ },
+ {
+  "nom": "12 · Le contrôle officiel : ce qui pèse le plus",
+  "intro": "Les situations qui valent une note D ou C. À éviter en priorité."
+ },
+ {
+  "nom": "13 · Le contrôle officiel : retraits et rappels",
+  "intro": "Que faire quand un produit est rappelé : le délai, l'affichage, le produit retiré."
+ },
+ {
+  "nom": "14 · Le contrôle officiel : petits restaurants et produits d'entretien",
+  "intro": "Les assouplissements pour les petites équipes, et le rangement des produits."
+ }
+];
 export const LEXIQUE = [
  {
+  "id": "haccp-ccp-pms-33",
+  "section": "1 · Les bases : HACCP, PMS, qui contrôle",
+  "titre": "HACCP, CCP, PMS : ce que c'est",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "l'exploitant « met en place, applique et maintient une ou plusieurs procédures permanentes fondées sur les principes HACCP ». 7 principes : (a) identifier les dangers, (b) points critiques, (c) limites critiques, (d) surveillance, (e) actions correctives, (f) vérification périodique, (g) documents et dossiers adaptés à la nature et la taille de l'entreprise. Procédure revue à chaque changement de produit, procédé ou étape. Durée de conservation des dossiers : « période appropriée » (non chiffrée). PMS = nom français du dossier de l'établissement (bonnes pratiques + HACCP + traçabilité) ; il prouve l'application à l'autorité."
+   },
+   {
+    "label": "Texte",
+    "texte": "règlement (CE) 852/2004, article 5 §1, §2, §4 ; art. 4 §6 et 7 (guides facultatifs)."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://eur-lex.europa.eu/eli/reg/2004/852/2021-03-24 (à vérifier)."
+   },
+   {
+    "label": "Citation courte",
+    "texte": "« des procédures permanentes fondées sur les principes HACCP »."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ texte consolidé du 24/03/2021 lu le 20/10/2026 ; version plus récente non vérifiée."
+   }
+  ],
+  "motsCles": "ccp pms 852 principes plan maîtrise sanitaire"
+ },
+ {
+  "id": "ddpp-rappelconso-34",
+  "section": "1 · Les bases : HACCP, PMS, qui contrôle",
+  "titre": "La DDPP et RappelConso",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "DDPP = direction départementale de la protection des populations (contrôles). RappelConso = site officiel des rappels. Liens à ajouter."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "culture-de-la-securite-alimentaire-nouveau-45",
+  "section": "1 · Les bases : HACCP, PMS, qui contrôle",
+  "titre": "La culture de la sécurité alimentaire",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "l'exploitant met en place et prouve une culture de la sécurité alimentaire : engagement de la direction et de tous, communication ouverte (y compris des écarts), ressources suffisantes, formation et supervision, documentation à jour, amélioration continue, adaptée à la taille de l'entreprise."
+   },
+   {
+    "label": "Texte",
+    "texte": "852/2004 annexe II ch. XI bis (ajouté par modification M3 ; date d'application exacte non vérifiée)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ texte lu ; date d'application ◐."
+   }
+  ],
+  "motsCles": "hygiène 5 octobre 2011 manipulateur"
+ },
+ {
   "id": "quelle-annexe-de-l-arrete-du-21-12-2009-pour-quel-etablissement-0",
-  "section": "Règles du logiciel et températures",
-  "titre": "Quelle annexe de l'arrêté du 21/12/2009 pour quel établissement ?",
+  "section": "1 · Les bases : HACCP, PMS, qui contrôle",
+  "titre": "Quelles règles pour quel type d'établissement ?",
   "certitude": "verifie",
   "champs": [
    {
@@ -36,51 +157,9 @@ export const LEXIQUE = [
   "motsCles": "cellule abattage 63 10 deux heures 2h réchauffage reheat 63 75 une heure 1h échantillon conservation 5 jours 0 3 hygiène 5 octobre 2011 manipulateur température conservation frigo congélateur annexe i"
  },
  {
-  "id": "viande-hachee-cession-au-consommateur-remise-directe-et-restauration-c-1",
-  "section": "Règles du logiciel et températures",
-  "titre": "Viande hachée (cession au consommateur) (remise directe et restauration collective hors cuisines centrales)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "la viande hachée est préparée « à la demande et à la vue de l'acheteur » ; elle peut être préparée à l'avance si l'atelier respecte la section V de l'annexe III du règlement 853/2004 et si l'exploitant a déclaré l'activité au préfet (directeur départemental en charge des services vétérinaires). Matières premières : chapitre II de la section V de l'annexe III du 853/2004 (non lu)."
-   },
-   {
-    "label": "Texte",
-    "texte": "arrêté du 21/12/2009, annexe VII (version initiale)."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ annexe lue ; renvois au 853/2004 non lus. 20/10/2026."
-   }
-  ],
-  "motsCles": "steak haché boeuf 71 steak"
- },
- {
-  "id": "gibier-sauvage-en-petites-quantites-2",
-  "section": "Règles du logiciel et températures",
-  "titre": "Gibier sauvage en petites quantités",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "un commerce de détail fourni par un chasseur en petite quantité ne peut accepter : gibier dépouillé ou plumé, gibier congelé, gibier sans fiche d'examen initial, gibier non identifié, sanglier sans résultat favorable du test trichine, gibier chassé à plus de 80 km (dérogation possible du préfet). Pas de congélation en l'état."
-   },
-   {
-    "label": "Texte",
-    "texte": "arrêté du 21/12/2009, annexe VIII (version initiale)."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ lu le 20/10/2026."
-   }
-  ],
-  "motsCles": ""
- },
- {
   "id": "annexe-iv-changements-entre-la-version-initiale-2009-et-la-version-en--3",
-  "section": "Règles du logiciel et températures",
-  "titre": "Annexe IV : changements entre la version initiale (2009) et la version en vigueur (09/05/2020)",
+  "section": "1 · Les bases : HACCP, PMS, qui contrôle",
+  "titre": "Restauration collective : ce qui a changé en 2020",
   "certitude": "verifie",
   "champs": [
    {
@@ -95,9 +174,55 @@ export const LEXIQUE = [
   "motsCles": "réchauffage reheat 63 75 une heure 1h échantillon conservation 5 jours 0 3"
  },
  {
+  "id": "temperatures-maximales-de-conservation-au-froid-12",
+  "section": "2 · Le froid et le chaud pendant le service",
+  "titre": "Températures maximales de conservation au froid",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "viandes hachées +2 °C ; abats +3 °C ; préparations de viandes +4 °C ; volailles, lagomorphes, ratites, petit gibier +4 °C ; viandes d'ongulés +7 °C (carcasses, gros morceaux) ou +4 °C (découpe) ; produits de la pêche frais +2 °C ; ovoproduits +4 °C ; lait cru +4 °C ; autres denrées très périssables +4 °C ; autres périssables +8 °C ; préparations culinaires élaborées à l'avance +3 °C."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe I ; guide Restaurateur 2015, p.179 (tableau identique)."
+   },
+   {
+    "label": "Lien",
+    "texte": "arrêté (registre). Annexe I : passer par le texte."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu sur copie préfecture. 20/10/2026."
+   }
+  ],
+  "motsCles": "température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "chaine-du-froid-refroidissement-decongelation-principes-44",
+  "section": "2 · Le froid et le chaud pendant le service",
+  "titre": "Chaîne du froid : les principes",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "ne pas laisser les denrées à risque à une température dangereuse ; écarts « de courte durée » admis pour la manutention sans risque ; refroidir « dès que possible » après le traitement thermique ; décongeler en limitant la multiplication des pathogènes et évacuer le liquide. Les chiffres (63 °C, 63 à 10 °C en moins de 2 h, 0 à +4 °C) viennent de l'arrêté du 21/12/2009 (section 4), pas de ce règlement."
+   },
+   {
+    "label": "Texte",
+    "texte": "852/2004 annexe II ch. IX pt 5 à 7."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ 20/10/2026."
+   }
+  ],
+  "motsCles": "température conservation frigo congélateur annexe i"
+ },
+ {
   "id": "maintien-au-chaud-63-c-minimum-4",
-  "section": "Règles du logiciel et températures",
-  "titre": "Maintien au chaud : +63 °C minimum",
+  "section": "2 · Le froid et le chaud pendant le service",
+  "titre": "Maintien au chaud : 63 °C minimum",
   "certitude": "verifie",
   "champs": [
    {
@@ -124,9 +249,106 @@ export const LEXIQUE = [
   "motsCles": "bain-marie 63 liaison chaude"
  },
  {
+  "id": "zone-de-danger-17",
+  "section": "2 · Le froid et le chaud pendant le service",
+  "titre": "La zone de danger",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "plage où les bactéries se multiplient vite. Repère français : de +10 °C à +63 °C (arrêté, refroidissement et remise en température ✔). Le guide cite aussi les plats cuisinés conservés au-dessus de 63 °C ou en dessous de 3 °C (fiche Clostridium perfringens, p.180)."
+   },
+   {
+    "label": "Lien",
+    "texte": "arrêté, guide (registre)."
+   }
+  ],
+  "motsCles": "cellule abattage 63 10 deux heures 2h réchauffage reheat 63 75 une heure 1h température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "temperature-a-c-ur-18",
+  "section": "2 · Le froid et le chaud pendant le service",
+  "titre": "La température à cœur",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "température au centre de l'aliment, à l'endroit le plus froid. Une sonde bien placée est le seul moyen fiable."
+   }
+  ],
+  "motsCles": "température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "baremes-cuisson-guide-p180",
+  "section": "3 · La cuisson",
+  "titre": "Barèmes de cuisson du guide Restaurateur",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "Barèmes recommandés par l'ANSES, repris par le guide « à titre indicatif ». Ils « restent sous la responsabilité de chaque professionnel ». Viandes hachées : 71 °C à cœur ou 2 min à 70 °C (bœuf : perte de la couleur rouge) ; Hachée bœuf, veau, agneau, porc : 71 °C 15 s (citation fiche Yersinia) ; Volaille hachée : 74 °C 15 s (citation fiche Yersinia) ; Viande coupée bœuf, veau, agneau, jambon : 63 °C 15 s (citation fiche Yersinia) ; Plats préparés, viandes : maintien 63 °C, réchauffage 75 °C minimum ; Poissons : de 1 min à 60 °C à 15 min à 80 °C ; Coquillages : 2 min à 90 °C ; Œufs liquides entiers : 5 min à 60 °C ; Sanglier, cheval : 63 °C, ou 3 min à 58 °C, ou 4 h à 51 °C."
+   },
+   {
+    "label": "Texte",
+    "texte": "Guide de bonnes pratiques d'hygiène et d'application de l'HACCP « Restaurateur », novembre 2015, page imprimée 180 (page 187 du fichier PDF)."
+   },
+   {
+    "label": "Volaille entière, canard, magret",
+    "texte": "Aucun barème officiel trouvé. La valeur de 80 °C du logiciel est une règle de la cuisine, pas une norme. Question à la DDPP en attente."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 20/10/2026."
+   }
+  ],
+  "motsCles": "ccp pms 852 principes plan maîtrise sanitaire"
+ },
+ {
+  "id": "cuisson-par-type-de-viande-dans-l-arrete-16",
+  "section": "3 · La cuisson",
+  "titre": "Cuisson des viandes dans l'arrêté",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "l'arrêté ne fixe aucune température de cuisson par viande. Seuls chiffres : 63 °C (maintien au chaud, remise en température)."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009 (lecture complète)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ 20/10/2026."
+   }
+  ],
+  "motsCles": "réchauffage reheat 63 75 une heure 1h bain-marie 63 liaison chaude"
+ },
+ {
+  "id": "valeur-d-valeur-z-reduction-logarithmique-19",
+  "section": "3 · La cuisson",
+  "titre": "Valeur D, valeur z (pour comprendre les barèmes)",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "D = temps pour diviser par 10 les bactéries à une température. z = élévation de température qui divise D par 10. 6 log = 1 survivante sur 1 million, niveau jugé assainissant par l'ANSES. La température seule ne suffit pas : il faut le temps de maintien (« couples temps / température » du guide)."
+   },
+   {
+    "label": "Texte",
+    "texte": "ANSES, fiche cuisson basse température."
+   },
+   {
+    "label": "Lien",
+    "texte": "registre."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
   "id": "refroidissement-63-c-a-10-c-en-2-h-maximum-restauration-collective-5",
-  "section": "Règles du logiciel et températures",
-  "titre": "Refroidissement : +63 °C à +10 °C en 2 h maximum (restauration collective)",
+  "section": "4 · Refroidir, réchauffer, congeler, décongeler",
+  "titre": "Refroidissement : de 63 °C à 10 °C en 2 h maximum (collectivités)",
   "certitude": "verifie",
   "champs": [
    {
@@ -154,8 +376,8 @@ export const LEXIQUE = [
  },
  {
   "id": "remise-en-temperature-1-h-maximum-63-c-minimum-restauration-collective-6",
-  "section": "Règles du logiciel et températures",
-  "titre": "Remise en température : 1 h maximum, +63 °C minimum (restauration collective)",
+  "section": "4 · Refroidir, réchauffer, congeler, décongeler",
+  "titre": "Remise en température : 1 h maximum, 63 °C minimum (collectivités)",
   "certitude": "verifie",
   "champs": [
    {
@@ -182,150 +404,8 @@ export const LEXIQUE = [
   "motsCles": "réchauffage reheat 63 75 une heure 1h"
  },
  {
-  "id": "duree-de-vie-des-plats-prepares-a-l-avance-3-jours-restauration-collec-7",
-  "section": "Règles du logiciel et températures",
-  "titre": "Durée de vie des plats préparés à l'avance : 3 jours (restauration collective)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "au froid, 3 jours maximum après le jour de fabrication, sauf étude de durée de vie. Le guide rappelle que la durée de vie relève de la responsabilité du professionnel (p.109)."
-   },
-   {
-    "label": "Précisions du texte",
-    "texte": "préparation très périssable élaborée à l'avance : l'exploitant fixe une DLC (art. 24 du règlement 1169/2011). Produits déconditionnés puis reconditionnés sans transformation : DLC au plus égale à la durée de vie initiale du composant le plus court. Préparation réfrigérée : DLC « ne peut excéder le troisième jour après celui de sa fabrication en l'absence d'études de durée de vie »."
-   },
-   {
-    "label": "Texte",
-    "texte": "arrêté du 21/12/2009, annexe IV point 4 (en vigueur depuis le 09/05/2020)."
-   },
-   {
-    "label": "Lien",
-    "texte": "annexe IV (registre)."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ texte Légifrance lu le 20/10/2026. Restauration collective."
-   }
-  ],
-  "motsCles": "hygiène 5 octobre 2011 manipulateur température conservation frigo congélateur annexe i"
- },
- {
-  "id": "plats-temoins-5-jours-restauration-collective-8",
-  "section": "Règles du logiciel et températures",
-  "titre": "Plats témoins : 5 jours (restauration collective)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "échantillons représentatifs de chaque plat distribué, clairement identifiés, à la disposition exclusive des agents de contrôle, conservés au moins 5 jours en froid positif (0 à +3 °C) après présentation au consommateur. Cuisine centrale : plats témoins de tout ce qui part vers un restaurant satellite. Satellite : seulement ce qu'il a transformé ou manipulé sur place (découpé, tranché, haché, mixé, mouliné)."
-   },
-   {
-    "label": "Texte",
-    "texte": "arrêté du 21/12/2009, annexe IV point 5 (en vigueur depuis le 09/05/2020)."
-   },
-   {
-    "label": "Lien",
-    "texte": "annexe IV (registre)."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ texte Légifrance lu le 20/10/2026. Restauration collective."
-   }
-  ],
-  "motsCles": "échantillon conservation 5 jours 0 3 température conservation frigo congélateur annexe i"
- },
- {
-  "id": "preparations-servies-froides-restauration-collective-9",
-  "section": "Règles du logiciel et températures",
-  "titre": "Préparations servies froides (restauration collective)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "entreposées dès la fin de l'élaboration et jusqu'à l'utilisation dans une enceinte à 0 à +3 °C ; sorties au plus près de la consommation, 2 h maximum, produit maintenu à +10 °C ou moins, sauf analyse des dangers validée prouvant un autre couple temps/température."
-   },
-   {
-    "label": "Texte",
-    "texte": "arrêté du 21/12/2009, annexe IV point 2."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ texte Légifrance lu le 20/10/2026."
-   }
-  ],
-  "motsCles": "température conservation frigo congélateur annexe i"
- },
- {
-  "id": "effet-indesirable-inhabituel-au-moins-2-consommateurs-restauration-col-10",
-  "section": "Règles du logiciel et températures",
-  "titre": "Effet indésirable inhabituel (au moins 2 consommateurs) (restauration collective)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "dès que le responsable a connaissance d'un effet indésirable inhabituel pouvant être lié aux aliments chez au moins deux consommateurs : inviter à consulter un médecin, signaler sans délai au directeur de l'ARS et au directeur départemental de la protection des populations ; tenir à disposition menus servis et plats témoins des repas précédents."
-   },
-   {
-    "label": "Texte",
-    "texte": "arrêté du 21/12/2009, annexe IV point 6."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ texte Légifrance lu le 20/10/2026."
-   }
-  ],
-  "motsCles": "échantillon conservation 5 jours 0 3"
- },
- {
-  "id": "fin-de-service-restes-et-excedents-restauration-collective-11",
-  "section": "Règles du logiciel et températures",
-  "titre": "Fin de service : restes et excédents (restauration collective)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "après le service, les denrées d'origine animale ne vont plus ni à l'alimentation humaine ni animale, sauf « excédents » visés à l'article 2 point i (article non lu) : ils peuvent être présentés à un service ultérieur ou donnés à une personne morale visée à l'art. L. 266-2 du code de l'action sociale et des familles, avec une DLC par plat et salubrité assurée ; pas applicable dans les restaurants satellites sauf préparations non déconditionnées maintenues à 0 à +3 °C. Étiquetage individuel avec DLC et mention de l'éventuelle première remise en température (point 8)."
-   },
-   {
-    "label": "Texte",
-    "texte": "arrêté du 21/12/2009, annexe IV points 7 et 8."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ annexe IV lue ; définition d'« excédents » (article 2) ◐ non lue."
-   }
-  ],
-  "motsCles": "réchauffage reheat 63 75 une heure 1h"
- },
- {
-  "id": "temperatures-maximales-de-conservation-au-froid-12",
-  "section": "Règles du logiciel et températures",
-  "titre": "Températures maximales de conservation au froid",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "viandes hachées +2 °C ; abats +3 °C ; préparations de viandes +4 °C ; volailles, lagomorphes, ratites, petit gibier +4 °C ; viandes d'ongulés +7 °C (carcasses, gros morceaux) ou +4 °C (découpe) ; produits de la pêche frais +2 °C ; ovoproduits +4 °C ; lait cru +4 °C ; autres denrées très périssables +4 °C ; autres périssables +8 °C ; préparations culinaires élaborées à l'avance +3 °C."
-   },
-   {
-    "label": "Texte",
-    "texte": "arrêté du 21/12/2009, annexe I ; guide Restaurateur 2015, p.179 (tableau identique)."
-   },
-   {
-    "label": "Lien",
-    "texte": "arrêté (registre). Annexe I : passer par le texte."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ lu sur copie préfecture. 20/10/2026."
-   }
-  ],
-  "motsCles": "température conservation frigo congélateur annexe i"
- },
- {
   "id": "surgelation-et-congelation-13",
-  "section": "Règles du logiciel et températures",
+  "section": "4 · Refroidir, réchauffer, congeler, décongeler",
   "titre": "Surgélation et congélation",
   "certitude": "verifie",
   "champs": [
@@ -346,7 +426,7 @@ export const LEXIQUE = [
  },
  {
   "id": "decongelation-14",
-  "section": "Règles du logiciel et températures",
+  "section": "4 · Refroidir, réchauffer, congeler, décongeler",
   "titre": "Décongélation",
   "certitude": "verifie",
   "champs": [
@@ -378,9 +458,147 @@ export const LEXIQUE = [
   "motsCles": "réchauffage reheat 63 75 une heure 1h dégel sortir congélateur recongélation"
  },
  {
+  "id": "duree-de-vie-des-plats-prepares-a-l-avance-3-jours-restauration-collec-7",
+  "section": "4 · Refroidir, réchauffer, congeler, décongeler",
+  "titre": "Durée de vie des plats préparés à l'avance : 3 jours (collectivités)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "au froid, 3 jours maximum après le jour de fabrication, sauf étude de durée de vie. Le guide rappelle que la durée de vie relève de la responsabilité du professionnel (p.109)."
+   },
+   {
+    "label": "Précisions du texte",
+    "texte": "préparation très périssable élaborée à l'avance : l'exploitant fixe une DLC (art. 24 du règlement 1169/2011). Produits déconditionnés puis reconditionnés sans transformation : DLC au plus égale à la durée de vie initiale du composant le plus court. Préparation réfrigérée : DLC « ne peut excéder le troisième jour après celui de sa fabrication en l'absence d'études de durée de vie »."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe IV point 4 (en vigueur depuis le 09/05/2020)."
+   },
+   {
+    "label": "Lien",
+    "texte": "annexe IV (registre)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ texte Légifrance lu le 20/10/2026. Restauration collective."
+   }
+  ],
+  "motsCles": "hygiène 5 octobre 2011 manipulateur température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "preparations-servies-froides-restauration-collective-9",
+  "section": "4 · Refroidir, réchauffer, congeler, décongeler",
+  "titre": "Préparations servies froides (collectivités)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "entreposées dès la fin de l'élaboration et jusqu'à l'utilisation dans une enceinte à 0 à +3 °C ; sorties au plus près de la consommation, 2 h maximum, produit maintenu à +10 °C ou moins, sauf analyse des dangers validée prouvant un autre couple temps/température."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe IV point 2."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ texte Légifrance lu le 20/10/2026."
+   }
+  ],
+  "motsCles": "température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "fin-de-service-restes-et-excedents-restauration-collective-11",
+  "section": "4 · Refroidir, réchauffer, congeler, décongeler",
+  "titre": "Fin de service : restes et excédents (collectivités)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "après le service, les denrées d'origine animale ne vont plus ni à l'alimentation humaine ni animale, sauf « excédents » visés à l'article 2 point i (article non lu) : ils peuvent être présentés à un service ultérieur ou donnés à une personne morale visée à l'art. L. 266-2 du code de l'action sociale et des familles, avec une DLC par plat et salubrité assurée ; pas applicable dans les restaurants satellites sauf préparations non déconditionnées maintenues à 0 à +3 °C. Étiquetage individuel avec DLC et mention de l'éventuelle première remise en température (point 8)."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe IV points 7 et 8."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ annexe IV lue ; définition d'« excédents » (article 2) ◐ non lue."
+   }
+  ],
+  "motsCles": "réchauffage reheat 63 75 une heure 1h"
+ },
+ {
+  "id": "plats-temoins-5-jours-restauration-collective-8",
+  "section": "4 · Refroidir, réchauffer, congeler, décongeler",
+  "titre": "Plats témoins : 5 jours (collectivités)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "échantillons représentatifs de chaque plat distribué, clairement identifiés, à la disposition exclusive des agents de contrôle, conservés au moins 5 jours en froid positif (0 à +3 °C) après présentation au consommateur. Cuisine centrale : plats témoins de tout ce qui part vers un restaurant satellite. Satellite : seulement ce qu'il a transformé ou manipulé sur place (découpé, tranché, haché, mixé, mouliné)."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe IV point 5 (en vigueur depuis le 09/05/2020)."
+   },
+   {
+    "label": "Lien",
+    "texte": "annexe IV (registre)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ texte Légifrance lu le 20/10/2026. Restauration collective."
+   }
+  ],
+  "motsCles": "échantillon conservation 5 jours 0 3 température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "viande-hachee-cession-au-consommateur-remise-directe-et-restauration-c-1",
+  "section": "5 · Produits particuliers",
+  "titre": "Viande hachée vendue au client",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "la viande hachée est préparée « à la demande et à la vue de l'acheteur » ; elle peut être préparée à l'avance si l'atelier respecte la section V de l'annexe III du règlement 853/2004 et si l'exploitant a déclaré l'activité au préfet (directeur départemental en charge des services vétérinaires). Matières premières : chapitre II de la section V de l'annexe III du 853/2004 (non lu)."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe VII (version initiale)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ annexe lue ; renvois au 853/2004 non lus. 20/10/2026."
+   }
+  ],
+  "motsCles": "steak haché boeuf 71 steak"
+ },
+ {
+  "id": "gibier-sauvage-en-petites-quantites-2",
+  "section": "5 · Produits particuliers",
+  "titre": "Gibier sauvage en petites quantités",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "un commerce de détail fourni par un chasseur en petite quantité ne peut accepter : gibier dépouillé ou plumé, gibier congelé, gibier sans fiche d'examen initial, gibier non identifié, sanglier sans résultat favorable du test trichine, gibier chassé à plus de 80 km (dérogation possible du préfet). Pas de congélation en l'état."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe VIII (version initiale)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 20/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
   "id": "ufs-15",
-  "section": "Règles du logiciel et températures",
-  "titre": "Œufs",
+  "section": "5 · Produits particuliers",
+  "titre": "Les œufs",
   "certitude": "mixte",
   "champs": [
    {
@@ -403,235 +621,34 @@ export const LEXIQUE = [
   "motsCles": "température conservation frigo congélateur annexe i"
  },
  {
-  "id": "cuisson-par-type-de-viande-dans-l-arrete-16",
-  "section": "Règles du logiciel et températures",
-  "titre": "Cuisson par type de viande dans l'arrêté",
+  "id": "histamine-poisson-38",
+  "section": "5 · Produits particuliers",
+  "titre": "Poisson : l'histamine",
   "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "l'arrêté ne fixe aucune température de cuisson par viande. Seuls chiffres : 63 °C (maintien au chaud, remise en température)."
+    "texte": "pour les poissons des familles à forte teneur en histidine (Scombridae, Clupeidae, Engraulidae, Coryphaenidae, Pomatomidae, Scombresocidae), 100 mg/kg (m) et 200 mg/kg (M), sur 9 échantillons dont 2 au plus entre m et M. Maturation enzymatique en saumure : 200 et 400 mg/kg. Sauce de poisson fermentée : 400 mg/kg."
    },
    {
     "label": "Texte",
-    "texte": "arrêté du 21/12/2009 (lecture complète)."
+    "texte": "règlement 2073/2005, annexe I, lignes 1.26, 1.27, 1.27 bis, note (15)."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01"
    },
    {
     "label": "Certitude",
-    "texte": "✔ 20/10/2026."
-   }
-  ],
-  "motsCles": "réchauffage reheat 63 75 une heure 1h bain-marie 63 liaison chaude"
- },
- {
-  "id": "zone-de-danger-17",
-  "section": "Notions et bactéries",
-  "titre": "Zone de danger",
-  "certitude": "a-confirmer",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "plage où les bactéries se multiplient vite. Repère français : de +10 °C à +63 °C (arrêté, refroidissement et remise en température ✔). Le guide cite aussi les plats cuisinés conservés au-dessus de 63 °C ou en dessous de 3 °C (fiche Clostridium perfringens, p.180)."
-   },
-   {
-    "label": "Lien",
-    "texte": "arrêté, guide (registre)."
-   }
-  ],
-  "motsCles": "cellule abattage 63 10 deux heures 2h réchauffage reheat 63 75 une heure 1h température conservation frigo congélateur annexe i"
- },
- {
-  "id": "temperature-a-c-ur-18",
-  "section": "Notions et bactéries",
-  "titre": "Température à cœur",
-  "certitude": "a-confirmer",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "température au centre de l'aliment, à l'endroit le plus froid. Une sonde bien placée est le seul moyen fiable."
-   }
-  ],
-  "motsCles": "température conservation frigo congélateur annexe i"
- },
- {
-  "id": "valeur-d-valeur-z-reduction-logarithmique-19",
-  "section": "Notions et bactéries",
-  "titre": "Valeur D, valeur z, réduction logarithmique",
-  "certitude": "a-confirmer",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "D = temps pour diviser par 10 les bactéries à une température. z = élévation de température qui divise D par 10. 6 log = 1 survivante sur 1 million, niveau jugé assainissant par l'ANSES. La température seule ne suffit pas : il faut le temps de maintien (« couples temps / température » du guide)."
-   },
-   {
-    "label": "Texte",
-    "texte": "ANSES, fiche cuisson basse température."
-   },
-   {
-    "label": "Lien",
-    "texte": "registre."
-   }
-  ],
-  "motsCles": ""
- },
- {
-  "id": "spores-20",
-  "section": "Notions et bactéries",
-  "titre": "Spores",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "Clostridium et Bacillus cereus forment des spores que la cuisson ne détruit pas. Un refroidissement rapide empêche leur réveil."
-   },
-   {
-    "label": "Texte",
-    "texte": "ANSES, fiche cuisson basse température."
-   },
-   {
-    "label": "Lien",
-    "texte": "registre."
-   }
-  ],
-  "motsCles": "cellule abattage 63 10 deux heures 2h température conservation frigo congélateur annexe i"
- },
- {
-  "id": "contamination-croisee-21",
-  "section": "Notions et bactéries",
-  "titre": "Contamination croisée",
-  "certitude": "a-confirmer",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "passage de bactéries d'un cru vers un prêt à consommer, par mains, ustensiles, surfaces, eau."
-   }
-  ],
-  "motsCles": ""
- },
- {
-  "id": "tiac-22",
-  "section": "Notions et bactéries",
-  "titre": "TIAC",
-  "certitude": "a-confirmer",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "au moins 2 cas similaires liés au même aliment. Déclaration à l'ARS ou à la DDPP. Source officielle (Santé publique France) à ajouter."
-   }
-  ],
-  "motsCles": "intoxication alimentaire déclaration ars ddpp"
- },
- {
-  "id": "salmonella-cuisson-reste-23",
-  "section": "Notions et bactéries",
-  "titre": "Salmonella (cuisson) / (reste)",
-  "certitude": "mixte",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "surtout volaille, œufs, viandes. 60 °C pendant 5 min = 5 réductions décimales dans les préparations liquides d'œufs entiers (guide, p.181). L'ANSES cite 63 °C pendant 1 min pour la volaille (procédé validé)."
-   },
-   {
-    "label": "Texte",
-    "texte": "guide Restaurateur 2015 p.181 ; ANSES cuisson basse température."
-   },
-   {
-    "label": "Lien",
-    "texte": "registre."
-   }
-  ],
-  "motsCles": "salmonelle œuf volaille"
- },
- {
-  "id": "listeria-monocytogenes-24",
-  "section": "Notions et bactéries",
-  "titre": "Listeria monocytogenes",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "se multiplie même au froid (de -2 à 45 °C, optimum 30 à 37 °C). Concerne charcuterie cuite, fromages au lait cru, plats préparés. Formes graves chez la femme enceinte et le nouveau-né."
-   },
-   {
-    "label": "Texte",
-    "texte": "ANSES, fiche de danger, avril 2020."
-   },
-   {
-    "label": "Lien",
-    "texte": "registre."
-   }
-  ],
-  "motsCles": "listériose femme enceinte charcuterie 2073 température conservation frigo congélateur annexe i"
- },
- {
-  "id": "campylobacter-25",
-  "section": "Notions et bactéries",
-  "titre": "Campylobacter",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "surtout volaille crue. Un traitement thermique supérieur à 60 °C les détruit (guide p.181)."
-   }
-  ],
-  "motsCles": ""
- },
- {
-  "id": "e-coli-stec-26",
-  "section": "Notions et bactéries",
-  "titre": "E. coli STEC",
-  "certitude": "a-confirmer",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "liées au bœuf haché et au lait cru, d'où la cuisson à cœur de la viande hachée (fiche citée p.180). Source ANSES complète à ajouter."
-   }
-  ],
-  "motsCles": "steak haché boeuf 71 steak"
- },
- {
-  "id": "staphylococcus-aureus-27",
-  "section": "Notions et bactéries",
-  "titre": "Staphylococcus aureus",
-  "certitude": "mixte",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "sa destruction demande plus qu'une pasteurisation (guide p.181). Reste à sourcer (ANSES)."
-   }
-  ],
-  "motsCles": ""
- },
- {
-  "id": "clostridium-perfringens-et-bacillus-cereus-28",
-  "section": "Notions et bactéries",
-  "titre": "Clostridium perfringens et Bacillus cereus",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "liés aux plats cuisinés à l'avance : conserver au-dessus de 63 °C ou en dessous de 3 °C, réchauffer à 75 °C minimum (fiche C. perfringens). Riz, pâtes, plats cuisinés non consommés tout de suite : au-dessus de 63 °C, surgelés ou réfrigérés (guide p.180)."
-   }
-  ],
-  "motsCles": ""
- },
- {
-  "id": "clostridium-botulinum-29",
-  "section": "Notions et bactéries",
-  "titre": "Clostridium botulinum",
-  "certitude": "a-confirmer",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "spores du sol, danger des conserves et produits sous vide mal maîtrisés. Aucun chiffre publié."
+    "texte": "✔ lu sur captures le 20/10/2026."
    }
   ],
   "motsCles": ""
  },
  {
   "id": "anisakis-30",
-  "section": "Notions et bactéries",
-  "titre": "Anisakis",
+  "section": "5 · Produits particuliers",
+  "titre": "Poisson : l'anisakis (vers)",
   "certitude": "verifie",
   "champs": [
    {
@@ -642,9 +659,30 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
+  "id": "dlc-et-ddm-32",
+  "section": "6 · Dates, allergènes et information du client",
+  "titre": "DLC et DDM : la différence",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "DLC « à consommer jusqu'au » (denrées très périssables ; au-delà, ne pas servir). DDM « à consommer de préférence avant » (qualité, pas danger)."
+   },
+   {
+    "label": "Texte",
+    "texte": "règlement (UE) 1169/2011."
+   },
+   {
+    "label": "Lien",
+    "texte": "registre."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
   "id": "14-allergenes-31",
-  "section": "Réglementation et organisation",
-  "titre": "14 allergènes",
+  "section": "6 · Dates, allergènes et information du client",
+  "titre": "Les 14 allergènes",
   "certitude": "verifie",
   "champs": [
    {
@@ -667,72 +705,306 @@ export const LEXIQUE = [
   "motsCles": "gluten arachide lait œuf soja sulfites 1169 hygiène 5 octobre 2011 manipulateur"
  },
  {
-  "id": "dlc-et-ddm-32",
-  "section": "Réglementation et organisation",
-  "titre": "DLC et DDM",
+  "id": "etude-de-duree-de-conservation-annexe-ii-41",
+  "section": "6 · Dates, allergènes et information du client",
+  "titre": "Étude de durée de conservation",
   "certitude": "a-confirmer",
   "champs": [
    {
     "label": "En bref",
-    "texte": "DLC « à consommer jusqu'au » (denrées très périssables ; au-delà, ne pas servir). DDM « à consommer de préférence avant » (qualité, pas danger)."
+    "texte": "l'exploitant qui fabrique des denrées prêtes à consommer permettant le développement de Listeria peut devoir démontrer par des études (pH, aw, sel, conservateurs, emballage, essais) que le seuil sera respecté pendant toute la durée de conservation. Texte de l'annexe II dans la version actuelle non relu."
    },
    {
     "label": "Texte",
-    "texte": "règlement (UE) 1169/2011."
+    "texte": "règlement 2073/2005, article 3 §2 ✔ ; annexe II (lu en 2005/2006, non relu en 2026)."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01"
+   }
+  ],
+  "motsCles": "listériose femme enceinte charcuterie 2073"
+ },
+ {
+  "id": "don-alimentaire-redistribution-47",
+  "section": "6 · Dates, allergènes et information du client",
+  "titre": "Donner des denrées (don alimentaire)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "DLC : redistribuer avant la date ; DDM : jusqu'à la date et après ; contrôle régulier, emballage intègre, température, traçabilité pour produits d'origine animale."
+   },
+   {
+    "label": "Texte",
+    "texte": "852/2004 annexe II ch. V bis."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ 20/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "hygiene-du-personnel-42",
+  "section": "7 · Hygiène du personnel, locaux et nettoyage",
+  "titre": "Hygiène du personnel",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "niveau élevé de propreté, tenue propre et adaptée. Aucune personne malade ou porteuse d'une maladie transmissible par les aliments, avec plaies infectées, lésions cutanées ou diarrhée, ne manipule si risque de contamination ; le salarié prévient immédiatement l'exploitant."
+   },
+   {
+    "label": "Texte",
+    "texte": "852/2004 annexe II chapitre VIII ; chapitre I points 4 (lavabos eau chaude et froide, séchage hygiénique) et 9 (vestiaires)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ 20/10/2026. Pas de liste de maladies ni de délai d'éviction dans ce texte."
+   }
+  ],
+  "motsCles": "température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "formation-46",
+  "section": "7 · Hygiène du personnel, locaux et nettoyage",
+  "titre": "Formation",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "manutentionnaires encadrés et formés en hygiène adaptée à leur poste ; responsables de la procédure HACCP formés aux principes HACCP ; respect du droit national (France : arrêté du 5/10/2011, à lire)."
+   },
+   {
+    "label": "Texte",
+    "texte": "852/2004 annexe II ch. XII."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ 20/10/2026."
+   }
+  ],
+  "motsCles": "ccp pms 852 principes plan maîtrise sanitaire hygiène 5 octobre 2011 manipulateur"
+ },
+ {
+  "id": "locaux-et-equipements-48",
+  "section": "7 · Hygiène du personnel, locaux et nettoyage",
+  "titre": "Locaux et équipements",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "sols, murs, portes, surfaces : matériaux lisses, lavables, non absorbants, non toxiques, résistant à la corrosion, sauf preuve d'équivalence à l'autorité ; équipements nettoyés et désinfectés à fréquence suffisante ; lavabos mains avec eau chaude et froide ; ventilation sans flux de la zone contaminée vers la zone propre."
+   },
+   {
+    "label": "Texte",
+    "texte": "852/2004 annexe II ch. I, II, V."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ 20/10/2026."
+   }
+  ],
+  "motsCles": "température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "contamination-croisee-dechets-eau-nuisibles-43",
+  "section": "7 · Hygiène du personnel, locaux et nettoyage",
+  "titre": "Contamination croisée, déchets, eau, nuisibles",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "denrées protégées contre toute contamination à toutes les étapes (ch. IX pt 3) ; matières premières et produits finis séparés (pt 5) ; produits de nettoyage jamais dans les zones de manipulation (ch. I pt 10) ; déchets évacués vite, conteneurs fermés (ch. VI) ; eau potable, circuit non potable séparé et signalé (ch. VII) ; lutte contre les nuisibles, animaux domestiques exclus (ch. IX pt 4) ; équipements allergènes nettoyés avant autre usage (ch. IX pt 9)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ 20/10/2026."
+   }
+  ],
+  "motsCles": "gluten arachide lait œuf soja sulfites 1169"
+ },
+ {
+  "id": "contamination-croisee-21",
+  "section": "7 · Hygiène du personnel, locaux et nettoyage",
+  "titre": "La contamination croisée",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "passage de bactéries d'un cru vers un prêt à consommer, par mains, ustensiles, surfaces, eau."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "tiac-22",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "TIAC : intoxication alimentaire collective",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "au moins 2 cas similaires liés au même aliment. Déclaration à l'ARS ou à la DDPP. Source officielle (Santé publique France) à ajouter."
+   }
+  ],
+  "motsCles": "intoxication alimentaire déclaration ars ddpp"
+ },
+ {
+  "id": "effet-indesirable-inhabituel-au-moins-2-consommateurs-restauration-col-10",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "Effet indésirable inhabituel (au moins 2 clients)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "dès que le responsable a connaissance d'un effet indésirable inhabituel pouvant être lié aux aliments chez au moins deux consommateurs : inviter à consulter un médecin, signaler sans délai au directeur de l'ARS et au directeur départemental de la protection des populations ; tenir à disposition menus servis et plats témoins des repas précédents."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe IV point 6."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ texte Légifrance lu le 20/10/2026."
+   }
+  ],
+  "motsCles": "échantillon conservation 5 jours 0 3"
+ },
+ {
+  "id": "salmonella-cuisson-reste-23",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "Salmonella",
+  "certitude": "mixte",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "surtout volaille, œufs, viandes. 60 °C pendant 5 min = 5 réductions décimales dans les préparations liquides d'œufs entiers (guide, p.181). L'ANSES cite 63 °C pendant 1 min pour la volaille (procédé validé)."
+   },
+   {
+    "label": "Texte",
+    "texte": "guide Restaurateur 2015 p.181 ; ANSES cuisson basse température."
    },
    {
     "label": "Lien",
     "texte": "registre."
    }
   ],
-  "motsCles": ""
+  "motsCles": "salmonelle œuf volaille"
  },
  {
-  "id": "haccp-ccp-pms-33",
-  "section": "Réglementation et organisation",
-  "titre": "HACCP, CCP, PMS",
+  "id": "listeria-monocytogenes-24",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "Listeria monocytogenes",
   "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "l'exploitant « met en place, applique et maintient une ou plusieurs procédures permanentes fondées sur les principes HACCP ». 7 principes : (a) identifier les dangers, (b) points critiques, (c) limites critiques, (d) surveillance, (e) actions correctives, (f) vérification périodique, (g) documents et dossiers adaptés à la nature et la taille de l'entreprise. Procédure revue à chaque changement de produit, procédé ou étape. Durée de conservation des dossiers : « période appropriée » (non chiffrée). PMS = nom français du dossier de l'établissement (bonnes pratiques + HACCP + traçabilité) ; il prouve l'application à l'autorité."
+    "texte": "se multiplie même au froid (de -2 à 45 °C, optimum 30 à 37 °C). Concerne charcuterie cuite, fromages au lait cru, plats préparés. Formes graves chez la femme enceinte et le nouveau-né."
    },
    {
     "label": "Texte",
-    "texte": "règlement (CE) 852/2004, article 5 §1, §2, §4 ; art. 4 §6 et 7 (guides facultatifs)."
+    "texte": "ANSES, fiche de danger, avril 2020."
    },
    {
     "label": "Lien",
-    "texte": "https://eur-lex.europa.eu/eli/reg/2004/852/2021-03-24 (à vérifier)."
-   },
-   {
-    "label": "Citation courte",
-    "texte": "« des procédures permanentes fondées sur les principes HACCP »."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ texte consolidé du 24/03/2021 lu le 20/10/2026 ; version plus récente non vérifiée."
+    "texte": "registre."
    }
   ],
-  "motsCles": "ccp pms 852 principes plan maîtrise sanitaire"
+  "motsCles": "listériose femme enceinte charcuterie 2073 température conservation frigo congélateur annexe i"
  },
  {
-  "id": "ddpp-rappelconso-34",
-  "section": "Réglementation et organisation",
-  "titre": "DDPP, RappelConso",
-  "certitude": "a-confirmer",
+  "id": "campylobacter-25",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "Campylobacter",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "DDPP = direction départementale de la protection des populations (contrôles). RappelConso = site officiel des rappels. Liens à ajouter."
+    "texte": "surtout volaille crue. Un traitement thermique supérieur à 60 °C les détruit (guide p.181)."
    }
   ],
   "motsCles": ""
  },
  {
+  "id": "e-coli-stec-26",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "E. coli STEC",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "liées au bœuf haché et au lait cru, d'où la cuisson à cœur de la viande hachée (fiche citée p.180). Source ANSES complète à ajouter."
+   }
+  ],
+  "motsCles": "steak haché boeuf 71 steak"
+ },
+ {
+  "id": "staphylococcus-aureus-27",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "Staphylococcus aureus",
+  "certitude": "mixte",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "sa destruction demande plus qu'une pasteurisation (guide p.181). Reste à sourcer (ANSES)."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "clostridium-perfringens-et-bacillus-cereus-28",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "Clostridium perfringens et Bacillus cereus",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "liés aux plats cuisinés à l'avance : conserver au-dessus de 63 °C ou en dessous de 3 °C, réchauffer à 75 °C minimum (fiche C. perfringens). Riz, pâtes, plats cuisinés non consommés tout de suite : au-dessus de 63 °C, surgelés ou réfrigérés (guide p.180)."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "clostridium-botulinum-29",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "Clostridium botulinum (botulisme)",
+  "certitude": "a-confirmer",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "spores du sol, danger des conserves et produits sous vide mal maîtrisés. Aucun chiffre publié."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "spores-20",
+  "section": "8 · Les germes et les intoxications",
+  "titre": "Les spores",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "Clostridium et Bacillus cereus forment des spores que la cuisson ne détruit pas. Un refroidissement rapide empêche leur réveil."
+   },
+   {
+    "label": "Texte",
+    "texte": "ANSES, fiche cuisson basse température."
+   },
+   {
+    "label": "Lien",
+    "texte": "registre."
+   }
+  ],
+  "motsCles": "cellule abattage 63 10 deux heures 2h température conservation frigo congélateur annexe i"
+ },
+ {
   "id": "critere-de-securite-et-critere-d-hygiene-du-procede-35",
-  "section": "Critères microbiologiques (2073/2005)",
-  "titre": "Critère de sécurité et critère d'hygiène du procédé",
+  "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
+  "titre": "Critère de sécurité et critère d'hygiène",
   "certitude": "verifie",
   "champs": [
    {
@@ -760,8 +1032,8 @@ export const LEXIQUE = [
  },
  {
   "id": "listeria-monocytogenes-seuils-annexe-i-1-1-a-1-3-36",
-  "section": "Critères microbiologiques (2073/2005)",
-  "titre": "Listeria monocytogenes : seuils (annexe I, 1.1 à 1.3)",
+  "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
+  "titre": "Listeria : les seuils",
   "certitude": "verifie",
   "champs": [
    {
@@ -793,8 +1065,8 @@ export const LEXIQUE = [
  },
  {
   "id": "salmonella-absence-dans-25-g-viande-hachee-ufs-crus-annexe-i-1-4-a-1-2-37",
-  "section": "Critères microbiologiques (2073/2005)",
-  "titre": "Salmonella : absence dans 25 g, viande hachée, œufs crus (annexe I, 1.4 à 1.20)",
+  "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
+  "titre": "Salmonella : absence dans 25 g",
   "certitude": "verifie",
   "champs": [
    {
@@ -821,34 +1093,9 @@ export const LEXIQUE = [
   "motsCles": "salmonelle œuf volaille steak haché boeuf 71 steak"
  },
  {
-  "id": "histamine-poisson-38",
-  "section": "Critères microbiologiques (2073/2005)",
-  "titre": "Histamine (poisson)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "pour les poissons des familles à forte teneur en histidine (Scombridae, Clupeidae, Engraulidae, Coryphaenidae, Pomatomidae, Scombresocidae), 100 mg/kg (m) et 200 mg/kg (M), sur 9 échantillons dont 2 au plus entre m et M. Maturation enzymatique en saumure : 200 et 400 mg/kg. Sauce de poisson fermentée : 400 mg/kg."
-   },
-   {
-    "label": "Texte",
-    "texte": "règlement 2073/2005, annexe I, lignes 1.26, 1.27, 1.27 bis, note (15)."
-   },
-   {
-    "label": "Lien",
-    "texte": "https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01"
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ lu sur captures le 20/10/2026."
-   }
-  ],
-  "motsCles": ""
- },
- {
   "id": "viande-hachee-et-preparations-de-viande-criteres-d-hygiene-du-procede--39",
-  "section": "Critères microbiologiques (2073/2005)",
-  "titre": "Viande hachée et préparations de viande : critères d'hygiène du procédé (annexe I, 2.1.6 et 2.1.8)",
+  "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
+  "titre": "Viande hachée et préparations de viande : critères",
   "certitude": "verifie",
   "champs": [
    {
@@ -876,8 +1123,8 @@ export const LEXIQUE = [
  },
  {
   "id": "autres-criteres-d-hygiene-utiles-en-cuisine-annexe-i-chapitre-2-40",
-  "section": "Critères microbiologiques (2073/2005)",
-  "titre": "Autres critères d'hygiène utiles en cuisine (annexe I chapitre 2)",
+  "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
+  "titre": "Autres critères utiles en cuisine",
   "certitude": "verifie",
   "champs": [
    {
@@ -900,192 +1147,478 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "etude-de-duree-de-conservation-annexe-ii-41",
-  "section": "Critères microbiologiques (2073/2005)",
-  "titre": "Étude de durée de conservation (annexe II)",
-  "certitude": "a-confirmer",
+  "id": "comment-se-passe-un-controle-d-hygiene-49",
+  "section": "10 · Le contrôle officiel : le déroulement",
+  "titre": "Comment se passe un contrôle d'hygiène",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "l'exploitant qui fabrique des denrées prêtes à consommer permettant le développement de Listeria peut devoir démontrer par des études (pH, aw, sel, conservateurs, emballage, essais) que le seuil sera respecté pendant toute la durée de conservation. Texte de l'annexe II dans la version actuelle non relu."
+    "texte": "le contrôle est en général sans prévenir. L'inspecteur se présente, demande un responsable, rappelle les écarts du dernier contrôle et demande ce que vous avez fait depuis. Il demande aussi ce qui a changé (travaux, nouveau matériel, nouveaux plats) et si l'établissement est certifié ou audité. Il visite, regarde vos documents, puis donne ses constats à l'oral avant de rédiger son rapport. Il ne donne pas d'ordres dans le rapport : seulement des constats."
    },
    {
     "label": "Texte",
-    "texte": "règlement 2073/2005, article 3 §2 ✔ ; annexe II (lu en 2005/2006, non relu en 2026)."
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.C."
    },
    {
     "label": "Lien",
-    "texte": "https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01"
-   }
-  ],
-  "motsCles": "listériose femme enceinte charcuterie 2073"
- },
- {
-  "id": "hygiene-du-personnel-42",
-  "section": "Hygiène générale (852/2004)",
-  "titre": "Hygiène du personnel",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "niveau élevé de propreté, tenue propre et adaptée. Aucune personne malade ou porteuse d'une maladie transmissible par les aliments, avec plaies infectées, lésions cutanées ou diarrhée, ne manipule si risque de contamination ; le salarié prévient immédiatement l'exploitant."
-   },
-   {
-    "label": "Texte",
-    "texte": "852/2004 annexe II chapitre VIII ; chapitre I points 4 (lavabos eau chaude et froide, séchage hygiénique) et 9 (vestiaires)."
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
    },
    {
     "label": "Certitude",
-    "texte": "✔ 20/10/2026. Pas de liste de maladies ni de délai d'éviction dans ce texte."
-   }
-  ],
-  "motsCles": "température conservation frigo congélateur annexe i"
- },
- {
-  "id": "contamination-croisee-dechets-eau-nuisibles-43",
-  "section": "Hygiène générale (852/2004)",
-  "titre": "Contamination croisée, déchets, eau, nuisibles",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "denrées protégées contre toute contamination à toutes les étapes (ch. IX pt 3) ; matières premières et produits finis séparés (pt 5) ; produits de nettoyage jamais dans les zones de manipulation (ch. I pt 10) ; déchets évacués vite, conteneurs fermés (ch. VI) ; eau potable, circuit non potable séparé et signalé (ch. VII) ; lutte contre les nuisibles, animaux domestiques exclus (ch. IX pt 4) ; équipements allergènes nettoyés avant autre usage (ch. IX pt 9)."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ 20/10/2026."
-   }
-  ],
-  "motsCles": "gluten arachide lait œuf soja sulfites 1169"
- },
- {
-  "id": "chaine-du-froid-refroidissement-decongelation-principes-44",
-  "section": "Hygiène générale (852/2004)",
-  "titre": "Chaîne du froid, refroidissement, décongélation (principes)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "ne pas laisser les denrées à risque à une température dangereuse ; écarts « de courte durée » admis pour la manutention sans risque ; refroidir « dès que possible » après le traitement thermique ; décongeler en limitant la multiplication des pathogènes et évacuer le liquide. Les chiffres (63 °C, 63 à 10 °C en moins de 2 h, 0 à +4 °C) viennent de l'arrêté du 21/12/2009 (section 4), pas de ce règlement."
-   },
-   {
-    "label": "Texte",
-    "texte": "852/2004 annexe II ch. IX pt 5 à 7."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ 20/10/2026."
-   }
-  ],
-  "motsCles": "cellule abattage 63 10 deux heures 2h dégel sortir congélateur recongélation température conservation frigo congélateur annexe i"
- },
- {
-  "id": "culture-de-la-securite-alimentaire-nouveau-45",
-  "section": "Hygiène générale (852/2004)",
-  "titre": "Culture de la sécurité alimentaire (nouveau)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "l'exploitant met en place et prouve une culture de la sécurité alimentaire : engagement de la direction et de tous, communication ouverte (y compris des écarts), ressources suffisantes, formation et supervision, documentation à jour, amélioration continue, adaptée à la taille de l'entreprise."
-   },
-   {
-    "label": "Texte",
-    "texte": "852/2004 annexe II ch. XI bis (ajouté par modification M3 ; date d'application exacte non vérifiée)."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ texte lu ; date d'application ◐."
-   }
-  ],
-  "motsCles": "hygiène 5 octobre 2011 manipulateur"
- },
- {
-  "id": "formation-46",
-  "section": "Hygiène générale (852/2004)",
-  "titre": "Formation",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "manutentionnaires encadrés et formés en hygiène adaptée à leur poste ; responsables de la procédure HACCP formés aux principes HACCP ; respect du droit national (France : arrêté du 5/10/2011, à lire)."
-   },
-   {
-    "label": "Texte",
-    "texte": "852/2004 annexe II ch. XII."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ 20/10/2026."
-   }
-  ],
-  "motsCles": "ccp pms 852 principes plan maîtrise sanitaire hygiène 5 octobre 2011 manipulateur"
- },
- {
-  "id": "don-alimentaire-redistribution-47",
-  "section": "Hygiène générale (852/2004)",
-  "titre": "Don alimentaire (redistribution)",
-  "certitude": "verifie",
-  "champs": [
-   {
-    "label": "En bref",
-    "texte": "DLC : redistribuer avant la date ; DDM : jusqu'à la date et après ; contrôle régulier, emballage intègre, température, traçabilité pour produits d'origine animale."
-   },
-   {
-    "label": "Texte",
-    "texte": "852/2004 annexe II ch. V bis."
-   },
-   {
-    "label": "Certitude",
-    "texte": "✔ 20/10/2026."
+    "texte": "✔ lu le 26/10/2026."
    }
   ],
   "motsCles": ""
  },
  {
-  "id": "locaux-et-equipements-48",
-  "section": "Hygiène générale (852/2004)",
-  "titre": "Locaux et équipements",
+  "id": "ce-que-l-inspecteur-prepare-avant-de-venir-50",
+  "section": "10 · Le contrôle officiel : le déroulement",
+  "titre": "Ce que l'inspecteur prépare avant de venir",
   "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "sols, murs, portes, surfaces : matériaux lisses, lavables, non absorbants, non toxiques, résistant à la corrosion, sauf preuve d'équivalence à l'autorité ; équipements nettoyés et désinfectés à fréquence suffisante ; lavabos mains avec eau chaude et froide ; ventilation sans flux de la zone contaminée vers la zone propre."
+    "texte": "il regarde la déclaration de l'activité, les rapports des contrôles précédents et les écarts notés, les résultats d'analyses officielles, l'historique des intoxications (TIAC) et votre PMS. Il peut préparer une liste de questions. Il peut contrôler dans l'ordre qu'il veut : par produit (de la date limite jusqu'aux matières premières), dans le sens de la production, d'abord sur place puis les documents, ou rubrique par rubrique."
    },
    {
     "label": "Texte",
-    "texte": "852/2004 annexe II ch. I, II, V."
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.C.1 et III."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
    },
    {
     "label": "Certitude",
-    "texte": "✔ 20/10/2026."
+    "texte": "✔ lu le 26/10/2026."
    }
   ],
-  "motsCles": "température conservation frigo congélateur annexe i"
+  "motsCles": "intoxication alimentaire déclaration ars ddpp"
  },
  {
-  "id": "baremes-cuisson-guide-p180",
-  "section": "Températures de cuisson",
-  "titre": "Barèmes de cuisson indicatifs du guide Restaurateur (page imprimée 180, page 187 du PDF)",
+  "id": "le-vade-mecum-et-la-grille-d-inspection-51",
+  "section": "10 · Le contrôle officiel : le déroulement",
+  "titre": "Le vade-mecum et la grille d'inspection",
   "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "Barèmes recommandés par l'ANSES, repris par le guide « à titre indicatif ». Ils « restent sous la responsabilité de chaque professionnel ». Viandes hachées : 71 °C à cœur ou 2 min à 70 °C (bœuf : perte de la couleur rouge) ; Hachée bœuf, veau, agneau, porc : 71 °C 15 s (citation fiche Yersinia) ; Volaille hachée : 74 °C 15 s (citation fiche Yersinia) ; Viande coupée bœuf, veau, agneau, jambon : 63 °C 15 s (citation fiche Yersinia) ; Plats préparés, viandes : maintien 63 °C, réchauffage 75 °C minimum ; Poissons : de 1 min à 60 °C à 15 min à 80 °C ; Coquillages : 2 min à 90 °C ; Œufs liquides entiers : 5 min à 60 °C ; Sanglier, cheval : 63 °C, ou 3 min à 58 °C, ou 4 h à 51 °C."
+    "texte": "le vade-mecum est le guide public que les inspecteurs de l'État suivent ; la grille est la liste des points qu'ils notent. Les six chapitres : A identification de l'établissement, B locaux et équipements (conception, équipements, nuisibles, maintenance, nettoyage), C maîtrise de la production (dangers, points déterminants, réception, températures, emballages, eau, produits finis, étiquetage), D traçabilité et réactivité, E déchets, F personnel (hygiène, formation). Tout le monde peut le télécharger. Pour un restaurant commercial, c'est le vade-mecum « Remise directe » (V3 sept. 2026), qui précise le général."
    },
    {
     "label": "Texte",
-    "texte": "Guide de bonnes pratiques d'hygiène et d'application de l'HACCP « Restaurateur », novembre 2015, page imprimée 180 (page 187 du fichier PDF)."
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL) ; vade-mecum sectoriel « Remise directe » V3 sept. 2026 (https://agriculture.gouv.fr/telecharger/129266)."
    },
    {
-    "label": "Volaille entière, canard, magret",
-    "texte": "Aucun barème officiel trouvé. La valeur de 80 °C du logiciel est une règle de la cuisine, pas une norme. Question à la DDPP en attente."
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
    },
    {
     "label": "Certitude",
-    "texte": "✔ lu le 20/10/2026."
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": "hygiène 5 octobre 2011 manipulateur"
+ },
+ {
+  "id": "reactivite-ce-que-vous-avez-fait-depuis-la-derniere-visite-52",
+  "section": "10 · Le contrôle officiel : le déroulement",
+  "titre": "Réactivité : ce que vous avez fait depuis la dernière visite",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "c'est l'item D2 de la grille. L'inspecteur demande la liste des écarts passés et ce qui a été corrigé. Garder une trace datée des actions vaut mieux que d'expliquer de mémoire. C'est aussi le chapitre qui juge la gestion des alertes, des rappels de produits, des réclamations de clients et d'une suspicion d'intoxication."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), item D2 et chapitre II.C.2."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "action-corrective-et-autocontrole-53",
+  "section": "10 · Le contrôle officiel : le déroulement",
+  "titre": "Action corrective et autocontrôle",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "action corrective : ce qu'on fait quand quelque chose n'est pas bon (température trop haute, produit abîmé) : mettre le produit de côté, décider de sa destination, éviter que ça recommence. Autocontrôle : tout ce que vous contrôlez vous-même (relevés de température, nettoyage, réception, prélèvements). Ce sont vos enregistrements que l'inspecteur lit en premier ; sans trace écrite, l'action n'existe pas pour lui."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), définitions (autocontrôle : art. R200-1 du code rural)."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "les-notes-a-b-c-d-54",
+  "section": "11 · Le contrôle officiel : les notes",
+  "titre": "Les notes A, B, C, D",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "A = conforme. B = écart mineur, aucun risque pour le client. C = écart moyen, risque augmenté de servir un produit dangereux. D = écart majeur, risque élevé. L'inspecteur note chaque ligne et écrit un constat. Le chapitre prend le jugement global de l'inspecteur (pas une moyenne), mais ne peut pas être meilleur que son meilleur point, et un seul D dans un chapitre donne un chapitre D. Pas observé (PO) ou sans objet (SO) existent aussi."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre III.D.1 et III.D.2."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "la-note-globale-de-l-etablissement-55",
+  "section": "11 · Le contrôle officiel : les notes",
+  "titre": "La note globale de l'établissement",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "A : maîtrise satisfaisante. B : acceptable. C : insuffisante, l'inspecteur n'a plus confiance. D : perte de maîtrise, décisions administratives sans délai. Un seul chapitre noté D suffit pour un D global ; pour un A il faut au moins un chapitre A et aucun D. La note ne peut jamais être meilleure que le meilleur chapitre."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre III.D.3."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "notes-d-temperatures-dlc-et-enregistrements-chapitres-c-56",
+  "section": "12 · Le contrôle officiel : ce qui pèse le plus",
+  "titre": "Notes D : températures, DLC et enregistrements (chapitres C)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "note D (majeur) : DLC dépassée exposée à la vente ou susceptible de l'être ; températures ou actions non surveillées, non enregistrées ou sans action quand elles sont mauvaises ; matières premières interdites reçues ; emballages non alimentaires, sales ou abîmés ; pas d'analyse des dangers ; pas d'eau potable ; aucune mesure après des analyses mauvaises sur des produits finis."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices des items C1 à C7."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "notes-d-tracabilite-et-alertes-chapitre-d-57",
+  "section": "12 · Le contrôle officiel : ce qui pèse le plus",
+  "titre": "Notes D : traçabilité et alertes (chapitre D)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "note D (majeur) : pas de traçabilité amont ou aval (d'où vient le produit, où il est allé) ; suspicion d'intoxication (TIAC) non signalée ; alerte non transmise aux autorités, à un fournisseur ou à un client ; aucun retrait, aucune information des clients ni rappel d'une denrée dangereuse. Notes C : alerte ou TIAC signalée trop tard ; réclamations de clients non traitées."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de D1 et D2."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": "intoxication alimentaire déclaration ars ddpp hygiène 5 octobre 2011 manipulateur"
+ },
+ {
+  "id": "notes-d-locaux-nuisibles-dechets-chapitres-b-et-e-58",
+  "section": "12 · Le contrôle officiel : ce qui pèse le plus",
+  "titre": "Notes D : locaux, nuisibles, déchets (chapitres B et E)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "note D (majeur) : locaux totalement inadaptés ; toilettes ouvrant directement sur la zone de manipulation ; denrées non protégées qui circulent en zone non adaptée ou à l'extérieur ; condensation importante au-dessus de denrées nues ; ouvertures sur l'extérieur non protégées et ouvertes pendant le travail ; conteneurs à déchets ou poubelles en zone de production avec risque de contamination croisée ; transport de denrées avec déchets ou produits dangereux sans séparation."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de B1, B2, B3, E1."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "notes-d-personnel-et-hygiene-chapitre-f-59",
+  "section": "12 · Le contrôle officiel : ce qui pèse le plus",
+  "titre": "Notes D : personnel et hygiène (chapitre F)",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "note D (majeur) : lave-mains absent ou non conforme (pas de savon, d'eau mitigée ou d'essuie-mains) ; lave-mains inaccessible à cause du comportement du personnel ; vestiaires en désordre avec tenues propres et sales mélangées ; personne malade ou blessée non protégée au contact des denrées ; aucune instruction à disposition d'un poste qui gère un point déterminant."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de F1 et F2."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "notes-c-les-ecarts-les-plus-courants-60",
+  "section": "12 · Le contrôle officiel : ce qui pèse le plus",
+  "titre": "Notes C : les écarts les plus courants",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "procédures absentes ou non écrites pour les points qui maîtrisent le risque (celles-ci doivent être écrites) ; mauvais résultat de vérification sans action derrière ; sondes et thermomètres jamais vérifiés ; nettoyage pas fait selon la procédure (produit, dosage, temps de contact, rinçage) ; analyse des dangers incomplète ; durée de vie des plats non justifiée ; procédures HACCP non validées."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de B2, B5, C1 à C6."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
    }
   ],
   "motsCles": "ccp pms 852 principes plan maîtrise sanitaire"
+ },
+ {
+  "id": "retrait-et-rappel-la-difference-61",
+  "section": "13 · Le contrôle officiel : retraits et rappels",
+  "titre": "Retrait et rappel : la différence",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "retrait : on empêche de vendre le produit (il sort du rayon ou de la carte). Rappel : on prévient les clients qui l'ont déjà et on leur dit quoi faire (le rapporter, le jeter). Un restaurant fait surtout des retraits ; le rappel concerne ce que le client a emporté."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, définitions."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/telecharger/138248"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "retirer-un-produit-rappele-la-demi-journee-62",
+  "section": "13 · Le contrôle officiel : retraits et rappels",
+  "titre": "Retirer un produit rappelé : la demi-journée",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "dès que vous recevez l'alerte (message du fournisseur ou communiqué de presse), le produit doit être retiré. Tolérance : jusqu'à une demi-journée ouvrée, ou moins si votre PMS prévoit moins. Au-delà, le produit encore présent est noté D ; entre le délai du PMS et la demi-journée, C. Retrait fait et noté : A ; retrait fait mais non documenté : B."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D201."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/telecharger/138248"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "informer-les-clients-d-un-rappel-63",
+  "section": "13 · Le contrôle officiel : retraits et rappels",
+  "titre": "Informer les clients d'un rappel",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "afficher un message lisible, près de la carte ou en caisse (sur le site si vous vendez en ligne). Il identifie le produit (lot, DLC), dit le danger et la conduite à tenir ; pas de numéro payant. Durée minimale : 15 jours d'ouverture pour les produits frais, avec DLC ou froid positif ; 2 mois pour surgelés, conserves, secs. Une carte de fidélité ou un message ne remplace pas l'affichage. Absence plus d'une demi-journée alors que le produit a été vendu : D ; affichage peu visible, retiré trop tôt ou erroné : C."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D202 ; modèles d'information dans le Guide d'aide à la gestion des alertes (annexe VIII)."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/telecharger/138248"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": "hygiène 5 octobre 2011 manipulateur température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "que-faire-d-un-produit-retire-64",
+  "section": "13 · Le contrôle officiel : retraits et rappels",
+  "titre": "Que faire d'un produit retiré",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "le mettre à part, avec une étiquette claire (« non conforme, non destiné à la consommation humaine » ou « exclusivement pour élimination »). « Ne pas toucher » ou « retour fournisseur » seuls ne suffisent pas (C) ; produit non identifié : D. Interdits : le donner, le vendre, le transformer dans un autre plat, le donner aux animaux. Pas de traitement assainissant au commerce de détail."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D203."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/telecharger/138248"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "prevenir-ceux-a-qui-vous-avez-cede-le-produit-65",
+  "section": "13 · Le contrôle officiel : retraits et rappels",
+  "titre": "Prévenir ceux à qui vous avez cédé le produit",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "si vous avez donné ou revendu un produit rappelé (association, autre point de vente, vente en ligne), il faut leur transmettre l'alerte avec un message clair (produit, lot, quoi faire). Message clair : A ; message flou : C ; non transmis : D. Pour un envoi à l'étranger : « recipient list » à fournir spontanément. Si vous ne cédez jamais de produits : sans objet."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D204."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/telecharger/138248"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
+ },
+ {
+  "id": "petits-restaurants-la-flexibilite-66",
+  "section": "14 · Le contrôle officiel : petits restaurants et produits d'entretien",
+  "titre": "Petits restaurants : la « flexibilité »",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "avec 5 personnes ou moins au contact des denrées, vous pouvez noter seulement les écarts et ce que vous avez fait pour les corriger (procédures orales acceptées) pour les bonnes pratiques d'hygiène. Pas d'analyse des dangers pour : vente de préemballé, stockage ambiant, congélation et décongélation de denrées conditionnées, stockage de préemballé au froid. Mais cuissons, refroidissements, maintien au chaud et préparations à risque restent à documenter complètement, sauf si vous suivez un guide de bonnes pratiques évalué. Si l'inspecteur constate des manquements, cette souplesse peut être suspendue."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.B.3 (cite l'instruction DGAL/SDSSA/2018-924 du 7/01/2019)."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ pour le vade-mecum ; ◐ l'instruction elle-même n'a pas été lue (à relire)."
+   }
+  ],
+  "motsCles": "cellule abattage 63 10 deux heures 2h bain-marie 63 liaison chaude dégel sortir congélateur recongélation température conservation frigo congélateur annexe i"
+ },
+ {
+  "id": "produits-d-entretien-de-maintenance-et-contre-les-nuisibles-67",
+  "section": "14 · Le contrôle officiel : petits restaurants et produits d'entretien",
+  "titre": "Produits d'entretien, de maintenance et contre les nuisibles",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "dans leur emballage d'origine ou un récipient fermé et étiqueté en permanence ; rangés dans un local ou un meuble à part, loin des denrées (un petit stock d'appoint dans un meuble approprié est toléré près de la cuisine) ; fiche technique conservée ; utilisés selon le mode d'emploi du fabricant. Produits contre les nuisibles : produit autorisé, numéro d'autorisation sur l'étiquette. Produits de nettoyage : nom, usage et mode d'emploi (dosage, rinçage) sur l'étiquette."
+   },
+   {
+    "label": "Texte",
+    "texte": "Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes B3L02, B4L02, B5L02."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://agriculture.gouv.fr/les-vade-mecums-dinspection"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "motsCles": ""
  }
 ];

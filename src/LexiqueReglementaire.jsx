@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from "react";
-import { LEXIQUE, LEXIQUE_DATE } from "./lexiqueDonnees.js";
+import { LEXIQUE, LEXIQUE_DATE, LEXIQUE_GROUPES } from "./lexiqueDonnees.js";
 
 // Lexique réglementaire : toujours disponible dans le logiciel (les rectangles rouges « Normes HACCP » des écrans disparaissent
 // au bout de 6 mois, pas le lexique). Contenu généré depuis docs/lexique-haccp.md (voir scripts/genererLexique.mjs).
@@ -57,7 +57,8 @@ export default function LexiqueReglementaire() {
   const [seulementVerifie, setSeulementVerifie] = useState(false);
   const [ouvertes, setOuvertes] = useState({});
 
-  const sections = useMemo(() => [...new Set(LEXIQUE.map((e) => e.section))], []);
+  const sections = useMemo(() => LEXIQUE_GROUPES.map((g) => g.nom), []);
+  const introDe = (nom) => (LEXIQUE_GROUPES.find((g) => g.nom === nom) || {}).intro || "";
   const index = useMemo(() => LEXIQUE.map((e) => ({
     e,
     titre: normaliser(e.titre),
@@ -112,9 +113,25 @@ export default function LexiqueReglementaire() {
       <p className="text-xs text-[var(--steel)]">{resultats.length} fiche{resultats.length > 1 ? "s" : ""}{requete ? ` pour « ${requete} »` : ""}</p>
 
       <div className="space-y-2">
-        {resultats.map(({ e }) => (
-          <Fiche key={e.id} e={e} ouverte={!!ouvertes[e.id]} onBascule={() => setOuvertes((o) => ({ ...o, [e.id]: !o[e.id] }))} />
-        ))}
+        {(() => {
+          const groupe = !requete.trim();
+          let precedent = "";
+          return resultats.map(({ e }) => {
+            const entete = groupe && e.section !== precedent;
+            precedent = e.section;
+            return (
+              <React.Fragment key={e.id}>
+                {entete && (
+                  <div className="pt-3 first:pt-0">
+                    <h3 className="text-sm font-bold text-[var(--ink)]">{e.section}</h3>
+                    {introDe(e.section) && <p className="text-xs text-[var(--steel)]">{introDe(e.section)}</p>}
+                  </div>
+                )}
+                <Fiche e={e} ouverte={!!ouvertes[e.id]} onBascule={() => setOuvertes((o) => ({ ...o, [e.id]: !o[e.id] }))} />
+              </React.Fragment>
+            );
+          });
+        })()}
         {resultats.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune fiche trouvée. Essayez un seul mot, sans accent si besoin (exemple : « froid », « huile », « oeuf »).</p>}
       </div>
     </div>
