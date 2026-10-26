@@ -89,7 +89,7 @@ export const PMS_POINTS = [
   { id: "d-cuisson", cat: "D", mod: "5.1", titre: "Cuisson",
     aide: "Barèmes indicatifs du guide : viande hachée 71 °C ; volaille hachée 74 °C ; viandes coupées 63 °C. Volaille entière et autres préparations : aucun barème officiel lu.", base: "Guide du restaurateur 2015 (page 180)", auto: "cuissons" },
   { id: "d-refroidissement", cat: "D", mod: "5.1", titre: "Refroidissement",
-    aide: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C : texte écrit pour la restauration collective.", base: "Arrêté du 21/12/2009, annexe IV", auto: "refroidissements" },
+    aide: "De +63 °C à +10 °C en moins de 2 h, puis 0 à +3 °C : texte écrit pour la restauration collective ; en remise directe aucune durée n'est imposée, mais l'enregistrement de la surveillance est attendu. Avec une cellule de refroidissement, le logiciel prend 2 h comme objectif. Sans cellule, l'établissement choisit sa durée maximale, la mesure dans le logiciel et la justifie dans son PMS.", base: "Arrêté du 21/12/2009, annexe IV ; vade-mecum « Remise directe » V3 sept. 2026, ligne C403L09", auto: "refroidissements" },
   { id: "d-maintien", cat: "D", mod: "5.1", titre: "Maintien au chaud",
     aide: "Sous 63 °C, aucune règle écrite.", base: "Arrêté du 21/12/2009, annexe I (liaison chaude)", auto: "maintiens" },
   { id: "d-dlc", cat: "D", mod: "5.1", titre: "Aucune DLC dépassée en cuisine ni exposée à la vente",
