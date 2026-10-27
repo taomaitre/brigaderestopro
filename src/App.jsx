@@ -7,6 +7,7 @@ import { analyserCommandeLocale, analyserPhraseMultiple, rapprocher as rapproche
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { PMS_POINTS, ETATS_POINT_PMS, pointsDeCategorie, bilanPointsPms } from './pmsPoints.js';
+import { GRILLE_CHAPITRES, GRILLE_LIEN } from './grilleInspection.js';
 import LexiqueReglementaire from './LexiqueReglementaire.jsx';
 import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
@@ -2378,6 +2379,66 @@ function PmsBilanPoints({ pms, locales }) {
   );
 }
 
+
+// Préparation à l'inspection : la grille officielle (vade-mecum général et « Remise directe », ministère de l'Agriculture) dans l'ordre de l'inspecteur,
+// avec pour chaque item l'état de vos points du Dossier PMS. C'est une aide à la préparation : seule l'inspection donne une note.
+function PmsPreparationInspection({ pms, locales }) {
+  const reponses = pmsReponsesPoints(pms, locales);
+  const couleur = (e) => (ETATS_POINT_PMS.find((x) => x.value === e) || { couleur: "#C1432D" }).couleur;
+  const libelleEtat = { fait: "Fait", incomplet: "Incomplet", pas_fait: "Pas fait" };
+  const etatItem = (item) => {
+    const etats = item.points.map((id) => (reponses[id] && reponses[id].etat) || "pas_fait");
+    if (etats.some((e) => e === "pas_fait")) return "pas_fait";
+    if (etats.some((e) => e === "incomplet")) return "incomplet";
+    return "fait";
+  };
+  const tous = GRILLE_CHAPITRES.flatMap((c) => c.items.map((it) => ({ ...it, lettre: c.lettre, etat: etatItem(it) })));
+  const aTraiter = tous.filter((it) => it.etat !== "fait");
+  const prioritaires = aTraiter.filter((it) => it.d && it.d.length);
+  const titrePoint = (id) => { const p = PMS_POINTS.find((x) => x.id === id); return p ? p.titre : id; };
+  return (
+    <Card className="mb-4">
+      <h3 className="font-semibold text-[var(--ink)]">Préparation à l'inspection : la grille de l'inspecteur, point par point</h3>
+      <p className="text-sm text-[var(--steel)] mb-2">L'inspecteur suit une grille officielle publique : 6 chapitres (A à F). Ici, chaque ligne de la grille est reliée à vos points du Dossier PMS. Un « D » à l'inspection (écart majeur) fait tomber tout le chapitre : traitez d'abord les lignes en rouge. La note n'est donnée que par l'inspecteur.</p>
+      <p className="text-sm text-[var(--ink)] mb-3"><span className="font-bold">{tous.length - aTraiter.length}</span> ligne{tous.length - aTraiter.length > 1 ? "s" : ""} prête{tous.length - aTraiter.length > 1 ? "s" : ""} sur {tous.length}{prioritaires.length ? <> · <span className="font-bold" style={{ color: "#C1432D" }}>{prioritaires.length} à traiter en priorité</span></> : null}</p>
+      <div className="space-y-2">
+        {GRILLE_CHAPITRES.map((c) => (
+          <details key={c.lettre} className="rounded-xl border border-[var(--cadre)] bg-white">
+            <summary className="cursor-pointer px-3 py-2.5 text-sm font-bold text-[var(--ink)] flex items-center gap-2">
+              <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs shrink-0" style={{ background: "#475569" }}>{c.lettre}</span>
+              <span className="flex-1">{c.titre}</span>
+              <span className="text-xs font-semibold text-[var(--steel)]">{c.items.filter((it) => etatItem(it) === "fait").length}/{c.items.length} prêtes</span>
+            </summary>
+            <div className="px-3 pb-3 space-y-2">
+              {c.items.map((it) => { const e = etatItem(it); const urgent = e !== "fait" && it.d && it.d.length; return (
+                <details key={it.code} className="rounded-lg border" style={{ borderColor: urgent ? "#C1432D" : "var(--cadre)", borderLeftWidth: 5, borderLeftColor: couleur(e) }}>
+                  <summary className="cursor-pointer px-3 py-2 text-sm text-[var(--ink)] flex items-start gap-2">
+                    <span className="font-bold shrink-0">{it.code}</span>
+                    <span className="flex-1">{it.titre}</span>
+                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white shrink-0" style={{ background: couleur(e) }}>{libelleEtat[e]}</span>
+                  </summary>
+                  <div className="px-3 pb-3 text-sm text-[var(--ink)] space-y-2">
+                    <p><span className="text-xs font-semibold text-[var(--steel)] uppercase">Ce que l'inspecteur regarde</span><br />{it.regarde}</p>
+                    {it.d && it.d.length > 0 && <div><span className="text-xs font-semibold uppercase" style={{ color: "#C1432D" }}>Écarts majeurs (note D)</span><ul className="list-disc pl-5">{it.d.map((x) => <li key={x}>{x}</li>)}</ul></div>}
+                    {it.c && it.c.length > 0 && <div><span className="text-xs font-semibold uppercase" style={{ color: "#B7791F" }}>Écarts moyens (note C)</span><ul className="list-disc pl-5">{it.c.map((x) => <li key={x}>{x}</li>)}</ul></div>}
+                    <div><span className="text-xs font-semibold text-[var(--steel)] uppercase">Vos points du Dossier PMS</span>
+                      <ul className="mt-0.5">{it.points.map((id) => { const et = (reponses[id] && reponses[id].etat) || "pas_fait"; return (
+                        <li key={id} className="flex items-start gap-2 py-0.5"><span className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style={{ background: couleur(et) }} /><span className="flex-1">{titrePoint(id)}</span><span className="text-xs text-[var(--steel)] shrink-0">{libelleEtat[et]}</span></li>
+                      ); })}</ul>
+                    </div>
+                    <p className="text-xs text-[var(--steel)]">Où le faire : {it.ou}</p>
+                  </div>
+                </details>
+              ); })}
+            </div>
+          </details>
+        ))}
+      </div>
+      <p className="text-xs text-[var(--steel)] mt-3">Sources : vade-mecum général V7 et vade-mecum « Remise directe » V3 (sept. 2026), vade-mecum « Retraits/rappels » V2. Liste : <a href={GRILLE_LIEN} target="_blank" rel="noopener noreferrer" className="underline" style={{ color: "#1D4ED8" }}>agriculture.gouv.fr ↗</a>. Aide pédagogique : le PMS de l'établissement fait foi.</p>
+    </Card>
+  );
+}
+
 function PmsPlanAction({ pms, locales }) {
   const reponses = pmsReponsesPoints(pms, locales);
   const aFaire = PMS_POINTS.filter((p) => { const e = reponses[p.id] && reponses[p.id].etat; return e !== "fait"; });
@@ -2440,6 +2501,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
   return (
     <div>
       <PmsBilanPoints pms={pms} locales={locales} />
+      <PmsPreparationInspection pms={pms} locales={locales} />
       <div className="flex flex-wrap gap-2 mb-4">
         {PMS_CATEGORIES.map((c) => (
           <button key={c.id} type="button" onClick={() => aller(c.id)} className="inline-flex items-center gap-2 min-h-[40px] pl-1.5 pr-3 rounded-full border-2 text-sm font-bold bg-white" style={{ borderColor: c.zone.bord, color: c.zone.texte }}>
@@ -4474,7 +4536,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
     { titre: "Cuisine", ids: ["creationFiche", "carte"] },
     { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires"] },
   ];
-  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Nettoyages à valider", pmsPrestataires: "Prestataires" };
+  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Contrôle de la journée", pmsPrestataires: "Prestataires" };
   const PARAM_EXTRAS = { "@horaires": ["horaires", "Horaires de l'équipe", Clock, "#1F8F5F", "#146B45"], "@reservations": ["reservations", "Réservations client", CalendarDays, "#1F8F5F", "#146B45"] };
   const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
   const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
@@ -4659,7 +4721,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         const auj = todayISO(); const maintenant = Date.now();
         const incomplets = (stockCatalogue || []).filter((x) => x.brut && (!x.reference || !x.prixUnitaire || estAValider(x.note)));
         const cuisDepassees = cuissons.filter((c) => c.statut === "en-cours" && (maintenant - c.debutTs) / 60000 >= c.dureeAttendueMin);
-        const refrDepasses = refroidissements.filter((r) => r.statut === "en-cours" && (maintenant - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin);
+        const refrDepasses = refroidissements.filter((r) => r.statut === "en-cours" && (maintenant - r.debutTs) / 60000 >= normeRefroidissement(r).dureeMaxMin);
         const froidEnAttente = (surveillancesFroid || []).filter((x) => x.statut === "attente");
         const dlcAujourdhui = stock.filter((x) => x.dlc === auj && Number(x.quantite) > 0).length + preparations.filter((x) => x.dlcDate === auj && !x.jete).length;
         const nettoAValider = ctxNettoyageCG && ctxNettoyageCG.executions ? ctxNettoyageCG.executions.filter((x) => x.date === auj && x.statut === "fait" && !x.valideChef).length : 0;
@@ -6462,7 +6524,7 @@ function HaccpTempPage({ tempLogs, setTempLogs, currentUserId, employees, logAct
   );
 }
 
-function HaccpRefroidPage({ fiches, onCuissonRefroidie, onMaintienRefroidi, cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidPage({ fiches, onCuissonRefroidie, onMaintienRefroidi, cuissons, setCuissons, refroidissements, setRefroidissements, currentUserId, employees, logActivity, ajouterAlerteControle, refroidissementSuggere, setRefroidissementSuggere, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide, celluleDispo = true }) {
   const [infosFiche, setInfosFiche] = useState(null);
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
@@ -6475,7 +6537,7 @@ function HaccpRefroidPage({ fiches, onCuissonRefroidie, onMaintienRefroidi, cuis
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
         <div className="lg:shrink-0"><SectionHeader title="Refroidissement rapide et congélation" subtitle="Suivi des refroidissements, des congélations et de la cellule" /></div>
       </div>
-      <HaccpRefroidissement fiches={fiches} onCuissonRefroidie={onCuissonRefroidie} onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+      <HaccpRefroidissement fiches={fiches} onCuissonRefroidie={onCuissonRefroidie} onMaintienRefroidi={onMaintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} logActivity={logActivity} who={who} ajouterAlerteControle={ajouterAlerteControle} produitSuggere={refroidissementSuggere} setProduitSuggere={setRefroidissementSuggere} ouvrirNormes={ouvrirNormes} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide}  celluleDispo={celluleDispo} />
       {infosFiche && <ModalInfosNormes fiche={infosFiche} onClose={() => setInfosFiche(null)} />}
     </div>
   );
@@ -13385,7 +13447,14 @@ const REFROIDISSEMENT_NORME = { debutMin: 63, finMax: 10, dureeMaxMin: 120, aler
 const SURGELATION_NORME = { finMax: -18, dureeMaxMin: 270, alerteAvantMin: 1 };
 // Entrée sans `type` enregistré (créées avant cette version) = toujours refroidissement positif,
 // pour ne jamais rétroactivement changer la norme appliquée à un refroidissement déjà en cours.
-function normeRefroidissement(type) { return type === "negatif" ? SURGELATION_NORME : REFROIDISSEMENT_NORME; }
+// Accepte un type ("negatif" ou autre) ou une entrée de refroidissement. Avec cellule : 2 h (repère retenu par la cuisine). Sans cellule :
+// aucune durée n'est fixée par les textes en remise directe ; l'entrée porte alors la durée choisie par l'établissement (`dureeMaxMin`).
+function normeRefroidissement(x) {
+  const type = x && typeof x === "object" ? x.type : x;
+  if (type === "negatif") return SURGELATION_NORME;
+  const d = x && typeof x === "object" ? Number(x.dureeMaxMin) : NaN;
+  return d > 0 && d !== REFROIDISSEMENT_NORME.dureeMaxMin ? { ...REFROIDISSEMENT_NORME, dureeMaxMin: d } : REFROIDISSEMENT_NORME;
+}
 
 function EtiquetteRefroidissement({ r, who }) {
   return (
@@ -13405,7 +13474,7 @@ function EtiquetteRefroidissement({ r, who }) {
 
 const MOTIFS_ANOMALIE_REFROIDISSEMENT = ["Panne de cellule", "Produit resté à bonne température (accepté)", "Processus de refroidissement non conforme", "Autre motif"];
 
-function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide }) {
+function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefroidi, cuissons = [], setCuissons, refroidissements, setRefroidissements, currentUserId, logActivity, who, ajouterAlerteControle, produitSuggere, setProduitSuggere, ouvrirNormes, creerEtiquetteDlc, preparations, ajouterTacheNettoyageCellule, proposerEtiquetteRapide, celluleDispo = true }) {
   const [modeDemarrage, setModeDemarrage] = useState("positif"); // "positif" = refroidissement rapide, "negatif" = congélation/surgélation
   const [produit, setProduit] = useState("");
   const [tempDebut, setTempDebut] = useState("");
@@ -13420,6 +13489,9 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
   const [maintienId, setMaintienId] = useState(null); // maintien au chaud d'où vient ce refroidissement
   const [rechercheFiche, setRechercheFiche] = useState("");
   const [verdict, setVerdict] = useState(null); // résultat affiché après validation : { produit, conforme, detail }
+  // Sans cellule : aucune durée fixée par les textes en remise directe ; l'établissement choisit la sienne (reprise du dernier choix).
+  const derniereDuree = (refroidissements.find((x) => x.type !== "negatif" && Number(x.dureeMaxMin) > 0) || {}).dureeMaxMin;
+  const [dureeChoisie, setDureeChoisie] = useState(derniereDuree ? String(derniereDuree) : "");
   const today = todayISO();
 
   useEffect(() => {
@@ -13450,12 +13522,13 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
     setCuissonChoisieId(c.id);
   };
 
+  const dureeSansCelluleOk = celluleDispo || modeDemarrage === "negatif" || Number(dureeChoisie) > 0;
   const demarrer = () => {
-    if (!produit || tempDebut === "") return;
+    if (!produit || tempDebut === "" || !dureeSansCelluleOk) return;
     // Un produit venant d'une cuisson (choisi dans la liste, ou saisi avec le même nom) ne doit être refroidi qu'une fois :
     // on le relie à sa cuisson, qui disparaît alors de « à mettre en refroidissement ».
     const cuissonLiee = cuissonsPretes.find((c) => c.id === cuissonChoisieId) || cuissonsPretes.find((c) => (c.produit || "").trim().toLowerCase() === produit.trim().toLowerCase());
-    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : (cuissonRetourId || undefined), origineRetourCuisson: cuissonRetourId || undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
+    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : (cuissonRetourId || undefined), origineRetourCuisson: cuissonRetourId || undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, ...(!celluleDispo && modeDemarrage !== "negatif" ? { dureeMaxMin: Number(dureeChoisie) } : {}), quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
     setRefroidissements([entry, ...refroidissements]);
     if (cuissonLiee && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === cuissonLiee.id ? { ...c, refroidissementLance: true } : c)));
     setCuissonChoisieId(null); setMaintienId(null); setCuissonRetourId(null);
@@ -13467,7 +13540,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
 
   const terminer = (id) => {
     const r = refroidissements.find((x) => x.id === id);
-    const norme = normeRefroidissement(r.type);
+    const norme = normeRefroidissement(r);
     const saisie = finForm[id] || {};
     if (saisie.tempFin === undefined || saisie.tempFin === "") return;
     const dureeMin = Math.round((Date.now() - r.debutTs) / 60000);
@@ -13536,7 +13609,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
         <button onClick={() => setModeDemarrage("positif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${!neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
           <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Refroidissement</span>
-          <span className="block text-xs text-[var(--steel)] mt-1">Refroidir un plat cuit : de +63 °C à +10 °C en moins de 2 h, puis conservation entre 0 et +3 °C.</span>
+          <span className="block text-xs text-[var(--steel)] mt-1">{celluleDispo ? "Refroidir un plat cuit avec la cellule : de +63 °C à +10 °C en moins de 2 h (repère), puis conservation entre 0 et +3 °C." : "Refroidir un plat cuit sans cellule (en chambre froide, bacs peu épais) : de +63 °C à +10 °C, dans la durée que vous vous fixez."}</span>
         </button>
         <button onClick={() => setModeDemarrage("negatif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
           <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Congélation</span>
@@ -13590,11 +13663,17 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
             </Field>
             <Field label="Température de départ (°C)"><input className={inputCls} type="number" inputMode="decimal" value={tempDebut} onChange={(e) => setTempDebut(e.target.value)} placeholder={neg ? "Ex. : 4" : "Ex. : 85"} /></Field>
             <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDepart} onChange={(e) => setHeureDepart(e.target.value)} /></Field>
+            {!celluleDispo && !neg && (
+              <Field label="Durée maximale que vous vous fixez (minutes)">
+                <input className={inputCls} type="number" inputMode="numeric" min="1" value={dureeChoisie} onChange={(e) => setDureeChoisie(e.target.value)} placeholder="À définir dans votre PMS" />
+                <span className="block text-xs text-[var(--steel)] mt-1">Aucune durée n'est imposée en remise directe : c'est vous qui la choisissez et qui la justifiez dans votre PMS. Le logiciel la mesure et l'enregistre. Pas de cellule déclarée : à modifier dans les réglages de l'établissement.</span>
+              </Field>
+            )}
           </div>
           <div className="mb-3">
             <Field label="Notes (optionnel)"><input className={inputCls} value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Ex. : bac gastro 65 mm, couvercle ouvert" /></Field>
           </div>
-          <Button onClick={demarrer} disabled={!produit || tempDebut === ""}><Plus size={16} /> {neg ? "Démarrer la congélation" : "Démarrer le refroidissement"}</Button>
+          <Button onClick={demarrer} disabled={!produit || tempDebut === "" || !dureeSansCelluleOk}><Plus size={16} /> {neg ? "Démarrer la congélation" : "Démarrer le refroidissement"}</Button>
           </CarteZone>
         </div>
       </Card>
@@ -13613,7 +13692,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
         {enCours.length === 0 && <p className="text-sm text-[var(--steel)]">Rien en cours pour le moment.</p>}
         <div className="space-y-3">
           {enCours.map((r) => {
-            const norme = normeRefroidissement(r.type);
+            const norme = normeRefroidissement(r);
             const minutes = Math.floor((Date.now() - r.debutTs) / 60000);
             const depasse = minutes >= norme.dureeMaxMin;
             const saisie = finForm[r.id] || {};
@@ -19334,7 +19413,7 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
       setVerdictFin({ ok: conforme, texte: `${item.produit} : cuisson terminée · ${visuelOk !== undefined ? "contrôle visuel" : `${t} °C à cœur`} · ${conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
     } else if (type === "refroidissement") {
       if (t === "" || Number.isNaN(tNum)) return;
-      const norme = normeRefroidissement(item.type);
+      const norme = normeRefroidissement(item);
       const dureeMin = Math.round((Date.now() - (item.debutTs || Date.now())) / 60000);
       const depasse = dureeMin > norme.dureeMaxMin;
       if (depasse && !saisieFin.motif) return;
@@ -19445,7 +19524,7 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
       {fin && (() => {
         const it = fin.item; const nom = it.produit || it.nom || "Produit";
         const titreFin = fin.type === "cuisson" ? "Terminer la cuisson" : fin.type === "refroidissement" ? "Terminer le refroidissement" : "Terminer le maintien au chaud";
-        const norme = fin.type === "refroidissement" ? normeRefroidissement(it.type) : null;
+        const norme = fin.type === "refroidissement" ? normeRefroidissement(it) : null;
         const dureeMin = norme ? Math.round((Date.now() - (it.debutTs || Date.now())) / 60000) : 0;
         const depasse = norme ? dureeMin > norme.dureeMaxMin : false;
         const visuel = fin.type === "cuisson" && it.controleVisuelSeul;
@@ -22289,7 +22368,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       const infos = [
         ...(fournisseursPlanning || []).filter((f) => jourPrevuPlanning(f.planning_livraison, today)).map((f) => ({ cle: "liv" + f.id, nom: `Livraison ${f.nom} — réception à faire à l'arrivée`, tag: "Aujourd'hui", ton: "bleu" })),
         ...(peutGererPlanning ? (fournisseursPlanning || []).filter((f) => jourPrevuPlanning(f.planning_commande, today)).map((f) => ({ cle: "cmd" + f.id, nom: `Commande ${f.nom} à passer`, tag: "Aujourd'hui", ton: "bleu" })) : []),
-        ...refroids.map((r) => { const restant = normeRefroidissement(r.type).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
+        ...refroids.map((r) => { const restant = normeRefroidissement(r).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
         ...maintien.map((e) => ({ cle: "m" + e.id, nom: `${e.nom} (maintien au chaud)`, tag: `depuis ${Math.floor((Date.now() - e.debutTs) / 60000)} min`, ton: "bleu" })),
         ...preparations.filter((p) => !p.jete && p.dlcDate === demain).map((p) => ({ cle: "a" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "À utiliser ce soir", ton: "or" })),
         ...stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0).map((s) => ({ cle: "c" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "DLC demain", ton: "or" })),
@@ -23738,7 +23817,7 @@ function KitchenApp({ identiteExterne } = {}) {
         const next = prev.map((r) => {
           if (r.statut !== "en-cours" || r.alarmeAcquittee) return r;
           const minutes = (maintenant - r.debutTs) / 60000;
-          if (minutes < normeRefroidissement(r.type).dureeMaxMin) return r;
+          if (minutes < normeRefroidissement(r).dureeMaxMin) return r;
           const derniere = r.derniereAlerte || 0;
           if (maintenant - derniere >= 60000) {
             alerteAJouer = true;
@@ -23774,7 +23853,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // reste affiché comme dépassé dans son écran tant qu'il n'est pas réellement terminé), ça coupe
   // juste le bip/vibration répétés une fois que la personne a vu l'alerte et va s'en occuper.
   const arreterAlarmeRefroidissement = useCallback(() => {
-    setRefroidissements((prev) => prev.map((r) => (r.statut === "en-cours" && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin ? { ...r, alarmeAcquittee: true } : r)));
+    setRefroidissements((prev) => prev.map((r) => (r.statut === "en-cours" && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r).dureeMaxMin ? { ...r, alarmeAcquittee: true } : r)));
   }, [setRefroidissements]);
   const arreterAlarmeCuisson = useCallback(() => {
     setCuissons((prev) => prev.map((c) => (c.statut === "en-cours" && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin ? { ...c, alarmeAcquittee: true } : c)));
@@ -23803,7 +23882,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // et, pour le refroidissement, on enchaîne directement sur la proposition d'étiquette DLC —
   // c'est la dernière étape du protocole, pas la peine d'attendre que ça soit fini pour la faire.
   const arreterPreAlarmeRefroidissement = useCallback(() => {
-    const candidats = refroidissements.filter((r) => { const n = normeRefroidissement(r.type); const m = (Date.now() - r.debutTs) / 60000; return r.statut === "en-cours" && !r.preAlarmeAcquittee && m >= n.dureeMaxMin - n.alerteAvantMin && m < n.dureeMaxMin; });
+    const candidats = refroidissements.filter((r) => { const n = normeRefroidissement(r); const m = (Date.now() - r.debutTs) / 60000; return r.statut === "en-cours" && !r.preAlarmeAcquittee && m >= n.dureeMaxMin - n.alerteAvantMin && m < n.dureeMaxMin; });
     const plusUrgent = candidats.sort((a, b) => a.debutTs - b.debutTs)[0];
     if (!plusUrgent) return;
     setRefroidissements((prev) => prev.map((r) => (r.id === plusUrgent.id ? { ...r, preAlarmeAcquittee: true } : r)));
@@ -24659,7 +24738,7 @@ function KitchenApp({ identiteExterne } = {}) {
   // plusieurs produits dans la fenêtre en même temps, on ne fait sonner l'escalade que sur le
   // plus urgent (celui qui a commencé le plus tôt) — les autres restent affichés dès qu'il est traité.
   const plusUrgentRefroidissementPreAlarme = refroidissements
-    .filter((r) => { const n = normeRefroidissement(r.type); const m = (Date.now() - r.debutTs) / 60000; return r.statut === "en-cours" && !r.preAlarmeAcquittee && m >= n.dureeMaxMin - n.alerteAvantMin && m < n.dureeMaxMin; })
+    .filter((r) => { const n = normeRefroidissement(r); const m = (Date.now() - r.debutTs) / 60000; return r.statut === "en-cours" && !r.preAlarmeAcquittee && m >= n.dureeMaxMin - n.alerteAvantMin && m < n.dureeMaxMin; })
     .sort((a, b) => a.debutTs - b.debutTs)[0];
   const plusUrgentCuissonPreAlarme = cuissons
     .filter((c) => c.statut === "en-cours" && !c.preAlarmeAcquittee && (Date.now() - c.debutTs) / 60000 >= c.dureeAttendueMin - CUISSON_ALERTE_AVANT_MIN && (Date.now() - c.debutTs) / 60000 < c.dureeAttendueMin)
@@ -24938,7 +25017,7 @@ function KitchenApp({ identiteExterne } = {}) {
         {messageQuitter && (
           <div role="status" className="fixed left-1/2 -translate-x-1/2 bottom-24 z-[100] rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg" style={{ background: "rgba(29,35,33,0.92)" }}>Appuyez encore une fois pour quitter</div>
         )}
-        {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r.type).dureeMaxMin) && (
+        {refroidissements.some((r) => r.statut === "en-cours" && !r.alarmeAcquittee && (Date.now() - r.debutTs) / 60000 >= normeRefroidissement(r).dureeMaxMin) && (
           <AlerteBanniere label="Refroidissement" onClick={() => setTab("haccpRefroid")} onArreterAlarme={arreterAlarmeRefroidissement} continu>Un refroidissement ou une congélation a dépassé sa durée maximale — terminez-le dans Refroidissement rapide.</AlerteBanniere>
         )}
         {plusUrgentRefroidissementPreAlarme && (
@@ -25056,7 +25135,7 @@ function KitchenApp({ identiteExterne } = {}) {
           <HaccpTempPage tempLogs={tempLogs} setTempLogs={setTempLogs} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} relevesFroid={relevesFroid} setRelevesFroid={setRelevesFroid} surveillancesFroid={surveillancesFroid} setSurveillancesFroid={setSurveillancesFroid} ajouterAlerteControle={ajouterAlerteControle} />
         )}
         {tab === "haccpRefroid" && (
-          <HaccpRefroidPage fiches={fiches} onCuissonRefroidie={cuissonRefroidie} onMaintienRefroidi={maintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} />
+          <HaccpRefroidPage fiches={fiches} onCuissonRefroidie={cuissonRefroidie} onMaintienRefroidi={maintienRefroidi} cuissons={cuissons} setCuissons={setCuissons} refroidissements={refroidissements} setRefroidissements={setRefroidissements} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} ajouterAlerteControle={ajouterAlerteControle} refroidissementSuggere={refroidissementSuggere} setRefroidissementSuggere={setRefroidissementSuggere} creerEtiquetteDlc={creerEtiquetteDlc} preparations={preparations} ajouterTacheNettoyageCellule={ajouterTacheNettoyageCellule} proposerEtiquetteRapide={proposerEtiquetteRapide} celluleDispo={reglagesEtablissementApp ? !!reglagesEtablissementApp.cellule : true} />
         )}
         {tab === "haccpHuile" && (
           <HaccpHuilePage huileTests={huileTests} setHuileTests={setHuileTests} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onEnregistrerTest={modeExterne ? confirmerTestHuile : undefined} />

@@ -335,6 +335,133 @@ Lien : https://eur-lex.europa.eu/eli/reg/2004/852/2021-03-24 (à vérifier). Not
 **Texte** : 852/2004 annexe II ch. I, II, V.
 **Certitude** : ✔ 20/10/2026.
 
+## 8 ter. Contrôle officiel 1 : le déroulement
+Lien commun : https://agriculture.gouv.fr/les-vade-mecums-dinspection (page ouverte le 26/10/2026 ; PDF du général : https://agriculture.gouv.fr/telecharger/129252). Statut : brouillon relu par Loïc le 26/10.
+
+### Comment se passe un contrôle d'hygiène ✔
+**En bref** : le contrôle est en général sans prévenir. L'inspecteur se présente, demande un responsable, rappelle les écarts du dernier contrôle et demande ce que vous avez fait depuis. Il demande aussi ce qui a changé (travaux, nouveau matériel, nouveaux plats) et si l'établissement est certifié ou audité. Il visite, regarde vos documents, puis donne ses constats à l'oral avant de rédiger son rapport. Il ne donne pas d'ordres dans le rapport : seulement des constats.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.C.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Ce que l'inspecteur prépare avant de venir ✔
+**En bref** : il regarde la déclaration de l'activité, les rapports des contrôles précédents et les écarts notés, les résultats d'analyses officielles, l'historique des intoxications (TIAC) et votre PMS. Il peut préparer une liste de questions. Il peut contrôler dans l'ordre qu'il veut : par produit (de la date limite jusqu'aux matières premières), dans le sens de la production, d'abord sur place puis les documents, ou rubrique par rubrique.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.C.1 et III.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Le vade-mecum et la grille d'inspection ✔
+**En bref** : le vade-mecum est le guide public que les inspecteurs de l'État suivent ; la grille est la liste des points qu'ils notent. Les six chapitres : A identification de l'établissement, B locaux et équipements (conception, équipements, nuisibles, maintenance, nettoyage), C maîtrise de la production (dangers, points déterminants, réception, températures, emballages, eau, produits finis, étiquetage), D traçabilité et réactivité, E déchets, F personnel (hygiène, formation). Tout le monde peut le télécharger. Pour un restaurant commercial, c'est le vade-mecum « Remise directe » (V3 sept. 2026), qui précise le général.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL) ; vade-mecum sectoriel « Remise directe » V3 sept. 2026 (https://agriculture.gouv.fr/telecharger/129266).
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Réactivité : ce que vous avez fait depuis la dernière visite ✔
+**En bref** : c'est l'item D2 de la grille. L'inspecteur demande la liste des écarts passés et ce qui a été corrigé. Garder une trace datée des actions vaut mieux que d'expliquer de mémoire. C'est aussi le chapitre qui juge la gestion des alertes, des rappels de produits, des réclamations de clients et d'une suspicion d'intoxication.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), item D2 et chapitre II.C.2.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Action corrective et autocontrôle ✔
+**En bref** : action corrective : ce qu'on fait quand quelque chose n'est pas bon (température trop haute, produit abîmé) : mettre le produit de côté, décider de sa destination, éviter que ça recommence. Autocontrôle : tout ce que vous contrôlez vous-même (relevés de température, nettoyage, réception, prélèvements). Ce sont vos enregistrements que l'inspecteur lit en premier ; sans trace écrite, l'action n'existe pas pour lui.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), définitions (autocontrôle : art. R200-1 du code rural).
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+## 8 quater. Contrôle officiel 2 : les notes
+
+### Les notes A, B, C, D ✔
+**En bref** : A = conforme. B = écart mineur, aucun risque pour le client. C = écart moyen, risque augmenté de servir un produit dangereux. D = écart majeur, risque élevé. L'inspecteur note chaque ligne et écrit un constat. Le chapitre prend le jugement global de l'inspecteur (pas une moyenne), mais ne peut pas être meilleur que son meilleur point, et un seul D dans un chapitre donne un chapitre D. Pas observé (PO) ou sans objet (SO) existent aussi.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre III.D.1 et III.D.2.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### La note globale de l'établissement ✔
+**En bref** : A : maîtrise satisfaisante. B : acceptable. C : insuffisante, l'inspecteur n'a plus confiance. D : perte de maîtrise, décisions administratives sans délai. Un seul chapitre noté D suffit pour un D global ; pour un A il faut au moins un chapitre A et aucun D. La note ne peut jamais être meilleure que le meilleur chapitre.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre III.D.3.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+## 8 quinquies. Contrôle officiel 3 : ce qui pèse le plus
+La note C ou D tient toujours compte de la gravité (analyse de risque). Listes tirées des « lignes directrices de notation » du vade-mecum général.
+
+### Notes D : températures, DLC et enregistrements (chapitres C) ✔
+**En bref** : note D (majeur) : DLC dépassée exposée à la vente ou susceptible de l'être ; températures ou actions non surveillées, non enregistrées ou sans action quand elles sont mauvaises ; matières premières interdites reçues ; emballages non alimentaires, sales ou abîmés ; pas d'analyse des dangers ; pas d'eau potable ; aucune mesure après des analyses mauvaises sur des produits finis.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices des items C1 à C7.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Notes D : traçabilité et alertes (chapitre D) ✔
+**En bref** : note D (majeur) : pas de traçabilité amont ou aval (d'où vient le produit, où il est allé) ; suspicion d'intoxication (TIAC) non signalée ; alerte non transmise aux autorités, à un fournisseur ou à un client ; aucun retrait, aucune information des clients ni rappel d'une denrée dangereuse. Notes C : alerte ou TIAC signalée trop tard ; réclamations de clients non traitées.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de D1 et D2.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Notes D : locaux, nuisibles, déchets (chapitres B et E) ✔
+**En bref** : note D (majeur) : locaux totalement inadaptés ; toilettes ouvrant directement sur la zone de manipulation ; denrées non protégées qui circulent en zone non adaptée ou à l'extérieur ; condensation importante au-dessus de denrées nues ; ouvertures sur l'extérieur non protégées et ouvertes pendant le travail ; conteneurs à déchets ou poubelles en zone de production avec risque de contamination croisée ; transport de denrées avec déchets ou produits dangereux sans séparation.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de B1, B2, B3, E1.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Notes D : personnel et hygiène (chapitre F) ✔
+**En bref** : note D (majeur) : lave-mains absent ou non conforme (pas de savon, d'eau mitigée ou d'essuie-mains) ; lave-mains inaccessible à cause du comportement du personnel ; vestiaires en désordre avec tenues propres et sales mélangées ; personne malade ou blessée non protégée au contact des denrées ; aucune instruction à disposition d'un poste qui gère un point déterminant.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de F1 et F2.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Notes C : les écarts les plus courants ✔
+**En bref** : procédures absentes ou non écrites pour les points qui maîtrisent le risque (celles-ci doivent être écrites) ; mauvais résultat de vérification sans action derrière ; sondes et thermomètres jamais vérifiés ; nettoyage pas fait selon la procédure (produit, dosage, temps de contact, rinçage) ; analyse des dangers incomplète ; durée de vie des plats non justifiée ; procédures HACCP non validées.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de B2, B5, C1 à C6.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
+## 8 sexies. Contrôle officiel 4 : retraits et rappels
+Texte : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026. Lien : https://agriculture.gouv.fr/telecharger/138248. Seuls les chapitres A et D (item D2) sont notés ; résultat : conforme ou non conforme. Le contrôle peut avoir lieu à tout moment, sans prévenir.
+
+### Retrait et rappel : la différence ✔
+**En bref** : retrait : on empêche de vendre le produit (il sort du rayon ou de la carte). Rappel : on prévient les clients qui l'ont déjà et on leur dit quoi faire (le rapporter, le jeter). Un restaurant fait surtout des retraits ; le rappel concerne ce que le client a emporté.
+**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, définitions.
+**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Retirer un produit rappelé : la demi-journée ✔
+**En bref** : dès que vous recevez l'alerte (message du fournisseur ou communiqué de presse), le produit doit être retiré. Tolérance : jusqu'à une demi-journée ouvrée, ou moins si votre PMS prévoit moins. Au-delà, le produit encore présent est noté D ; entre le délai du PMS et la demi-journée, C. Retrait fait et noté : A ; retrait fait mais non documenté : B.
+**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D201.
+**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Informer les clients d'un rappel ✔
+**En bref** : afficher un message lisible, près de la carte ou en caisse (sur le site si vous vendez en ligne). Il identifie le produit (lot, DLC), dit le danger et la conduite à tenir ; pas de numéro payant. Durée minimale : 15 jours d'ouverture pour les produits frais, avec DLC ou froid positif ; 2 mois pour surgelés, conserves, secs. Une carte de fidélité ou un message ne remplace pas l'affichage. Absence plus d'une demi-journée alors que le produit a été vendu : D ; affichage peu visible, retiré trop tôt ou erroné : C.
+**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D202 ; modèles d'information dans le Guide d'aide à la gestion des alertes (annexe VIII).
+**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Que faire d'un produit retiré ✔
+**En bref** : le mettre à part, avec une étiquette claire (« non conforme, non destiné à la consommation humaine » ou « exclusivement pour élimination »). « Ne pas toucher » ou « retour fournisseur » seuls ne suffisent pas (C) ; produit non identifié : D. Interdits : le donner, le vendre, le transformer dans un autre plat, le donner aux animaux. Pas de traitement assainissant au commerce de détail.
+**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D203.
+**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Certitude** : ✔ lu le 26/10/2026.
+
+### Prévenir ceux à qui vous avez cédé le produit ✔
+**En bref** : si vous avez donné ou revendu un produit rappelé (association, autre point de vente, vente en ligne), il faut leur transmettre l'alerte avec un message clair (produit, lot, quoi faire). Message clair : A ; message flou : C ; non transmis : D. Pour un envoi à l'étranger : « recipient list » à fournir spontanément. Si vous ne cédez jamais de produits : sans objet.
+**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D204.
+**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Certitude** : ✔ lu le 26/10/2026.
+
+## 8 septies. Contrôle officiel 5 : petits restaurants et produits d'entretien
+
+### Petits restaurants : la « flexibilité » ✔
+**En bref** : avec 5 personnes ou moins au contact des denrées, vous pouvez noter seulement les écarts et ce que vous avez fait pour les corriger (procédures orales acceptées) pour les bonnes pratiques d'hygiène. Pas d'analyse des dangers pour : vente de préemballé, stockage ambiant, congélation et décongélation de denrées conditionnées, stockage de préemballé au froid. Mais cuissons, refroidissements, maintien au chaud et préparations à risque restent à documenter complètement, sauf si vous suivez un guide de bonnes pratiques évalué. Si l'inspecteur constate des manquements, cette souplesse peut être suspendue.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.B.3 (cite l'instruction DGAL/SDSSA/2018-924 du 7/01/2019).
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ pour le vade-mecum ; ◐ l'instruction elle-même n'a pas été lue (à relire).
+
+### Produits d'entretien, de maintenance et contre les nuisibles ✔
+**En bref** : dans leur emballage d'origine ou un récipient fermé et étiqueté en permanence ; rangés dans un local ou un meuble à part, loin des denrées (un petit stock d'appoint dans un meuble approprié est toléré près de la cuisine) ; fiche technique conservée ; utilisés selon le mode d'emploi du fabricant. Produits contre les nuisibles : produit autorisé, numéro d'autorisation sur l'étiquette. Produits de nettoyage : nom, usage et mode d'emploi (dosage, rinçage) sur l'étiquette.
+**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes B3L02, B4L02, B5L02.
+**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Certitude** : ✔ lu le 26/10/2026.
+
 ## 9. Non publié
 - Règlement (UE) 2024/2895 lui-même : non lu ; ses effets sur l'annexe I sont lus dans la consolidée du 01/07/2026. Date d'application : non confirmée.
 - Règlement 2073/2005 version 2026 : règles d'interprétation, chapitre 3 et annexe II non lus.
