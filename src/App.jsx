@@ -15818,7 +15818,12 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const infoCat = toutLeStock ? { nom: "Tous les produits", fond: "#1D2321", texte: "#fff" } : (CATEGORIES_STOCK.find((c) => c.nom === catActive) || CATEGORIES_STOCK[CATEGORIES_STOCK.length - 1]);
   const correspond = (s) => !q || s.nom.toLowerCase().includes(q) || (s.reference || "").toLowerCase().includes(q) || (s.fournisseur || "").toLowerCase().includes(q);
   const etatOk = (s) => filtreEtat === "tous" || (filtreEtat === "alerte" && enAlerte(s)) || (filtreEtat === "panier" && dansPanier(s));
-  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).map((x) => x.s).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).sort((a, b) => ((q || toutLeStock) ? CATEGORIES_STOCK.findIndex((c) => c.nom === a.cat) - CATEGORIES_STOCK.findIndex((c) => c.nom === b.cat) : 0) || a.s.nom.localeCompare(b.s.nom, "fr")).map((x) => x.s);
+  // Quand on voit plusieurs catégories à la fois (« Tous les produits » ou une recherche), les produits sont regroupés comme le sommaire de gauche :
+  // un titre par catégorie, dans le même ordre, puis l'ordre alphabétique dans chaque groupe.
+  const groupeStock = q || toutLeStock;
+  const catDuProduit = new Map(avecCat.map((x) => [x.s.id, x.cat]));
+  const nbDansGroupe = (nom) => liste.filter((s) => catDuProduit.get(s.id) === nom).length;
   const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
   const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
     <button type="button" onClick={onClick} className="text-left rounded-lg border px-2.5 py-1.5 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
@@ -15930,10 +15935,15 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           </div>
           {liste.length === 0 ? (
             <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>
-          ) : liste.map((s) => {
+          ) : liste.map((s, idx) => {
             const bas = enAlerte(s); const pas = pasDe(s); const pasConnu = !!quantiteParConditionnement(s); const dp = dansPanier(s); const colis = infosColis(s);
+            const catS = catDuProduit.get(s.id);
+            const debutGroupe = groupeStock && (idx === 0 || catDuProduit.get(liste[idx - 1].id) !== catS);
+            const infoGroupe = debutGroupe ? (CATEGORIES_STOCK.find((c) => c.nom === catS) || CATEGORIES_STOCK[CATEGORIES_STOCK.length - 1]) : null;
             return (
-              <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
+              <React.Fragment key={s.id}>
+              {infoGroupe && <div className="px-4 py-2 text-sm font-bold border-t border-[var(--line)]" style={{ backgroundColor: infoGroupe.fond, color: infoGroupe.texte }}>{infoGroupe.nom} ({nbDansGroupe(catS)})</div>}
+              <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
                 <div className="col-span-2 lg:col-span-1 min-w-0">
                   {estChefStock ? <button type="button" onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
@@ -15953,6 +15963,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
                   className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
               </div>
+              </React.Fragment>
             );
           })}
           <div className="px-4 py-2.5 border-t border-[var(--line)] text-sm text-[var(--steel)] flex items-center justify-between gap-3 flex-wrap">

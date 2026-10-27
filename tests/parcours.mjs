@@ -90,6 +90,20 @@ await parcours('Stock : le chef voit Ajouter un produit, Inventaire et Commander
   await emp.ctx.close();
 });
 
+await parcours('Stock : « Tous les produits » regroupé par catégorie, dans l’ordre du sommaire de gauche', async () => {
+  const { p, ctx, erreurs } = await ouvrir({});
+  await cliquer(p, 'Stock');
+  await cliquer(p, 'Tous les produits');
+  await p.waitForTimeout(600);
+  const t = await p.locator('#stock-tableau').innerText();
+  const ordre = ['Fruits et légumes', 'Viandes et volailles', 'Poissons et fruits de mer', 'Charcuterie', 'Produits laitiers et œufs', 'Épicerie sèche', 'Boulangerie et pâtisserie', 'Surgelés', 'Boissons', 'Entretien et hygiène'];
+  const pos = ordre.map((n) => ({ n, i: t.search(new RegExp(n.replace(/[()]/g, '\\$&') + ' \\(\\d+\\)')) })).filter((x) => x.i >= 0);
+  verifier(pos.length >= 3, 'moins de 3 groupes affichés : ' + pos.map((x) => x.n).join(', '));
+  for (let k = 1; k < pos.length; k++) verifier(pos[k].i > pos[k - 1].i, 'groupes dans le désordre : ' + pos[k - 1].n + ' puis ' + pos[k].n);
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
+
 await parcours('Accueil : les 12 tuiles dans l’ordre voulu, sans « Contrôles en cuisine »', async () => {
   const { p, ctx } = await ouvrir({});
   const t = await p.innerText('body');
