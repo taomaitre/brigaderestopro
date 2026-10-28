@@ -23678,8 +23678,10 @@ function KitchenApp({ identiteExterne } = {}) {
   const [commandesHistoriqueStockee, setCommandesHistoriqueStockee] = useStored("commandes-historique", []);
   // En prévisualisation : historique de commandes NON conservé (jamais l'ancien stockage réel), avec une commande de démonstration.
   const [commandesHistoriqueExterne, setCommandesHistoriqueExterne] = useState(() => [commandeDemoFranceFrais()]);
-  const commandesHistorique = modeExterne ? commandesHistoriqueExterne : commandesHistoriqueStockee;
-  const setCommandesHistorique = modeExterne ? setCommandesHistoriqueExterne : setCommandesHistoriqueStockee;
+  const [commandesBase, setCommandesBase] = useListeExterne(identiteExterne, "commandes");
+  const commandesEnBase = !!(modeExterne && identiteExterne && identiteExterne.listes && identiteExterne.listes.commandes);
+  const commandesHistorique = commandesEnBase ? commandesBase : (modeExterne ? commandesHistoriqueExterne : commandesHistoriqueStockee);
+  const setCommandesHistorique = commandesEnBase ? setCommandesBase : (modeExterne ? setCommandesHistoriqueExterne : setCommandesHistoriqueStockee);
   const [notificationsMemoire, setNotificationsMemoire] = useStoredOuMemoire("notifications-fournisseur", [], modeExterne);
   const [notificationsExternes, setNotificationsExternes] = useListeExterne(identiteExterne, "notifications");
   const notificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? notificationsExternes : notificationsMemoire;

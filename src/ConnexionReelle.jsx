@@ -589,6 +589,10 @@ export default function ConnexionReelle() {
         donnees: { employeNom: x.employeNom || null, valideParNom: x.valideParNom || null, faitA: x.faitA || null, historique: x.historique || [] },
       }),
     },
+    commandes: {
+      table: "commandes",
+      aDb: (x) => ({ date: x.date, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null, donnees: x }),
+    },
     shifts: {
       table: "planning_creneaux",
       aDb: (x) => ({
@@ -758,6 +762,11 @@ export default function ConnexionReelle() {
           };
         }),
       };
+      // Bons de commande : requête à part (si la table n'existe pas encore, le reste n'est pas touché).
+      try {
+        const rco = await supabasePublic.from("commandes").select("*").order("date", { ascending: false }).order("created_at", { ascending: false }).limit(200);
+        if (!rco.error) listes.commandes = (rco.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id, date: r.date }));
+      } catch (e3) { /* table absente : les commandes restent en mémoire */ }
       setListesFroid(listes);
       return listes;
     } catch (e2) {
@@ -1458,6 +1467,7 @@ export default function ConnexionReelle() {
         cleaning: { persister: fabriquerPersisterFroid("cleaning") },
         pmsExecutions: { persister: fabriquerPersisterFroid("pmsExecutions") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
+        ...(listesFroid.commandes ? { commandes: { persister: fabriquerPersisterFroid("commandes") } } : {}),
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
