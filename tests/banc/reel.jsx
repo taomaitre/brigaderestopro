@@ -20,4 +20,6 @@ const identite = {
 };
 // ?pms=1 : abonnement Complet fictif (dossier PMS avec ses points), sans aucune base.
 if (q.get('pms') === '1') identite.reglagesEtablissement = { nom: 'Banc', fiche: {}, pms: { prestataires: [], formations: [], documents: [], points: [], demarrageTermine: true, enregistrerPrestataire: async () => true, enregistrerFormation: async () => true, ajouterDocument: async () => ({ ok: true }) } };
+// ?rec=1 : parcours de réception « nouvelle base » (ReceptionSimple) avec un faux enregistrement (rien n'est écrit).
+if (q.get('rec') === '1') identite.gestionReceptions = { enregistrer: async () => {} };
 ReactDOM.createRoot(document.getElementById('root')).render(<App identiteExterne={identite} />);
