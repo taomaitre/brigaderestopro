@@ -15541,7 +15541,7 @@ const CATEGORIES_STOCK = [
   { nom: "Épicerie sèche", fond: "#F28C28", texte: "#fff", re: /[ée]picerie|sec|farine|p[aâ]te|riz|huile|condiment|sauce|conserve|sucre|sel|[ée]pice|vinaigre/i },
   { nom: "Boulangerie et pâtisserie", fond: "#8A5A3C", texte: "#fff", re: /boulang|p[aâ]tiss|pain|viennoiserie|dessert/i },
   { nom: "Surgelés", fond: "#7A4DE0", texte: "#fff", re: /surgel|congel/i },
-  { nom: "Boissons", fond: "#E0709A", texte: "#fff", re: /boisson|eau|vin|bi[eè]re|alcool|soda|jus|spiritueux/i },
+  { nom: "Boissons", fond: "#E0709A", texte: "#fff", re: /boisson|\bbar\b|soft|eau|vin|bi[eè]re|alcool|soda|jus|spiritueux/i },
   { nom: "Entretien et hygiène", fond: "#0E8A8A", texte: "#fff", re: /entretien|hygi[eè]ne|nettoy|d[ée]sinfect/i },
   { nom: "Emballages et jetables", fond: "#4B5D78", texte: "#fff", re: /emballage|jetable|film|barquette|sac/i },
   { nom: "Autres", fond: "#7C8794", texte: "#fff", re: /^$/ },
@@ -15564,6 +15564,7 @@ function categorieStock(s) {
   if (s.conservation === "surgele") return "Surgelés";
   if (s.conservation === "entretien") return "Entretien et hygiène";
   if (s.conservation === "emballage") return "Emballages et jetables";
+  if (s.conservation === "boisson") return "Boissons"; // la famille choisie dans la fiche passe avant les mots du nom (ex. « Granini Orange »)
   const txt = `${s.categorie || ""}`;
   const ordre = ["Surgelés", "Entretien et hygiène", "Emballages et jetables", "Charcuterie", "Boulangerie et pâtisserie", "Boissons", "Fruits et légumes", "Poissons et fruits de mer", "Viandes et volailles", "Produits laitiers et œufs", "Épicerie sèche"];
   for (const nom of ordre) { const c = CATEGORIES_STOCK.find((x) => x.nom === nom); if (c.re.test(txt)) return nom; }
