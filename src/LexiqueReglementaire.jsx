@@ -34,7 +34,7 @@ function Fiche({ e, ouverte, onBascule }) {
       <button type="button" onClick={onBascule} className="w-full text-left px-3 py-2.5 flex items-start gap-2" aria-expanded={ouverte}>
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-[var(--ink)]">{e.titre}</span>
-          {!ouverte && bref && <span className="block text-xs text-[var(--steel)] mt-0.5 line-clamp-2">{bref.texte}</span>}
+          {!ouverte && bref && <span className="block text-sm text-[var(--ink)] mt-0.5 line-clamp-2">{bref.texte}</span>}
           <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.fond, color: badge.couleur }}>{badge.texte}</span>
         </span>
         <span className="shrink-0 mt-0.5 text-lg leading-none" aria-hidden="true">{ouverte ? "▴" : "▾"}</span>
@@ -51,7 +51,9 @@ function Fiche({ e, ouverte, onBascule }) {
   );
 }
 
-export default function LexiqueReglementaire() {
+export default function LexiqueReglementaire({ couleur }) {
+  // couleur = couleur de la fonction « Lexique » (table COULEURS_FONCTION, jamais écrite à la main ici).
+  const zc = couleur || { bord: "#7C5CD6", fond: "#7C5CD622", texte: "#7C5CD6" };
   const [requete, setRequete] = useState("");
   const [section, setSection] = useState("");
   const [seulementVerifie, setSeulementVerifie] = useState(false);
@@ -84,8 +86,7 @@ export default function LexiqueReglementaire() {
 
   return (
     <div className="space-y-3">
-      <div className="rounded-xl p-3 text-xs text-[var(--ink)] border border-[var(--cadre)] bg-white">
-        <div className="flex items-center gap-2 font-semibold text-sm mb-1"><span aria-hidden="true">📖</span> Lexique et réglementation</div>
+      <div className="rounded-xl p-3 text-sm text-[var(--ink)] bg-white" style={{ border: `2px solid ${zc.bord}`, background: zc.fond }}>
         Français et européens uniquement. Chaque fiche donne la source, le lien et son niveau de vérification. Les informations sont pédagogiques : le PMS de l'établissement fait foi, et ce lexique ne remplace ni la vérification des textes ni la formation HACCP. Mis à jour le {LEXIQUE_DATE}.
       </div>
 
@@ -93,24 +94,31 @@ export default function LexiqueReglementaire() {
         <span aria-hidden="true" className="absolute left-3 top-1/2 -translate-y-1/2 text-sm">🔎</span>
         <input
           type="search" value={requete} onChange={(e) => setRequete(e.target.value)} autoComplete="off"
-          placeholder="Rechercher un mot : refroidissement, listeria, allergènes, 63 °C, décongélation…"
+          placeholder="Rechercher un mot (ex. listeria)"
           className="w-full border border-[var(--cadre)] rounded-lg pl-9 pr-9 py-2.5 text-sm bg-white"
         />
         {requete && <button type="button" aria-label="Effacer" onClick={() => setRequete("")} className="absolute right-2 top-1/2 -translate-y-1/2 px-2 py-1 text-lg leading-none">×</button>}
       </div>
 
-      <div className="flex flex-wrap gap-1.5">
-        <button type="button" onClick={() => setSection("")} className={`text-xs px-2.5 py-1 rounded-full border ${!section ? "bg-[var(--ink)] text-white border-[var(--ink)]" : "border-[var(--cadre)] bg-white"}`}>Tout</button>
-        {sections.map((s) => (
-          <button key={s} type="button" onClick={() => setSection(section === s ? "" : s)} className={`text-xs px-2.5 py-1 rounded-full border ${section === s ? "bg-[var(--ink)] text-white border-[var(--ink)]" : "border-[var(--cadre)] bg-white"}`}>{s}</button>
-        ))}
+      {/* Rubriques : grille régulière (1 colonne sur téléphone, 2 sur tablette/ordinateur), texte foncé bien lisible, boutons de même taille et alignés à gauche. */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+        {[["", "Tout afficher"], ...sections.map((s) => [s, s])].map(([valeur, libelle]) => {
+          const actif = (valeur === "" && !section) || section === valeur;
+          return (
+            <button key={valeur || "tout"} type="button" aria-pressed={actif} onClick={() => setSection(valeur === "" ? "" : (section === valeur ? "" : valeur))}
+              className={`w-full min-h-[44px] text-left text-sm font-semibold px-3 py-2 rounded-lg border-2 leading-snug ${actif ? "text-white" : "bg-white text-[var(--ink)]"}`}
+              style={actif ? { background: zc.texte, borderColor: zc.texte } : { borderColor: zc.bord }}>
+              {libelle}
+            </button>
+          );
+        })}
       </div>
-      <label className="flex items-center gap-2 text-xs text-[var(--ink)]">
-        <input type="checkbox" checked={seulementVerifie} onChange={(e) => setSeulementVerifie(e.target.checked)} />
+      <label className="flex items-center gap-3 text-sm text-[var(--ink)] min-h-[44px]">
+        <input type="checkbox" className="w-5 h-5 shrink-0" checked={seulementVerifie} onChange={(e) => setSeulementVerifie(e.target.checked)} />
         Afficher seulement les fiches vérifiées sur le texte officiel
       </label>
 
-      <p className="text-xs text-[var(--steel)]">{resultats.length} fiche{resultats.length > 1 ? "s" : ""}{requete ? ` pour « ${requete} »` : ""}</p>
+      <p className="text-sm text-[var(--ink)] font-semibold">{resultats.length} fiche{resultats.length > 1 ? "s" : ""}{requete ? ` pour « ${requete} »` : ""}</p>
 
       <div className="space-y-2">
         {(() => {
@@ -124,7 +132,7 @@ export default function LexiqueReglementaire() {
                 {entete && (
                   <div className="pt-3 first:pt-0">
                     <h3 className="text-sm font-bold text-[var(--ink)]">{e.section}</h3>
-                    {introDe(e.section) && <p className="text-xs text-[var(--steel)]">{introDe(e.section)}</p>}
+                    {introDe(e.section) && <p className="text-sm text-[var(--ink)]">{introDe(e.section)}</p>}
                   </div>
                 )}
                 <Fiche e={e} ouverte={!!ouvertes[e.id]} onBascule={() => setOuvertes((o) => ({ ...o, [e.id]: !o[e.id] }))} />

@@ -5161,7 +5161,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         </div>
       )}
 
-      {sousEcran === "lexique" && <LexiqueReglementaire />}
+      {sousEcran === "lexique" && (<><SectionHeader title="Lexique et réglementation" fonction="lexique" icone={BookOpen} /><LexiqueReglementaire couleur={zoneDepuisFonction("lexique")} /></>)}
       {sousEcran === "origine" && (
         <div className="mb-6 space-y-6">
           <ChipsResume items={[[`${stock.length} produit(s)`], [`${stock.filter((x) => origineProduits[x.nom]).length} origine renseignée`, "ok"], [`${stock.filter((x) => !origineProduits[x.nom]).length} à compléter`, stock.some((x) => !origineProduits[x.nom]) ? "attention" : "ok"]]} />
@@ -25270,7 +25270,8 @@ function KitchenApp({ identiteExterne } = {}) {
         {tab === "lexique" && (
           <div>
             <BoutonRetour onClick={() => setTab("accueil")} className="md:hidden">Retour</BoutonRetour>
-            <LexiqueReglementaire />
+            <SectionHeader title="Lexique et réglementation" fonction="lexique" icone={BookOpen} />
+            <LexiqueReglementaire couleur={zoneDepuisFonction("lexique")} />
           </div>
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
