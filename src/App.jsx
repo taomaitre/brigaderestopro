@@ -15565,6 +15565,8 @@ function categorieStock(s) {
   if (s.conservation === "entretien") return "Entretien et hygiène";
   if (s.conservation === "emballage") return "Emballages et jetables";
   if (s.conservation === "boisson") return "Boissons"; // la famille choisie dans la fiche passe avant les mots du nom (ex. « Granini Orange »)
+  // Préparations pour crème brûlée, mousse, tiramisu, panna cotta… : produits laitiers frais, même si la catégorie dit « desserts ».
+  if (/(pr[ée]paration|appareil)[^,]*(cr[èe]me|mousse|tiramisu|panna|flan|dessert)/i.test(s.nom || "") && s.conservation !== "surgele") return "Produits laitiers et œufs";
   const txt = `${s.categorie || ""}`;
   const ordre = ["Surgelés", "Entretien et hygiène", "Emballages et jetables", "Charcuterie", "Boulangerie et pâtisserie", "Boissons", "Fruits et légumes", "Poissons et fruits de mer", "Viandes et volailles", "Produits laitiers et œufs", "Épicerie sèche"];
   for (const nom of ordre) { const c = CATEGORIES_STOCK.find((x) => x.nom === nom); if (c.re.test(txt)) return nom; }
