@@ -18470,6 +18470,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
   const [scanMsg, setScanMsg] = useState("");
   const [ficheNouveau, setFicheNouveau] = useState(false);
   const [modaleNouveau, setModaleNouveau] = useState(null); // "suivant" | "valider" : action en attente du choix Oui/Non
+  const [fenetre, setFenetre] = useState(null); // fenêtre d'un produit de la commande : "infos" (photo / lot / DLC) puis "quantite"
 
   const iaDispo = IA_ACTIVEE && !(typeof window !== "undefined" && window.MC_SANS_IA);
   const fournisseursConnus = [...new Set([...stock.map((s) => s.fournisseur), ...((optionsExterne && optionsExterne.fournisseurs) || [])].filter(Boolean))];
@@ -18493,7 +18494,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
   const modeCommande = commandeLignes.length > 0;
 
   const nouveauBrouillon = (kind) => ({ id: uid(), kind: kind || "normal", nom: "", nomAuto: false, reference: "", conservation: "", typeIA: false, poidsNet: "", typeDate: "", quantite: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", plusRenvoi: false, autrePb: false, raisonPb: "", quantitePb: "", photoPb: null });
-  const commencer = (kind) => { setBrouillon(nouveauBrouillon(kind || (commandeLignes.length > 0 ? "plus" : "normal"))); setDetailsOuverts(false); setScanMsg(""); };
+  const commencer = (kind) => { setFenetre(null); setBrouillon(nouveauBrouillon(kind || (commandeLignes.length > 0 ? "plus" : "normal"))); setDetailsOuverts(false); setScanMsg(""); };
   const maj = (patch) => setBrouillon((b) => ({ ...b, ...patch }));
 
   // ── Température et conformité : tout est déduit des 3 relevés de l'étape 2 ──
@@ -18562,19 +18563,19 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
     return b;
   };
   const enregistrerBrouillon = (bb) => { const fb = finaliser(bb || brouillon); setProduits((prev) => (prev.some((x) => x.id === fb.id) ? prev.map((x) => (x.id === fb.id ? fb : x)) : [...prev, fb])); };
-  const produitSuivant = (bb) => { if (!brouillonVide) enregistrerBrouillon(bb); setBrouillon(commandeLignes.length > 0 ? null : nouveauBrouillon("normal")); setDetailsOuverts(false); setScanMsg(""); };
+  const produitSuivant = (bb) => { if (!brouillonVide) enregistrerBrouillon(bb); setBrouillon(commandeLignes.length > 0 ? null : nouveauBrouillon("normal")); setFenetre(null); setDetailsOuverts(false); setScanMsg(""); };
   // Retour à la liste de la commande (le produit en cours est enregistré s'il est complet).
   const retourListe = () => {
     if (!brouillonVide && manque.length > 0) { setScanMsg(`Terminez d'abord le produit en cours (il manque : ${manque.join(", ")}), ou videz-le.`); return; }
     if (!brouillonVide) enregistrerBrouillon();
-    setBrouillon(null); setScanMsg("");
+    setBrouillon(null); setFenetre(null); setScanMsg("");
   };
   const choisirLigneCommande = (l) => {
     if (!brouillonVide && manque.length > 0) { setScanMsg(`Terminez d'abord le produit en cours (il manque : ${manque.join(", ")}).`); return; }
     if (!brouillonVide) enregistrerBrouillon();
     const dejaSaisi = produits.find((p) => p.ligneId === l.id && !p.manquant);
     setBrouillon(dejaSaisi || { ...nouveauBrouillon(), nom: l.nom, conservation: l.conservation, typeChoisi: !!l.conservation, ligneId: l.id, commandeQte: l.quantite, commandeUnite: l.unite });
-    setDetailsOuverts(false); setScanMsg("");
+    setFenetre("infos"); setDetailsOuverts(false); setScanMsg("");
   };
   // Passage au récapitulatif : les produits commandés absents ou en quantité insuffisante sont ajoutés comme « manquants » (le chef sera prévenu ; « Retirer » = ne pas signaler).
   const validerEtapeProduits = (bb) => {
@@ -18592,7 +18593,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
       }).filter(Boolean);
       return [...liste, ...manq];
     });
-    setBrouillon(null); setEtape(4);
+    setBrouillon(null); setFenetre(null); setEtape(4);
   };
   const retirer = (id) => setProduits((prev) => prev.filter((p) => p.id !== id));
   // Produit inconnu du stock : on demande d'abord si l'on crée sa fiche (Oui) ou si on enregistre tel quel avec une alerte au chef (Non).
@@ -18852,8 +18853,9 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
   // ── ÉTAPE 3 : produits (un par écran) ──
   if (etape === 3) {
     if (!brouillon && !modeCommande) { setTimeout(() => commencer(), 0); return null; }
-    if (!brouillon) {
-      // ── Écran 1 : la liste de la commande (un bouton par produit) ──
+    if (modeCommande && (!brouillon || brouillon.ligneId)) {
+      // ── Écran 1 : la liste de la commande (un bouton par produit) ; la fenêtre du produit se superpose ──
+      const bf = brouillon && brouillon.ligneId ? brouillon : null;
       const lignesSaisies = commandeLignes.filter((l) => produitsF.some((p) => p.ligneId === l.id && !p.manquant));
       const horsCommande = produitsF.filter((p) => !p.manquant && !p.ligneId);
       return (
@@ -18891,6 +18893,108 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
             <div className="mt-4 flex justify-center">
               <button type="button" onClick={() => commencer("plus")} className="min-h-[52px] px-6 py-2 rounded-xl border-2 text-base font-bold shadow-sm" style={{ borderColor: "#1B5FA8", backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>+ Un produit livré qui n'est pas dans la commande</button>
             </div>
+
+            {bf && fenetre && (() => {
+              const evf = evalue(bf); const famf = familleDe(bf.conservation);
+              const qn = Number(bf.quantite) || 0;
+              const fixerQ = (v) => maj({ quantite: String(Math.max(0, Math.round(v * 1000) / 1000)) });
+              const fermer = () => { setBrouillon(null); setFenetre(null); setScanMsg(""); };
+              const bouton = "min-h-[56px] rounded-2xl border-2 text-lg font-extrabold px-5";
+              const excedent = bf.commandeQte != null && qn > Number(bf.commandeQte) ? Math.round((qn - Number(bf.commandeQte)) * 1000) / 1000 : 0;
+              return (
+                <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4" style={{ backgroundColor: "rgba(15,23,42,0.6)" }} role="dialog" aria-modal="true">
+                  <div className="w-full max-w-xl max-h-[94vh] overflow-y-auto rounded-2xl bg-white p-5 border-4" style={{ borderColor: "#1B5FA8" }}>
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <div className="text-xs font-bold uppercase" style={{ color: "#1B4F9C" }}>{fenetre === "infos" ? "Produit — 1 / 2 : photo, lot et DLC" : "Produit — 2 / 2 : quantité reçue"}</div>
+                        <div className="text-2xl font-extrabold text-[var(--ink)] break-words">{bf.nom}</div>
+                        <div className="text-sm text-[var(--steel)]">Commandé : <b>{bf.commandeQte} {bf.commandeUnite}</b></div>
+                      </div>
+                      <button type="button" onClick={fermer} aria-label="Fermer" className="shrink-0 w-11 h-11 rounded-full border-2 border-[var(--cadre)] flex items-center justify-center"><X size={20} /></button>
+                    </div>
+
+                    {fenetre === "infos" && (
+                      <div className="mt-4 space-y-4">
+                        {iaDispo && (
+                          <div className="flex items-center gap-3 rounded-xl p-3" style={{ backgroundColor: "#EAF1FB" }}>
+                            <PhotoInput rond value={null} onChange={scannerEtiquette} label="Photographier l'étiquette du produit" />
+                            <div className="text-sm font-semibold text-[var(--ink)] leading-tight">Photographier l'étiquette<span className="block text-xs font-normal text-[var(--steel)]">le lot et la DLC se remplissent seuls</span></div>
+                          </div>
+                        )}
+                        {scanEnCours && <p className="text-sm text-[var(--steel)]">Lecture de l'étiquette en cours…</p>}
+                        {scanMsg && <p className="text-sm rounded-lg px-3 py-2" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{scanMsg}</p>}
+                        <p className="text-sm text-[var(--ink)]">{iaDispo ? "Ou saisissez à la main." : "Saisissez à la main."} <span className="text-[var(--steel)]">Facultatif : vous pouvez valider sans.</span></p>
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div>
+                            <label className={lab}>N° de lot</label>
+                            <input className={`${inputCls} w-full !h-12`} value={bf.lot} onChange={(e) => maj({ lot: e.target.value })} />
+                          </div>
+                          <div>
+                            <label className={lab}>DLC / DDM</label>
+                            <ChampDateSaisie value={bf.dlc} onChange={(v) => maj({ dlc: v })} placeholder="JJ/MM/AAAA ou MM/AAAA" />
+                          </div>
+                        </div>
+                        {!(bf.conservation) && (
+                          <div>
+                            <label className={lab}>Type de produit (décide de la norme de température)</label>
+                            <select className={`${inputCls} w-full !h-12`} value={bf.conservation} onChange={(e) => maj({ conservation: e.target.value, typeChoisi: true, typeAuto: false, typeCorrigeDe: "" })}>
+                              <option value="">Choisir…</option>
+                              {CONSERVATIONS.map((c) => <option key={c.v} value={c.v}>{c.l}</option>)}
+                            </select>
+                          </div>
+                        )}
+                        {famf && evf.temperature !== "" && (
+                          <div className="rounded-xl border-2 px-3 py-2 text-sm font-semibold" style={evf.tempNC ? { borderColor: "#F6B8C2", backgroundColor: "#FDE4E8", color: "#B4233A" } : { borderColor: "#B3E0C5", backgroundColor: "#EAF6EF", color: "#14653A" }}>
+                            Température relevée : {evf.temperature} °C — {evf.tempNC ? "hors norme pour ce produit : il sera refusé" : "conforme"}
+                          </div>
+                        )}
+                        <div className="grid grid-cols-2 gap-3">
+                          <button type="button" onClick={fermer} className={bouton} style={{ borderColor: "var(--cadre)", color: "var(--ink)" }}>Annuler</button>
+                          <button type="button" onClick={() => setFenetre("quantite")} disabled={!bf.conservation} className={`${bouton} text-white disabled:opacity-50`} style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63" }}>Valider</button>
+                        </div>
+                      </div>
+                    )}
+
+                    {fenetre === "quantite" && (
+                      <div className="mt-4 space-y-4">
+                        <label className={`${lab} text-center`}>Quantité reçue</label>
+                        <div className="flex items-center justify-center gap-3">
+                          <button type="button" aria-label="Moins" onClick={() => fixerQ(qn - 1)} className="w-16 h-16 rounded-2xl border-2 text-4xl font-extrabold leading-none" style={{ borderColor: "#1B5FA8", color: "#1B4F9C", backgroundColor: "#E3EDFB" }}>−</button>
+                          <input className={`${inputCls} !w-32 !h-16 !text-3xl font-extrabold text-center`} type="number" inputMode="decimal" placeholder="0" value={bf.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
+                          <button type="button" aria-label="Plus" onClick={() => fixerQ(qn + 1)} className="w-16 h-16 rounded-2xl border-2 text-4xl font-extrabold leading-none" style={{ borderColor: "#1B5FA8", color: "#1B4F9C", backgroundColor: "#E3EDFB" }}>+</button>
+                        </div>
+                        <p className="text-center text-sm text-[var(--steel)]">Touchez le chiffre pour le taper, ou utilisez − et +.</p>
+                        {bf.commandeQte != null && String(bf.quantite) !== String(bf.commandeQte) && (
+                          <button type="button" onClick={() => maj({ quantite: String(bf.commandeQte) })} className="w-full min-h-[48px] rounded-xl border-2 text-base font-bold" style={{ borderColor: "#1E7B4B", backgroundColor: "#EAF6EF", color: "#14653A" }}>Reçu comme commandé : {bf.commandeQte}</button>
+                        )}
+                        {excedent > 0 && (
+                          <div className="rounded-xl border-2 p-3" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
+                            <label className={lab}>Reçu {excedent} {bf.commandeUnite} de plus que la commande : que faites-vous de l'excédent ?</label>
+                            <div className="grid grid-cols-2 gap-2">
+                              <button type="button" onClick={() => maj({ excesRenvoye: false })} className="h-12 rounded-lg border-2 text-sm font-semibold" style={!bf.excesRenvoye ? { borderColor: "#2F6B4F", backgroundColor: "#E7F1EB", color: "#2F6B4F" } : { borderColor: "var(--cadre)", color: "var(--ink)" }}>Je le garde</button>
+                              <button type="button" onClick={() => maj({ excesRenvoye: true })} className="h-12 rounded-lg border-2 text-sm font-semibold" style={bf.excesRenvoye ? { borderColor: "#C1432D", backgroundColor: "#FDE4E8", color: "#C1432D" } : { borderColor: "var(--cadre)", color: "var(--ink)" }}>Je le renvoie</button>
+                            </div>
+                          </div>
+                        )}
+                        <button type="button" onClick={() => maj({ autrePb: !bf.autrePb })} className="w-full min-h-[48px] px-4 py-2 rounded-xl border-2 text-sm font-bold text-left" style={{ borderColor: "#C1432D", backgroundColor: bf.autrePb ? "#C1432D" : "#FDE4E8", color: bf.autrePb ? "#fff" : "#B4233A" }}>{bf.autrePb ? "− Aucun problème sur ce produit" : "+ Problème sur ce produit (abîmé, DLC trop courte…)"}</button>
+                        {bf.autrePb && (
+                          <div className="rounded-xl p-3 border-2 space-y-2" style={{ borderColor: "#F6B8C2", backgroundColor: "#FFF5F6" }}>
+                            <ChampCauseNC value={bf.raisonPb} onChange={(v) => maj({ raisonPb: v })} />
+                            <input className={`${inputCls} w-full`} type="number" inputMode="decimal" placeholder="Quantité concernée (par défaut : tout)" value={bf.quantitePb} onChange={(e) => maj({ quantitePb: e.target.value })} />
+                            <div className="flex items-center gap-3"><PhotoInput rond value={bf.photoPb} onChange={(v) => maj({ photoPb: v })} label="Photographier le produit" /><span className="text-xs text-[var(--ink)]">Photo du produit (facultative)</span></div>
+                          </div>
+                        )}
+                        {manque.filter((m) => m !== "la quantité").length > 0 && <p className="text-sm font-bold rounded-lg px-3 py-2" style={{ backgroundColor: "#FFF4CC", color: "#6B4A00" }}>À compléter : {manque.filter((m) => m !== "la quantité").join(", ")}.</p>}
+                        <div className="grid grid-cols-2 gap-3">
+                          <button type="button" onClick={() => setFenetre("infos")} className={bouton} style={{ borderColor: "var(--cadre)", color: "var(--ink)" }}>← Retour</button>
+                          <button type="button" onClick={() => { produitSuivant(); }} disabled={!(qn > 0) || manque.length > 0} className={`${bouton} text-white disabled:opacity-50`} style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63" }}>Valider</button>
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              );
+            })()}
             {pied(<BoutonRetour onClick={() => setEtape(2)}>Retour aux températures</BoutonRetour>, null,
               <Button onClick={() => validerEtapeProduits()} disabled={produits.filter((p) => !p.manquant).length === 0}>Terminer : voir la checklist <ChevronRight size={16} /></Button>)}
             {lignesSaisies.length < commandeLignes.length && produits.some((p) => !p.manquant) && <p className="text-xs text-[var(--steel)] mt-2 text-right">Les {commandeLignes.length - lignesSaisies.length} produits non saisis seront signalés « non livrés » dans la checklist (vous pourrez les retirer).</p>}
