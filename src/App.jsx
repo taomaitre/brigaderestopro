@@ -18490,6 +18490,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
     return { lignes, date: bon.date };
   })();
   const commandeLignes = commandeInfo.lignes;
+  const modeCommande = commandeLignes.length > 0;
 
   const nouveauBrouillon = (kind) => ({ id: uid(), kind: kind || "normal", nom: "", nomAuto: false, reference: "", conservation: "", typeIA: false, poidsNet: "", typeDate: "", quantite: "", lot: "", dlc: "", allergenes: "", origine: "", agrementSanitaire: "", fusion: "", plusRenvoi: false, autrePb: false, raisonPb: "", quantitePb: "", photoPb: null });
   const commencer = (kind) => { setBrouillon(nouveauBrouillon(kind || (commandeLignes.length > 0 ? "plus" : "normal"))); setDetailsOuverts(false); setScanMsg(""); };
@@ -18549,8 +18550,6 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
     if (!(Number(brouillon.quantite) > 0)) manque.push("la quantité");
     if (!brouillon.conservation) manque.push("le type de produit");
 
-    if (alimentaire && !brouillon.lot.trim()) manque.push("le n° de lot");
-    if (alimentaire && !brouillon.dlc) manque.push("la DLC / DDM");
     const sit = sitStock(brouillon);
     if (sit && sit.type === "question" && !brouillon.fusion) manque.push("le choix « même article ? »");
     if (brouillon.autrePb && !brouillon.raisonPb.trim()) manque.push("la cause du problème");
@@ -18563,7 +18562,13 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
     return b;
   };
   const enregistrerBrouillon = (bb) => { const fb = finaliser(bb || brouillon); setProduits((prev) => (prev.some((x) => x.id === fb.id) ? prev.map((x) => (x.id === fb.id ? fb : x)) : [...prev, fb])); };
-  const produitSuivant = (bb) => { if (!brouillonVide) enregistrerBrouillon(bb); setBrouillon(nouveauBrouillon(commandeLignes.length > 0 ? "plus" : "normal")); setDetailsOuverts(false); setScanMsg(""); };
+  const produitSuivant = (bb) => { if (!brouillonVide) enregistrerBrouillon(bb); setBrouillon(commandeLignes.length > 0 ? null : nouveauBrouillon("normal")); setDetailsOuverts(false); setScanMsg(""); };
+  // Retour à la liste de la commande (le produit en cours est enregistré s'il est complet).
+  const retourListe = () => {
+    if (!brouillonVide && manque.length > 0) { setScanMsg(`Terminez d'abord le produit en cours (il manque : ${manque.join(", ")}), ou videz-le.`); return; }
+    if (!brouillonVide) enregistrerBrouillon();
+    setBrouillon(null); setScanMsg("");
+  };
   const choisirLigneCommande = (l) => {
     if (!brouillonVide && manque.length > 0) { setScanMsg(`Terminez d'abord le produit en cours (il manque : ${manque.join(", ")}).`); return; }
     if (!brouillonVide) enregistrerBrouillon();
@@ -18689,6 +18694,28 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
     setFini(true);
   };
 
+  // Verdict immédiat d'un relevé de température (étape 2) : vert / orange / rouge.
+  const verdictFamille = (f, valeur) => {
+    const VERT = { bord: "#B3E0C5", fond: "#EAF6EF", texte: "#14653A", pastille: "#2F9D63" };
+    const ORANGE = { bord: "#F3D69A", fond: "#FFF4DC", texte: "#8A5300", pastille: "#E0920F" };
+    const ROUGE = { bord: "#F6B8C2", fond: "#FDE4E8", texte: "#B4233A", pastille: "#C1432D" };
+    const GRIS = { bord: "#D5DAE0", fond: "#F4F6F8", texte: "#5B6670", pastille: "#9AA5B1" };
+    if (String(valeur).trim() === "") return { ...GRIS, titre: "En attente de la température", detail: "" };
+    const r = evalFamilleTemp(f, valeur);
+    if (!r.etat) return { ...GRIS, titre: "Température non reconnue", detail: "" };
+    const noms = (ts) => ts.map((t) => LIBELLE_CONSERVATION[t] || t).join(", ");
+    if (r.okTypes.length === 0) {
+      return r.etat === "gele"
+        ? { ...ROUGE, titre: "Trop froid pour du frais : produit gelé ?", detail: "Limite basse : -1 °C. Vérifiez le produit et refusez-le s'il est gelé." }
+        : { ...ROUGE, titre: "Non conforme : hors norme", detail: f.id === "surgele" ? "Au-delà de -15 °C : refus et retour au fournisseur." : "Au-delà de +4 °C : tous les produits frais sont à refuser et à retourner au fournisseur." };
+    }
+    if (r.ncTypes.length > 0) {
+      return { ...ORANGE, titre: "À surveiller : conforme pour certains produits seulement", detail: `Hors norme pour : ${noms(r.ncTypes)}. Ces produits seront refusés ; les autres sont acceptés.` };
+    }
+    if (r.etat === "tolerance") return { ...ORANGE, titre: "Tolérance de transport : accepté", detail: "Entre -18 °C et -15 °C : à mettre au congélateur tout de suite." };
+    return { ...VERT, titre: "Conforme", detail: "" };
+  };
+
   // ── Éléments d'affichage communs ──
   const gros = "w-full text-left rounded-xl border-2 border-[var(--cadre)] px-4 py-4 text-base font-semibold text-[var(--ink)] hover:border-[var(--accent)] active:scale-[0.98] transition-all";
   const lab = "block text-sm font-semibold text-[var(--ink)] mb-1.5";
@@ -18788,7 +18815,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
         {entete}
         <Card>
           <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Relevez les températures de la livraison</h3>
-          <p className="text-sm text-[var(--steel)] mb-4">Deux relevés obligatoires : une température à cœur pour les produits frais et une pour les surgelés. Notez seulement la température : le résultat conforme / non conforme de chaque produit s'affiche à la fin, dans le récapitulatif. Laissez vide la famille absente de cette livraison.</p>
+          <p className="text-sm text-[var(--steel)] mb-4">Deux relevés : une température à cœur pour les produits frais et une pour les surgelés. Dès que vous saisissez la température, la couleur indique le résultat : <b style={{ color: "#14653A" }}>vert</b> = conforme, <b style={{ color: "#9A5B00" }}>orange</b> = à surveiller ou conforme seulement pour certains produits, <b style={{ color: "#B4233A" }}>rouge</b> = hors norme. Laissez vide la famille absente de cette livraison.</p>
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
             {FAMILLES_TEMP.map((f) => {
               const t = temps[f.id];
@@ -18801,12 +18828,21 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                   <p className="text-xs text-[var(--ink)] mb-3 rounded-md px-2.5 py-1.5" style={{ backgroundColor: f.fond }}>Norme : <b>{f.norme}</b></p>
                   <label className={lab}>Température à cœur (°C)</label>
                   <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" step="0.1" inputMode="decimal" disabled={t.aucun} placeholder="0.0" value={t.valeur} onChange={(e) => majTemp(f.id, { valeur: e.target.value })} />
+                  {(() => {
+                    const vd = verdictFamille(f, t.valeur);
+                    return (
+                      <div className="mt-3 rounded-xl border-2 px-3 py-2.5 text-sm font-semibold" role="status" style={{ borderColor: vd.bord, backgroundColor: vd.fond, color: vd.texte }}>
+                        <div className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded-full shrink-0" style={{ backgroundColor: vd.pastille }} />{vd.titre}</div>
+                        {vd.detail && <div className="text-xs font-normal mt-1 text-[var(--ink)]">{vd.detail}</div>}
+                      </div>
+                    );
+                  })()}
                 </div>
               );
             })}
           </div>
           {pied(<BoutonRetour onClick={() => setEtape(1)}>Retour</BoutonRetour>, null, <>
-            <Button onClick={() => { if (!brouillon) commencer(); setEtape(3); }}>Suivant : les produits <ChevronRight size={16} /></Button>
+            <Button onClick={() => { if (!brouillon && !modeCommande) commencer(); setEtape(3); }}>Suivant : les produits <ChevronRight size={16} /></Button>
           </>)}
         </Card>
       </div>
@@ -18815,7 +18851,53 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
 
   // ── ÉTAPE 3 : produits (un par écran) ──
   if (etape === 3) {
-    if (!brouillon) { setTimeout(() => commencer(), 0); return null; }
+    if (!brouillon && !modeCommande) { setTimeout(() => commencer(), 0); return null; }
+    if (!brouillon) {
+      // ── Écran 1 : la liste de la commande (un bouton par produit) ──
+      const lignesSaisies = commandeLignes.filter((l) => produitsF.some((p) => p.ligneId === l.id && !p.manquant));
+      const horsCommande = produitsF.filter((p) => !p.manquant && !p.ligneId);
+      return (
+        <div>
+          {entete}
+          <Card>
+            <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Produits de votre livraison</h3>
+            <p className="text-sm text-[var(--ink)] mb-1">Commande du {commandeInfo.date} — <b>{fournisseur}</b>. Touchez chaque produit que vous recevez : vous le validez en quelques secondes (photo si l'IA est activée, lot, DLC, quantité).</p>
+            <div className="rounded-xl px-3 py-2.5 my-3 text-sm font-bold flex items-center justify-between gap-3 flex-wrap" style={{ backgroundColor: "#EAF1FB", color: "#1B4F9C" }}>
+              <span>{lignesSaisies.length} / {commandeLignes.length} produits saisis</span>
+              <span className="h-2.5 flex-1 min-w-[120px] rounded-full bg-white overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${Math.round(100 * lignesSaisies.length / commandeLignes.length)}%`, backgroundColor: "#2F9D63" }} /></span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
+              {commandeLignes.map((l) => {
+                const recu = produitsF.find((p) => p.ligneId === l.id && !p.manquant);
+                return (
+                  <button key={l.id} type="button" onClick={() => choisirLigneCommande(l)} className="rounded-xl border-2 px-3 py-3 text-left flex items-center justify-between gap-3 bg-white min-h-[64px]"
+                    style={{ borderColor: recu ? (recu.conforme ? "#B3E0C5" : "#F6B8C2") : "#D5DAE0" }}>
+                    <span className="min-w-0"><span className="block text-base font-bold text-[var(--ink)] break-words">{l.nom}</span><span className="block text-sm text-[var(--steel)]">Commandé : {l.quantite} {l.unite}</span></span>
+                    <span className="text-xs font-bold px-2.5 py-1.5 rounded-full shrink-0 text-center" style={recu ? (recu.conforme ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }) : { backgroundColor: "#EEF1F5", color: "#475569" }}>{recu ? `${recu.conforme ? "✓" : "✗"} reçu ${recu.quantite}` : "à saisir"}</span>
+                  </button>
+                );
+              })}
+            </div>
+            {horsCommande.length > 0 && (
+              <div className="mt-4">
+                <p className="text-sm font-bold text-[var(--ink)] mb-1.5">Livrés hors commande</p>
+                <div className="flex flex-wrap gap-1.5">
+                  {horsCommande.map((p) => (
+                    <button key={p.id} type="button" onClick={() => setBrouillon(p)} className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full border-2" style={{ borderColor: p.conforme ? "#B3E0C5" : "#F6B8C2", backgroundColor: p.conforme ? "#EAF6EF" : "#FDE4E8", color: p.conforme ? "#14653A" : "#B4233A" }}>{p.conforme ? "✓" : "✗"} {p.nom} · {p.quantite}</button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div className="mt-4 flex justify-center">
+              <button type="button" onClick={() => commencer("plus")} className="min-h-[52px] px-6 py-2 rounded-xl border-2 text-base font-bold shadow-sm" style={{ borderColor: "#1B5FA8", backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>+ Un produit livré qui n'est pas dans la commande</button>
+            </div>
+            {pied(<BoutonRetour onClick={() => setEtape(2)}>Retour aux températures</BoutonRetour>, null,
+              <Button onClick={() => validerEtapeProduits()} disabled={produits.filter((p) => !p.manquant).length === 0}>Terminer : voir la checklist <ChevronRight size={16} /></Button>)}
+            {lignesSaisies.length < commandeLignes.length && produits.some((p) => !p.manquant) && <p className="text-xs text-[var(--steel)] mt-2 text-right">Les {commandeLignes.length - lignesSaisies.length} produits non saisis seront signalés « non livrés » dans la checklist (vous pourrez les retirer).</p>}
+          </Card>
+        </div>
+      );
+    }
     const b = brouillon;
     const sit = sitStock(b);
     const reconnu = existeDansStock(b);
@@ -18878,10 +18960,11 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
           </div>
         )}
         <Card>
+          {modeCommande && <div className="mb-3"><BoutonRetour onClick={retourListe}>Retour à la liste de la commande</BoutonRetour></div>}
           <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
             <div>
-              <h3 className="font-semibold text-lg text-[var(--ink)]">{b.kind === "plus" ? "Produit livré en plus (non commandé)" : `Produit ${numero}`}</h3>
-              <p className="text-sm text-[var(--steel)]">Fournisseur : {fournisseur}</p>
+              <h3 className="font-semibold text-lg text-[var(--ink)]">{b.kind === "plus" ? "Produit livré en plus (non commandé)" : (b.ligneId ? b.nom : `Produit ${numero}`)}</h3>
+              <p className="text-sm text-[var(--steel)]">Fournisseur : {fournisseur}{b.commandeQte != null ? ` · commandé : ${b.commandeQte} ${b.commandeUnite || ""}` : ""}</p>
             </div>
             {iaDispo && (
               <div className="flex items-center gap-3">
@@ -18903,7 +18986,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
 
           <div className={commandeLignes.length > 0 ? "mt-4 grid grid-cols-1 lg:grid-cols-[minmax(260px,32%)_minmax(0,1fr)] gap-4 items-start" : ""}>
           {commandeLignes.length > 0 && (
-            <div className="rounded-xl border-2 p-3" style={{ borderColor: "#B5CDF0", backgroundColor: "#F2F7FE" }}>
+            <div className="hidden lg:block rounded-xl border-2 p-3" style={{ borderColor: "#B5CDF0", backgroundColor: "#F2F7FE" }}>
               <div className="text-sm font-bold" style={{ color: "#1B4F9C" }}>Commande du {commandeInfo.date} — cliquez sur le produit que vous recevez</div>
               <div className="grid grid-cols-1 gap-2 mt-2">
                 {commandeLignes.map((l) => {
@@ -18912,7 +18995,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                   return (
                     <button key={l.id} type="button" onClick={() => choisirLigneCommande(l)} className="rounded-xl border-2 px-3 py-2.5 text-left flex items-center justify-between gap-2 bg-white"
                       style={{ borderColor: actif ? "#1B5FA8" : recu ? (recu.conforme ? "#B3E0C5" : "#F6B8C2") : "#D5DAE0", boxShadow: actif ? "0 0 0 3px #B5CDF0" : undefined }}>
-                      <span className="min-w-0"><span className="block text-sm font-bold text-[var(--ink)] truncate">{l.nom}</span><span className="block text-xs text-[var(--steel)]">Commandé : {l.quantite} {l.unite}</span></span>
+                      <span className="min-w-0"><span className="block text-sm font-bold text-[var(--ink)] break-words">{l.nom}</span><span className="block text-xs text-[var(--steel)]">Commandé : {l.quantite} {l.unite}</span></span>
                       <span className="text-xs font-bold px-2 py-1 rounded-full shrink-0" style={recu ? (recu.conforme ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }) : { backgroundColor: "#EEF1F5", color: "#64748B" }}>{recu ? `${recu.conforme ? "✓" : "✗"} reçu ${recu.quantite}` : "à saisir"}</span>
                     </button>
                   );
@@ -18938,8 +19021,17 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
               {b.nom.trim() && !reconnu && <p className="text-xs text-[var(--steel)] mt-1.5">Nouveau produit : il sera ajouté au stock.</p>}
             </div>
             <div>
+              <label className={lab}>N° de lot <span className="font-normal text-[var(--steel)]">(recommandé)</span></label>
+              <input className={`${inputCls} w-full`} value={b.lot} onChange={(e) => maj({ lot: e.target.value })} />
+            </div>
+            <div>
+              <label className={lab}>DLC / DDM <span className="font-normal text-[var(--steel)]">(recommandée)</span></label>
+              <ChampDateSaisie value={b.dlc} onChange={(v) => maj({ dlc: v })} placeholder="JJ/MM/AAAA ou MM/AAAA" />
+            </div>
+            <div>
               <label className={lab}>Quantité reçue</label>
-              <input className={`${inputCls} w-full`} type="number" inputMode="decimal" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
+              <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" inputMode="decimal" placeholder="0" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
+              {b.commandeQte != null && String(b.quantite) !== String(b.commandeQte) && <button type="button" onClick={() => maj({ quantite: String(b.commandeQte) })} className="mt-2 w-full min-h-[44px] rounded-lg border-2 text-sm font-bold" style={{ borderColor: "#1E7B4B", backgroundColor: "#EAF6EF", color: "#14653A" }}>Reçu comme commandé : {b.commandeQte}</button>}
               {b.commandeQte != null && <p className="text-xs mt-1.5 text-[var(--steel)]">Commandé : <b>{b.commandeQte} {b.commandeUnite}</b></p>}
               {(() => { const st = stock.find((x) => norm(x.nom) === norm(b.nom)); const fmt = b.poidsNet || (st && st.conditionnement) || ""; if (!fmt) return null; const tot = Number(b.quantite) > 0 ? formatTotal(fmt, b.quantite) : null; return <p className="text-xs mt-1 text-[var(--ink)]">Format d'une unité : <b>{fmt}</b> — saisir le <b>nombre</b>{Number(b.quantite) > 0 ? <> : <b>{b.quantite} × {fmt}{tot ? ` = ${tot}` : ""}</b></> : "."}</p>; })()}
             </div>
@@ -18963,14 +19055,6 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
               )}
               {b.conservation && SEUILS_RECEPTION_NOUVEAU[b.conservation] && <p className="text-xs mt-1.5 text-[var(--steel)]">{b.typeAuto ? "Type proposé d'après le nom (modifiable). " : ""}Norme à la réception : <b>{SEUILS_RECEPTION_NOUVEAU[b.conservation].label}</b></p>}
               {(() => { const ts = typeSuggere(b.nom); return ts && b.conservation && ts !== b.conservation && !b.typeIA ? <p className="text-xs mt-1.5 text-[var(--warn)]">⚠ Le nom fait penser à « {LIBELLE_CONSERVATION[ts]} » : vérifiez le type (norme {SEUILS_RECEPTION_NOUVEAU[ts] ? SEUILS_RECEPTION_NOUVEAU[ts].label : "différente"}).</p> : null; })()}
-            </div>
-            <div>
-              <label className={lab}>N° de lot{alimentaire || !b.conservation ? "" : " (facultatif)"}</label>
-              <input className={`${inputCls} w-full`} value={b.lot} onChange={(e) => maj({ lot: e.target.value })} />
-            </div>
-            <div>
-              <label className={lab}>DLC / DDM{alimentaire || !b.conservation ? "" : " (facultatif)"}</label>
-              <ChampDateSaisie value={b.dlc} onChange={(v) => maj({ dlc: v })} placeholder="JJ/MM/AAAA ou MM/AAAA" />
             </div>
           </div>
 
@@ -19031,7 +19115,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
             <button type="button" onClick={() => demander("suivant")} disabled={manque.length > 0}
               className="min-h-[56px] px-8 py-2 rounded-xl border-2 text-base font-bold shadow-md flex items-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform"
               style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63", color: "#fff" }}>
-              <Plus size={22} strokeWidth={3} /> Ajouter un produit
+              {modeCommande ? <><CheckCircle2 size={22} /> Valider ce produit</> : <><Plus size={22} strokeWidth={3} /> Ajouter un produit</>}
             </button>
           </div>
           {b.autrePb && (
@@ -19049,7 +19133,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
             <BoutonRetour onClick={() => { setBrouillon(null); setEtape(produits.length === 0 ? 2 : 2); }}>Retour aux températures</BoutonRetour>,
             null,
             <>
-              <Button onClick={() => demander("valider")} disabled={!peutContinuer}>Valider cette étape <ChevronRight size={16} /></Button>
+              <Button onClick={() => demander("valider")} disabled={!peutContinuer}>{modeCommande ? "Terminer : voir la checklist" : "Valider cette étape"} <ChevronRight size={16} /></Button>
             </>
           )}
         </Card>
@@ -19067,6 +19151,56 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
         <h3 className="font-semibold text-lg text-[var(--ink)] mb-1">Récapitulatif — {fournisseur}</h3>
         <p className="text-sm text-[var(--steel)] mb-4">Livraison du {date} à {heure} · réceptionnée par {nomMoi}</p>
         {erreur && <p className="text-sm text-[var(--warn)] mb-3">{erreur}</p>}
+
+        {(() => {
+          // ── Checklist de fin de réception : ce qui est bon, pas bon, manquant, en trop ──
+          const recus = produitsF.filter((p) => !p.manquant);
+          const conformes = recus.filter((p) => p.conforme);
+          const refuses = recus.filter((p) => !p.conforme);
+          const manquants = produitsF.filter((p) => p.manquant);
+          const enPlus = produitsF.filter((p) => p.kind === "plus");
+          const excedents = produitsF.filter((p) => p.ligneId && !p.manquant && p.commandeQte != null && Number(p.quantite) > Number(p.commandeQte));
+          const sansTemp = recus.filter((p) => p.tempManquante);
+          const sansLotDlc = recus.filter((p) => TYPES_ALIMENTAIRES.includes(p.conservation) && (!String(p.lot || "").trim() || !p.dlc));
+          const carte = (n, titre, c, noms) => (
+            <div className="rounded-xl border-2 p-3" style={{ borderColor: n > 0 ? c.bord : "#D5DAE0", backgroundColor: n > 0 ? c.fond : "#F4F6F8" }}>
+              <div className="text-3xl font-extrabold leading-none" style={{ color: n > 0 ? c.texte : "#94A3B8" }}>{n}</div>
+              <div className="text-sm font-bold mt-1" style={{ color: n > 0 ? c.texte : "#64748B" }}>{titre}</div>
+              {n > 0 && noms && <div className="text-xs text-[var(--ink)] mt-1 break-words">{noms}</div>}
+            </div>
+          );
+          const nm = (l) => l.map((p) => p.nom).join(", ");
+          const ligne = (etat, texte) => (
+            <li className="flex items-start gap-2 text-sm text-[var(--ink)]">
+              <span className="font-extrabold w-5 shrink-0 text-center" style={{ color: etat === "ok" ? "#2F9D63" : etat === "ko" ? "#C1432D" : "#E0920F" }}>{etat === "ok" ? "✓" : etat === "ko" ? "✗" : "!"}</span><span>{texte}</span>
+            </li>
+          );
+          return (
+            <div className="mb-5">
+              <h4 className="text-base font-bold text-[var(--ink)] mb-2">Checklist de la réception</h4>
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 mb-3">
+                {carte(conformes.length, "Conformes (acceptés)", { bord: "#B3E0C5", fond: "#EAF6EF", texte: "#14653A" }, "")}
+                {carte(refuses.length, "Non conformes (refusés)", { bord: "#F6B8C2", fond: "#FDE4E8", texte: "#B4233A" }, nm(refuses))}
+                {carte(manquants.length, "Non livrés / manquants", { bord: "#F3D69A", fond: "#FFF4DC", texte: "#8A5300" }, nm(manquants))}
+                {carte(enPlus.length + excedents.length, "En trop / hors commande", { bord: "#B5CDF0", fond: "#EAF1FB", texte: "#1B4F9C" }, [...enPlus.map((p) => p.nom), ...excedents.map((p) => `${p.nom} (+${Math.round((Number(p.quantite) - Number(p.commandeQte)) * 1000) / 1000})`)].join(", "))}
+              </div>
+              <ul className="space-y-1.5 rounded-xl border border-[var(--cadre)] p-3 bg-white">
+                {photosBon.length > 0 ? ligne("ok", `Bon de livraison photographié (${photosBon.length} page${photosBon.length > 1 ? "s" : ""}).`) : ligne("warn", "Bon de livraison non photographié.")}
+                {FAMILLES_TEMP.map((f) => {
+                  const t = temps[f.id]; const vide = String(t.valeur).trim() === "";
+                  if (vide) return <React.Fragment key={f.id}>{ligne("warn", `${f.titre} : température non relevée.`)}</React.Fragment>;
+                  const vd = verdictFamille(f, t.valeur);
+                  return <React.Fragment key={f.id}>{ligne(vd.pastille === "#2F9D63" ? "ok" : vd.pastille === "#C1432D" ? "ko" : "warn", `${f.titre} : ${t.valeur} °C — ${vd.titre}.`)}</React.Fragment>;
+                })}
+                {sansTemp.length > 0 && ligne("warn", `Température non relevée pour : ${nm(sansTemp)}.`)}
+                {refuses.length === 0 ? ligne("ok", "Aucun produit refusé.") : ligne("ko", `${refuses.length} produit(s) refusé(s) : ${nm(refuses)}.`)}
+                {manquants.length === 0 ? ligne("ok", "Aucun produit manquant.") : ligne("warn", `${manquants.length} produit(s) commandé(s) non livré(s) ou en quantité insuffisante : ${nm(manquants)}.`)}
+                {enPlus.length + excedents.length > 0 && ligne("warn", "Produits en trop ou hors commande : " + [...enPlus.map((p) => p.nom), ...excedents.map((p) => p.nom)].join(", ") + ".")}
+                {sansLotDlc.length === 0 ? ligne("ok", "N° de lot et DLC renseignés pour tous les produits alimentaires.") : ligne("warn", `N° de lot ou DLC non renseigné pour : ${nm(sansLotDlc)}. À vérifier à la main sur les emballages.`)}
+              </ul>
+            </div>
+          );
+        })()}
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
           {FAMILLES_TEMP.map((f) => {
@@ -19133,7 +19267,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
           </div>
         )}
         {erreur && <p className="text-sm font-semibold rounded-lg px-3 py-2 mt-3" style={{ backgroundColor: "#FDE4E8", color: "#B4233A" }}>{erreur}</p>}
-        {pied(<BoutonRetour onClick={() => { commencer(); setEtape(3); }}>Retour aux produits</BoutonRetour>, null,
+        {pied(<BoutonRetour onClick={() => { if (modeCommande) setBrouillon(null); else commencer(); setEtape(3); }}>Retour aux produits</BoutonRetour>, null,
           <Button onClick={valider} disabled={enCours || produits.length === 0}>{enCours ? "Enregistrement…" : "Terminer et enregistrer la réception"}</Button>)}
       </Card>
     </div>
