@@ -90,6 +90,49 @@ await parcours('Stock : le chef voit Ajouter un produit, Inventaire et Commander
   await emp.ctx.close();
 });
 
+await parcours('Stock : « Tous les produits » regroupé par catégorie, dans l’ordre du sommaire de gauche', async () => {
+  const { p, ctx, erreurs } = await ouvrir({});
+  await cliquer(p, 'Stock');
+  await cliquer(p, 'Tous les produits');
+  await p.waitForTimeout(600);
+  const t = await p.locator('#stock-tableau').innerText();
+  const ordre = ['Fruits et légumes', 'Viandes et volailles', 'Poissons et fruits de mer', 'Charcuterie', 'Produits laitiers et œufs', 'Épicerie sèche', 'Boulangerie et pâtisserie', 'Surgelés', 'Boissons', 'Entretien et hygiène'];
+  const pos = ordre.map((n) => ({ n, i: t.search(new RegExp(n.replace(/[()]/g, '\\$&') + ' \\(\\d+\\)')) })).filter((x) => x.i >= 0);
+  verifier(pos.length >= 3, 'moins de 3 groupes affichés : ' + pos.map((x) => x.n).join(', '));
+  for (let k = 1; k < pos.length; k++) verifier(pos[k].i > pos[k - 1].i, 'groupes dans le désordre : ' + pos[k - 1].n + ' puis ' + pos[k].n);
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
+
+await parcours('Stock : le chef crée son groupe « Serpent », le met dans l’ordre voulu et y range un produit', async () => {
+  const { p, ctx, erreurs } = await ouvrir({});
+  await cliquer(p, 'Stock');
+  await cliquer(p, 'Gérer mes groupes');
+  await p.waitForTimeout(300);
+  await p.fill('input[placeholder^="Nouveau groupe"]', 'Serpent');
+  await cliquer(p, '+ Ajouter');
+  await p.waitForTimeout(300);
+  verifier(await p.locator('input[aria-label="Nom du groupe Serpent"]').count() === 1, 'le groupe Serpent n’a pas été créé');
+  await p.locator('button[aria-label="Monter Serpent"]').click();
+  await p.waitForTimeout(200);
+  await cliquer(p, 'Terminer');
+  await p.waitForTimeout(300);
+  const menu = await p.locator('main').innerText();
+  const iS = menu.indexOf('Serpent ('); const iAutres = menu.indexOf('Autres (');
+  verifier(iS > 0, 'Serpent absent du menu de gauche');
+  verifier(iAutres < 0 || iS < iAutres, 'Serpent devrait être monté avant « Autres »');
+  // ranger le premier produit dans Serpent
+  await cliquer(p, 'Tous les produits');
+  await p.waitForTimeout(500);
+  const sel = p.locator('select[aria-label^="Groupe de"]').first();
+  await sel.selectOption({ label: 'Groupe : Serpent' });
+  await p.waitForTimeout(500);
+  const t = await p.locator('#stock-tableau').innerText();
+  verifier(/Serpent \(1\)/.test(t), 'le produit n’est pas dans le groupe Serpent : ' + t.slice(0, 200));
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
+
 await parcours('Accueil : les 12 tuiles dans l’ordre voulu, sans « Contrôles en cuisine »', async () => {
   const { p, ctx } = await ouvrir({});
   const t = await p.innerText('body');

@@ -15573,6 +15573,72 @@ function categorieStock(s) {
   if (CATEGORIE_PAR_CONSERVATION[s.conservation]) return CATEGORIE_PAR_CONSERVATION[s.conservation];
   return "Autres";
 }
+// Groupes du stock : une base de départ (les catégories ci-dessus) que chaque établissement peut réorganiser, renommer,
+// supprimer ou compléter avec ses propres groupes (« Occasionnelle », « Serpent »…). Un produit est rangé dans UN seul groupe :
+// celui choisi par l'établissement (groupeStock) ou, à défaut, le groupe de départ que le logiciel lui attribue d'après son nom.
+const PALETTE_GROUPES_STOCK = [["#0E8A8A", "#fff"], ["#7A4DE0", "#fff"], ["#C2477A", "#fff"], ["#1769D6", "#fff"], ["#F28C28", "#fff"], ["#1E7B4B", "#fff"], ["#8A5A3C", "#fff"], ["#4B5D78", "#fff"]];
+const GROUPE_NON_CLASSE = { id: "__aucun__", nom: "Non classés", fond: "#7C8794", texte: "#fff" };
+const groupesStockParDefaut = () => CATEGORIES_STOCK.map((c) => ({ id: "base:" + c.nom, nom: c.nom, fond: c.fond, texte: c.texte }));
+function groupeDuProduit(s, groupes) {
+  if (s.groupeStock === GROUPE_NON_CLASSE.id) return GROUPE_NON_CLASSE.id;
+  if (s.groupeStock && groupes.some((g) => g.id === s.groupeStock)) return s.groupeStock;
+  const base = groupes.find((g) => g.id === "base:" + categorieStock(s));
+  return base ? base.id : GROUPE_NON_CLASSE.id;
+}
+// Fenêtre « Mes groupes » : ajouter, renommer, supprimer et changer l'ordre (flèches, ou glisser-déposer sur ordinateur).
+function GestionGroupesStock({ groupes, compte, onChange, onFermer }) {
+  const [nouveau, setNouveau] = useState("");
+  const [aSupprimer, setASupprimer] = useState(null);
+  const [glisse, setGlisse] = useState(null);
+  const [remiseAZero, setRemiseAZero] = useState(false);
+  const deplacer = (i, j) => { if (i == null || j < 0 || j >= groupes.length || i === j) return; const l = [...groupes]; const [x] = l.splice(i, 1); l.splice(j, 0, x); onChange(l); };
+  const ajouter = () => { const nom = nouveau.trim(); if (!nom) return; const [fond, texte] = PALETTE_GROUPES_STOCK[groupes.length % PALETTE_GROUPES_STOCK.length]; onChange([...groupes, { id: "g_" + uid(), nom, fond, texte }]); setNouveau(""); };
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onFermer}>
+      <div className="bg-white rounded-xl max-w-lg w-full p-5 max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
+        <h2 className="font-bold text-lg text-[var(--ink)] mb-1">Mes groupes du stock</h2>
+        <p className="text-xs text-[var(--steel)] mb-3">Donnez à vos groupes les noms que vous voulez et mettez-les dans l'ordre de votre parcours. Cet ordre est celui du menu de gauche et de la liste « Tous les produits ». Un produit est dans un seul groupe : changez-le depuis la liste du stock.</p>
+        <div className="overflow-y-auto space-y-2 mb-3">
+          {groupes.map((g, i) => (
+            <div key={g.id} draggable onDragStart={() => setGlisse(i)} onDragOver={(e) => e.preventDefault()} onDrop={() => { deplacer(glisse, i); setGlisse(null); }}
+              className="rounded-lg border border-[var(--cadre)] p-2" style={{ borderLeft: `6px solid ${g.fond}` }}>
+              <div className="flex items-center gap-2">
+                <span className="hidden lg:inline text-[var(--steel)] cursor-grab select-none" title="Glisser pour déplacer" aria-hidden="true">⠿</span>
+                <input key={g.id + g.nom} className={`${inputCls} flex-1 min-w-0`} defaultValue={g.nom} aria-label={`Nom du groupe ${g.nom}`}
+                  onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== g.nom) onChange(groupes.map((x) => (x.id === g.id ? { ...x, nom: v } : x))); else e.target.value = g.nom; }} />
+                <span className="text-xs text-[var(--steel)] whitespace-nowrap">{compte(g.id)} produit{compte(g.id) > 1 ? "s" : ""}</span>
+                <button type="button" aria-label={`Monter ${g.nom}`} disabled={i === 0} onClick={() => deplacer(i, i - 1)} className="w-9 h-9 rounded-lg border border-[var(--cadre)] disabled:opacity-30">↑</button>
+                <button type="button" aria-label={`Descendre ${g.nom}`} disabled={i === groupes.length - 1} onClick={() => deplacer(i, i + 1)} className="w-9 h-9 rounded-lg border border-[var(--cadre)] disabled:opacity-30">↓</button>
+                <button type="button" aria-label={`Supprimer ${g.nom}`} disabled={groupes.length <= 1} onClick={() => setASupprimer(g.id)} className="w-9 h-9 rounded-lg border border-[var(--cadre)] text-[var(--warn)] disabled:opacity-30"><Trash2 size={16} className="mx-auto" /></button>
+              </div>
+              {aSupprimer === g.id && (
+                <div className="mt-2 text-xs text-[var(--ink)]">
+                  Supprimer « {g.nom} » ? {compte(g.id) > 0 ? `Ses ${compte(g.id)} produit${compte(g.id) > 1 ? "s" : ""} ne sont pas supprimés : ils retournent dans leur groupe d'origine, ou dans « Non classés ».` : "Ce groupe est vide."}
+                  <div className="flex gap-2 mt-1.5">
+                    <button type="button" onClick={() => { onChange(groupes.filter((x) => x.id !== g.id)); setASupprimer(null); }} className="min-h-[36px] px-3 rounded-lg text-white text-xs font-bold" style={{ background: "#B4233A" }}>Oui, supprimer le groupe</button>
+                    <button type="button" onClick={() => setASupprimer(null)} className="min-h-[36px] px-3 rounded-lg border border-[var(--cadre)] text-xs font-medium">Annuler</button>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="flex gap-2 mb-3">
+          <input className={`${inputCls} flex-1 min-w-0`} placeholder="Nouveau groupe (ex. Occasionnelle)" value={nouveau} onChange={(e) => setNouveau(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") ajouter(); }} />
+          <button type="button" onClick={ajouter} disabled={!nouveau.trim()} className="min-h-[44px] px-4 rounded-lg text-white text-sm font-semibold disabled:opacity-40" style={{ background: "#1E7B4B" }}>+ Ajouter</button>
+        </div>
+        <div className="flex items-center justify-between gap-2 flex-wrap">
+          {remiseAZero ? (
+            <span className="text-xs">Remettre les groupes de départ ? Vos groupes personnalisés disparaissent (aucun produit n'est supprimé).{" "}
+              <button type="button" className="underline font-semibold" onClick={() => { onChange(null); setRemiseAZero(false); }}>Oui, remettre</button>{" "}
+              <button type="button" className="underline" onClick={() => setRemiseAZero(false)}>Non</button></span>
+          ) : <button type="button" onClick={() => setRemiseAZero(true)} className="text-xs underline text-[var(--steel)]">Remettre les groupes de départ</button>}
+          <button type="button" onClick={onFermer} className="min-h-[44px] px-5 rounded-lg border border-[var(--cadre)] text-sm font-semibold">Terminer</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 // Quantité (dans l'unité du produit) qu'ajoute « +1 conditionnement » : « Carton 6 x 1 L » → 6 L, « 1 x 6 litres » → 6 L, « Sac 25 kg » → 25 kg.
 // Affichage clair d'une quantité en stock : « 3 × 300 g » (nombre × format d'une unité) et, si on sait le calculer, le total (« = 900 g »).
 const UNITES_PIECE = ["pièce", "piece", "pièces", "pieces", "pc", "u", "paquet", "paquets", "unité", "unités", "sachet", "sachets", "boîte", "boîtes", "barquette", "barquettes", "bouteille", "bouteilles", "pot", "pots"];
@@ -15658,7 +15724,7 @@ function CelluleQuantite({ valeur, pas, onSet, fond, texte, label }) {
   );
 }
 
-function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle }) {
+function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle, groupesStock, setGroupesStock }) {
   const acces = useAcces();
   const rapideStock = React.useContext(RapideContext);
   const [suppOuverte, setSuppOuverte] = useState(false);
@@ -15671,6 +15737,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [dernierBon, setDernierBon] = useState(null);
   const [recherche, setRecherche] = useState("");
   const [categorieChoisie, setCategorieChoisie] = useState("__tous__");
+  const [gererGroupes, setGererGroupes] = useState(false);
   const [filtresOuverts, setFiltresOuverts] = useState(false);
   const [filtreEtat, setFiltreEtat] = useState("tous"); // tous | alerte | panier
   const [modeCatalogue, setModeCatalogue] = useState(null); // null | "ajouter" | "supprimer"
@@ -15811,14 +15878,27 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 
   // ----- écran principal -----
   const q = recherche.trim().toLowerCase();
-  const avecCat = stock.map((s) => ({ s, cat: categorieStock(s) }));
-  const nbParCat = (nom) => avecCat.filter((x) => x.cat === nom).length;
-  const catActive = categorieChoisie || (CATEGORIES_STOCK.find((c) => nbParCat(c.nom) > 0) || CATEGORIES_STOCK[0]).nom;
+  const groupesBase = Array.isArray(groupesStock) && groupesStock.length > 0 ? groupesStock : groupesStockParDefaut();
+  const avecCat = stock.map((s) => ({ s, cat: groupeDuProduit(s, groupesBase) }));
+  const nbParCat = (id) => avecCat.filter((x) => x.cat === id).length;
+  const groupesAff = nbParCat(GROUPE_NON_CLASSE.id) > 0 ? [...groupesBase, GROUPE_NON_CLASSE] : groupesBase;
+  const catActive = categorieChoisie === "__tous__" || groupesAff.some((g) => g.id === categorieChoisie) ? categorieChoisie : "__tous__";
   const toutLeStock = catActive === "__tous__";
-  const infoCat = toutLeStock ? { nom: "Tous les produits", fond: "#1D2321", texte: "#fff" } : (CATEGORIES_STOCK.find((c) => c.nom === catActive) || CATEGORIES_STOCK[CATEGORIES_STOCK.length - 1]);
+  const infoCat = toutLeStock ? { nom: "Tous les produits", fond: "#1D2321", texte: "#fff" } : (groupesAff.find((g) => g.id === catActive) || groupesAff[groupesAff.length - 1]);
   const correspond = (s) => !q || s.nom.toLowerCase().includes(q) || (s.reference || "").toLowerCase().includes(q) || (s.fournisseur || "").toLowerCase().includes(q);
   const etatOk = (s) => filtreEtat === "tous" || (filtreEtat === "alerte" && enAlerte(s)) || (filtreEtat === "panier" && dansPanier(s));
-  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).map((x) => x.s).sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  // Quand on voit plusieurs groupes à la fois (« Tous les produits » ou une recherche), les produits sont regroupés comme le menu de gauche :
+  // un titre par groupe, dans le même ordre, puis l'ordre alphabétique dans chaque groupe.
+  const rangGroupe = (id) => groupesAff.findIndex((g) => g.id === id);
+  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).sort((a, b) => ((q || toutLeStock) ? rangGroupe(a.cat) - rangGroupe(b.cat) : 0) || a.s.nom.localeCompare(b.s.nom, "fr")).map((x) => x.s);
+  const groupeStockActif = q || toutLeStock;
+  const catDuProduit = new Map(avecCat.map((x) => [x.s.id, x.cat]));
+  const nbDansGroupe = (id) => liste.filter((s) => catDuProduit.get(s.id) === id).length;
+  const deplacerProduit = (s, idGroupe) => {
+    const g = groupesAff.find((x) => x.id === idGroupe) || GROUPE_NON_CLASSE;
+    setStock(stock.map((x) => (x.id === s.id ? { ...x, groupeStock: idGroupe } : x)));
+    logActivity("Stock", "Produit déplacé de groupe", `${s.nom} → ${g.nom}`);
+  };
   const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
   const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
     <button type="button" onClick={onClick} className="text-left rounded-lg border px-2.5 py-1.5 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
@@ -15890,6 +15970,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
       )}
 
       {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
+      {gererGroupes && setGroupesStock && <GestionGroupesStock groupes={groupesBase} compte={nbParCat} onChange={(l) => setGroupesStock(l)} onFermer={() => setGererGroupes(false)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4 mb-6">
         <CarteZone icone={Package} titre="Catégories" sous="Choisissez une catégorie">
@@ -15906,16 +15987,19 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Tous les produits <span className="font-normal opacity-80">({stock.length})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
-            {CATEGORIES_STOCK.map((c) => {
-              const actif = !q && c.nom === catActive;
+            {groupesAff.map((c) => {
+              const actif = !q && c.id === catActive;
               return (
-                <button key={c.nom} type="button" onClick={() => choisirCat(c.nom)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: actif ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+                <button key={c.id} type="button" onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: actif ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
                   <Package size={20} className="shrink-0" />
-                  <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.nom)})</span></span>
+                  <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.id)})</span></span>
                   <ChevronRight size={16} className="shrink-0 hidden lg:block" />
                 </button>
               );
             })}
+            {estChefStock && setGroupesStock && (
+              <button type="button" onClick={() => setGererGroupes(true)} className="shrink-0 lg:shrink flex items-center justify-center gap-2 rounded-lg px-3 h-11 text-sm font-semibold border-2 border-dashed border-[var(--cadre)] text-[var(--ink)]">Gérer mes groupes</button>
+            )}
           </div>
         </CarteZone>
 
@@ -15930,13 +16014,23 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           </div>
           {liste.length === 0 ? (
             <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>
-          ) : liste.map((s) => {
+          ) : liste.map((s, idx) => {
             const bas = enAlerte(s); const pas = pasDe(s); const pasConnu = !!quantiteParConditionnement(s); const dp = dansPanier(s); const colis = infosColis(s);
+            const catS = catDuProduit.get(s.id);
+            const debutGroupe = groupeStockActif && (idx === 0 || catDuProduit.get(liste[idx - 1].id) !== catS);
+            const infoGroupe = debutGroupe ? (groupesAff.find((g) => g.id === catS) || GROUPE_NON_CLASSE) : null;
             return (
-              <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
+              <React.Fragment key={s.id}>
+              {infoGroupe && <div className="px-4 py-2 text-sm font-bold border-t border-[var(--line)]" style={{ backgroundColor: infoGroupe.fond, color: infoGroupe.texte }}>{infoGroupe.nom} ({nbDansGroupe(catS)})</div>}
+              <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
                 <div className="col-span-2 lg:col-span-1 min-w-0">
                   {estChefStock ? <button type="button" onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
+                  {estChefStock && setGroupesStock && (
+                    <select aria-label={`Groupe de ${s.nom}`} className="text-[11px] text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none max-w-full" value={catS} onChange={(e) => deplacerProduit(s, e.target.value)}>
+                      {groupesAff.map((g) => <option key={g.id} value={g.id}>Groupe : {g.nom}</option>)}
+                    </select>
+                  )}
                   {s.reference ? <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference}</div> : null}
                   {estAValider(s.note) && (
                     <div className="mt-1">
@@ -15953,6 +16047,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
                   className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
               </div>
+              </React.Fragment>
             );
           })}
           <div className="px-4 py-2.5 border-t border-[var(--line)] text-sm text-[var(--steel)] flex items-center justify-between gap-3 flex-wrap">
@@ -23574,6 +23669,7 @@ function KitchenApp({ identiteExterne } = {}) {
   }, []);
   const stock = modeExterne ? stockExterneEtat : stockStocke;
   const setStock = modeExterne ? setStockExterne : setStockStocke;
+  const [groupesStockLocal, setGroupesStockLocal] = useStored("stock-groupes", null); // groupes du stock (prévisualisation) ; en vrai mode ils sont dans la fiche de l'établissement
   // Réceptions : nouvelle base en prévisualisation, ancien stockage sinon.
   const [receptionsStockees, setReceptionsStockees] = useStored("stock-receptions", []);
   const [receptionsExternes, setReceptionsExternes] = useListeExterne(identiteExterne, "receptions");
@@ -23582,8 +23678,10 @@ function KitchenApp({ identiteExterne } = {}) {
   const [commandesHistoriqueStockee, setCommandesHistoriqueStockee] = useStored("commandes-historique", []);
   // En prévisualisation : historique de commandes NON conservé (jamais l'ancien stockage réel), avec une commande de démonstration.
   const [commandesHistoriqueExterne, setCommandesHistoriqueExterne] = useState(() => [commandeDemoFranceFrais()]);
-  const commandesHistorique = modeExterne ? commandesHistoriqueExterne : commandesHistoriqueStockee;
-  const setCommandesHistorique = modeExterne ? setCommandesHistoriqueExterne : setCommandesHistoriqueStockee;
+  const [commandesBase, setCommandesBase] = useListeExterne(identiteExterne, "commandes");
+  const commandesEnBase = !!(modeExterne && identiteExterne && identiteExterne.listes && identiteExterne.listes.commandes);
+  const commandesHistorique = commandesEnBase ? commandesBase : (modeExterne ? commandesHistoriqueExterne : commandesHistoriqueStockee);
+  const setCommandesHistorique = commandesEnBase ? setCommandesBase : (modeExterne ? setCommandesHistoriqueExterne : setCommandesHistoriqueStockee);
   const [notificationsMemoire, setNotificationsMemoire] = useStoredOuMemoire("notifications-fournisseur", [], modeExterne);
   const [notificationsExternes, setNotificationsExternes] = useListeExterne(identiteExterne, "notifications");
   const notificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? notificationsExternes : notificationsMemoire;
@@ -24637,6 +24735,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const alertesStock = stock.filter((s) => Number(s.quantite) < Number(s.cible)).length;
   const badges = { haccp: alertesTemp, stock: alertesStock };
   const reglagesEtablissementApp = modeExterne ? identiteExterne.reglagesEtablissement : null;
+  const groupesStockApp = modeExterne ? ((reglagesEtablissementApp && reglagesEtablissementApp.groupesStock) || null) : groupesStockLocal;
+  const setGroupesStockApp = (g) => { if (modeExterne) { if (reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesStock) reglagesEtablissementApp.enregistrerGroupesStock(g); } else setGroupesStockLocal(g); };
   const nbNotifications = (alertesControle || []).filter((a) => !a.vue).length;
 
   const moi = modeExterne
@@ -25113,7 +25213,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "stock" && (
           consentementAccorde()
-            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} saisieManuelle={modeExterne} />
+            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} saisieManuelle={modeExterne} groupesStock={groupesStockApp} setGroupesStock={modeExterne && !(reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesStock) ? undefined : setGroupesStockApp} />
             : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
         )}
         {tab === "reception" && (

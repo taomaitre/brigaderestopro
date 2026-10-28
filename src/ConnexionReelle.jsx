@@ -391,7 +391,11 @@ export default function ConnexionReelle() {
       const dernierLot = new Map();
       (rl.data || []).forEach((l) => { if (!dernierLot.has(l.produit_id)) dernierLot.set(l.produit_id, l); });
       setFournisseursCat(rf.data || []);
+      // Groupe du stock choisi pour chaque produit : requête à part (colonne absente = aucun groupe choisi, rien ne casse).
+      const rgp = await supabasePublic.from("produits").select("id, groupe_stock");
+      const groupeParProduit = new Map(rgp.error ? [] : (rgp.data || []).map((x) => [x.id, x.groupe_stock]));
       const liste = (rp.data || []).map((p) => ({
+        groupeStock: groupeParProduit.get(p.id) || "",
         id: p.id, nom: p.nom, categorie: p.conservation === "surgele" ? "Surgelés" : (p.categorie || "Autres"), conservation: p.conservation || "",
         typeDate: p.type_date || "", dlcJours: p.delai_jours_dlc == null ? null : Number(p.delai_jours_dlc), delaiOuverture: p.delai_apres_ouverture_jours == null ? null : Number(p.delai_apres_ouverture_jours),
         decongelMethode: p.decongel_methode || "", decongelJours: p.decongel_jours == null ? null : Number(p.decongel_jours), decongelSource: p.decongel_source || "",
@@ -445,6 +449,15 @@ export default function ConnexionReelle() {
         });
         if (error) throw error;
         recharger = true;
+      } else if ((o.groupeStock || "") !== (x.groupeStock || "")) {
+        const { error } = await supabasePublic.from("produits").update({ groupe_stock: x.groupeStock || null }).eq("id", x.id);
+        if (error) console.error("Groupe du produit non enregistré :", error);
+        if (Number(o.quantite) !== Number(x.quantite) || Number(o.cible) !== Number(x.cible) || o.fournisseur !== x.fournisseur) {
+          const maj2 = { quantite_stock: Number(x.quantite) || 0, quantite_cible: Number(x.cible) || 0 };
+          if (o.fournisseur !== x.fournisseur) maj2.fournisseur_id = idFournisseur(x.fournisseur);
+          const r2 = await supabasePublic.from("produits").update(maj2).eq("id", x.id);
+          if (r2.error) throw r2.error;
+        }
       } else if (Number(o.quantite) !== Number(x.quantite) || Number(o.cible) !== Number(x.cible) || o.fournisseur !== x.fournisseur) {
         const maj = { quantite_stock: Number(x.quantite) || 0, quantite_cible: Number(x.cible) || 0 };
         if (o.fournisseur !== x.fournisseur) maj.fournisseur_id = idFournisseur(x.fournisseur);
@@ -575,6 +588,10 @@ export default function ConnexionReelle() {
         valide_par: EST_UUID.test(x.valideParId || "") ? x.valideParId : null, valide_le: x.valideLe || null,
         donnees: { employeNom: x.employeNom || null, valideParNom: x.valideParNom || null, faitA: x.faitA || null, historique: x.historique || [] },
       }),
+    },
+    commandes: {
+      table: "commandes",
+      aDb: (x) => ({ date: x.date, employe_id: EST_UUID.test(x.employeeId || "") ? x.employeeId : null, donnees: x }),
     },
     shifts: {
       table: "planning_creneaux",
@@ -745,6 +762,11 @@ export default function ConnexionReelle() {
           };
         }),
       };
+      // Bons de commande : requête à part (si la table n'existe pas encore, le reste n'est pas touché).
+      try {
+        const rco = await supabasePublic.from("commandes").select("*").order("date", { ascending: false }).order("created_at", { ascending: false }).limit(200);
+        if (!rco.error) listes.commandes = (rco.data || []).map((r) => ({ ...(r.donnees || {}), id: r.id, date: r.date }));
+      } catch (e3) { /* table absente : les commandes restent en mémoire */ }
       setListesFroid(listes);
       return listes;
     } catch (e2) {
@@ -797,7 +819,17 @@ export default function ConnexionReelle() {
       if (re.data) setPmsDonnees((d) => ({ ...d, demarrageTermine: !!re.data.pms_demarrage_termine }));
       if (re.data) setFicheEtab(FICHE_ETAB_CHAMPS.reduce((o, c) => ({ ...o, [c.cle]: re.data[c.colonne] == null ? (c.type === "liste" ? [] : "") : (c.type === "liste" ? re.data[c.colonne] : String(re.data[c.colonne])) }), {}));
       if (rd.data) setDemandesAjoutListe(rd.data);
+      // Groupes du stock : requête à part (si la colonne n'existe pas encore, les autres réglages ne sont pas touchés).
+      const rg = await supabasePublic.from("etablissements").select("groupes_stock").eq("id", session.etablissement.id).maybeSingle();
+      if (!rg.error && rg.data) setReglagesEtab((r) => (r ? { ...r, groupesStock: Array.isArray(rg.data.groupes_stock) && rg.data.groupes_stock.length > 0 ? rg.data.groupes_stock : null } : r));
     } catch (e) { console.error("Réglages de l'établissement non chargés :", e); }
+  }
+  // Enregistre les groupes du stock de l'établissement (liste ordonnée {id, nom, fond, texte} ; null = groupes de départ).
+  async function enregistrerGroupesStock(groupes) {
+    const liste = Array.isArray(groupes) && groupes.length > 0 ? groupes : null;
+    setReglagesEtab((r) => (r ? { ...r, groupesStock: liste } : r));
+    const { error } = await supabasePublic.from("etablissements").update({ groupes_stock: liste }).eq("id", session.etablissement.id);
+    if (error) { console.error("Groupes du stock non enregistrés :", error); chargerReglagesEtab(); }
   }
   async function enregistrerReglageEtab(champ, valeur) {
     const colonne = champ === "congelPms" ? "congelation_decrite_pms" : "dispose_cellule_refroidissement";
@@ -1412,7 +1444,7 @@ export default function ConnexionReelle() {
         chargerEquipe(session.token, codeSaisi);
         return { ok: true, nom: data.employe.nom };
       },
-      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
+      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
         suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
         pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
@@ -1435,6 +1467,7 @@ export default function ConnexionReelle() {
         cleaning: { persister: fabriquerPersisterFroid("cleaning") },
         pmsExecutions: { persister: fabriquerPersisterFroid("pmsExecutions") },
         shifts: { persister: fabriquerPersisterFroid("shifts") },
+        ...(listesFroid.commandes ? { commandes: { persister: fabriquerPersisterFroid("commandes") } } : {}),
       } : undefined,
       // Équipe réelle de l'établissement (nouvelle base), au format attendu par l'application.
       equipe: (equipe || []).map((e) => ({
