@@ -15583,6 +15583,15 @@ const groupesStockParDefaut = () => CATEGORIES_STOCK.map((c) => ({ id: "base:" +
 function groupeDuProduit(s, groupes) {
   if (s.groupeStock === GROUPE_NON_CLASSE.id) return GROUPE_NON_CLASSE.id;
   if (s.groupeStock && groupes.some((g) => g.id === s.groupeStock)) return s.groupeStock;
+  // La famille choisie dans la fiche (surgelé, boissons, entretien, emballages) range le produit dans le groupe correspondant, même renommé.
+  const imposee = { surgele: "Surgelés", boisson: "Boissons", entretien: "Entretien et hygiène", emballage: "Emballages et jetables" }[s.conservation];
+  if (imposee) { const gi = groupes.find((g) => g.id === "base:" + imposee); if (gi) return gi.id; }
+  // La catégorie de la fiche porte le nom d'un groupe (y compris un groupe créé par l'établissement) : le produit va dans ce groupe.
+  if (s.categorie) {
+    const sansAccent = (t) => String(t || "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+    const gc = groupes.find((g) => sansAccent(g.nom) === sansAccent(s.categorie));
+    if (gc) return gc.id;
+  }
   const base = groupes.find((g) => g.id === "base:" + categorieStock(s));
   return base ? base.id : GROUPE_NON_CLASSE.id;
 }
