@@ -17160,15 +17160,15 @@ function ImportPhotoIAInterne({ titre, description, consigne, onResultats, bouto
 
 // Conservation d'un produit à la réception : détermine la température à relever et la "case" du stock.
 const CONSERVATIONS = [
-  { v: "frais", l: "Frais / laitier" },
-  { v: "viande", l: "Viande fraîche / volaille / préparation de viande" },
-  { v: "hache", l: "Viande hachée" },
-  { v: "abats", l: "Abats" },
-  { v: "poisson", l: "Poisson / produits de la pêche frais" },
-  { v: "plat", l: "Plat cuisiné / préparation à l'avance" },
-  { v: "laitier", l: "Lait pasteurisé / fromage affiné" },
+  { v: "frais", l: "Frais / laitier / charcuterie / traiteur — ≤ +4 °C" },
+  { v: "viande", l: "Viande fraîche / volaille / préparation de viande — ≤ +4 °C" },
+  { v: "hache", l: "Viande hachée — ≤ +2 °C" },
+  { v: "abats", l: "Abats — ≤ +3 °C" },
+  { v: "poisson", l: "Poisson / produits de la pêche frais — ≤ +2 °C" },
+  { v: "plat", l: "Plat cuisiné / préparation à l'avance — ≤ +3 °C" },
+  { v: "laitier", l: "Lait pasteurisé / fromage affiné — température du fabricant (à défaut ≤ +4 °C)" },
   { v: "legume", l: "Fruits et légumes frais / herbes" },
-  { v: "surgele", l: "Surgelé" },
+  { v: "surgele", l: "Surgelé — ≤ −18 °C" },
   { v: "sec", l: "Sec / épicerie" },
   { v: "boisson", l: "Boissons" },
   { v: "emballage", l: "Emballages / jetables / consommables" },
