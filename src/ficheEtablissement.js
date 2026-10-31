@@ -76,10 +76,26 @@ export const CATEGORIES_DOCUMENT = [
   { value: "autorisation_eau_privee", label: "Autorisation préfectorale (eau de source privée)" },
   { value: "analyse_eau", label: "Analyse de l'eau (source privée)" },
   { value: "rapport_laboratoire", label: "Rapport de laboratoire" },
+  { value: "rapport_controle_officiel", label: "Rapport de contrôle officiel (DDPP, ARS…)" },
+  { value: "rapport_audit", label: "Rapport d'audit" },
   { value: "contrat_maintenance", label: "Contrat ou rapport de maintenance" },
+  { value: "certificat_hotte", label: "Attestation de nettoyage ou de ramonage de la hotte" },
+  { value: "verification_sondes", label: "Vérification ou étalonnage des sondes" },
+  { value: "bordereau_huiles", label: "Bordereau de collecte des huiles usagées" },
+  { value: "bordereau_dechets", label: "Justificatif de collecte des déchets et biodéchets" },
   { value: "fds", label: "Fiche de données de sécurité" },
   { value: "autre", label: "Autre document" },
 ];
+// Catégorie de pièce proposée pour le rapport d'un passage, selon le type de prestataire.
+export function categorieDocumentPassage(type, libelle) {
+  if (type === "antinuisibles") return "contrat_nuisibles";
+  if (type === "laboratoire") return "rapport_laboratoire";
+  if (type === "maintenance_froid_sondes") return "verification_sondes";
+  if (type === "huiles_usagees") return "bordereau_huiles";
+  if (type === "dechets") return "bordereau_dechets";
+  if (type === "entretien_materiel") return /hotte|ventilation|conduit/i.test(libelle || "") ? "certificat_hotte" : "contrat_maintenance";
+  return "autre";
+}
 export const TYPES_FORMATION = [
   { value: "hygiene_14h", label: "Formation hygiène alimentaire de 14 h" },
   { value: "haccp", label: "Formation HACCP (personne qui établit le PMS)" },

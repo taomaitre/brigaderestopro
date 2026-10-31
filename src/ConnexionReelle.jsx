@@ -3,7 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import KitchenApp from './App.jsx';
 import { QRCode, NIVEAU_CORRECTION_M } from './qrVendor.js';
 import { POSTES, STATUTS_EQUIPE, estChefOuDirecteur } from './listesEquipe.js';
-import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois } from './ficheEtablissement.js';
+import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois, categorieDocumentPassage } from './ficheEtablissement.js';
 
 /* =========================================================================================
    PRÉVISUALISATION — Écran de connexion réel (établissement + code employé)
@@ -24,7 +24,7 @@ import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois } from './ficheEtabli
 const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
 const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
 // Tables de l'établissement incluses dans la sauvegarde (la table des comptes n'est lisible que par les fonctions du serveur).
-const TABLES_SAUVEGARDE = ["etablissements", "fournisseurs", "prestataires", "produits", "lots_produits", "receptions", "receptions_photos_bon", "receptions_lignes", "notifications_fournisseurs", "fiches_techniques", "fiches_techniques_ingredients", "fiches_techniques_procedes", "fiches_techniques_allergenes", "fiches_techniques_etapes", "fiches_techniques_materiel", "cuissons", "maintiens_chaud", "refroidissements", "etiquettes", "tracabilites", "tracabilites_photos", "appareils", "releves_temperature", "huile_friture_tests", "allergenes_reference", "rappelconso_alertes", "tiac_declarations", "planning_creneaux", "taches", "reservations", "pms_taches", "pms_executions", "journal_activite", "inventaires_mensuels", "inventaires_lignes", "alertes_ia", "surveillances_temperature", "demandes_ajout", "cartes", "horaires_service", "pms_formations", "pms_documents", "pms_points"];
+const TABLES_SAUVEGARDE = ["etablissements", "fournisseurs", "prestataires", "prestataires_passages", "produits", "lots_produits", "receptions", "receptions_photos_bon", "receptions_lignes", "notifications_fournisseurs", "fiches_techniques", "fiches_techniques_ingredients", "fiches_techniques_procedes", "fiches_techniques_allergenes", "fiches_techniques_etapes", "fiches_techniques_materiel", "cuissons", "maintiens_chaud", "refroidissements", "etiquettes", "tracabilites", "tracabilites_photos", "appareils", "releves_temperature", "huile_friture_tests", "allergenes_reference", "rappelconso_alertes", "tiac_declarations", "planning_creneaux", "taches", "reservations", "pms_taches", "pms_executions", "journal_activite", "inventaires_mensuels", "inventaires_lignes", "alertes_ia", "surveillances_temperature", "demandes_ajout", "cartes", "horaires_service", "pms_formations", "pms_documents", "pms_points"];
 const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
 const URL_FONCTION_IA = `${URL_PROJET}/functions/v1/ia-gemini`;
 const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`;
@@ -480,7 +480,7 @@ export default function ConnexionReelle() {
   // Réglages de l'établissement (nom, cellule de refroidissement, congélation décrite au PMS) et listes « Autre » (demandes d'ajout).
   const [reglagesEtab, setReglagesEtab] = useState(null);
   const [ficheEtab, setFicheEtab] = useState(null); // fiche de l'établissement (module 1 du PMS)
-  const [pmsDonnees, setPmsDonnees] = useState({ charge: false, prestataires: [], formations: [], documents: [], demarrageTermine: true }); // dossier PMS
+  const [pmsDonnees, setPmsDonnees] = useState({ charge: false, prestataires: [], passages: [], formations: [], documents: [], demarrageTermine: true }); // dossier PMS
   const [demandesAjoutListe, setDemandesAjoutListe] = useState([]);
 
   const EST_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -861,16 +861,17 @@ export default function ConnexionReelle() {
       // Le suivi du dossier PMS n'existe que pour l'abonnement Complet (aussi imposé côté base de données).
       const ab = await supabasePublic.rpc("abonnement_courant");
       if (ab.error || ab.data !== "complet") {
-        setPmsDonnees((d) => ({ ...d, charge: true, complet: false, prestataires: [], formations: [], documents: [] }));
+        setPmsDonnees((d) => ({ ...d, charge: true, complet: false, prestataires: [], passages: [], formations: [], documents: [] }));
         return;
       }
-      const [rp, rf, rd, rpt] = await Promise.all([
+      const [rp, rf, rd, rpt, rpa] = await Promise.all([
         supabasePublic.from("prestataires").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_formations").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_documents").select("*").order("created_at", { ascending: false }),
         supabasePublic.from("pms_points").select("*"), // points du PMS (fait / incomplet / pas fait) ; absent tant que la table n'est pas créée
+        supabasePublic.from("prestataires_passages").select("*").order("date_passage", { ascending: false }).order("saisi_le", { ascending: false }), // historique des passages ; absent tant que la migration du 31/10 n'est pas passée
       ]);
-      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], formations: rf.data || [], documents: rd.data || [], points: (rpt && rpt.data) || [] }));
+      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], passages: (rpa && rpa.data) || [], formations: rf.data || [], documents: rd.data || [], points: (rpt && rpt.data) || [] }));
     } catch (e) { console.error("Dossier PMS non chargé :", e); }
   }
   const versNull = (v) => (v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim());
@@ -922,17 +923,85 @@ export default function ConnexionReelle() {
     const chemin = `${session.etablissement.id}/${crypto.randomUUID()}-${sain}`;
     const up = await supabasePublic.storage.from("pms-documents").upload(chemin, fichier, { contentType: fichier.type || "application/octet-stream" });
     if (up.error) { console.error("Fichier non envoyé :", up.error); return { ok: false, erreur: "Le fichier n'a pas pu être envoyé : " + up.error.message }; }
-    const rep = await supabasePublic.from("pms_documents").insert({
+    const ligneDoc = {
       etablissement_id: session.etablissement.id, categorie: meta.categorie, titre: versNull(meta.titre), date_document: versNull(meta.dateDocument),
       date_echeance: versNull(meta.dateEcheance), chemin, nom_fichier: fichier.name || null, type_mime: fichier.type || null,
-    });
+    };
+    if (meta.prestataireId && EST_UUID.test(meta.prestataireId)) ligneDoc.prestataire_id = meta.prestataireId; // colonne ajoutée par la migration du 31/10
+    const rep = await supabasePublic.from("pms_documents").insert(ligneDoc).select("id").single();
     if (rep.error) {
       console.error("Pièce non enregistrée :", rep.error);
       await supabasePublic.storage.from("pms-documents").remove([chemin]);
-      return { ok: false, erreur: "La pièce n'a pas pu être enregistrée." };
+      return { ok: false, erreur: "La pièce n'a pas pu être enregistrée." + (/categorie_check|prestataire_id/.test(rep.error.message || "") ? " (La mise à jour de la base de données du 31/10 n'est pas encore faite.)" : "") };
+    }
+    await chargerPms();
+    return { ok: true, id: rep.data && rep.data.id };
+  }
+  // Un passage de prestataire : date, note et rapport joint (facultatif). Garde l'historique et met à jour dernier / prochain passage.
+  async function ajouterPassage(prestataire, champs) {
+    const date = versNull(champs.date) || aujourdhuiIso();
+    let documentId = null;
+    if (champs.fichier) {
+      const r = await ajouterDocument(champs.fichier, {
+        categorie: categorieDocumentPassage(prestataire.type, prestataire.libelle), titre: versNull(champs.titre) || `Passage du ${new Date(date + "T00:00:00").toLocaleDateString("fr-FR")}`,
+        dateDocument: date, prestataireId: prestataire.id,
+      });
+      if (!r.ok) return r;
+      documentId = r.id || null;
+    }
+    const rep = await supabasePublic.from("prestataires_passages").insert({
+      etablissement_id: session.etablissement.id, prestataire_id: prestataire.id, type: prestataire.type, societe: versNull(prestataire.nom) || versNull(prestataire.libelle),
+      date_passage: date, note: versNull(champs.note), document_id: documentId,
+    });
+    if (rep.error) {
+      console.error("Passage non enregistré :", rep.error);
+      return { ok: false, erreur: "Le passage n'a pas pu être enregistré." + (/prestataires_passages/.test(rep.error.message || "") ? " (La mise à jour de la base de données du 31/10 n'est pas encore faite.)" : "") };
+    }
+    // Dernier passage = le plus récent ; prochain passage recalculé seulement s'il y a une fréquence de rappel
+    const dernierActuel = prestataire.date_dernier_passage || "";
+    if (!dernierActuel || date >= dernierActuel) {
+      const freq = FREQUENCES_RAPPEL.find((f) => f.value === prestataire.frequence_rappel);
+      const maj = { date_dernier_passage: date };
+      if (freq) maj.date_prochaine_echeance = ajouterMois(date, freq.mois);
+      const up = await supabasePublic.from("prestataires").update(maj).eq("id", prestataire.id);
+      if (up.error) console.error("Dates du prestataire non mises à jour :", up.error);
     }
     await chargerPms();
     return { ok: true };
+  }
+  async function supprimerPassage(id) {
+    const { error } = await supabasePublic.from("prestataires_passages").delete().eq("id", id);
+    if (error) { console.error("Passage non supprimé :", error); return false; }
+    await chargerPms();
+    return true;
+  }
+  // Journal des corrections et suppressions (écrit par la base de données) + enregistrements saisis un autre jour que celui de l'événement.
+  async function chargerJournal() {
+    const sortie = { corrections: [], tardifs: [], erreur: "" };
+    try {
+      const rj = await supabasePublic.from("journal_activite").select("*").order("date_heure", { ascending: false }).limit(500);
+      if (rj.error) sortie.erreur = "Le journal n'est pas disponible (mise à jour de la base de données du 31/10 à faire)."; else sortie.corrections = rj.data || [];
+      const sources = [
+        { table: "releves_temperature", quand: "date_heure", libelle: "Relevé de température" },
+        { table: "cuissons", quand: "heure_depart", libelle: "Cuisson" },
+        { table: "refroidissements", quand: "heure_depart", libelle: "Refroidissement" },
+        { table: "maintiens_chaud", quand: "heure_debut", libelle: "Maintien au chaud" },
+        { table: "huile_friture_tests", quand: "date", libelle: "Test d'huile de friture" },
+      ];
+      const jourParis = (iso) => { try { return new Date(iso).toLocaleDateString("fr-CA", { timeZone: "Europe/Paris" }); } catch (e) { return ""; } };
+      for (const src of sources) {
+        const r = await supabasePublic.from(src.table).select("*").not("saisi_le", "is", null).order("saisi_le", { ascending: false }).limit(400);
+        if (r.error) continue;
+        (r.data || []).forEach((l) => {
+          const evenement = l[src.quand];
+          if (!evenement) return;
+          const jourEvt = String(evenement).length <= 10 ? String(evenement) : jourParis(evenement);
+          if (jourEvt && jourEvt !== jourParis(l.saisi_le)) sortie.tardifs.push({ id: l.id, libelle: src.libelle, evenement: l[src.quand], heure: l.heure || null, saisi_le: l.saisi_le, nom: l.produit_nom || l.appareil || l.bain || "" });
+        });
+      }
+      sortie.tardifs.sort((a, b) => String(b.saisi_le).localeCompare(String(a.saisi_le)));
+    } catch (e) { console.error("Journal non chargé :", e); sortie.erreur = "Le journal n'a pas pu être chargé."; }
+    return sortie;
   }
   async function supprimerDocument(doc) {
     await supabasePublic.storage.from("pms-documents").remove([doc.chemin]);
@@ -1446,7 +1515,7 @@ export default function ConnexionReelle() {
       },
       reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
         suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
-        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
+        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, ajouterPassage, supprimerPassage, chargerJournal, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,

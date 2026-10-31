@@ -1785,8 +1785,14 @@ function ecrireNotesPrest(e) {
 function PmsPrestataires({ pms, editable }) {
   const [edition, setEdition] = useState(null); // { slot, ...champs } ; id absent = nouveau
   const [message, setMessage] = useState("");
+  const [passage, setPassage] = useState(null); // { prestataireId, date, note, fichier } : formulaire « Ajouter un passage »
+  const [histoOuvert, setHistoOuvert] = useState({}); // historique déplié par prestataire
+  const [envoiPassage, setEnvoiPassage] = useState(false);
+  const [messagePassage, setMessagePassage] = useState("");
   if (!pms) return <Card><p className="text-sm text-[var(--steel)]">Chargement…</p></Card>;
   const liste = pms.prestataires || [];
+  const tousPassages = pms.passages || [];
+  const docParId = (id) => (pms.documents || []).find((d) => d.id === id);
   const reserves = new Set();
   const trouver = (s) => {
     const p = liste.find((x) => !reserves.has(x.id) && x.type === s.type && (!s.libelle || normPrest(x.libelle) === normPrest(s.libelle) || (s.cle === "materiel" && x.type === "entretien_materiel" && !PRESTATAIRES_PMS.some((o) => o.cle !== "materiel" && o.type === "entretien_materiel" && normPrest(o.libelle) === normPrest(x.libelle)))));
@@ -1803,7 +1809,61 @@ function PmsPrestataires({ pms, editable }) {
     if (ok) setEdition(null);
   };
   const passeAujourdhui = async (p) => {
+    if (pms.ajouterPassage) {
+      const r = await pms.ajouterPassage(p, { date: todayISO() });
+      if (r && r.ok) return;
+    }
     await pms.enregistrerPrestataire({ id: p.id, type: p.type, libelle: p.libelle, nom: p.nom, email: p.email, telephone: p.telephone, dernierPassage: todayISO(), prochaineEcheance: "", frequence: p.frequence_rappel, notes: p.notes });
+  };
+  const validerPassage = async (p) => {
+    if (!passage.date) { setMessagePassage("Indiquez la date du passage."); return; }
+    setEnvoiPassage(true); setMessagePassage("");
+    const r = await pms.ajouterPassage(p, { date: passage.date, note: passage.note, fichier: passage.fichier });
+    setEnvoiPassage(false);
+    if (r && r.ok) { setPassage(null); setHistoOuvert((h) => ({ ...h, [p.id]: true })); } else setMessagePassage((r && r.erreur) || "Non enregistré — réessayez.");
+  };
+  const ouvrirRapport = async (docId) => {
+    const d = docParId(docId);
+    const url = d && (await pms.urlDocument(d));
+    if (url) window.open(url, "_blank", "noopener"); else window.alert("Le rapport n'a pas pu être ouvert.");
+  };
+  const blocHistorique = (p, couleur, liste) => {
+    const ouvert = !!histoOuvert[p.id];
+    const formOuvert = passage && passage.prestataireId === p.id;
+    return (
+      <div className="mt-3 border-t border-[var(--cadre)] pt-2">
+        <button type="button" className="w-full text-left text-sm font-semibold break-words" style={{ color: couleur }} onClick={() => setHistoOuvert((h) => ({ ...h, [p.id]: !h[p.id] }))}>
+          {ouvert ? "▾" : "▸"} Historique des passages ({liste.length})
+        </button>
+        {ouvert && (
+          <div className="mt-1">
+            {liste.length === 0 && <p className="text-xs text-[var(--steel)]">Aucun passage enregistré.</p>}
+            {liste.map((x) => (
+              <div key={x.id} className="py-1.5 border-b border-[var(--cadre)] last:border-0 text-sm min-w-0">
+                <div className="font-semibold text-[var(--ink)]">{fmt(x.date_passage)}</div>
+                {x.note && <div className="text-xs text-[var(--steel)] break-words whitespace-pre-line">{x.note}</div>}
+                <div className="flex flex-wrap gap-2 mt-1">
+                  {x.document_id && docParId(x.document_id) && <Button variant="ghost" onClick={() => ouvrirRapport(x.document_id)}>Ouvrir le rapport</Button>}
+                  {editable && <Button variant="ghost" onClick={() => { if (window.confirm("Supprimer ce passage de l'historique ? La suppression est conservée dans l'historique des modifications.")) pms.supprimerPassage(x.id); }}><Trash2 size={16} /> Supprimer</Button>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
+        {editable && !formOuvert && <div className="mt-2"><Button variant="ghost" onClick={() => { setMessagePassage(""); setPassage({ prestataireId: p.id, date: todayISO(), note: "", fichier: null }); }}><Plus size={16} /> Ajouter un passage</Button></div>}
+        {editable && formOuvert && (
+          <div className="mt-2 rounded-lg border-2 p-3 bg-[var(--bg)]" style={{ borderColor: couleur }}>
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(14rem, 1fr))" }}>
+              <Field label="Date du passage"><input type="date" className={`${inputCls} w-full min-w-0`} value={passage.date} onChange={(e) => setPassage((v) => ({ ...v, date: e.target.value }))} /></Field>
+              <Field label="Rapport ou bordereau du passage (PDF ou photo, facultatif)"><input type="file" accept="application/pdf,image/*" className={`${inputCls} w-full min-w-0`} onChange={(e) => setPassage((v) => ({ ...v, fichier: (e.target.files && e.target.files[0]) || null }))} /></Field>
+            </div>
+            <div className="mt-3"><Field label="Note (facultatif)"><textarea rows={2} className={`${inputCls} w-full min-w-0`} value={passage.note} onChange={(e) => setPassage((v) => ({ ...v, note: e.target.value }))} placeholder="Ex. constat, travaux réalisés, quantité collectée…" /></Field></div>
+            {messagePassage && <p className="text-xs text-[var(--warn)] mt-2 break-words">{messagePassage}</p>}
+            <div className="flex gap-2 mt-3"><Button onClick={() => validerPassage(p)} disabled={envoiPassage}>{envoiPassage ? "Envoi…" : "Enregistrer le passage"}</Button><Button variant="ghost" onClick={() => setPassage(null)}>Annuler</Button></div>
+          </div>
+        )}
+      </div>
+    );
   };
   const maj = (k, v) => setEdition((e) => ({ ...e, [k]: v }));
   const fmt = (d) => new Date(d + "T00:00:00").toLocaleDateString("fr-FR");
@@ -1853,6 +1913,7 @@ function PmsPrestataires({ pms, editable }) {
           {ligne("Dernier passage", p && p.date_dernier_passage ? fmt(p.date_dernier_passage) : null, "Date à renseigner")}
           {ligne("Prochain passage", p && p.date_prochaine_echeance ? <ChipEcheance date={p.date_prochaine_echeance} /> : null, "À programmer")}
           {n.libre && <p className="text-xs text-[var(--steel)] mt-1 break-words">{n.libre}</p>}
+          {p && blocHistorique(p, couleur, tousPassages.filter((x) => x.prestataire_id === p.id))}
           {editable && !ouverte && (
             <div className="flex flex-wrap gap-2 mt-3">
               {p ? (<>
@@ -1878,6 +1939,19 @@ function PmsPrestataires({ pms, editable }) {
         <div className="grid gap-3 mb-3" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(21rem, 1fr))" }}>
           {autres.map((p, i) => carte(null, p, "autres", ["#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"][i % 6], p.nom || p.libelle || libelleDe(TYPES_PRESTATAIRE, p.type), libelleDe(TYPES_PRESTATAIRE, p.type), ""))}
         </div>
+      )}
+      {tousPassages.some((x) => !x.prestataire_id) && (
+        <Card className="mb-3">
+          <h3 className="font-semibold text-[var(--ink)] mb-1">Passages d'anciens prestataires</h3>
+          <p className="text-xs text-[var(--steel)] mb-1">Les passages restent dans l'historique même si le prestataire a été supprimé de la liste.</p>
+          {tousPassages.filter((x) => !x.prestataire_id).map((x) => (
+            <div key={x.id} className="py-1.5 border-b border-[var(--cadre)] last:border-0 text-sm min-w-0">
+              <div className="font-semibold text-[var(--ink)] break-words">{fmt(x.date_passage)} — {x.societe || libelleDe(TYPES_PRESTATAIRE, x.type)}</div>
+              {x.note && <div className="text-xs text-[var(--steel)] break-words whitespace-pre-line">{x.note}</div>}
+              {x.document_id && docParId(x.document_id) && <Button variant="ghost" onClick={() => ouvrirRapport(x.document_id)}>Ouvrir le rapport</Button>}
+            </div>
+          ))}
+        </Card>
       )}
       {editable && !edition && <Button onClick={() => setEdition({ ...champsDe(null, { cle: "autres", type: "autre", libelle: "", freq: "" }), slot: "nouveau" })}><Plus size={16} /> Ajouter un autre prestataire</Button>}
       {editable && edition && edition.slot === "nouveau" && (
@@ -2068,6 +2142,93 @@ function PmsSyntheseLogiciel({ donnees }) {
   );
 }
 
+
+// Historique des modifications : corrections et suppressions (écrites par la base de données, non modifiables) et
+// enregistrements saisis un autre jour que celui de l'événement. Texte factuel, sans jugement.
+const LIBELLES_TABLES_JOURNAL = {
+  releves_temperature: "Relevé de température", surveillances_temperature: "Surveillance de température", cuissons: "Cuisson",
+  refroidissements: "Refroidissement", maintiens_chaud: "Maintien au chaud", huile_friture_tests: "Test d'huile de friture",
+  pms_executions: "Nettoyage / désinfection", etiquettes: "Étiquette", tracabilites: "Traçabilité", receptions: "Réception",
+  rappelconso_alertes: "Alerte rappel", tiac_declarations: "Déclaration TIAC", pms_documents: "Pièce jointe du dossier PMS",
+  prestataires: "Prestataire", prestataires_passages: "Passage de prestataire", pms_points: "Point du PMS", pms_formations: "Formation",
+};
+const LIBELLES_CHAMPS_JOURNAL = {
+  temperature: "Température", valeur: "Valeur", appareil: "Appareil", produit_nom: "Produit", date_heure: "Date et heure", heure: "Heure",
+  note: "Note", notes: "Notes", nom: "Nom", libelle: "Activité", telephone: "Téléphone", email: "E-mail", date_dernier_passage: "Dernier passage",
+  date_prochaine_echeance: "Prochaine échéance", frequence_rappel: "Fréquence de rappel", date_passage: "Date du passage", titre: "Titre",
+  categorie: "Catégorie", date_document: "Date du document", date_echeance: "Échéance", statut: "Statut", commentaire: "Commentaire",
+  action_corrective: "Action corrective", date: "Date", heure_depart: "Heure de départ", heure_debut: "Heure de début", heure_fin: "Heure de fin",
+  temperature_depart: "Température de départ", temperature_fin: "Température de fin", societe: "Société", date_formation: "Date de formation",
+  organisme: "Organisme", personne_nom: "Nom de la personne", derogation: "Dérogation", conforme: "Conforme",
+};
+function resumeJournal(v) {
+  if (!v || typeof v !== "object") return "";
+  const cles = ["produit_nom", "appareil", "nom", "titre", "libelle", "societe", "personne_nom", "bain"];
+  const k = cles.find((c) => v[c]);
+  return k ? String(v[k]) : "";
+}
+function valeurJournal(v) {
+  if (v === null || v === undefined || v === "") return "—";
+  if (typeof v === "boolean") return v ? "oui" : "non";
+  if (typeof v === "object") return JSON.stringify(v);
+  const t = String(v);
+  if (/^\d{4}-\d{2}-\d{2}T/.test(t)) { try { return new Date(t).toLocaleString("fr-FR", { timeZone: "Europe/Paris" }); } catch (e) { return t; } }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(t)) return new Date(t + "T00:00:00").toLocaleDateString("fr-FR");
+  return t;
+}
+const CHAMPS_IGNORES_JOURNAL = new Set(["id", "etablissement_id", "created_at", "updated_at", "saisi_le", "donnees", "chemin"]);
+function changementsJournal(ancien, nouveau) {
+  if (!ancien || !nouveau) return [];
+  return Object.keys(nouveau).filter((k) => !CHAMPS_IGNORES_JOURNAL.has(k) && JSON.stringify(ancien[k]) !== JSON.stringify(nouveau[k]))
+    .map((k) => ({ cle: k, label: LIBELLES_CHAMPS_JOURNAL[k] || k.replace(/_/g, " "), avant: valeurJournal(ancien[k]), apres: valeurJournal(nouveau[k]) }));
+}
+function PmsJournal({ pms, onBack }) {
+  const [donnees, setDonnees] = useState(null);
+  useEffect(() => {
+    let vivant = true;
+    if (pms && pms.chargerJournal) pms.chargerJournal().then((d) => { if (vivant) setDonnees(d); });
+    else setDonnees({ corrections: [], tardifs: [], erreur: "Le journal n'est disponible que dans le logiciel en ligne." });
+    return () => { vivant = false; };
+  }, [pms && pms.chargerJournal]);
+  const horo = (iso) => { try { return new Date(iso).toLocaleString("fr-FR", { timeZone: "Europe/Paris", dateStyle: "short", timeStyle: "short" }); } catch (e) { return iso || ""; } };
+  const evt = (v) => (String(v).length <= 10 ? new Date(v + "T00:00:00").toLocaleDateString("fr-FR") : horo(v));
+  return (
+    <div className="max-w-3xl mx-auto p-4 print:p-0">
+      <div className="print:hidden flex gap-2 mb-4">
+        <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
+        <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
+      </div>
+      <h1 className="text-xl font-bold text-[var(--ink)]">Historique des modifications</h1>
+      <p className="text-xs text-[var(--steel)] mb-4 break-words">Chaque correction et chaque suppression d'un enregistrement est notée automatiquement, avec la date et l'heure réelles, la valeur avant et la valeur après. Cette liste ne peut être ni modifiée ni effacée depuis le logiciel.</p>
+      {!donnees && <p className="text-sm text-[var(--steel)]">Chargement…</p>}
+      {donnees && donnees.erreur && <p className="text-sm text-[var(--warn)] mb-3 break-words">{donnees.erreur}</p>}
+      {donnees && (<>
+        <h2 className="font-semibold mt-4 mb-1">Corrections et suppressions ({donnees.corrections.length})</h2>
+        {donnees.corrections.length === 0 && <p className="text-sm text-[var(--steel)]">Aucune correction ni suppression enregistrée.</p>}
+        {donnees.corrections.map((c) => {
+          const ref = c.ancienne_valeur || {};
+          const diff = c.action === "modification" ? changementsJournal(c.ancienne_valeur, c.nouvelle_valeur) : [];
+          return (
+            <div key={c.id} className="py-2 border-b border-[var(--cadre)] text-sm min-w-0">
+              <div className="font-semibold text-[var(--ink)] break-words">{horo(c.date_heure)} — {c.action === "suppression" ? "Suppression" : "Correction"} · {LIBELLES_TABLES_JOURNAL[c.table_concernee] || c.table_concernee}{resumeJournal(ref) ? ` · ${resumeJournal(ref)}` : ""}</div>
+              {c.action === "suppression" && <div className="text-xs text-[var(--steel)] break-words">Enregistrement supprimé : {changementsJournal(ref, ref).slice(0, 8).filter((x) => x.avant !== "—").map((x) => `${x.label} ${x.avant}`).join(" · ")}</div>}
+              {diff.map((d) => <div key={d.cle} className="text-xs text-[var(--ink)] break-words">{d.label} : <span className="text-[var(--steel)]">{d.avant}</span> → <b>{d.apres}</b></div>)}
+            </div>
+          );
+        })}
+        <h2 className="font-semibold mt-6 mb-1">Enregistrements saisis un autre jour que celui de l'événement ({donnees.tardifs.length})</h2>
+        <p className="text-xs text-[var(--steel)] mb-1">Heure de saisie enregistrée par le serveur, à partir du 31/10/2026.</p>
+        {donnees.tardifs.length === 0 && <p className="text-sm text-[var(--steel)]">Aucun enregistrement concerné.</p>}
+        {donnees.tardifs.map((t) => (
+          <div key={t.libelle + t.id} className="py-1.5 border-b border-[var(--cadre)] text-sm break-words">
+            {t.libelle}{t.nom ? ` · ${t.nom}` : ""} du {evt(t.evenement)} — saisi le {horo(t.saisi_le)}
+          </div>
+        ))}
+      </>)}
+    </div>
+  );
+}
+
 function PmsDossierImprimable({ reglages, employees, donnees, onBack }) {
   const fiche = (reglages && reglages.fiche) || {};
   const pms = (reglages && reglages.pms) || { prestataires: [], formations: [], documents: [] };
@@ -2104,7 +2265,14 @@ function PmsDossierImprimable({ reglages, employees, donnees, onBack }) {
         <div key={p.id} className="text-sm mb-1">
           <span className="font-medium">{libelleDe(TYPES_PRESTATAIRE, p.type)}</span> — {p.nom || "—"}{p.telephone ? ` · ${p.telephone}` : ""}{p.email ? ` · ${p.email}` : ""}
           {p.date_dernier_passage ? ` · dernier passage ${fr(p.date_dernier_passage)}` : ""}{p.date_prochaine_echeance ? ` · prochaine échéance ${fr(p.date_prochaine_echeance)}` : ""}
+          {(pms.passages || []).filter((x) => x.prestataire_id === p.id).map((x) => (
+            <div key={x.id} className="text-xs pl-4 break-words">Passage du {fr(x.date_passage)}{x.note ? ` — ${x.note}` : ""}{x.document_id ? " · rapport joint (voir 4 — Pièces jointes)" : ""}</div>
+          ))}
         </div>
+      ))}
+      {(pms.passages || []).some((x) => !x.prestataire_id) && <div className="text-sm font-medium mt-2">Passages d'anciens prestataires</div>}
+      {(pms.passages || []).filter((x) => !x.prestataire_id).map((x) => (
+        <div key={x.id} className="text-xs pl-4 break-words">{fr(x.date_passage)} — {x.societe || libelleDe(TYPES_PRESTATAIRE, x.type)}{x.note ? ` — ${x.note}` : ""}{x.document_id ? " · rapport joint" : ""}</div>
       ))}
       <h2 className="font-semibold mt-4 mb-1">4 — Pièces jointes</h2>
       {(pms.documents || []).length === 0 && <div className="text-sm text-[var(--steel)]">Aucune pièce</div>}
@@ -2493,11 +2661,13 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
   const nbOk = controle.filter((c) => c.ok).length;
 
   const ctx = { fiche, docs, formations, prestataires, equipe, donnees };
+  const [journalOuvert, setJournalOuvert] = useState(false);
   const [locales, setLocales] = useState({}); // repli si l'enregistrement en base n'est pas disponible (banc de test)
   const liste = (lettre) => <PmsPointsListe lettre={lettre} pms={pms} ctx={ctx} equipe={equipe} locales={locales} setLocales={setLocales} />;
   const aller = (id) => { const el = document.getElementById(`pms-${id}`); if (el) el.scrollIntoView({ behavior: "smooth", block: "start" }); };
   const cat = (id) => PMS_CATEGORIES.find((c) => c.id === id);
 
+  if (journalOuvert) return <PmsJournal pms={pms} onBack={() => setJournalOuvert(false)} />;
   return (
     <div>
       <PmsBilanPoints pms={pms} locales={locales} />
@@ -2568,7 +2738,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
         <SousTitrePms>7 — Traçabilité amont et conservation</SousTitrePms>
         <Card>
           <h3 className="font-semibold">Bons de livraison, étiquettes, lots, factures</h3>
-          <p className="text-sm text-[var(--ink)]">À conserver au moins 6 mois pour les produits périssables (date limite de moins de 3 mois ou sans date) et 5 ans pour les autres. Le logiciel conserve la traçabilité 5 ans. Pour les autres enregistrements (températures, cuissons, refroidissements, maintiens au chaud, tests d'huile), les textes ne fixent aucune durée : le logiciel les garde 6 mois (nouveau mode). Les photos de traçabilité sont retirées après 6 mois, le texte reste 5 ans.</p>
+          <p className="text-sm text-[var(--ink)]">À conserver au moins 6 mois pour les produits périssables (date limite de moins de 3 mois ou sans date) et 5 ans pour les autres. Le logiciel garde la traçabilité et les autres enregistrements (températures, cuissons, refroidissements, maintiens au chaud, tests d'huile) aussi longtemps que votre établissement a un compte : ils dépassent donc ces durées. Les photos des bons de livraison sont retirées après 14 jours (le texte reste).</p>
         </Card>
       {liste("C")}
       </BandePms>
@@ -2654,6 +2824,9 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
         </Card>
         <SousTitrePms>15 — Enregistrements du logiciel</SousTitrePms>
         <PmsSyntheseLogiciel donnees={donnees} />
+        <div className="flex justify-center my-4">
+          <button type="button" onClick={() => setJournalOuvert(true)} className="inline-flex items-center gap-2 min-h-[44px] px-5 rounded-xl text-white font-bold text-sm" style={{ background: COULEURS_FONCTION.historique.fond }}><Clock size={18} /> Historique des modifications</button>
+        </div>
         <SousTitrePms>16 — Plan d'action</SousTitrePms>
         <PmsPlanAction pms={pms} locales={locales} />
         {liste("H")}
@@ -6277,7 +6450,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
           <div>
             <p className="text-xs text-[var(--steel)] mb-1">Document généré le</p>
             <p className="text-sm text-[var(--ink)]">{fmtLong(todayISO())}</p>
-            <p className="text-xs text-[var(--steel)] mt-2">Traçabilité des denrées : 6 mois (produits périssables) à 5 ans selon le produit. Autres enregistrements : durée appropriée fixée par l'établissement.</p>
+            <p className="text-xs text-[var(--steel)] mt-2">Traçabilité des denrées : 6 mois (produits périssables) à 5 ans selon le produit. Le logiciel garde tous les enregistrements tant que le compte existe.</p>
           </div>
         </div>
       </div>
@@ -19981,7 +20154,7 @@ function TracabiliteChef({ preparations, produits, employees, onBack }) {
         <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <span className="text-xs text-[var(--steel)]">{tracabiliteFiltree.length} entrée(s)</span>
       </div>
-      <SectionHeader title="Traçabilité" subtitle="Historique complet — toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) photos comprises (les photos sont retirées après 6 mois, le texte est supprimé après 5 ans)." />
+      <SectionHeader title="Traçabilité" subtitle="Historique complet — toutes les traçabilités enregistrées (étiquettes DLC/DDM, préparations) photos comprises, gardées tant que votre compte existe." />
       <Card>
         <ChampRechercheVocale value={recherche} onChange={setRecherche} label="Rechercher (produit, lot ou date)" placeholder="Ex. « bolognaise », « L2409 », « 1 octobre »..." />
         <div className="divide-y divide-[var(--line)] mt-3">
@@ -24334,6 +24507,8 @@ function KitchenApp({ identiteExterne } = {}) {
   }, [dernierControleRappelConso]);
 
   useEffect(() => {
+    // Décision de Loïc (31/10) : en vrai mode, tous les enregistrements (et leurs photos) sont gardés tant que l'établissement existe.
+    if (modeExterne) return;
     // Décision de Loïc (10/10) : les photos de traçabilité sont gardées aussi longtemps que les données (5 ans),
     // sans les retirer avant. Les traçabilités de plus de 5 ans sont supprimées.
     const seuilDonnees = subMonths(todayISO(), CONSERVATION_DONNEES_TRACABILITE_MOIS);
@@ -24356,7 +24531,8 @@ function KitchenApp({ identiteExterne } = {}) {
   // Purge automatique des autres enregistrements (voir debutConservationEnregistrements). Ne déclenche l'écriture
   // que si au moins une ligne est trop ancienne, et se relance quand les listes finissent de se charger.
   useEffect(() => {
-    const seuil = modeExterne ? subMonths(todayISO(), CONSERVATION_ENREGISTREMENTS_MOIS) : debutConservationEnregistrements(todayISO());
+    if (modeExterne) return; // vrai mode : plus aucune purge (décision de Loïc, 31/10)
+    const seuil = debutConservationEnregistrements(todayISO());
     const trop = (liste) => (liste || []).some((x) => x && x.date && x.date < seuil);
     const garder = (setter, liste, nom) => {
       if (!trop(liste)) return;
