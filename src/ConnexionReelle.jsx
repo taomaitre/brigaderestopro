@@ -25,7 +25,7 @@ import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois, categorieDocumentPas
 const URL_PROJET = "https://uikxpjnovzxcglygueif.supabase.co";
 const CLE_PUBLIQUE = "sb_publishable_xM0AsmcBnd4fmat3rUJkYw_w45Jivl9";
 // Tables de l'établissement incluses dans la sauvegarde (la table des comptes n'est lisible que par les fonctions du serveur).
-const TABLES_SAUVEGARDE = ["etablissements", "fournisseurs", "prestataires", "prestataires_passages", "produits", "lots_produits", "receptions", "receptions_photos_bon", "receptions_lignes", "notifications_fournisseurs", "fiches_techniques", "fiches_techniques_ingredients", "fiches_techniques_procedes", "fiches_techniques_allergenes", "fiches_techniques_etapes", "fiches_techniques_materiel", "cuissons", "maintiens_chaud", "refroidissements", "etiquettes", "tracabilites", "tracabilites_photos", "appareils", "releves_temperature", "huile_friture_tests", "allergenes_reference", "rappelconso_alertes", "tiac_declarations", "planning_creneaux", "taches", "reservations", "pms_taches", "pms_executions", "journal_activite", "inventaires_mensuels", "inventaires_lignes", "alertes_ia", "surveillances_temperature", "demandes_ajout", "cartes", "horaires_service", "pms_formations", "pms_documents", "pms_points"];
+const TABLES_SAUVEGARDE = ["etablissements", "fournisseurs", "prestataires", "prestataires_passages", "controles_surfaces", "produits", "lots_produits", "receptions", "receptions_photos_bon", "receptions_lignes", "notifications_fournisseurs", "fiches_techniques", "fiches_techniques_ingredients", "fiches_techniques_procedes", "fiches_techniques_allergenes", "fiches_techniques_etapes", "fiches_techniques_materiel", "cuissons", "maintiens_chaud", "refroidissements", "etiquettes", "tracabilites", "tracabilites_photos", "appareils", "releves_temperature", "huile_friture_tests", "allergenes_reference", "rappelconso_alertes", "tiac_declarations", "planning_creneaux", "taches", "reservations", "pms_taches", "pms_executions", "journal_activite", "inventaires_mensuels", "inventaires_lignes", "alertes_ia", "surveillances_temperature", "demandes_ajout", "cartes", "horaires_service", "pms_formations", "pms_documents", "pms_points"];
 const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
 const URL_FONCTION_IA = `${URL_PROJET}/functions/v1/ia-gemini`;
 const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`;
@@ -498,7 +498,7 @@ export default function ConnexionReelle() {
   // Réglages de l'établissement (nom, cellule de refroidissement, congélation décrite au PMS) et listes « Autre » (demandes d'ajout).
   const [reglagesEtab, setReglagesEtab] = useState(null);
   const [ficheEtab, setFicheEtab] = useState(null); // fiche de l'établissement (module 1 du PMS)
-  const [pmsDonnees, setPmsDonnees] = useState({ charge: false, prestataires: [], passages: [], formations: [], documents: [], demarrageTermine: true }); // dossier PMS
+  const [pmsDonnees, setPmsDonnees] = useState({ charge: false, prestataires: [], passages: [], surfaces: [], formations: [], documents: [], demarrageTermine: true }); // dossier PMS
   const [demandesAjoutListe, setDemandesAjoutListe] = useState([]);
 
   const EST_UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -840,6 +840,9 @@ export default function ConnexionReelle() {
       // Groupes du stock : requête à part (si la colonne n'existe pas encore, les autres réglages ne sont pas touchés).
       const rg = await supabasePublic.from("etablissements").select("groupes_stock").eq("id", session.etablissement.id).maybeSingle();
       if (!rg.error && rg.data) setReglagesEtab((r) => (r ? { ...r, groupesStock: Array.isArray(rg.data.groupes_stock) && rg.data.groupes_stock.length > 0 ? rg.data.groupes_stock : null } : r));
+      // Mode de vérification de l'hygiène (laboratoire ou autocontrôle) : requête à part (colonne absente = non choisi, rien ne casse).
+      const rmv = await supabasePublic.from("etablissements").select("mode_verification_hygiene").eq("id", session.etablissement.id).maybeSingle();
+      if (!rmv.error && rmv.data) setReglagesEtab((r) => (r ? { ...r, modeVerifHygiene: rmv.data.mode_verification_hygiene || "" } : r));
     } catch (e) { console.error("Réglages de l'établissement non chargés :", e); }
   }
   // Enregistre les groupes du stock de l'établissement (liste ordonnée {id, nom, fond, texte} ; null = groupes de départ).
@@ -882,14 +885,14 @@ export default function ConnexionReelle() {
         setPmsDonnees((d) => ({ ...d, charge: true, complet: false, prestataires: [], passages: [], formations: [], documents: [] }));
         return;
       }
-      const [rp, rf, rd, rpt, rpa] = await Promise.all([
+      const [rp, rf, rd, rpt, rpa, rsf] = await Promise.all([
         supabasePublic.from("prestataires").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_formations").select("*").order("created_at", { ascending: true }),
         supabasePublic.from("pms_documents").select("*").order("created_at", { ascending: false }),
         supabasePublic.from("pms_points").select("*"), // points du PMS (fait / incomplet / pas fait) ; absent tant que la table n'est pas créée
         supabasePublic.from("prestataires_passages").select("*").order("date_passage", { ascending: false }).order("saisi_le", { ascending: false }), // historique des passages ; absent tant que la migration du 31/10 n'est pas passée
       ]);
-      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], passages: (rpa && rpa.data) || [], formations: rf.data || [], documents: rd.data || [], points: (rpt && rpt.data) || [] }));
+      setPmsDonnees((d) => ({ ...d, charge: true, complet: true, prestataires: rp.data || [], passages: (rpa && rpa.data) || [], surfaces: (rsf && !rsf.error && rsf.data) || [], formations: rf.data || [], documents: rd.data || [], points: (rpt && rpt.data) || [] }));
     } catch (e) { console.error("Dossier PMS non chargé :", e); }
   }
   const versNull = (v) => (v === undefined || v === null || String(v).trim() === "" ? null : String(v).trim());
@@ -991,6 +994,37 @@ export default function ConnexionReelle() {
     const { error } = await supabasePublic.from("prestataires_passages").delete().eq("id", id);
     if (error) { console.error("Passage non supprimé :", error); return false; }
     await chargerPms();
+    return true;
+  }
+  // Contrôles de surfaces (autocontrôle du chef) : une ligne par test (surface, méthode, résultat, photo, action corrective).
+  async function ajouterControleSurface(c) {
+    if (!String(c.surface || "").trim()) return { ok: false, erreur: "Indiquez la surface contrôlée." };
+    if (!["conforme", "non_conforme", "a_refaire"].includes(c.resultat)) return { ok: false, erreur: "Indiquez le résultat du test." };
+    if (c.resultat !== "conforme" && !String(c.actionCorrective || "").trim()) return { ok: false, erreur: "Notez l'action corrective (par exemple : re-nettoyé, désinfecté, test refait)." };
+    const rep = await supabasePublic.from("controles_surfaces").insert({
+      etablissement_id: session.etablissement.id, date: versNull(c.date) || aujourdhuiIso(), heure: versNull(c.heure), surface: String(c.surface).trim(),
+      precision_surface: versNull(c.precisionSurface), methode: versNull(c.methode), produit_test: versNull(c.produitTest), resultat: c.resultat,
+      valeur_lue: versNull(c.valeurLue), action_corrective: versNull(c.actionCorrective), photo: c.photo || null, realise_par: versNull(c.realisePar),
+    });
+    if (rep.error) {
+      console.error("Contrôle de surface non enregistré :", rep.error);
+      return { ok: false, erreur: "Le test n'a pas pu être enregistré." + (/controles_surfaces/.test(rep.error.message || "") ? " (La mise à jour de la base de données du 31/10 n'est pas encore faite.)" : "") };
+    }
+    await chargerPms();
+    return { ok: true };
+  }
+  async function supprimerControleSurface(id) {
+    const { error } = await supabasePublic.from("controles_surfaces").delete().eq("id", id);
+    if (error) { console.error("Contrôle de surface non supprimé :", error); return false; }
+    await chargerPms();
+    return true;
+  }
+  // Mode de vérification de l'hygiène choisi par la direction : « laboratoire » ou « autocontrole » (tests faits par le chef).
+  async function enregistrerModeVerif(mode) {
+    const v = mode === "laboratoire" || mode === "autocontrole" ? mode : null;
+    setReglagesEtab((r) => (r ? { ...r, modeVerifHygiene: v || "" } : r));
+    const { error } = await supabasePublic.from("etablissements").update({ mode_verification_hygiene: v }).eq("id", session.etablissement.id);
+    if (error) { console.error("Mode de vérification non enregistré :", error); chargerReglagesEtab(); return false; }
     return true;
   }
   // Journal des corrections et suppressions (écrit par la base de données) + enregistrements saisis un autre jour que celui de l'événement.
@@ -1570,9 +1604,9 @@ export default function ConnexionReelle() {
         chargerEquipe(session.token, codeSaisi);
         return { ok: true, nom: data.employe.nom };
       },
-      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
+      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, enregistrerModeVerif, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
         suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
-        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, ajouterPassage, supprimerPassage, chargerJournal, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
+        pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, ajouterPassage, supprimerPassage, ajouterControleSurface, supprimerControleSurface, chargerJournal, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
       gestionNormes: catalogue ? { produit: enregistrerNormeProduit } : undefined,
       listes: listesFroid || undefined,

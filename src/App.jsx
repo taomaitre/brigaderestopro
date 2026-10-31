@@ -492,7 +492,7 @@ Object.assign(COULEURS_FONCTION, {
   planningEmploye: COULEURS_FONCTION.taches, reservationsClient: COULEURS_FONCTION.taches,
   allergenes: COULEURS_FONCTION.controle, origine: COULEURS_FONCTION.controle,
   historiqueJour: COULEURS_FONCTION.historique, comptes: COULEURS_FONCTION.historique,
-  pmsDossier: COULEURS_FONCTION.pms, dossierControle: COULEURS_FONCTION.pms, pmsPrestataires: COULEURS_FONCTION.pms,
+  pmsDossier: COULEURS_FONCTION.pms, dossierControle: COULEURS_FONCTION.pms, pmsPrestataires: COULEURS_FONCTION.pms, controlesSurfaces: COULEURS_FONCTION.pms,
   produits: COULEURS_FONCTION.stock, appareilsFroid: COULEURS_FONCTION.temperatures,
   haccpTemp: COULEURS_FONCTION.temperatures, haccpRefroid: COULEURS_FONCTION.cellule, haccpHuile: COULEURS_FONCTION.huile, haccpChaud: COULEURS_FONCTION.maintien, haccpCuisson: COULEURS_FONCTION.cuisson,
 });
@@ -1782,6 +1782,121 @@ function ecrireNotesPrest(e) {
   return [...LIGNES_NOTES_PREST.filter(([k]) => (e[k] || "").trim()).map(([k, lib]) => `${lib} : ${e[k].trim()}`), ...(e.libre || "").split("\n").filter((l) => l.trim())].join("\n");
 }
 
+// ---- Contrôles de surfaces (autocontrôle) : plans de travail, ustensiles… testés par le chef (bandelettes, lames, ATP) ----
+// La direction choisit comment l'hygiène des surfaces est vérifiée : par un laboratoire, ou par des tests d'autocontrôle enregistrés ici.
+const SURFACES_TESTEES = ["Plan de travail", "Planche à découper", "Ustensile (couteau, fouet, spatule…)", "Machine (trancheuse, hachoir, batteur…)", "Bac ou contenant", "Poignée, interrupteur", "Autre"];
+const METHODES_SURFACE = ["Bandelette ou lame gélosée", "Test ATP (hygiénomètre)", "Écouvillon envoyé à un laboratoire", "Autre"];
+const RESULTATS_SURFACE = [
+  { value: "conforme", label: "Conforme", couleur: "#1E7B4B" },
+  { value: "non_conforme", label: "Non conforme", couleur: "#B4233A" },
+  { value: "a_refaire", label: "À refaire", couleur: "#B7791F" },
+];
+function PmsControlesSurfaces({ pms, mode, onMode, peutChoisir, peutSaisir, nomUtilisateur, onOuvrirPrestataires }) {
+  const vide = () => ({ surface: SURFACES_TESTEES[0], precisionSurface: "", methode: METHODES_SURFACE[0], produitTest: "", resultat: "", valeurLue: "", actionCorrective: "", photo: null });
+  const [f, setF] = useState(vide);
+  const [envoi, setEnvoi] = useState(false);
+  const [message, setMessage] = useState("");
+  const [photoVue, setPhotoVue] = useState(null);
+  if (!pms) return <Card><p className="text-sm text-[var(--steel)]">Chargement…</p></Card>;
+  const liste = pms.surfaces || [];
+  const fmtJour = (d) => new Date(d + "T00:00:00").toLocaleDateString("fr-FR");
+  const dernier = liste[0];
+  const joursDepuis = dernier ? Math.max(0, Math.round((new Date(todayISO() + "T00:00:00") - new Date(dernier.date + "T00:00:00")) / 86400000)) : null;
+  const valider = async () => {
+    setEnvoi(true); setMessage("");
+    const maintenant = new Date();
+    const r = await pms.ajouterControleSurface({ ...f, date: todayISO(), heure: maintenant.toTimeString().slice(0, 5), realisePar: nomUtilisateur });
+    setEnvoi(false);
+    if (r && r.ok) { setF(vide()); setMessage("Test enregistré."); } else setMessage((r && r.erreur) || "Non enregistré — réessayez.");
+  };
+  const optionMode = (valeur, titre, texte) => {
+    const actif = mode === valeur;
+    return (
+      <button type="button" disabled={!peutChoisir} aria-pressed={actif} onClick={() => onMode && onMode(valeur)}
+        className="text-left rounded-xl border-2 p-3 min-w-0 flex-1 basis-[260px]" style={actif ? { borderColor: "#1E7B4B", background: "#E6F4EC" } : { borderColor: "var(--cadre)", background: "#fff", opacity: peutChoisir ? 1 : 0.75 }}>
+        <div className="flex items-center gap-2 font-bold text-[var(--ink)] text-sm"><span className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: actif ? "#1E7B4B" : "#9AA5B1" }}>{actif && <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#1E7B4B" }} />}</span>{titre}</div>
+        <p className="text-xs text-[var(--steel)] mt-1">{texte}</p>
+      </button>
+    );
+  };
+  const infoResultat = (v) => RESULTATS_SURFACE.find((x) => x.value === v) || RESULTATS_SURFACE[0];
+  return (
+    <div>
+      <Card className="mb-3">
+        <h3 className="font-semibold">Vérifier l'hygiène des surfaces : plans de travail et ustensiles</h3>
+        <p className="text-sm text-[var(--ink)] mt-1">Les textes ne fixent aucune fréquence, mais l'exploitant doit pouvoir prouver qu'il vérifie que son nettoyage et ses procédures fonctionnent. Règlement (CE) 2073/2005, art. 4 : les exploitants procèdent à des essais « lorsqu'ils valident ou vérifient le bon fonctionnement de leurs procédures fondées sur les principes HACCP ou sur les bonnes pratiques d'hygiène » et « décident des fréquences d'échantillonnage appropriées à appliquer ». Art. 5 : des échantillons sont prélevés sur les lieux de transformation et le matériel « lorsque ces prélèvements sont nécessaires pour s'assurer du respect des critères ».</p>
+        <p className="text-xs text-[var(--steel)] mt-1">Contrôle officiel : dans le vade-mecum général, l'absence de vérification, ou d'action corrective après un mauvais résultat de vérification, est notée C. Source : règlement 2073/2005 (version consolidée de 2020, lue le 31/10/2026, à relire sur la version en vigueur) ; vade-mecum général V7 de septembre 2026.</p>
+        <div className="flex flex-wrap gap-2 mt-3">
+          {optionMode("laboratoire", "Un laboratoire s'en charge", "Le laboratoire prélève et analyse. Gardez ses rapports : ajoutez chaque passage dans Prestataires > Laboratoire d'analyses.")}
+          {optionMode("autocontrole", "Nous faisons des tests d'autocontrôle", "Le chef contrôle lui-même les plans de travail et les ustensiles (bandelettes, lames, test ATP) et enregistre chaque test ici : photo, résultat, action corrective.")}
+        </div>
+        {!peutChoisir && <p className="text-xs text-[var(--steel)] mt-2">Le choix est fait par la direction.</p>}
+        {!mode && <p className="text-xs mt-2" style={{ color: "#B7791F" }}>Aucun choix n'a encore été fait.</p>}
+      </Card>
+
+      {mode === "laboratoire" && (
+        <Card className="mb-3">
+          <p className="text-sm text-[var(--ink)]">Le laboratoire fait les prélèvements. Les rapports d'analyses se rangent dans <b>Prestataires</b>, rubrique « Laboratoire d'analyses » (date de chaque passage et rapport joint).</p>
+          {onOuvrirPrestataires && <div className="mt-2"><Button variant="ghost" onClick={onOuvrirPrestataires}>Ouvrir Prestataires →</Button></div>}
+        </Card>
+      )}
+
+      {mode === "autocontrole" && peutSaisir && (
+        <Card className="mb-3">
+          <h3 className="font-semibold mb-2">Enregistrer un test</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Surface testée"><select className={inputCls} value={f.surface} onChange={(e) => setF({ ...f, surface: e.target.value })}>{SURFACES_TESTEES.map((x) => <option key={x}>{x}</option>)}</select></Field>
+            <Field label="Précision (facultatif)"><input className={inputCls} value={f.precisionSurface} onChange={(e) => setF({ ...f, precisionSurface: e.target.value })} placeholder="Ex. plan de travail pizza, couteau du chef" /></Field>
+            <Field label="Méthode du test"><select className={inputCls} value={f.methode} onChange={(e) => setF({ ...f, methode: e.target.value })}>{METHODES_SURFACE.map((x) => <option key={x}>{x}</option>)}</select></Field>
+            <Field label="Marque ou référence du test (facultatif)"><input className={inputCls} value={f.produitTest} onChange={(e) => setF({ ...f, produitTest: e.target.value })} /></Field>
+          </div>
+          <p className="text-sm text-[var(--ink)] mt-3 mb-1">Résultat du test</p>
+          <div className="flex flex-wrap gap-2">
+            {RESULTATS_SURFACE.map((r) => (
+              <button key={r.value} type="button" aria-pressed={f.resultat === r.value} onClick={() => setF({ ...f, resultat: r.value })} className="min-h-[44px] px-4 rounded-full border-2 text-sm font-bold"
+                style={f.resultat === r.value ? { background: r.couleur, borderColor: r.couleur, color: "#fff" } : { background: "#fff", borderColor: r.couleur, color: r.couleur }}>{r.label}</button>
+            ))}
+          </div>
+          <p className="text-xs text-[var(--steel)] mt-1">Le seuil de conformité est celui de la notice de vos tests. Le logiciel n'en invente aucun.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <Field label="Valeur lue (facultatif)"><input className={inputCls} value={f.valeurLue} onChange={(e) => setF({ ...f, valeurLue: e.target.value })} placeholder="Comme indiqué sur la notice (couleur, UFC, RLU…)" /></Field>
+            <div><p className="text-sm text-[var(--ink)] mb-1">Photo du test <span className="text-[var(--steel)]">(recommandée)</span></p><PhotoInput value={f.photo} onChange={(v) => setF({ ...f, photo: v })} label="Photographier le test" /></div>
+          </div>
+          {f.resultat && f.resultat !== "conforme" && (
+            <div className="mt-3"><Field label="Action corrective (obligatoire)"><textarea className={`${inputCls} min-h-[70px]`} value={f.actionCorrective} onChange={(e) => setF({ ...f, actionCorrective: e.target.value })} placeholder="Ex. surface re-nettoyée et désinfectée, test refait à 15 h : conforme" /></Field></div>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Button onClick={valider} disabled={envoi || !f.resultat}>{envoi ? "Enregistrement…" : "Enregistrer le test"}</Button>
+            {message && <span className="text-sm" style={{ color: message === "Test enregistré." ? "#1E7B4B" : "#B4233A" }}>{message}</span>}
+          </div>
+        </Card>
+      )}
+      {mode === "autocontrole" && !peutSaisir && <Card className="mb-3"><p className="text-sm text-[var(--steel)]">L'enregistrement des tests est réservé au chef et à la direction.</p></Card>}
+
+      <Card>
+        <h3 className="font-semibold">Historique des tests ({liste.length})</h3>
+        {dernier ? <p className="text-xs text-[var(--steel)] mb-2">Dernier test : {fmtJour(dernier.date)}{joursDepuis === 0 ? " (aujourd'hui)" : ` (il y a ${joursDepuis} jour${joursDepuis > 1 ? "s" : ""})`}.</p> : <p className="text-sm text-[var(--steel)]">Aucun test enregistré.</p>}
+        {liste.map((x) => {
+          const r = infoResultat(x.resultat);
+          return (
+            <div key={x.id} className="py-2 border-t border-[var(--cadre)] flex gap-3 items-start min-w-0">
+              {x.photo ? <button type="button" onClick={() => setPhotoVue(x.photo)} aria-label="Agrandir la photo"><img src={x.photo} alt="Test" className="w-14 h-14 object-cover rounded-lg border border-[var(--cadre)]" /></button> : <div className="w-14 h-14 rounded-lg border border-dashed border-[var(--cadre)] shrink-0" />}
+              <div className="min-w-0 flex-1 text-sm">
+                <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-[var(--ink)]">{fmtJour(x.date)}{x.heure ? ` · ${x.heure}` : ""}</span><span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: r.couleur }}>{r.label}</span></div>
+                <div className="text-[var(--ink)] break-words">{x.surface}{x.precision_surface ? ` — ${x.precision_surface}` : ""}</div>
+                <div className="text-xs text-[var(--steel)] break-words">{[x.methode, x.produit_test, x.valeur_lue ? `valeur : ${x.valeur_lue}` : "", x.realise_par ? `par ${x.realise_par}` : ""].filter(Boolean).join(" · ")}</div>
+                {x.action_corrective && <div className="text-xs text-[var(--ink)] break-words mt-0.5">Action corrective : {x.action_corrective}</div>}
+                {peutChoisir && <button type="button" className="text-xs underline text-[var(--steel)] mt-1" onClick={() => { if (window.confirm("Supprimer ce test de l'historique ? La suppression est conservée dans l'historique des modifications.")) pms.supprimerControleSurface(x.id); }}>Supprimer</button>}
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+      {photoVue && <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setPhotoVue(null)}><img src={photoVue} alt="Test" className="max-w-full max-h-full rounded-xl" /></div>}
+    </div>
+  );
+}
+
 function PmsPrestataires({ pms, editable }) {
   const [edition, setEdition] = useState(null); // { slot, ...champs } ; id absent = nouveau
   const [message, setMessage] = useState("");
@@ -2405,7 +2520,7 @@ function constatPointPms(cle, ctx) {
   const doc = (c) => docs.some((d) => d.categorie === c);
   const form = (t) => formations.some((f) => f.type === t);
   const nbD = (k) => (donnees && Array.isArray(donnees[k]) ? donnees[k].length : 0);
-  if (cle.startsWith("presta:")) return prestataires.some((p) => p.type === cle.slice(7));
+  if (cle.startsWith("presta:")) return prestataires.some((p) => p.type === cle.slice(7)) || (cle === "presta:laboratoire" && ctx.modeVerif === "autocontrole");
   switch (cle) {
     case "declaration": return !!fiche.dateDeclarationActivite && doc("declaration_activite");
     case "referent": return !!String(fiche.responsableHygiene || "").trim();
@@ -2422,7 +2537,7 @@ function constatPointPms(cle, ctx) {
       if (!o) return false;
       return o === "Source privée (puits, forage)" ? doc("autorisation_eau_privee") && doc("analyse_eau") : doc("attestation_eau");
     }
-    case "analyses": return doc("rapport_laboratoire");
+    case "analyses": return doc("rapport_laboratoire") || (ctx.surfaces || []).length > 0;
     case "documents": return docs.length > 0;
     case "receptions": return nbD("receptions") > 0;
     case "temperatures": return nbD("relevesFroid") > 0;
@@ -2660,7 +2775,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
   ];
   const nbOk = controle.filter((c) => c.ok).length;
 
-  const ctx = { fiche, docs, formations, prestataires, equipe, donnees };
+  const ctx = { fiche, docs, formations, prestataires, equipe, donnees, surfaces: pms.surfaces || [], modeVerif: reglages.modeVerifHygiene || "" };
   const [journalOuvert, setJournalOuvert] = useState(false);
   const [locales, setLocales] = useState({}); // repli si l'enregistrement en base n'est pas disponible (banc de test)
   const liste = (lettre) => <PmsPointsListe lettre={lettre} pms={pms} ctx={ctx} equipe={equipe} locales={locales} setLocales={setLocales} />;
@@ -2765,7 +2880,9 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
         <SousTitrePms>9 — Vérification et analyses</SousTitrePms>
         <Card>
           <h3 className="font-semibold">Contrôle interne et laboratoire</h3>
-          <p className="text-sm text-[var(--ink)]">Contrôle journalier, registre mensuel, audit interne et revue annuelle du PMS. Aucune fréquence légale fixe d'analyses pour un restaurant classique : indiquez votre laboratoire dans la partie B et joignez les résultats dans la partie G.</p>
+          <p className="text-sm text-[var(--ink)]">Aucun texte lu ne fixe de fréquence d'analyses pour un restaurant : le règlement 2073/2005 (art. 4) laisse à l'exploitant le choix des fréquences, mais il doit pouvoir prouver qu'il vérifie ses procédures (une vérification absente est notée C au contrôle officiel). Deux façons de le faire : un <b>laboratoire</b> (rapports joints dans Prestataires), ou des <b>tests d'autocontrôle</b> faits par le chef sur les plans de travail et les ustensiles et enregistrés dans le logiciel.</p>
+          <p className="text-sm mt-1"><b>Mode choisi :</b> {reglages.modeVerifHygiene === "laboratoire" ? "laboratoire" : reglages.modeVerifHygiene === "autocontrole" ? `tests d'autocontrôle (${(pms.surfaces || []).length} test${(pms.surfaces || []).length > 1 ? "s" : ""} enregistré${(pms.surfaces || []).length > 1 ? "s" : ""})` : "pas encore choisi"}</p>
+          {bouton("controlesSurfaces", "Contrôles de surfaces")}
         </Card>
       {liste("D")}
       </BandePms>
@@ -4664,6 +4781,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
     { id: "pmsDossier", label: "PMS — dossier", icon: Building2, section: "hygiene" },
     { id: "pms", label: "Plan de nettoyage", icon: SprayCan, section: "hygiene" },
     { id: "pmsPrestataires", label: "Prestataires", icon: PhoneCall, section: "hygiene" },
+    { id: "controlesSurfaces", label: "Contrôles de surfaces (autocontrôle)", icon: ClipboardCheck, section: "hygiene" },
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
     { id: "lexique", label: "Lexique et réglementation", icon: BookOpen, section: "hygiene" },
@@ -4681,7 +4799,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const tuileVisible = (t) => (t.section !== "reglages" || accesPlanningReservations) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
+  const tuileVisible = (t) => (t.section !== "reglages" || accesPlanningReservations) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms))) && (t.id !== "controlesSurfaces" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
   const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && tuileVisible(t));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
@@ -4707,11 +4825,11 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
     { titre: "Produits", ids: ["fournisseur", "produits"] },
     { titre: "Matériel", ids: ["appareilsFroid"] },
     { titre: "Cuisine", ids: ["creationFiche", "carte"] },
-    { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires"] },
+    { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires", "controlesSurfaces"] },
   ];
-  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Contrôle de la journée", pmsPrestataires: "Prestataires" };
+  const PARAM_LIBELLES = { controlesSurfaces: "Contrôles de surfaces", comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Contrôle de la journée", pmsPrestataires: "Prestataires" };
   const PARAM_EXTRAS = { "@horaires": ["horaires", "Horaires de l'équipe", Clock, "#1F8F5F", "#146B45"], "@reservations": ["reservations", "Réservations client", CalendarDays, "#1F8F5F", "#146B45"] };
-  const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
+  const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "controlesSurfaces", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
   const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
   // Menu du Paramétrage : dans la bande noire de gauche (grand écran) ou en haut de la page (téléphone).
   const construireMenuParam = (sombre) => (
@@ -5507,6 +5625,14 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         <div className="mb-6">
           <SectionHeader title="Prestataires" subtitle="Antinuisibles, maintenance, laboratoire… les contacts utiles" />
           <PmsPrestataires pms={reglagesEtablissement && reglagesEtablissement.pms} editable={compteDirection} />
+        </div>
+      )}
+
+      {sousEcran === "controlesSurfaces" && accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms) && (
+        <div className="mb-6">
+          <SectionHeader title="Contrôles de surfaces" subtitle="Plans de travail et ustensiles : laboratoire ou tests d'autocontrôle" />
+          <PmsControlesSurfaces pms={reglagesEtablissement.pms} mode={reglagesEtablissement.modeVerifHygiene || ""} onMode={reglagesEtablissement.enregistrerModeVerif} peutChoisir={compteDirection && !!reglagesEtablissement.enregistrerModeVerif} peutSaisir={accesPlanningReservations}
+            nomUtilisateur={compteDirection && currentUserId === "direction" ? "Direction" : ((employees.find((e) => e.id === currentUserId) || {}).name || (employees.find((e) => e.id === currentUserId) || {}).nom || "")} onOuvrirPrestataires={() => setSousEcran("pmsPrestataires")} />
         </div>
       )}
 
