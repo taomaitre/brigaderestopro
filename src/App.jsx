@@ -1791,7 +1791,7 @@ const RESULTATS_SURFACE = [
   { value: "non_conforme", label: "Non conforme", couleur: "#B4233A" },
   { value: "a_refaire", label: "À refaire", couleur: "#B7791F" },
 ];
-function PmsControlesSurfaces({ pms, mode, onMode, peutChoisir, peutSaisir, nomUtilisateur, onOuvrirPrestataires }) {
+function PmsControlesSurfaces({ pms, mode, onMode, peutChoisir, peutSupprimer, peutSaisir, nomUtilisateur, onOuvrirPrestataires }) {
   const vide = () => ({ surface: SURFACES_TESTEES[0], precisionSurface: "", methode: METHODES_SURFACE[0], produitTest: "", resultat: "", valeurLue: "", actionCorrective: "", photo: null });
   const [f, setF] = useState(vide);
   const [envoi, setEnvoi] = useState(false);
@@ -1830,7 +1830,7 @@ function PmsControlesSurfaces({ pms, mode, onMode, peutChoisir, peutSaisir, nomU
           {optionMode("laboratoire", "Un laboratoire s'en charge", "Le laboratoire prélève et analyse. Gardez ses rapports : ajoutez chaque passage dans Prestataires > Laboratoire d'analyses.")}
           {optionMode("autocontrole", "Nous faisons des tests d'autocontrôle", "Le chef contrôle lui-même les plans de travail et les ustensiles (bandelettes, lames, test ATP) et enregistre chaque test ici : photo, résultat, action corrective.")}
         </div>
-        {!peutChoisir && <p className="text-xs text-[var(--steel)] mt-2">Le choix est fait par la direction.</p>}
+        {!peutChoisir && <p className="text-xs text-[var(--steel)] mt-2">Le choix est fait par la direction ou le chef.</p>}
         {!mode && <p className="text-xs mt-2" style={{ color: "#B7791F" }}>Aucun choix n'a encore été fait.</p>}
       </Card>
 
@@ -1886,7 +1886,7 @@ function PmsControlesSurfaces({ pms, mode, onMode, peutChoisir, peutSaisir, nomU
                 <div className="text-[var(--ink)] break-words">{x.surface}{x.precision_surface ? ` — ${x.precision_surface}` : ""}</div>
                 <div className="text-xs text-[var(--steel)] break-words">{[x.methode, x.produit_test, x.valeur_lue ? `valeur : ${x.valeur_lue}` : "", x.realise_par ? `par ${x.realise_par}` : ""].filter(Boolean).join(" · ")}</div>
                 {x.action_corrective && <div className="text-xs text-[var(--ink)] break-words mt-0.5">Action corrective : {x.action_corrective}</div>}
-                {peutChoisir && <button type="button" className="text-xs underline text-[var(--steel)] mt-1" onClick={() => { if (window.confirm("Supprimer ce test de l'historique ? La suppression est conservée dans l'historique des modifications.")) pms.supprimerControleSurface(x.id); }}>Supprimer</button>}
+                {peutSupprimer && <button type="button" className="text-xs underline text-[var(--steel)] mt-1" onClick={() => { if (window.confirm("Supprimer ce test de l'historique ? La suppression est conservée dans l'historique des modifications.")) pms.supprimerControleSurface(x.id); }}>Supprimer</button>}
               </div>
             </div>
           );
@@ -5631,7 +5631,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
       {sousEcran === "controlesSurfaces" && accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms) && (
         <div className="mb-6">
           <SectionHeader title="Contrôles de surfaces" subtitle="Plans de travail et ustensiles : laboratoire ou tests d'autocontrôle" />
-          <PmsControlesSurfaces pms={reglagesEtablissement.pms} mode={reglagesEtablissement.modeVerifHygiene || ""} onMode={reglagesEtablissement.enregistrerModeVerif} peutChoisir={compteDirection && !!reglagesEtablissement.enregistrerModeVerif} peutSaisir={accesPlanningReservations}
+          <PmsControlesSurfaces pms={reglagesEtablissement.pms} mode={reglagesEtablissement.modeVerifHygiene || ""} onMode={reglagesEtablissement.enregistrerModeVerif} peutChoisir={accesPlanningReservations && !!reglagesEtablissement.enregistrerModeVerif} peutSupprimer={compteDirection} peutSaisir={accesPlanningReservations}
             nomUtilisateur={compteDirection && currentUserId === "direction" ? "Direction" : ((employees.find((e) => e.id === currentUserId) || {}).name || (employees.find((e) => e.id === currentUserId) || {}).nom || "")} onOuvrirPrestataires={() => setSousEcran("pmsPrestataires")} />
         </div>
       )}
