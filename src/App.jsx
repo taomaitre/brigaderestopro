@@ -9958,7 +9958,19 @@ function couleurCategorieFiche(cat) {
 const AUTOMATISME_REPETITIONS = 3;
 const AUTOMATISME_JOURS = 30;
 
-function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef, modeDirect, onQuitter }) {
+const groupesFichesParDefaut = (fiches) => {
+  const presentes = new Set((fiches || []).map((f) => classeGroupeFiche(f)).filter(Boolean));
+  const noms = [...ORDRE_CATEGORIES_FICHES.filter((c) => presentes.has(c)), ...[...presentes].filter((c) => !ORDRE_CATEGORIES_FICHES.includes(c)).sort((a, b) => a.localeCompare(b, "fr"))];
+  return noms.map((nom) => { const [fort] = couleurCategorieFiche(nom); return { id: "base:" + nom, nom, fond: fort, texte: "#fff" }; });
+};
+const ordreFicheCmp = (a, b) => ((a.ordreFiche == null ? 1e9 : a.ordreFiche) - (b.ordreFiche == null ? 1e9 : b.ordreFiche)) || (a.nom || "").localeCompare(b.nom || "", "fr");
+
+function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, ouvrirIdAuto, onConsommeOuvrirIdAuto, estChef, avecModes, editionProps, verifierCodeChef, modeDirect, onQuitter, groupesFiches, setGroupesFiches, fichesCustom, setFichesCustom }) {
+  const acces = useAcces();
+  const peutOrganiser = !!(acces.estResponsable && setGroupesFiches && setFichesCustom && !modeDirect);
+  const [gererGroupes, setGererGroupes] = useState(false);
+  const deposerRef = React.useRef(null);
+  const glisse = useGlisserDeposer((id, cible) => { if (deposerRef.current) deposerRef.current(id, cible); }, peutOrganiser);
   const [selectedId, setSelectedId] = useState(null);
   const [edition, setEdition] = useState(null);
   const [recherche, setRecherche] = useState("");
@@ -10017,16 +10029,36 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
   const q = normaliserRechercheFiche(recherche.trim());
   const fichesFiltrees = q.length >= 2 ? fiches.filter((f) => normaliserRechercheFiche(f.nom).includes(q)) : fiches;
 
-  const groupes = React.useMemo(() => {
-    const acc = {};
-    fichesFiltrees.forEach((f) => { const g = classeGroupeFiche(f); (acc[g] = acc[g] || []).push(f); });
-    Object.values(acc).forEach((liste) => liste.sort((a, b) => (a.nom || "").localeCompare(b.nom || "", "fr")));
-    return acc;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fichesFiltrees]);
-
-  const categoriesPresentes = [...ORDRE_CATEGORIES_FICHES.filter((c) => groupes[c]?.length), ...Object.keys(groupes).filter((c) => !ORDRE_CATEGORIES_FICHES.includes(c) && groupes[c]?.length).sort((a, b) => a.localeCompare(b, "fr"))];
-  const categoriesAffichees = categorieFiltre ? [categorieFiltre] : categoriesPresentes;
+  const recherchee = q.length >= 2;
+  const groupesBase = Array.isArray(groupesFiches) && groupesFiches.length > 0 ? groupesFiches : groupesFichesParDefaut(fiches);
+  const groupeDeFiche = (f) => {
+    if (f.groupeFiche && groupesBase.some((g) => g.id === f.groupeFiche)) return f.groupeFiche;
+    const base = groupesBase.find((g) => g.id === "base:" + classeGroupeFiche(f));
+    return base ? base.id : GROUPE_NON_CLASSE.id;
+  };
+  const nbParGroupe = (id) => fiches.filter((f) => groupeDeFiche(f) === id).length;
+  const groupesAff = nbParGroupe(GROUPE_NON_CLASSE.id) > 0 ? [...groupesBase, GROUPE_NON_CLASSE] : groupesBase;
+  const groupeActif = categorieFiltre && groupesAff.some((g) => g.id === categorieFiltre) ? categorieFiltre : "__tous__";
+  const sectionsAff = (recherchee || groupeActif === "__tous__" ? groupesAff : groupesAff.filter((g) => g.id === groupeActif))
+    .map((g) => ({ g, liste: fichesFiltrees.filter((f) => groupeDeFiche(f) === g.id).sort(ordreFicheCmp) }))
+    .filter((x) => x.liste.length > 0 || (!recherchee && groupeActif !== "__tous__"));
+  const enSurbrillance = (type, id) => !!(glisse.etat && glisse.etat.cible && glisse.etat.cible.type === type && glisse.etat.cible.id === id);
+  // Glisser-déposer : une fiche lâchée sur une autre s'y insère (et prend son groupe) ; lâchée sur un groupe du menu, elle va à la fin du groupe.
+  const deposerFiche = (idFiche, cible) => {
+    const f = fiches.find((x) => x.id === idFiche); if (!f || !cible) return;
+    const avant = groupeDeFiche(f);
+    let idGroupe;
+    if (cible.type === "groupe") idGroupe = cible.id;
+    else { if (cible.id === f.id) return; const t = fiches.find((x) => x.id === cible.id); if (!t) return; idGroupe = groupeDeFiche(t); }
+    const autres = fiches.filter((x) => x.id !== f.id && groupeDeFiche(x) === idGroupe).sort(ordreFicheCmp);
+    let pos = autres.length;
+    if (cible.type === "ligne") { const i = autres.findIndex((x) => x.id === cible.id); pos = i < 0 ? autres.length : i + (cible.apres ? 1 : 0); }
+    const nouvelOrdre = [...autres.slice(0, pos), f, ...autres.slice(pos)];
+    const rang = new Map(nouvelOrdre.map((x, i) => [x.id, i]));
+    if (idGroupe === avant && nouvelOrdre.every((x, i) => (x.ordreFiche == null ? -1 : x.ordreFiche) === i)) return;
+    setFichesCustom((fichesCustom || []).map((x) => (rang.has(x.id) ? { ...x, ordreFiche: rang.get(x.id), ...(x.id === f.id && idGroupe !== avant ? { groupeFiche: idGroupe } : {}) } : x)));
+  };
+  deposerRef.current = deposerFiche;
 
   if (edition && editionProps) {
     return (
@@ -10070,60 +10102,64 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
         </Card>
       )}
 
-      <Card className="mb-5">
+      <Card className="mb-4">
         <Field label="Recherche rapide — tapez le nom d'un plat">
           <input className={inputCls} value={recherche} onChange={(e) => setRecherche(e.target.value)} placeholder="Ex. Bolognaise, Margherita, Le Bacon..." />
         </Field>
-        <div className="flex flex-wrap gap-2 mt-3">
-          <button onClick={() => setCategorieFiltre(null)}
-            className={`text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${!categorieFiltre ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
-            Toutes ({fiches.length})
-          </button>
-          {categoriesPresentes.map((c) => {
-            const [fort, doux] = couleurCategorieFiche(c);
-            const actif = categorieFiltre === c;
-            return (
-              <button key={c} onClick={() => setCategorieFiltre((v) => (v === c ? null : c))}
-                style={actif ? { background: fort, borderColor: fort, color: "#fff" } : { background: doux, borderColor: fort, color: fort }}
-                className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors">
-                {c} ({groupes[c].length})
-              </button>
-            );
-          })}
-        </div>
       </Card>
 
-      {q.length >= 2 && fichesFiltrees.length === 0 && (
+      {recherchee && fichesFiltrees.length === 0 && (
         <Card className="mb-6">
           <p className="text-sm text-[var(--steel)]">Aucune fiche ne correspond à « {recherche} ».</p>
         </Card>
       )}
 
-      {categoriesAffichees.map((cat) => {
-        const [fort, doux] = couleurCategorieFiche(cat);
-        return (
-        <div key={cat} className="mb-6">
-          <h3 className="text-sm font-bold uppercase tracking-wide mb-3 px-3 py-1.5 rounded-lg inline-block" style={{ background: doux, color: fort }}>{cat}</h3>
-          <div className="space-y-2">
-            {groupes[cat].map((f) => (
-              <button key={f.id} id={`fiche-${f.id}`} onClick={() => (modeDirect && editionProps ? setEdition({ fiche: f, mode: modeDirect }) : setSelectedId(f.id))} className="w-full text-left">
-                <Card className="border-l-4 hover:brightness-95 transition py-3.5" style={{ borderLeftColor: fort, background: doux }}>
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="font-semibold text-[var(--ink)] text-base leading-tight truncate">{f.nom}</div>
-                      <div className="text-xs text-[var(--steel)] mt-1">
-                        {f.code}{f.rendementCourt ? ` · ${f.rendementCourt}` : ""}
-                      </div>
-                    </div>
-                    <ChevronRight size={18} className="text-[var(--steel)] shrink-0" />
-                  </div>
-                </Card>
+      <GlisseFlottant etat={glisse.etat} />
+      {gererGroupes && peutOrganiser && <GestionGroupesStock groupes={groupesBase} compte={nbParGroupe} onChange={(l) => setGroupesFiches(l)} onFermer={() => setGererGroupes(false)} titre="Mes groupes de fiches techniques" mot="fiche"
+        aide="Donnez à vos groupes les noms que vous voulez et mettez-les dans l'ordre de votre choix. Cet ordre est celui du menu de gauche. Une fiche est dans un seul groupe : glissez-la sur un autre groupe pour la changer." />}
+
+      <div className="grid grid-cols-1 lg:grid-cols-[15rem_minmax(0,1fr)] gap-4 mb-6">
+        <div className="lg:sticky lg:top-2 lg:self-start lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto min-w-0">
+          <CarteZone icone={BookOpen} titre="Groupes" sous={peutOrganiser ? "Choisissez un groupe. Glissez une fiche dessus pour l'y ranger." : "Choisissez un groupe"}>
+            <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
+              <button type="button" onClick={() => { setCategorieFiltre(null); setRecherche(""); }} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-11 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !recherchee && groupeActif === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+                <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Toutes les fiches <span className="font-normal opacity-80">({fiches.length})</span></span>
               </button>
-            ))}
-          </div>
+              {groupesAff.map((g) => (
+                <button key={g.id} type="button" data-depot={"groupe:" + g.id} onClick={() => { setCategorieFiltre(g.id); setRecherche(""); }} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-11 text-left" style={{ backgroundColor: g.fond, color: g.texte, outline: enSurbrillance("groupe", g.id) ? "4px solid #F5B301" : (!recherchee && g.id === groupeActif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
+                  <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{g.nom} <span className="font-normal opacity-80">({nbParGroupe(g.id)})</span></span>
+                </button>
+              ))}
+              {peutOrganiser && (
+                <button type="button" onClick={() => setGererGroupes(true)} className="shrink-0 lg:shrink flex items-center justify-center gap-2 rounded-lg px-3 h-11 text-sm font-semibold border-2 border-dashed border-[var(--cadre)] text-[var(--ink)]">Gérer mes groupes</button>
+              )}
+            </div>
+          </CarteZone>
         </div>
-        );
-      })}
+
+        <div className="min-w-0">
+          {peutOrganiser && <p className="text-xs text-[var(--steel)] mb-3">Pour ranger vos fiches : maintenez le doigt (ou la souris) sur une fiche, puis glissez-la avant ou après une autre, ou sur un groupe du menu. Son groupe change tout seul.</p>}
+          {sectionsAff.map(({ g, liste }) => (
+            <div key={g.id} className="mb-5">
+              <h3 data-depot={"groupe:" + g.id} className="text-sm font-bold uppercase tracking-wide mb-2 px-3 py-1.5 rounded-lg inline-block" style={{ background: g.fond, color: g.texte, outline: enSurbrillance("groupe", g.id) ? "4px solid #F5B301" : "none" }}>{g.nom} ({liste.length})</h3>
+              {liste.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune fiche dans ce groupe.</p> : (
+                <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-4 gap-2">
+                  {liste.map((f) => (
+                    <div key={f.id} id={`fiche-${f.id}`} data-depot={"ligne:" + f.id} {...(peutOrganiser ? glisse.props(f.id, f.nom) : {})}
+                      style={{ opacity: glisse.etat && glisse.etat.id === f.id ? 0.35 : 1, boxShadow: glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "ligne" && glisse.etat.cible.id === f.id && glisse.etat.id !== f.id ? (glisse.etat.cible.apres ? "inset 0 -4px 0 #F5B301" : "inset 0 4px 0 #F5B301") : "none", WebkitTouchCallout: "none" }}>
+                      <button type="button" data-poignee={peutOrganiser ? "fiche" : undefined} onClick={() => (modeDirect && editionProps ? setEdition({ fiche: f, mode: modeDirect }) : setSelectedId(f.id))}
+                        className="w-full h-full min-h-[52px] text-left rounded-lg border border-[var(--cadre)] border-l-4 px-2.5 py-1.5 hover:brightness-95 transition" style={{ borderLeftColor: g.fond, background: "#fff" }}>
+                        <span className="block text-[13px] font-semibold text-[var(--ink)] leading-tight break-words" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{f.nom}</span>
+                        <span className="block text-[10px] text-[var(--steel)] mt-0.5 truncate">{f.code}{f.rendementCourt ? ` · ${f.rendementCourt}` : ""}</span>
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }
@@ -10900,6 +10936,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     const nouvelleFiche = {
       id: modifier ? ficheInitiale.id : uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(), photoPlat: S.photoPlat || "",
       categorie: categorieLabelActuelle, sousCategorie: null,
+      groupeFiche: modifier ? (ficheInitiale.groupeFiche || null) : null, ordreFiche: modifier && ficheInitiale.ordreFiche != null ? ficheInitiale.ordreFiche : null,
       rendementCourt: S.badge.trim() || (S.rendement.portions ? `${S.rendement.portions} PORTIONS` : ""),
       rendementAttendu: S.rendement.total ? `RENDEMENT ATTENDU : ${totalAvecUnite}${S.rendement.portions ? ` – ${S.rendement.portions} portions` : ""}${S.rendement.grammage ? ` de ${S.rendement.grammage}` : ""}` : "",
       ingredients: ingFinal, materiel, haccp, preparation, consignesImportantes,
@@ -15897,7 +15934,7 @@ function groupeDuProduit(s, groupes) {
   return base ? base.id : GROUPE_NON_CLASSE.id;
 }
 // Fenêtre « Mes groupes » : ajouter, renommer, supprimer et changer l'ordre (flèches, ou glisser-déposer sur ordinateur).
-function GestionGroupesStock({ groupes, compte, onChange, onFermer }) {
+function GestionGroupesStock({ groupes, compte, onChange, onFermer, titre = "Mes groupes du stock", mot = "produit", aide = null }) {
   const [nouveau, setNouveau] = useState("");
   const [aSupprimer, setASupprimer] = useState(null);
   const [glisse, setGlisse] = useState(null);
@@ -15907,8 +15944,8 @@ function GestionGroupesStock({ groupes, compte, onChange, onFermer }) {
   return (
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onFermer}>
       <div className="bg-white rounded-xl max-w-lg w-full p-5 max-h-[88vh] flex flex-col" onClick={(e) => e.stopPropagation()}>
-        <h2 className="font-bold text-lg text-[var(--ink)] mb-1">Mes groupes du stock</h2>
-        <p className="text-xs text-[var(--steel)] mb-3">Donnez à vos groupes les noms que vous voulez et mettez-les dans l'ordre de votre parcours. Cet ordre est celui du menu de gauche et de la liste « Tous les produits ». Un produit est dans un seul groupe : changez-le depuis la liste du stock.</p>
+        <h2 className="font-bold text-lg text-[var(--ink)] mb-1">{titre}</h2>
+        <p className="text-xs text-[var(--steel)] mb-3">{aide || "Donnez à vos groupes les noms que vous voulez et mettez-les dans l'ordre de votre parcours. Cet ordre est celui du menu de gauche et de la liste « Tous les produits ». Un produit est dans un seul groupe : changez-le depuis la liste du stock."}</p>
         <div className="overflow-y-auto space-y-2 mb-3">
           {groupes.map((g, i) => (
             <div key={g.id} draggable onDragStart={() => setGlisse(i)} onDragOver={(e) => e.preventDefault()} onDrop={() => { deplacer(glisse, i); setGlisse(null); }}
@@ -15917,14 +15954,14 @@ function GestionGroupesStock({ groupes, compte, onChange, onFermer }) {
                 <span className="hidden lg:inline text-[var(--steel)] cursor-grab select-none" title="Glisser pour déplacer" aria-hidden="true">⠿</span>
                 <input key={g.id + g.nom} className={`${inputCls} flex-1 min-w-0`} defaultValue={g.nom} aria-label={`Nom du groupe ${g.nom}`}
                   onBlur={(e) => { const v = e.target.value.trim(); if (v && v !== g.nom) onChange(groupes.map((x) => (x.id === g.id ? { ...x, nom: v } : x))); else e.target.value = g.nom; }} />
-                <span className="text-xs text-[var(--steel)] whitespace-nowrap">{compte(g.id)} produit{compte(g.id) > 1 ? "s" : ""}</span>
+                <span className="text-xs text-[var(--steel)] whitespace-nowrap">{compte(g.id)} {mot}{compte(g.id) > 1 ? "s" : ""}</span>
                 <button type="button" aria-label={`Monter ${g.nom}`} disabled={i === 0} onClick={() => deplacer(i, i - 1)} className="w-9 h-9 rounded-lg border border-[var(--cadre)] disabled:opacity-30">↑</button>
                 <button type="button" aria-label={`Descendre ${g.nom}`} disabled={i === groupes.length - 1} onClick={() => deplacer(i, i + 1)} className="w-9 h-9 rounded-lg border border-[var(--cadre)] disabled:opacity-30">↓</button>
                 <button type="button" aria-label={`Supprimer ${g.nom}`} disabled={groupes.length <= 1} onClick={() => setASupprimer(g.id)} className="w-9 h-9 rounded-lg border border-[var(--cadre)] text-[var(--warn)] disabled:opacity-30"><Trash2 size={16} className="mx-auto" /></button>
               </div>
               {aSupprimer === g.id && (
                 <div className="mt-2 text-xs text-[var(--ink)]">
-                  Supprimer « {g.nom} » ? {compte(g.id) > 0 ? `Ses ${compte(g.id)} produit${compte(g.id) > 1 ? "s" : ""} ne sont pas supprimés : ils retournent dans leur groupe d'origine, ou dans « Non classés ».` : "Ce groupe est vide."}
+                  Supprimer « {g.nom} » ? {compte(g.id) > 0 ? `${compte(g.id) > 1 ? "Ses" : "Sa"} ${compte(g.id)} ${mot}${compte(g.id) > 1 ? "s" : ""} ne ${compte(g.id) > 1 ? "sont" : "est"} pas supprimé${compte(g.id) > 1 ? "e" : ""}${compte(g.id) > 1 ? "s" : ""} : ${compte(g.id) > 1 ? "elles retournent" : "elle retourne"} dans son groupe d'origine, ou dans « Non classés ».` : "Ce groupe est vide."}
                   <div className="flex gap-2 mt-1.5">
                     <button type="button" onClick={() => { onChange(groupes.filter((x) => x.id !== g.id)); setASupprimer(null); }} className="min-h-[36px] px-3 rounded-lg text-white text-xs font-bold" style={{ background: "#B4233A" }}>Oui, supprimer le groupe</button>
                     <button type="button" onClick={() => setASupprimer(null)} className="min-h-[36px] px-3 rounded-lg border border-[var(--cadre)] text-xs font-medium">Annuler</button>
@@ -15940,7 +15977,7 @@ function GestionGroupesStock({ groupes, compte, onChange, onFermer }) {
         </div>
         <div className="flex items-center justify-between gap-2 flex-wrap">
           {remiseAZero ? (
-            <span className="text-xs">Remettre les groupes de départ ? Vos groupes personnalisés disparaissent (aucun produit n'est supprimé).{" "}
+            <span className="text-xs">Remettre les groupes de départ ? Vos groupes personnalisés disparaissent (rien n'est supprimé).{" "}
               <button type="button" className="underline font-semibold" onClick={() => { onChange(null); setRemiseAZero(false); }}>Oui, remettre</button>{" "}
               <button type="button" className="underline" onClick={() => setRemiseAZero(false)}>Non</button></span>
           ) : <button type="button" onClick={() => setRemiseAZero(true)} className="text-xs underline text-[var(--steel)]">Remettre les groupes de départ</button>}
@@ -17511,7 +17548,7 @@ function ImportPhotoIA(props) {
   if (!iaDispo()) return null;
   return <ImportPhotoIAInterne {...props} />;
 }
-function ImportPhotoIAInterne({ titre, description, consigne, onResultats, boutonLabel = "Analyser la photo" }) {
+function ImportPhotoIAInterne({ titre, description, consigne, onResultats, boutonLabel = "Analyser la photo", centre = false }) {
   const inputId = "import-photo-ia-" + Math.random().toString(36).slice(2, 9);
   const [photo, setPhoto] = useState(null);
   const [enCours, setEnCours] = useState(false);
@@ -17539,6 +17576,20 @@ function ImportPhotoIAInterne({ titre, description, consigne, onResultats, bouto
     setPhoto(null);
   };
 
+  if (centre) {
+    return (
+      <div className="flex flex-col items-center gap-3 pt-3 mt-1 border-t border-[var(--cadre)]">
+        {photo && <img src={photo} alt="" className="w-20 h-20 object-cover rounded-lg border border-[var(--cadre)]" />}
+        <label htmlFor={inputId} className="inline-flex flex-col items-center gap-2 cursor-pointer text-center">
+          <span className="w-20 h-20 rounded-full flex items-center justify-center text-white shadow-md shrink-0" style={{ backgroundColor: "#1E7B4B" }}><Camera size={36} /></span>
+          <span className="text-sm font-semibold text-[var(--ink)]">{photo ? "Reprendre la photo" : "Prendre une photo / capture d'écran"}</span>
+        </label>
+        <input id={inputId} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFile} />
+        {photo && <Button onClick={analyser} disabled={enCours}>{enCours ? "Analyse en cours..." : boutonLabel}</Button>}
+        {message && <p className="text-xs text-[var(--steel)] text-center">{message}</p>}
+      </div>
+    );
+  }
   return (
     <Card className="mb-6">
       <h3 className="font-semibold text-[var(--ink)] mb-1">{titre}</h3>
@@ -21127,12 +21178,16 @@ Une entrée par réservation visible. Si une information est illisible ou absent
           </button>
           {importOuvert && (
             <div className="rounded-xl mt-2 p-3 border-2" style={{ background: "#F3FBFC", borderColor: "#0E7490" }}>
-              <p className="text-xs text-[var(--ink)] mb-2"><b>Trois façons d'importer :</b> un fichier Excel ou CSV, le texte d'un PDF (copier-coller), ou une photo / capture d'écran lue par l'IA quand elle est activée. Rien n'est enregistré avant que vous ayez relu l'aperçu et validé.</p>
-              <div className="mb-2"><button type="button" onClick={telechargerModele} className="px-3 py-1.5 rounded-lg text-xs font-semibold border border-[#0E7490] bg-white text-[#0E7490]">⬇ Télécharger un modèle Excel à remplir</button></div>
-              <CarteImportExcelReservations reservations={reservations} setReservations={setReservations} logActivity={logActivity} />
+              <p className="text-xs text-[var(--ink)] mb-3">Importez un fichier Excel ou CSV (un modèle est fourni), le texte d'un PDF ou un tableau copié-collé, ou prenez une photo / capture d'écran lue par l'IA. Une ligne = une réservation (même date, heure et nom : la réservation est mise à jour). Rien n'est enregistré avant que vous ayez relu l'aperçu et validé.</p>
+              <CarteImportExcelReservations
+                compact
+                reservations={reservations} setReservations={setReservations} logActivity={logActivity}
+                boutonsAvant={<button type="button" onClick={telechargerModele} className="px-3 py-1.5 rounded-lg text-xs font-medium border border-[#0E7490] bg-white text-[#0E7490]">⬇ Modèle Excel</button>}
+              />
               <ImportPhotoIA
+                centre
                 titre="Importer des réservations par photo"
-                description="Photo d'un cahier de réservations papier ou capture d'écran d'un agenda tenu ailleurs."
+                description=""
                 consigne={CONSIGNE_PHOTO_RESERVATIONS}
                 onResultats={importerResasPhoto}
               />
@@ -22589,7 +22644,7 @@ async function lireFichierTableau(file) {
 
 // Importer sans IA : trois choix (fichier Excel/CSV, PDF avec texte, copier-coller). L'import ne s'applique jamais seul :
 // le composant renvoie les lignes lues, l'écran affiche un aperçu puis demande la validation.
-function ImportSansIA({ colonnes, onLignes }) {
+function ImportSansIA({ colonnes, onLignes, boutonsAvant = null, sansIntro = false }) {
   const [mode, setMode] = useState(null);
   const [texte, setTexte] = useState("");
   const [message, setMessage] = useState("");
@@ -22612,8 +22667,9 @@ function ImportSansIA({ colonnes, onLignes }) {
   );
   return (
     <div className="mb-3">
-      <p className="text-xs text-[var(--steel)] mb-2">Colonnes attendues : <strong>{colonnes}</strong>. Choisissez comment importer :</p>
-      <div className="flex flex-wrap gap-2 mb-2">
+      {!sansIntro && <p className="text-xs text-[var(--steel)] mb-2">Colonnes attendues : <strong>{colonnes}</strong>. Choisissez comment importer :</p>}
+      <div className="flex flex-wrap items-center gap-2 mb-2">
+        {boutonsAvant}
         {bouton("fichier", "Fichier Excel ou CSV")}
         {bouton("pdf", "PDF (texte)")}
         {bouton("coller", "Copier-coller")}
@@ -22653,7 +22709,7 @@ function ApercuImport({ titre, lignes, ignorees, resume, onValider, onAnnuler })
   );
 }
 
-function CarteImportExcelReservations({ reservations, setReservations, logActivity }) {
+function CarteImportExcelReservations({ reservations, setReservations, logActivity, compact = false, boutonsAvant = null }) {
   const [importMsg, setImportMsg] = useState(null);
   const [apercu, setApercu] = useState(null);
 
@@ -22705,6 +22761,15 @@ function CarteImportExcelReservations({ reservations, setReservations, logActivi
     setApercu(null);
   };
 
+  if (compact) {
+    return (
+      <div className="mb-3">
+        <ImportSansIA colonnes="Date, Heure, Nom, Personnes, Table, Statut, Téléphone, Notes" onLignes={preparer} boutonsAvant={boutonsAvant} sansIntro />
+        {apercu && <ApercuImport titre="Aperçu des réservations" lignes={apercu.lignes} ignorees={apercu.ignorees} resume={(l) => `${fmtShort(l.date)} ${l.heure} — ${l.nom} — ${l.personnes || "?"} pers.${l.table ? ` — table ${l.table}` : ""}`} onValider={valider} onAnnuler={() => setApercu(null)} />}
+        {importMsg && <p className="text-xs text-[var(--steel)] mt-2">{importMsg}</p>}
+      </div>
+    );
+  }
   return (
     <Card className="mb-4">
       <p className="text-sm text-[var(--ink)] mb-1">Importer ou mettre à jour les réservations.</p>
@@ -24308,6 +24373,7 @@ function KitchenApp({ identiteExterne } = {}) {
   }, []);
   const stock = modeExterne ? stockExterneEtat : stockStocke;
   const setStock = modeExterne ? setStockExterne : setStockStocke;
+  const [groupesFichesLocal, setGroupesFichesLocal] = useStored("fiches-groupes", null);
   const [groupesStockLocal, setGroupesStockLocal] = useStored("stock-groupes", null); // groupes du stock (prévisualisation) ; en vrai mode ils sont dans la fiche de l'établissement
   // Réceptions : nouvelle base en prévisualisation, ancien stockage sinon.
   const [receptionsStockees, setReceptionsStockees] = useStored("stock-receptions", []);
@@ -25377,6 +25443,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const alertesStock = stock.filter((s) => Number(s.quantite) < Number(s.cible)).length;
   const badges = { haccp: alertesTemp, stock: alertesStock };
   const reglagesEtablissementApp = modeExterne ? identiteExterne.reglagesEtablissement : null;
+  const groupesFichesApp = modeExterne ? ((reglagesEtablissementApp && reglagesEtablissementApp.groupesFiches) || null) : groupesFichesLocal;
+  const setGroupesFichesApp = (g) => { if (modeExterne) { if (reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesFiches) reglagesEtablissementApp.enregistrerGroupesFiches(g); } else setGroupesFichesLocal(g); };
   const groupesStockApp = modeExterne ? ((reglagesEtablissementApp && reglagesEtablissementApp.groupesStock) || null) : groupesStockLocal;
   const setGroupesStockApp = (g) => { if (modeExterne) { if (reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesStock) reglagesEtablissementApp.enregistrerGroupesStock(g); } else setGroupesStockLocal(g); };
   const nbNotifications = (alertesControle || []).filter((a) => !a.vue).length;
@@ -25890,7 +25958,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "fiches" && (
           <FichesTechniquesMenu
-            fichesProps={{ fiches, cartes, utilisateurId: currentUserId, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne }}
+            fichesProps={{ fiches, cartes, utilisateurId: currentUserId, verifierCodeChef: identiteExterne && identiteExterne.verifierCodeChef, onDemarrerRefroidissement: demarrerRefroidissementDepuisFiche, onDemarrerCuisson: demarrerCuissonDepuisFiche, onDemarrerMaintienChaud: demarrerMaintienChaudDepuisFiche, onEditerDlc: enregistrerTracabiliteFiche, onTracabiliteIngredients: enregistrerTracabiliteIngredients, who: (id) => employees.find((e) => e.id === id)?.nom, estChef: !!moi?.estChef, avecModes: modeExterne, groupesFiches: groupesFichesApp, setGroupesFiches: (modeExterne && !(reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesFiches)) ? undefined : setGroupesFichesApp, fichesCustom, setFichesCustom }}
             creationProps={{ fichesCustom, setFichesCustom, currentUserId, employees, logActivity: logActivitySafe }}
             consentementAccorde={consentementAccorde}
             ouvrirIdAuto={ficheAutoOuvrirId}
