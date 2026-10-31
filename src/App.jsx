@@ -15909,6 +15909,71 @@ function CelluleQuantite({ valeur, pas, onSet, fond, texte, label }) {
   );
 }
 
+// ---- Glisser-déposer par appui maintenu (souris, tablette, téléphone) ----
+// On maintient le doigt (ou la souris) sur une ligne ; au bout d'un instant elle se détache et suit le doigt. Les zones où l'on peut
+// déposer portent data-depot="ligne:<id>" (insertion avant/après la ligne) ou data-depot="groupe:<id>" (ajout en fin de groupe).
+// Avant le délai, le défilement normal de l'écran fonctionne : un simple geste de défilement ne déplace rien.
+function useGlisserDeposer(onDeposer, actif = true) {
+  const [etat, setEtat] = useState(null); // { id, label, x, y, cible }
+  const cb = React.useRef(onDeposer); cb.current = onDeposer;
+  const s = React.useRef(null);
+  const nettoyer = () => {
+    const c = s.current; if (!c) return;
+    clearTimeout(c.timer); clearInterval(c.defile);
+    window.removeEventListener("pointermove", c.move); window.removeEventListener("pointerup", c.up); window.removeEventListener("pointercancel", c.annule);
+    window.removeEventListener("touchmove", c.touch); window.removeEventListener("keydown", c.cle);
+    document.body.style.userSelect = c.userSelect || ""; document.body.style.webkitUserSelect = c.userSelect || "";
+    s.current = null; setEtat(null);
+  };
+  useEffect(() => nettoyer, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const cibleSous = (x, y) => {
+    const el = document.elementFromPoint(x, y); const z = el && el.closest ? el.closest("[data-depot]") : null;
+    if (!z) return null;
+    const [type, ...reste] = String(z.getAttribute("data-depot")).split(":"); const id = reste.join(":");
+    if (type === "groupe") return { type, id };
+    const r = z.getBoundingClientRect(); return { type: "ligne", id, apres: y > r.top + r.height / 2 };
+  };
+  const parentDefilant = (el) => { for (let n = el; n && n !== document.body; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if ((o === "auto" || o === "scroll") && n.scrollHeight > n.clientHeight + 2) return n; } return null; };
+  const debut = (id, label) => (e) => {
+    if (!actif || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if (e.target.closest && e.target.closest("input, select, textarea, a, button:not([data-poignee])")) return;
+    if (s.current) nettoyer();
+    const poignee = !!(e.target.closest && e.target.closest("[data-poignee]"));
+    const c = { id, label, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, actif: false, userSelect: document.body.style.userSelect };
+    c.move = (ev) => {
+      c.x = ev.clientX; c.y = ev.clientY;
+      if (!c.actif) { if (Math.hypot(c.x - c.x0, c.y - c.y0) > 10) nettoyer(); return; }
+      setEtat({ id: c.id, label: c.label, x: c.x, y: c.y, cible: cibleSous(c.x, c.y) });
+    };
+    c.touch = (ev) => { if (c.actif && ev.cancelable) ev.preventDefault(); };
+    c.up = () => { const ok = c.actif; const cible = ok ? cibleSous(c.x, c.y) : null; nettoyer(); if (ok && cible) cb.current(c.id, cible); };
+    c.annule = () => nettoyer();
+    c.cle = (ev) => { if (ev.key === "Escape") nettoyer(); };
+    c.timer = setTimeout(() => {
+      c.actif = true; document.body.style.userSelect = "none"; document.body.style.webkitUserSelect = "none";
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch (_) {}
+      setEtat({ id: c.id, label: c.label, x: c.x, y: c.y, cible: cibleSous(c.x, c.y) });
+      c.defile = setInterval(() => {
+        const h = window.innerHeight; const dy = c.y < 90 ? -16 : (c.y > h - 90 ? 16 : 0); if (!dy) return;
+        const el = document.elementFromPoint(c.x, c.y); const cont = parentDefilant(el);
+        if (cont) cont.scrollTop += dy; else window.scrollBy(0, dy);
+        setEtat({ id: c.id, label: c.label, x: c.x, y: c.y, cible: cibleSous(c.x, c.y) });
+      }, 30);
+    }, poignee ? 120 : 380);
+    s.current = c;
+    window.addEventListener("pointermove", c.move); window.addEventListener("pointerup", c.up); window.addEventListener("pointercancel", c.annule);
+    window.addEventListener("touchmove", c.touch, { passive: false }); window.addEventListener("keydown", c.cle);
+  };
+  const props = (id, label) => ({ onPointerDown: debut(id, label), onContextMenu: (e) => { if (s.current) e.preventDefault(); } });
+  return { etat, props, enCours: !!etat };
+}
+function GlisseFlottant({ etat }) {
+  if (!etat) return null;
+  return <div style={{ position: "fixed", left: etat.x + 12, top: etat.y + 12, zIndex: 9999, pointerEvents: "none", maxWidth: 260 }}
+    className="px-3 py-2 rounded-lg text-sm font-semibold text-white shadow-lg" aria-hidden="true"><span style={{ background: "#1D2321", opacity: 0.92 }} className="block px-3 py-2 -mx-3 -my-2 rounded-lg truncate">⠿ {etat.label}</span></div>;
+}
+const ordreStockCmp = (a, b) => ((a.ordreStock == null ? 1e9 : a.ordreStock) - (b.ordreStock == null ? 1e9 : b.ordreStock)) || String(a.nom || "").localeCompare(String(b.nom || ""), "fr");
+
 function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle, groupesStock, setGroupesStock }) {
   const acces = useAcces();
   const rapideStock = React.useContext(RapideContext);
@@ -15933,6 +15998,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [inventaireActif, setInventaireActif] = useState(false);
   const [produitDetail, setProduitDetail] = useState(null); // chef : id du produit dont on ouvre la page
   const estChefStock = !!acces.estResponsable;
+  const deposerRef = React.useRef(null);
+  const peutGlisser = !!(estChefStock && setGroupesStock);
+  const glisse = useGlisserDeposer((id, cible) => { if (deposerRef.current) deposerRef.current(id, cible); }, peutGlisser);
   const peutGererProduits = estChefStock && !!(rapideStock && rapideStock.produitsModifiables && rapideStock.ouvrirProduitAcompleter);
   const today = todayISO();
   const addItem = () => {
@@ -16075,15 +16143,32 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   // Quand on voit plusieurs groupes à la fois (« Tous les produits » ou une recherche), les produits sont regroupés comme le menu de gauche :
   // un titre par groupe, dans le même ordre, puis l'ordre alphabétique dans chaque groupe.
   const rangGroupe = (id) => groupesAff.findIndex((g) => g.id === id);
-  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).sort((a, b) => ((q || toutLeStock) ? rangGroupe(a.cat) - rangGroupe(b.cat) : 0) || a.s.nom.localeCompare(b.s.nom, "fr")).map((x) => x.s);
+  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).sort((a, b) => ((q || toutLeStock) ? rangGroupe(a.cat) - rangGroupe(b.cat) : 0) || ordreStockCmp(a.s, b.s)).map((x) => x.s);
   const groupeStockActif = q || toutLeStock;
   const catDuProduit = new Map(avecCat.map((x) => [x.s.id, x.cat]));
   const nbDansGroupe = (id) => liste.filter((s) => catDuProduit.get(s.id) === id).length;
   const deplacerProduit = (s, idGroupe) => {
     const g = groupesAff.find((x) => x.id === idGroupe) || GROUPE_NON_CLASSE;
-    setStock(stock.map((x) => (x.id === s.id ? { ...x, groupeStock: idGroupe } : x)));
+    setStock(stock.map((x) => (x.id === s.id ? { ...x, groupeStock: idGroupe, ordreStock: null } : x)));
     logActivity("Stock", "Produit déplacé de groupe", `${s.nom} → ${g.nom}`);
   };
+  // Glisser-déposer : un produit lâché sur une autre ligne s'y insère (et prend le groupe de cette ligne) ; lâché sur un groupe du menu, il va à la fin du groupe.
+  const deposerProduit = (idProduit, cible) => {
+    const p = stock.find((x) => x.id === idProduit); if (!p || !cible) return;
+    const groupeAvant = catDuProduit.get(p.id);
+    let idGroupe; let pos = null;
+    if (cible.type === "groupe") idGroupe = cible.id;
+    else { if (cible.id === p.id) return; idGroupe = catDuProduit.get(cible.id); if (!idGroupe) return; }
+    const autres = avecCat.filter((x) => x.cat === idGroupe && x.s.id !== p.id).map((x) => x.s).sort(ordreStockCmp);
+    if (cible.type === "ligne") { const i = autres.findIndex((x) => x.id === cible.id); pos = i < 0 ? autres.length : i + (cible.apres ? 1 : 0); } else pos = autres.length;
+    const nouvelOrdre = [...autres.slice(0, pos), p, ...autres.slice(pos)];
+    const rang = new Map(nouvelOrdre.map((x, i) => [x.id, i]));
+    if (idGroupe === groupeAvant && nouvelOrdre.every((x, i) => (x.ordreStock == null ? -1 : x.ordreStock) === i)) return;
+    setStock(stock.map((x) => (rang.has(x.id) ? { ...x, ordreStock: rang.get(x.id), ...(x.id === p.id && idGroupe !== groupeAvant ? { groupeStock: idGroupe } : {}) } : x)));
+    const g = groupesAff.find((x) => x.id === idGroupe) || GROUPE_NON_CLASSE;
+    logActivity && logActivity("Stock", idGroupe === groupeAvant ? "Produit réordonné" : "Produit déplacé de groupe", idGroupe === groupeAvant ? `${p.nom} (groupe ${g.nom})` : `${p.nom} → ${g.nom}`);
+  };
+  deposerRef.current = deposerProduit;
   const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
   const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
     <button type="button" onClick={onClick} className="text-left rounded-lg border px-2.5 py-1.5 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
@@ -16154,11 +16239,13 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </div>
       )}
 
+      <GlisseFlottant etat={glisse.etat} />
       {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
       {gererGroupes && setGroupesStock && <GestionGroupesStock groupes={groupesBase} compte={nbParCat} onChange={(l) => setGroupesStock(l)} onFermer={() => setGererGroupes(false)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4 mb-6">
-        <CarteZone icone={Package} titre="Catégories" sous="Choisissez une catégorie">
+        <div className="lg:sticky lg:top-2 lg:self-start lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto min-w-0">
+        <CarteZone icone={Package} titre="Catégories" sous={peutGlisser ? "Choisissez un groupe. Glissez un produit dessus pour l'y ranger." : "Choisissez une catégorie"}>
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
             {alertes.length > 0 && (
               <button type="button" onClick={() => aller("alerte")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#B4233A", color: "#fff", outline: filtreEtat === "alerte" ? "3px solid #1D2321" : "none" }}>
@@ -16175,7 +16262,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             {groupesAff.map((c) => {
               const actif = !q && c.id === catActive;
               return (
-                <button key={c.id} type="button" onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: actif ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+                <button key={c.id} type="button" data-depot={"groupe:" + c.id} onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === c.id) ? "4px solid #F5B301" : (actif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
                   <Package size={20} className="shrink-0" />
                   <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.id)})</span></span>
                   <ChevronRight size={16} className="shrink-0 hidden lg:block" />
@@ -16187,6 +16274,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             )}
           </div>
         </CarteZone>
+        </div>
 
         <div id="stock-tableau" className="rounded-xl border border-[var(--cadre)] bg-white min-w-0 scroll-mt-4 overflow-hidden" style={{ borderTop: `3px solid ${zoneDepuisFonction("stock").bord}` }}>
           <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--line)] flex-wrap" style={{ background: zoneDepuisFonction("stock").fond }}>
@@ -16194,6 +16282,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             <h3 className="text-xl font-bold text-[var(--ink)]">{q ? "Résultats de la recherche" : infoCat.nom} ({liste.length})</h3>
             {filtreEtat !== "tous" && <span className="text-xs font-semibold px-2 py-1 rounded-md bg-[var(--bg)] text-[var(--ink)]">Filtre : {filtreEtat === "alerte" ? "en alerte" : "dans le panier"} <button type="button" className="underline ml-1" onClick={() => setFiltreEtat("tous")}>retirer</button></span>}
           </div>
+          {peutGlisser && <p className="px-4 py-1.5 text-xs text-[var(--steel)] border-b border-[var(--line)]">Pour ranger vos produits : maintenez le doigt (ou la souris) sur un produit, puis glissez-le plus haut, plus bas, ou sur un groupe du menu. Son groupe change tout seul.</p>}
           <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)]" style={{ borderBottom: `2px solid ${zoneDepuisFonction("stock").bord}55` }}>
             <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span title="Ce que fait un clic sur + ou −">Un clic =</span><span className="text-center">Panier</span>
           </div>
@@ -16206,10 +16295,11 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             const infoGroupe = debutGroupe ? (groupesAff.find((g) => g.id === catS) || GROUPE_NON_CLASSE) : null;
             return (
               <React.Fragment key={s.id}>
-              {infoGroupe && <div className="px-4 py-2 text-sm font-bold border-t border-[var(--line)]" style={{ backgroundColor: infoGroupe.fond, color: infoGroupe.texte }}>{infoGroupe.nom} ({nbDansGroupe(catS)})</div>}
-              <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
+              {infoGroupe && <div data-depot={"groupe:" + catS} className="px-4 py-2 text-sm font-bold border-t border-[var(--line)]" style={{ backgroundColor: infoGroupe.fond, color: infoGroupe.texte, outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === catS) ? "4px solid #F5B301" : "none", outlineOffset: -4 }}>{infoGroupe.nom} ({nbDansGroupe(catS)})</div>}
+              <div data-depot={"ligne:" + s.id} {...(peutGlisser ? glisse.props(s.id, s.nom) : {})} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center"
+                style={{ opacity: glisse.etat && glisse.etat.id === s.id ? 0.35 : 1, boxShadow: glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "ligne" && glisse.etat.cible.id === s.id && glisse.etat.id !== s.id ? (glisse.etat.cible.apres ? "inset 0 -4px 0 #F5B301" : "inset 0 4px 0 #F5B301") : "none", WebkitTouchCallout: "none" }}>
                 <div className="col-span-2 lg:col-span-1 min-w-0">
-                  {estChefStock ? <button type="button" onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
+                  {estChefStock ? <button type="button" data-poignee={peutGlisser ? "nom" : undefined} onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{peutGlisser && <span data-poignee="grip" style={{ touchAction: "none" }} className="inline-block mr-1.5 text-[var(--steel)] cursor-grab select-none" title="Maintenir pour déplacer" aria-hidden="true">⠿</span>}{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
                   {estChefStock && setGroupesStock && (
                     <select aria-label={`Groupe de ${s.nom}`} className="text-[11px] text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none max-w-full" value={catS} onChange={(e) => deplacerProduit(s, e.target.value)}>

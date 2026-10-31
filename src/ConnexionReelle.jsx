@@ -404,8 +404,12 @@ export default function ConnexionReelle() {
       // Groupe du stock choisi pour chaque produit : requête à part (colonne absente = aucun groupe choisi, rien ne casse).
       const rgp = await supabasePublic.from("produits").select("id, groupe_stock");
       const groupeParProduit = new Map(rgp.error ? [] : (rgp.data || []).map((x) => [x.id, x.groupe_stock]));
+      // Ordre choisi par l'établissement dans son stock : requête à part (colonne absente = ordre alphabétique, rien ne casse).
+      const rop = await supabasePublic.from("produits").select("id, ordre_stock");
+      const ordreParProduit = new Map(rop.error ? [] : (rop.data || []).map((x) => [x.id, x.ordre_stock]));
       const liste = (rp.data || []).map((p) => ({
         groupeStock: groupeParProduit.get(p.id) || "",
+        ordreStock: ordreParProduit.get(p.id) == null ? null : Number(ordreParProduit.get(p.id)),
         id: p.id, nom: p.nom, categorie: p.conservation === "surgele" ? "Surgelés" : (p.categorie || "Autres"), conservation: p.conservation || "",
         typeDate: p.type_date || "", dlcJours: p.delai_jours_dlc == null ? null : Number(p.delai_jours_dlc), delaiOuverture: p.delai_apres_ouverture_jours == null ? null : Number(p.delai_apres_ouverture_jours),
         decongelMethode: p.decongel_methode || "", decongelJours: p.decongel_jours == null ? null : Number(p.decongel_jours), decongelSource: p.decongel_source || "",
@@ -451,6 +455,10 @@ export default function ConnexionReelle() {
     let recharger = false;
     for (const x of suiv) {
       const o = avant.get(x.id);
+      if (o && (o.ordreStock == null ? null : o.ordreStock) !== (x.ordreStock == null ? null : x.ordreStock)) {
+        const { error } = await supabasePublic.from("produits").update({ ordre_stock: x.ordreStock == null ? null : x.ordreStock }).eq("id", x.id);
+        if (error) console.error("Ordre du produit non enregistré :", error);
+      }
       if (!o) {
         const { error } = await supabasePublic.from("produits").insert({
           etablissement_id: session.etablissement.id, nom: x.nom, reference: x.reference || null,
