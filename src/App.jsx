@@ -492,7 +492,7 @@ Object.assign(COULEURS_FONCTION, {
   planningEmploye: COULEURS_FONCTION.taches, reservationsClient: COULEURS_FONCTION.taches,
   allergenes: COULEURS_FONCTION.controle, origine: COULEURS_FONCTION.controle,
   historiqueJour: COULEURS_FONCTION.historique, comptes: COULEURS_FONCTION.historique,
-  pmsDossier: COULEURS_FONCTION.pms, dossierControle: COULEURS_FONCTION.pms, pmsPrestataires: COULEURS_FONCTION.pms,
+  pmsDossier: COULEURS_FONCTION.pms, dossierControle: COULEURS_FONCTION.pms, pmsPrestataires: COULEURS_FONCTION.pms, controlesSurfaces: COULEURS_FONCTION.pms,
   produits: COULEURS_FONCTION.stock, appareilsFroid: COULEURS_FONCTION.temperatures,
   haccpTemp: COULEURS_FONCTION.temperatures, haccpRefroid: COULEURS_FONCTION.cellule, haccpHuile: COULEURS_FONCTION.huile, haccpChaud: COULEURS_FONCTION.maintien, haccpCuisson: COULEURS_FONCTION.cuisson,
 });
@@ -1782,6 +1782,121 @@ function ecrireNotesPrest(e) {
   return [...LIGNES_NOTES_PREST.filter(([k]) => (e[k] || "").trim()).map(([k, lib]) => `${lib} : ${e[k].trim()}`), ...(e.libre || "").split("\n").filter((l) => l.trim())].join("\n");
 }
 
+// ---- Contrôles de surfaces (autocontrôle) : plans de travail, ustensiles… testés par le chef (bandelettes, lames, ATP) ----
+// La direction choisit comment l'hygiène des surfaces est vérifiée : par un laboratoire, ou par des tests d'autocontrôle enregistrés ici.
+const SURFACES_TESTEES = ["Plan de travail", "Planche à découper", "Ustensile (couteau, fouet, spatule…)", "Machine (trancheuse, hachoir, batteur…)", "Bac ou contenant", "Poignée, interrupteur", "Autre"];
+const METHODES_SURFACE = ["Bandelette ou lame gélosée", "Test ATP (hygiénomètre)", "Écouvillon envoyé à un laboratoire", "Autre"];
+const RESULTATS_SURFACE = [
+  { value: "conforme", label: "Conforme", couleur: "#1E7B4B" },
+  { value: "non_conforme", label: "Non conforme", couleur: "#B4233A" },
+  { value: "a_refaire", label: "À refaire", couleur: "#B7791F" },
+];
+function PmsControlesSurfaces({ pms, mode, onMode, peutChoisir, peutSaisir, nomUtilisateur, onOuvrirPrestataires }) {
+  const vide = () => ({ surface: SURFACES_TESTEES[0], precisionSurface: "", methode: METHODES_SURFACE[0], produitTest: "", resultat: "", valeurLue: "", actionCorrective: "", photo: null });
+  const [f, setF] = useState(vide);
+  const [envoi, setEnvoi] = useState(false);
+  const [message, setMessage] = useState("");
+  const [photoVue, setPhotoVue] = useState(null);
+  if (!pms) return <Card><p className="text-sm text-[var(--steel)]">Chargement…</p></Card>;
+  const liste = pms.surfaces || [];
+  const fmtJour = (d) => new Date(d + "T00:00:00").toLocaleDateString("fr-FR");
+  const dernier = liste[0];
+  const joursDepuis = dernier ? Math.max(0, Math.round((new Date(todayISO() + "T00:00:00") - new Date(dernier.date + "T00:00:00")) / 86400000)) : null;
+  const valider = async () => {
+    setEnvoi(true); setMessage("");
+    const maintenant = new Date();
+    const r = await pms.ajouterControleSurface({ ...f, date: todayISO(), heure: maintenant.toTimeString().slice(0, 5), realisePar: nomUtilisateur });
+    setEnvoi(false);
+    if (r && r.ok) { setF(vide()); setMessage("Test enregistré."); } else setMessage((r && r.erreur) || "Non enregistré — réessayez.");
+  };
+  const optionMode = (valeur, titre, texte) => {
+    const actif = mode === valeur;
+    return (
+      <button type="button" disabled={!peutChoisir} aria-pressed={actif} onClick={() => onMode && onMode(valeur)}
+        className="text-left rounded-xl border-2 p-3 min-w-0 flex-1 basis-[260px]" style={actif ? { borderColor: "#1E7B4B", background: "#E6F4EC" } : { borderColor: "var(--cadre)", background: "#fff", opacity: peutChoisir ? 1 : 0.75 }}>
+        <div className="flex items-center gap-2 font-bold text-[var(--ink)] text-sm"><span className="w-5 h-5 rounded-full border-2 flex items-center justify-center shrink-0" style={{ borderColor: actif ? "#1E7B4B" : "#9AA5B1" }}>{actif && <span className="w-2.5 h-2.5 rounded-full" style={{ background: "#1E7B4B" }} />}</span>{titre}</div>
+        <p className="text-xs text-[var(--steel)] mt-1">{texte}</p>
+      </button>
+    );
+  };
+  const infoResultat = (v) => RESULTATS_SURFACE.find((x) => x.value === v) || RESULTATS_SURFACE[0];
+  return (
+    <div>
+      <Card className="mb-3">
+        <h3 className="font-semibold">Vérifier l'hygiène des surfaces : plans de travail et ustensiles</h3>
+        <p className="text-sm text-[var(--ink)] mt-1">Les textes ne fixent aucune fréquence, mais l'exploitant doit pouvoir prouver qu'il vérifie que son nettoyage et ses procédures fonctionnent. Règlement (CE) 2073/2005, art. 4 : les exploitants procèdent à des essais « lorsqu'ils valident ou vérifient le bon fonctionnement de leurs procédures fondées sur les principes HACCP ou sur les bonnes pratiques d'hygiène » et « décident des fréquences d'échantillonnage appropriées à appliquer ». Art. 5 : des échantillons sont prélevés sur les lieux de transformation et le matériel « lorsque ces prélèvements sont nécessaires pour s'assurer du respect des critères ».</p>
+        <p className="text-xs text-[var(--steel)] mt-1">Contrôle officiel : dans le vade-mecum général, l'absence de vérification, ou d'action corrective après un mauvais résultat de vérification, est notée C. Source : règlement 2073/2005 (version consolidée de 2020, lue le 31/10/2026, à relire sur la version en vigueur) ; vade-mecum général V7 de septembre 2026.</p>
+        <div className="flex flex-wrap gap-2 mt-3">
+          {optionMode("laboratoire", "Un laboratoire s'en charge", "Le laboratoire prélève et analyse. Gardez ses rapports : ajoutez chaque passage dans Prestataires > Laboratoire d'analyses.")}
+          {optionMode("autocontrole", "Nous faisons des tests d'autocontrôle", "Le chef contrôle lui-même les plans de travail et les ustensiles (bandelettes, lames, test ATP) et enregistre chaque test ici : photo, résultat, action corrective.")}
+        </div>
+        {!peutChoisir && <p className="text-xs text-[var(--steel)] mt-2">Le choix est fait par la direction.</p>}
+        {!mode && <p className="text-xs mt-2" style={{ color: "#B7791F" }}>Aucun choix n'a encore été fait.</p>}
+      </Card>
+
+      {mode === "laboratoire" && (
+        <Card className="mb-3">
+          <p className="text-sm text-[var(--ink)]">Le laboratoire fait les prélèvements. Les rapports d'analyses se rangent dans <b>Prestataires</b>, rubrique « Laboratoire d'analyses » (date de chaque passage et rapport joint).</p>
+          {onOuvrirPrestataires && <div className="mt-2"><Button variant="ghost" onClick={onOuvrirPrestataires}>Ouvrir Prestataires →</Button></div>}
+        </Card>
+      )}
+
+      {mode === "autocontrole" && peutSaisir && (
+        <Card className="mb-3">
+          <h3 className="font-semibold mb-2">Enregistrer un test</h3>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <Field label="Surface testée"><select className={inputCls} value={f.surface} onChange={(e) => setF({ ...f, surface: e.target.value })}>{SURFACES_TESTEES.map((x) => <option key={x}>{x}</option>)}</select></Field>
+            <Field label="Précision (facultatif)"><input className={inputCls} value={f.precisionSurface} onChange={(e) => setF({ ...f, precisionSurface: e.target.value })} placeholder="Ex. plan de travail pizza, couteau du chef" /></Field>
+            <Field label="Méthode du test"><select className={inputCls} value={f.methode} onChange={(e) => setF({ ...f, methode: e.target.value })}>{METHODES_SURFACE.map((x) => <option key={x}>{x}</option>)}</select></Field>
+            <Field label="Marque ou référence du test (facultatif)"><input className={inputCls} value={f.produitTest} onChange={(e) => setF({ ...f, produitTest: e.target.value })} /></Field>
+          </div>
+          <p className="text-sm text-[var(--ink)] mt-3 mb-1">Résultat du test</p>
+          <div className="flex flex-wrap gap-2">
+            {RESULTATS_SURFACE.map((r) => (
+              <button key={r.value} type="button" aria-pressed={f.resultat === r.value} onClick={() => setF({ ...f, resultat: r.value })} className="min-h-[44px] px-4 rounded-full border-2 text-sm font-bold"
+                style={f.resultat === r.value ? { background: r.couleur, borderColor: r.couleur, color: "#fff" } : { background: "#fff", borderColor: r.couleur, color: r.couleur }}>{r.label}</button>
+            ))}
+          </div>
+          <p className="text-xs text-[var(--steel)] mt-1">Le seuil de conformité est celui de la notice de vos tests. Le logiciel n'en invente aucun.</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mt-3">
+            <Field label="Valeur lue (facultatif)"><input className={inputCls} value={f.valeurLue} onChange={(e) => setF({ ...f, valeurLue: e.target.value })} placeholder="Comme indiqué sur la notice (couleur, UFC, RLU…)" /></Field>
+            <div><p className="text-sm text-[var(--ink)] mb-1">Photo du test <span className="text-[var(--steel)]">(recommandée)</span></p><PhotoInput value={f.photo} onChange={(v) => setF({ ...f, photo: v })} label="Photographier le test" /></div>
+          </div>
+          {f.resultat && f.resultat !== "conforme" && (
+            <div className="mt-3"><Field label="Action corrective (obligatoire)"><textarea className={`${inputCls} min-h-[70px]`} value={f.actionCorrective} onChange={(e) => setF({ ...f, actionCorrective: e.target.value })} placeholder="Ex. surface re-nettoyée et désinfectée, test refait à 15 h : conforme" /></Field></div>
+          )}
+          <div className="mt-3 flex flex-wrap items-center gap-3">
+            <Button onClick={valider} disabled={envoi || !f.resultat}>{envoi ? "Enregistrement…" : "Enregistrer le test"}</Button>
+            {message && <span className="text-sm" style={{ color: message === "Test enregistré." ? "#1E7B4B" : "#B4233A" }}>{message}</span>}
+          </div>
+        </Card>
+      )}
+      {mode === "autocontrole" && !peutSaisir && <Card className="mb-3"><p className="text-sm text-[var(--steel)]">L'enregistrement des tests est réservé au chef et à la direction.</p></Card>}
+
+      <Card>
+        <h3 className="font-semibold">Historique des tests ({liste.length})</h3>
+        {dernier ? <p className="text-xs text-[var(--steel)] mb-2">Dernier test : {fmtJour(dernier.date)}{joursDepuis === 0 ? " (aujourd'hui)" : ` (il y a ${joursDepuis} jour${joursDepuis > 1 ? "s" : ""})`}.</p> : <p className="text-sm text-[var(--steel)]">Aucun test enregistré.</p>}
+        {liste.map((x) => {
+          const r = infoResultat(x.resultat);
+          return (
+            <div key={x.id} className="py-2 border-t border-[var(--cadre)] flex gap-3 items-start min-w-0">
+              {x.photo ? <button type="button" onClick={() => setPhotoVue(x.photo)} aria-label="Agrandir la photo"><img src={x.photo} alt="Test" className="w-14 h-14 object-cover rounded-lg border border-[var(--cadre)]" /></button> : <div className="w-14 h-14 rounded-lg border border-dashed border-[var(--cadre)] shrink-0" />}
+              <div className="min-w-0 flex-1 text-sm">
+                <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-[var(--ink)]">{fmtJour(x.date)}{x.heure ? ` · ${x.heure}` : ""}</span><span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: r.couleur }}>{r.label}</span></div>
+                <div className="text-[var(--ink)] break-words">{x.surface}{x.precision_surface ? ` — ${x.precision_surface}` : ""}</div>
+                <div className="text-xs text-[var(--steel)] break-words">{[x.methode, x.produit_test, x.valeur_lue ? `valeur : ${x.valeur_lue}` : "", x.realise_par ? `par ${x.realise_par}` : ""].filter(Boolean).join(" · ")}</div>
+                {x.action_corrective && <div className="text-xs text-[var(--ink)] break-words mt-0.5">Action corrective : {x.action_corrective}</div>}
+                {peutChoisir && <button type="button" className="text-xs underline text-[var(--steel)] mt-1" onClick={() => { if (window.confirm("Supprimer ce test de l'historique ? La suppression est conservée dans l'historique des modifications.")) pms.supprimerControleSurface(x.id); }}>Supprimer</button>}
+              </div>
+            </div>
+          );
+        })}
+      </Card>
+      {photoVue && <div className="fixed inset-0 bg-black/80 flex items-center justify-center p-4 z-50" onClick={() => setPhotoVue(null)}><img src={photoVue} alt="Test" className="max-w-full max-h-full rounded-xl" /></div>}
+    </div>
+  );
+}
+
 function PmsPrestataires({ pms, editable }) {
   const [edition, setEdition] = useState(null); // { slot, ...champs } ; id absent = nouveau
   const [message, setMessage] = useState("");
@@ -2405,7 +2520,7 @@ function constatPointPms(cle, ctx) {
   const doc = (c) => docs.some((d) => d.categorie === c);
   const form = (t) => formations.some((f) => f.type === t);
   const nbD = (k) => (donnees && Array.isArray(donnees[k]) ? donnees[k].length : 0);
-  if (cle.startsWith("presta:")) return prestataires.some((p) => p.type === cle.slice(7));
+  if (cle.startsWith("presta:")) return prestataires.some((p) => p.type === cle.slice(7)) || (cle === "presta:laboratoire" && ctx.modeVerif === "autocontrole");
   switch (cle) {
     case "declaration": return !!fiche.dateDeclarationActivite && doc("declaration_activite");
     case "referent": return !!String(fiche.responsableHygiene || "").trim();
@@ -2422,7 +2537,7 @@ function constatPointPms(cle, ctx) {
       if (!o) return false;
       return o === "Source privée (puits, forage)" ? doc("autorisation_eau_privee") && doc("analyse_eau") : doc("attestation_eau");
     }
-    case "analyses": return doc("rapport_laboratoire");
+    case "analyses": return doc("rapport_laboratoire") || (ctx.surfaces || []).length > 0;
     case "documents": return docs.length > 0;
     case "receptions": return nbD("receptions") > 0;
     case "temperatures": return nbD("relevesFroid") > 0;
@@ -2660,7 +2775,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
   ];
   const nbOk = controle.filter((c) => c.ok).length;
 
-  const ctx = { fiche, docs, formations, prestataires, equipe, donnees };
+  const ctx = { fiche, docs, formations, prestataires, equipe, donnees, surfaces: pms.surfaces || [], modeVerif: reglages.modeVerifHygiene || "" };
   const [journalOuvert, setJournalOuvert] = useState(false);
   const [locales, setLocales] = useState({}); // repli si l'enregistrement en base n'est pas disponible (banc de test)
   const liste = (lettre) => <PmsPointsListe lettre={lettre} pms={pms} ctx={ctx} equipe={equipe} locales={locales} setLocales={setLocales} />;
@@ -2765,7 +2880,9 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
         <SousTitrePms>9 — Vérification et analyses</SousTitrePms>
         <Card>
           <h3 className="font-semibold">Contrôle interne et laboratoire</h3>
-          <p className="text-sm text-[var(--ink)]">Contrôle journalier, registre mensuel, audit interne et revue annuelle du PMS. Aucune fréquence légale fixe d'analyses pour un restaurant classique : indiquez votre laboratoire dans la partie B et joignez les résultats dans la partie G.</p>
+          <p className="text-sm text-[var(--ink)]">Aucun texte lu ne fixe de fréquence d'analyses pour un restaurant : le règlement 2073/2005 (art. 4) laisse à l'exploitant le choix des fréquences, mais il doit pouvoir prouver qu'il vérifie ses procédures (une vérification absente est notée C au contrôle officiel). Deux façons de le faire : un <b>laboratoire</b> (rapports joints dans Prestataires), ou des <b>tests d'autocontrôle</b> faits par le chef sur les plans de travail et les ustensiles et enregistrés dans le logiciel.</p>
+          <p className="text-sm mt-1"><b>Mode choisi :</b> {reglages.modeVerifHygiene === "laboratoire" ? "laboratoire" : reglages.modeVerifHygiene === "autocontrole" ? `tests d'autocontrôle (${(pms.surfaces || []).length} test${(pms.surfaces || []).length > 1 ? "s" : ""} enregistré${(pms.surfaces || []).length > 1 ? "s" : ""})` : "pas encore choisi"}</p>
+          {bouton("controlesSurfaces", "Contrôles de surfaces")}
         </Card>
       {liste("D")}
       </BandePms>
@@ -4664,6 +4781,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
     { id: "pmsDossier", label: "PMS — dossier", icon: Building2, section: "hygiene" },
     { id: "pms", label: "Plan de nettoyage", icon: SprayCan, section: "hygiene" },
     { id: "pmsPrestataires", label: "Prestataires", icon: PhoneCall, section: "hygiene" },
+    { id: "controlesSurfaces", label: "Contrôles de surfaces (autocontrôle)", icon: ClipboardCheck, section: "hygiene" },
     { id: "allergenes", label: "Allergènes", icon: AlertTriangle, section: "hygiene" },
     { id: "origine", label: "Origine des viandes", icon: MapPin, section: "hygiene" },
     { id: "lexique", label: "Lexique et réglementation", icon: BookOpen, section: "hygiene" },
@@ -4681,7 +4799,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   // de l'écran d'accueil de Contrôle & Gestion (voir plus bas), qui rouvrent directement les
   // écrans complets déjà existants (grille horaire du personnel, agenda des réservations).
   // La tuile « Commandes » n'existe que dans la version migrée (aperçu nouvelle base).
-  const tuileVisible = (t) => (t.section !== "reglages" || accesPlanningReservations) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
+  const tuileVisible = (t) => (t.section !== "reglages" || accesPlanningReservations) && (!["planningEmploye", "reservationsClient"].includes(t.id) || accesPlanningReservations) && (t.id !== "catalogueDlc" || !stockCatalogue) && (t.id !== "pmsDossier" || (compteDirection && !!reglagesEtablissement)) && (t.id !== "pmsPrestataires" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms))) && (t.id !== "controlesSurfaces" || (accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms)));
   const SOUS_TUILES_CONTROLE = SOUS_TUILES_CONTROLE_TOUTES.filter((t) => t.section === sectionActive && tuileVisible(t));
   const ouvrirSousTuile = (id) => {
     const tuile = SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
@@ -4707,11 +4825,11 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
     { titre: "Produits", ids: ["fournisseur", "produits"] },
     { titre: "Matériel", ids: ["appareilsFroid"] },
     { titre: "Cuisine", ids: ["creationFiche", "carte"] },
-    { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires"] },
+    { titre: "PMS et hygiène", ids: ["pmsDossier", "pms", "planning", "pmsPrestataires", "controlesSurfaces"] },
   ];
-  const PARAM_LIBELLES = { comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Contrôle de la journée", pmsPrestataires: "Prestataires" };
+  const PARAM_LIBELLES = { controlesSurfaces: "Contrôles de surfaces", comptes: "Comptes de l'équipe", fournisseur: "Fournisseurs", produits: "Produits", appareilsFroid: "Appareils de froid", creationFiche: "Créer une fiche technique", carte: "Carte du restaurant", pmsDossier: "Dossier PMS", pms: "Plan de nettoyage", planning: "Contrôle de la journée", pmsPrestataires: "Prestataires" };
   const PARAM_EXTRAS = { "@horaires": ["horaires", "Horaires de l'équipe", Clock, "#1F8F5F", "#146B45"], "@reservations": ["reservations", "Réservations client", CalendarDays, "#1F8F5F", "#146B45"] };
-  const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
+  const PARAM_ENTETE_PROPRE = ["pmsDossier", "pms", "pmsPrestataires", "controlesSurfaces", "carte", "creationFiche"]; // ces écrans ont déjà leur propre titre
   const paramTuile = (id) => SOUS_TUILES_CONTROLE_TOUTES.find((x) => x.id === id);
   // Menu du Paramétrage : dans la bande noire de gauche (grand écran) ou en haut de la page (téléphone).
   const construireMenuParam = (sombre) => (
@@ -5507,6 +5625,14 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         <div className="mb-6">
           <SectionHeader title="Prestataires" subtitle="Antinuisibles, maintenance, laboratoire… les contacts utiles" />
           <PmsPrestataires pms={reglagesEtablissement && reglagesEtablissement.pms} editable={compteDirection} />
+        </div>
+      )}
+
+      {sousEcran === "controlesSurfaces" && accesPlanningReservations && !!(reglagesEtablissement && reglagesEtablissement.pms) && (
+        <div className="mb-6">
+          <SectionHeader title="Contrôles de surfaces" subtitle="Plans de travail et ustensiles : laboratoire ou tests d'autocontrôle" />
+          <PmsControlesSurfaces pms={reglagesEtablissement.pms} mode={reglagesEtablissement.modeVerifHygiene || ""} onMode={reglagesEtablissement.enregistrerModeVerif} peutChoisir={compteDirection && !!reglagesEtablissement.enregistrerModeVerif} peutSaisir={accesPlanningReservations}
+            nomUtilisateur={compteDirection && currentUserId === "direction" ? "Direction" : ((employees.find((e) => e.id === currentUserId) || {}).name || (employees.find((e) => e.id === currentUserId) || {}).nom || "")} onOuvrirPrestataires={() => setSousEcran("pmsPrestataires")} />
         </div>
       )}
 
@@ -15909,6 +16035,71 @@ function CelluleQuantite({ valeur, pas, onSet, fond, texte, label }) {
   );
 }
 
+// ---- Glisser-déposer par appui maintenu (souris, tablette, téléphone) ----
+// On maintient le doigt (ou la souris) sur une ligne ; au bout d'un instant elle se détache et suit le doigt. Les zones où l'on peut
+// déposer portent data-depot="ligne:<id>" (insertion avant/après la ligne) ou data-depot="groupe:<id>" (ajout en fin de groupe).
+// Avant le délai, le défilement normal de l'écran fonctionne : un simple geste de défilement ne déplace rien.
+function useGlisserDeposer(onDeposer, actif = true) {
+  const [etat, setEtat] = useState(null); // { id, label, x, y, cible }
+  const cb = React.useRef(onDeposer); cb.current = onDeposer;
+  const s = React.useRef(null);
+  const nettoyer = () => {
+    const c = s.current; if (!c) return;
+    clearTimeout(c.timer); clearInterval(c.defile);
+    window.removeEventListener("pointermove", c.move); window.removeEventListener("pointerup", c.up); window.removeEventListener("pointercancel", c.annule);
+    window.removeEventListener("touchmove", c.touch); window.removeEventListener("keydown", c.cle);
+    document.body.style.userSelect = c.userSelect || ""; document.body.style.webkitUserSelect = c.userSelect || "";
+    s.current = null; setEtat(null);
+  };
+  useEffect(() => nettoyer, []); // eslint-disable-line react-hooks/exhaustive-deps
+  const cibleSous = (x, y) => {
+    const el = document.elementFromPoint(x, y); const z = el && el.closest ? el.closest("[data-depot]") : null;
+    if (!z) return null;
+    const [type, ...reste] = String(z.getAttribute("data-depot")).split(":"); const id = reste.join(":");
+    if (type === "groupe") return { type, id };
+    const r = z.getBoundingClientRect(); return { type: "ligne", id, apres: y > r.top + r.height / 2 };
+  };
+  const parentDefilant = (el) => { for (let n = el; n && n !== document.body; n = n.parentElement) { const o = getComputedStyle(n).overflowY; if ((o === "auto" || o === "scroll") && n.scrollHeight > n.clientHeight + 2) return n; } return null; };
+  const debut = (id, label) => (e) => {
+    if (!actif || (e.pointerType === "mouse" && e.button !== 0)) return;
+    if (e.target.closest && e.target.closest("input, select, textarea, a, button:not([data-poignee])")) return;
+    if (s.current) nettoyer();
+    const poignee = !!(e.target.closest && e.target.closest("[data-poignee]"));
+    const c = { id, label, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, actif: false, userSelect: document.body.style.userSelect };
+    c.move = (ev) => {
+      c.x = ev.clientX; c.y = ev.clientY;
+      if (!c.actif) { if (Math.hypot(c.x - c.x0, c.y - c.y0) > 10) nettoyer(); return; }
+      setEtat({ id: c.id, label: c.label, x: c.x, y: c.y, cible: cibleSous(c.x, c.y) });
+    };
+    c.touch = (ev) => { if (c.actif && ev.cancelable) ev.preventDefault(); };
+    c.up = () => { const ok = c.actif; const cible = ok ? cibleSous(c.x, c.y) : null; nettoyer(); if (ok && cible) cb.current(c.id, cible); };
+    c.annule = () => nettoyer();
+    c.cle = (ev) => { if (ev.key === "Escape") nettoyer(); };
+    c.timer = setTimeout(() => {
+      c.actif = true; document.body.style.userSelect = "none"; document.body.style.webkitUserSelect = "none";
+      try { if (navigator.vibrate) navigator.vibrate(15); } catch (_) {}
+      setEtat({ id: c.id, label: c.label, x: c.x, y: c.y, cible: cibleSous(c.x, c.y) });
+      c.defile = setInterval(() => {
+        const h = window.innerHeight; const dy = c.y < 90 ? -16 : (c.y > h - 90 ? 16 : 0); if (!dy) return;
+        const el = document.elementFromPoint(c.x, c.y); const cont = parentDefilant(el);
+        if (cont) cont.scrollTop += dy; else window.scrollBy(0, dy);
+        setEtat({ id: c.id, label: c.label, x: c.x, y: c.y, cible: cibleSous(c.x, c.y) });
+      }, 30);
+    }, poignee ? 120 : 380);
+    s.current = c;
+    window.addEventListener("pointermove", c.move); window.addEventListener("pointerup", c.up); window.addEventListener("pointercancel", c.annule);
+    window.addEventListener("touchmove", c.touch, { passive: false }); window.addEventListener("keydown", c.cle);
+  };
+  const props = (id, label) => ({ onPointerDown: debut(id, label), onContextMenu: (e) => { if (s.current) e.preventDefault(); } });
+  return { etat, props, enCours: !!etat };
+}
+function GlisseFlottant({ etat }) {
+  if (!etat) return null;
+  return <div style={{ position: "fixed", left: etat.x + 12, top: etat.y + 12, zIndex: 9999, pointerEvents: "none", maxWidth: 260 }}
+    className="px-3 py-2 rounded-lg text-sm font-semibold text-white shadow-lg" aria-hidden="true"><span style={{ background: "#1D2321", opacity: 0.92 }} className="block px-3 py-2 -mx-3 -my-2 rounded-lg truncate">⠿ {etat.label}</span></div>;
+}
+const ordreStockCmp = (a, b) => ((a.ordreStock == null ? 1e9 : a.ordreStock) - (b.ordreStock == null ? 1e9 : b.ordreStock)) || String(a.nom || "").localeCompare(String(b.nom || ""), "fr");
+
 function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle, groupesStock, setGroupesStock }) {
   const acces = useAcces();
   const rapideStock = React.useContext(RapideContext);
@@ -15933,6 +16124,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [inventaireActif, setInventaireActif] = useState(false);
   const [produitDetail, setProduitDetail] = useState(null); // chef : id du produit dont on ouvre la page
   const estChefStock = !!acces.estResponsable;
+  const deposerRef = React.useRef(null);
+  const peutGlisser = !!(estChefStock && setGroupesStock);
+  const glisse = useGlisserDeposer((id, cible) => { if (deposerRef.current) deposerRef.current(id, cible); }, peutGlisser);
   const peutGererProduits = estChefStock && !!(rapideStock && rapideStock.produitsModifiables && rapideStock.ouvrirProduitAcompleter);
   const today = todayISO();
   const addItem = () => {
@@ -16075,15 +16269,32 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   // Quand on voit plusieurs groupes à la fois (« Tous les produits » ou une recherche), les produits sont regroupés comme le menu de gauche :
   // un titre par groupe, dans le même ordre, puis l'ordre alphabétique dans chaque groupe.
   const rangGroupe = (id) => groupesAff.findIndex((g) => g.id === id);
-  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).sort((a, b) => ((q || toutLeStock) ? rangGroupe(a.cat) - rangGroupe(b.cat) : 0) || a.s.nom.localeCompare(b.s.nom, "fr")).map((x) => x.s);
+  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).sort((a, b) => ((q || toutLeStock) ? rangGroupe(a.cat) - rangGroupe(b.cat) : 0) || ordreStockCmp(a.s, b.s)).map((x) => x.s);
   const groupeStockActif = q || toutLeStock;
   const catDuProduit = new Map(avecCat.map((x) => [x.s.id, x.cat]));
   const nbDansGroupe = (id) => liste.filter((s) => catDuProduit.get(s.id) === id).length;
   const deplacerProduit = (s, idGroupe) => {
     const g = groupesAff.find((x) => x.id === idGroupe) || GROUPE_NON_CLASSE;
-    setStock(stock.map((x) => (x.id === s.id ? { ...x, groupeStock: idGroupe } : x)));
+    setStock(stock.map((x) => (x.id === s.id ? { ...x, groupeStock: idGroupe, ordreStock: null } : x)));
     logActivity("Stock", "Produit déplacé de groupe", `${s.nom} → ${g.nom}`);
   };
+  // Glisser-déposer : un produit lâché sur une autre ligne s'y insère (et prend le groupe de cette ligne) ; lâché sur un groupe du menu, il va à la fin du groupe.
+  const deposerProduit = (idProduit, cible) => {
+    const p = stock.find((x) => x.id === idProduit); if (!p || !cible) return;
+    const groupeAvant = catDuProduit.get(p.id);
+    let idGroupe; let pos = null;
+    if (cible.type === "groupe") idGroupe = cible.id;
+    else { if (cible.id === p.id) return; idGroupe = catDuProduit.get(cible.id); if (!idGroupe) return; }
+    const autres = avecCat.filter((x) => x.cat === idGroupe && x.s.id !== p.id).map((x) => x.s).sort(ordreStockCmp);
+    if (cible.type === "ligne") { const i = autres.findIndex((x) => x.id === cible.id); pos = i < 0 ? autres.length : i + (cible.apres ? 1 : 0); } else pos = autres.length;
+    const nouvelOrdre = [...autres.slice(0, pos), p, ...autres.slice(pos)];
+    const rang = new Map(nouvelOrdre.map((x, i) => [x.id, i]));
+    if (idGroupe === groupeAvant && nouvelOrdre.every((x, i) => (x.ordreStock == null ? -1 : x.ordreStock) === i)) return;
+    setStock(stock.map((x) => (rang.has(x.id) ? { ...x, ordreStock: rang.get(x.id), ...(x.id === p.id && idGroupe !== groupeAvant ? { groupeStock: idGroupe } : {}) } : x)));
+    const g = groupesAff.find((x) => x.id === idGroupe) || GROUPE_NON_CLASSE;
+    logActivity && logActivity("Stock", idGroupe === groupeAvant ? "Produit réordonné" : "Produit déplacé de groupe", idGroupe === groupeAvant ? `${p.nom} (groupe ${g.nom})` : `${p.nom} → ${g.nom}`);
+  };
+  deposerRef.current = deposerProduit;
   const choisirCat = (nom) => { setCategorieChoisie(nom); setRecherche(""); setFiltreEtat("tous"); };
   const carteKpi = (titre, nombre, Ic, fond, bord, couleur, onClick, sous) => (
     <button type="button" onClick={onClick} className="text-left rounded-lg border px-2.5 py-1.5 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
@@ -16154,11 +16365,13 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         </div>
       )}
 
+      <GlisseFlottant etat={glisse.etat} />
       {infosStockage && <ModalInfosNormes fiche={infosStockage} onClose={() => setInfosStockage(null)} />}
       {gererGroupes && setGroupesStock && <GestionGroupesStock groupes={groupesBase} compte={nbParCat} onChange={(l) => setGroupesStock(l)} onFermer={() => setGererGroupes(false)} />}
 
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4 mb-6">
-        <CarteZone icone={Package} titre="Catégories" sous="Choisissez une catégorie">
+        <div className="lg:sticky lg:top-2 lg:self-start lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto min-w-0">
+        <CarteZone icone={Package} titre="Catégories" sous={peutGlisser ? "Choisissez un groupe. Glissez un produit dessus pour l'y ranger." : "Choisissez une catégorie"}>
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
             {alertes.length > 0 && (
               <button type="button" onClick={() => aller("alerte")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#B4233A", color: "#fff", outline: filtreEtat === "alerte" ? "3px solid #1D2321" : "none" }}>
@@ -16175,7 +16388,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             {groupesAff.map((c) => {
               const actif = !q && c.id === catActive;
               return (
-                <button key={c.id} type="button" onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: actif ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+                <button key={c.id} type="button" data-depot={"groupe:" + c.id} onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === c.id) ? "4px solid #F5B301" : (actif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
                   <Package size={20} className="shrink-0" />
                   <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.id)})</span></span>
                   <ChevronRight size={16} className="shrink-0 hidden lg:block" />
@@ -16187,6 +16400,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             )}
           </div>
         </CarteZone>
+        </div>
 
         <div id="stock-tableau" className="rounded-xl border border-[var(--cadre)] bg-white min-w-0 scroll-mt-4 overflow-hidden" style={{ borderTop: `3px solid ${zoneDepuisFonction("stock").bord}` }}>
           <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--line)] flex-wrap" style={{ background: zoneDepuisFonction("stock").fond }}>
@@ -16194,6 +16408,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             <h3 className="text-xl font-bold text-[var(--ink)]">{q ? "Résultats de la recherche" : infoCat.nom} ({liste.length})</h3>
             {filtreEtat !== "tous" && <span className="text-xs font-semibold px-2 py-1 rounded-md bg-[var(--bg)] text-[var(--ink)]">Filtre : {filtreEtat === "alerte" ? "en alerte" : "dans le panier"} <button type="button" className="underline ml-1" onClick={() => setFiltreEtat("tous")}>retirer</button></span>}
           </div>
+          {peutGlisser && <p className="px-4 py-1.5 text-xs text-[var(--steel)] border-b border-[var(--line)]">Pour ranger vos produits : maintenez le doigt (ou la souris) sur un produit, puis glissez-le plus haut, plus bas, ou sur un groupe du menu. Son groupe change tout seul.</p>}
           <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)]" style={{ borderBottom: `2px solid ${zoneDepuisFonction("stock").bord}55` }}>
             <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span title="Ce que fait un clic sur + ou −">Un clic =</span><span className="text-center">Panier</span>
           </div>
@@ -16206,10 +16421,11 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             const infoGroupe = debutGroupe ? (groupesAff.find((g) => g.id === catS) || GROUPE_NON_CLASSE) : null;
             return (
               <React.Fragment key={s.id}>
-              {infoGroupe && <div className="px-4 py-2 text-sm font-bold border-t border-[var(--line)]" style={{ backgroundColor: infoGroupe.fond, color: infoGroupe.texte }}>{infoGroupe.nom} ({nbDansGroupe(catS)})</div>}
-              <div className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center">
+              {infoGroupe && <div data-depot={"groupe:" + catS} className="px-4 py-2 text-sm font-bold border-t border-[var(--line)]" style={{ backgroundColor: infoGroupe.fond, color: infoGroupe.texte, outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === catS) ? "4px solid #F5B301" : "none", outlineOffset: -4 }}>{infoGroupe.nom} ({nbDansGroupe(catS)})</div>}
+              <div data-depot={"ligne:" + s.id} {...(peutGlisser ? glisse.props(s.id, s.nom) : {})} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center"
+                style={{ opacity: glisse.etat && glisse.etat.id === s.id ? 0.35 : 1, boxShadow: glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "ligne" && glisse.etat.cible.id === s.id && glisse.etat.id !== s.id ? (glisse.etat.cible.apres ? "inset 0 -4px 0 #F5B301" : "inset 0 4px 0 #F5B301") : "none", WebkitTouchCallout: "none" }}>
                 <div className="col-span-2 lg:col-span-1 min-w-0">
-                  {estChefStock ? <button type="button" onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
+                  {estChefStock ? <button type="button" data-poignee={peutGlisser ? "nom" : undefined} onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{peutGlisser && <span data-poignee="grip" style={{ touchAction: "none" }} className="inline-block mr-1.5 text-[var(--steel)] cursor-grab select-none" title="Maintenir pour déplacer" aria-hidden="true">⠿</span>}{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
                   {estChefStock && setGroupesStock && (
                     <select aria-label={`Groupe de ${s.nom}`} className="text-[11px] text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none max-w-full" value={catS} onChange={(e) => deplacerProduit(s, e.target.value)}>
@@ -25690,7 +25906,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {(tab === "controle" || (tab === "parametrage" && peutParametrage) || (tab === "historique" && peutHistorique)) && !bloqueChef && (
-          <Controle key={tab} slotMenuParam={tab === "parametrage" ? slotParam : null} onQuitterParam={() => setTab("accueil")} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setPlanningParam(cible === "@reservations" ? "reservations" : "horaires"); } : undefined} planningParam={tab === "parametrage" ? planningParam : null} fermerPlanningParam={() => setPlanningParam(null)} ecranPlanningParam={tab === "parametrage" && planningParam === "horaires" ? <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} /> : (tab === "parametrage" && planningParam === "reservations" ? <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" /> : null)} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle key={tab} slotMenuParam={tab === "parametrage" ? slotParam : null} onQuitterParam={() => setTab("accueil")} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setPlanningParam((cible === "@reservations" || cible === "reservations") ? "reservations" : "horaires"); } : undefined} planningParam={tab === "parametrage" ? planningParam : null} fermerPlanningParam={() => setPlanningParam(null)} ecranPlanningParam={tab === "parametrage" && planningParam === "horaires" ? <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} /> : (tab === "parametrage" && planningParam === "reservations" ? <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" /> : null)} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} />

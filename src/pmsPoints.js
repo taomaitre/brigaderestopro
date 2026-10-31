@@ -63,7 +63,7 @@ export const PMS_POINTS = [
   { id: "b-huiles", cat: "B", mod: "4.4", titre: "Huiles usagées",
     aide: "Les huiles de friture usagées (HCU) ne vont ni aux ordures ménagères, ni dans les canalisations ou le bac à graisse, ni dans l'environnement (art. R.1331-2 du Code de la santé publique). Elles sont enlevées par une entreprise mandatée en vue de leur valorisation (biocarburant). Gardez le contrat et le bordereau d'enlèvement : l'inspecteur demande quoi, qui, quand, comment, et l'autorisation du collecteur. L'établissement de destination doit être approuvé par la DDecPP.", base: VMS_RD + ", ligne E2L02", auto: "presta:huiles_usagees" },
   { id: "b-labo", cat: "B", mod: "4.4", titre: "Laboratoire d'analyses",
-    aide: "Aucun texte lu ne fixe de fréquence d'analyses pour un restaurant.", base: "Règlement (CE) 2073/2005 (critères microbiologiques)", auto: "presta:laboratoire" },
+    aide: "Aucun texte lu ne fixe de fréquence d'analyses pour un restaurant. Si vous n'avez pas de laboratoire, choisissez « tests d'autocontrôle » dans Contrôles de surfaces : le chef enregistre ses tests (plans de travail, ustensiles).", base: "Règlement (CE) 2073/2005, art. 4 et 5 (critères microbiologiques)", auto: "presta:laboratoire" },
   { id: "b-eau", cat: "B", mod: "4.5", titre: "Approvisionnement en eau",
     aide: "L'alimentation en eau potable doit être en quantité suffisante pour éviter la contamination des denrées.", base: "Règlement (CE) 852/2004, annexe II, chap. VII", auto: "eau" },
   { id: "b-eau-circuit", cat: "B", mod: "4.5", titre: "Eau non potable : circuit séparé",
@@ -103,7 +103,7 @@ export const PMS_POINTS = [
   { id: "d-verification", cat: "D", mod: "5.2", titre: "Vérification périodique de l'efficacité des mesures",
     aide: "Procédures « exécutées périodiquement pour vérifier l'efficacité des mesures ». Le texte ne fixe aucune périodicité chiffrée ni revue annuelle.", base: "Règlement (CE) 852/2004, art. 5(2)(f)", },
   { id: "d-labo", cat: "D", mod: "5.3", titre: "Analyses de laboratoire",
-    aide: "Aucun texte lu ne fixe de fréquence pour un restaurant.", base: "Règlement (CE) 2073/2005", auto: "analyses" },
+    aide: "Règlement 2073/2005, art. 4 : les exploitants procèdent à des essais « lorsqu'ils valident ou vérifient le bon fonctionnement de leurs procédures fondées sur les principes HACCP ou sur les bonnes pratiques d'hygiène » et « décident des fréquences d'échantillonnage appropriées à appliquer ». Preuve : rapports de laboratoire, ou tests d'autocontrôle enregistrés (Contrôles de surfaces). Au contrôle officiel, l'absence de vérification ou d'action corrective après un mauvais résultat est notée C.", base: "Règlement (CE) 2073/2005, art. 4 et 5 ; vade-mecum général V7", auto: "analyses" },
 
   // ---------- E — Traçabilité, allergènes, TIAC, rappels (module 6) ----------
   { id: "e-interne", cat: "E", mod: "6.1", titre: "Traçabilité interne",
