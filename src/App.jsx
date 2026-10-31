@@ -2211,7 +2211,7 @@ function PmsJournal({ pms, onBack }) {
           return (
             <div key={c.id} className="py-2 border-b border-[var(--cadre)] text-sm min-w-0">
               <div className="font-semibold text-[var(--ink)] break-words">{horo(c.date_heure)} — {c.action === "suppression" ? "Suppression" : "Correction"} · {LIBELLES_TABLES_JOURNAL[c.table_concernee] || c.table_concernee}{resumeJournal(ref) ? ` · ${resumeJournal(ref)}` : ""}</div>
-              {c.action === "suppression" && <div className="text-xs text-[var(--steel)] break-words">Enregistrement supprimé : {changementsJournal(ref, ref).slice(0, 8).filter((x) => x.avant !== "—").map((x) => `${x.label} ${x.avant}`).join(" · ")}</div>}
+              {c.action === "suppression" && <div className="text-xs text-[var(--steel)] break-words">Enregistrement supprimé : {Object.keys(ref).filter((k) => !CHAMPS_IGNORES_JOURNAL.has(k) && ref[k] !== null && ref[k] !== "").slice(0, 8).map((k) => `${LIBELLES_CHAMPS_JOURNAL[k] || k.replace(/_/g, " ")} ${valeurJournal(ref[k])}`).join(" · ")}</div>}
               {diff.map((d) => <div key={d.cle} className="text-xs text-[var(--ink)] break-words">{d.label} : <span className="text-[var(--steel)]">{d.avant}</span> → <b>{d.apres}</b></div>)}
             </div>
           );
