@@ -843,6 +843,8 @@ export default function ConnexionReelle() {
       // Mode de vérification de l'hygiène (laboratoire ou autocontrôle) : requête à part (colonne absente = non choisi, rien ne casse).
       const rmv = await supabasePublic.from("etablissements").select("mode_verification_hygiene").eq("id", session.etablissement.id).maybeSingle();
       if (!rmv.error && rmv.data) setReglagesEtab((r) => (r ? { ...r, modeVerifHygiene: rmv.data.mode_verification_hygiene || "" } : r));
+      const rcv = await supabasePublic.from("etablissements").select("chef_choisit_verification_hygiene").eq("id", session.etablissement.id).maybeSingle();
+      if (!rcv.error && rcv.data) setReglagesEtab((r) => (r ? { ...r, chefChoisitVerif: !!rcv.data.chef_choisit_verification_hygiene } : r));
     } catch (e) { console.error("Réglages de l'établissement non chargés :", e); }
   }
   // Enregistre les groupes du stock de l'établissement (liste ordonnée {id, nom, fond, texte} ; null = groupes de départ).
@@ -1017,6 +1019,13 @@ export default function ConnexionReelle() {
     const { error } = await supabasePublic.from("controles_surfaces").delete().eq("id", id);
     if (error) { console.error("Contrôle de surface non supprimé :", error); return false; }
     await chargerPms();
+    return true;
+  }
+  // La direction autorise (ou non) le chef à choisir lui-même le mode de vérification de l'hygiène.
+  async function enregistrerChefChoisitVerif(valeur) {
+    setReglagesEtab((r) => (r ? { ...r, chefChoisitVerif: !!valeur } : r));
+    const { error } = await supabasePublic.from("etablissements").update({ chef_choisit_verification_hygiene: !!valeur }).eq("id", session.etablissement.id);
+    if (error) { console.error("Autorisation du chef non enregistrée :", error); chargerReglagesEtab(); return false; }
     return true;
   }
   // Mode de vérification de l'hygiène choisi par la direction : « laboratoire » ou « autocontrole » (tests faits par le chef).
@@ -1604,7 +1613,7 @@ export default function ConnexionReelle() {
         chargerEquipe(session.token, codeSaisi);
         return { ok: true, nom: data.employe.nom };
       },
-      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, enregistrerModeVerif, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
+      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, enregistrerModeVerif, enregistrerChefChoisitVerif, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
         suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
         pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, ajouterPassage, supprimerPassage, ajouterControleSurface, supprimerControleSurface, chargerJournal, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
