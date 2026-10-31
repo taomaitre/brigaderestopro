@@ -93,23 +93,23 @@ export const LEXIQUE = [
   "id": "ddpp-rappelconso-34",
   "section": "1 · Les bases : HACCP, PMS, qui contrôle",
   "titre": "La DDPP et RappelConso",
-  "certitude": "a-confirmer",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "INC-Conso : « Placées sous l'autorité des préfets de département, les directions départementales de la protection des populations assument les missions de protection du consommateur dans le cadre du Code de la consommation ». RappelConso : page officielle non lue (accès refusé le 31/10/2026), donc aucune description affichée."
+    "texte": "DDPP (INC-Conso) : « Placées sous l'autorité des préfets de département, les directions départementales de la protection des populations assument les missions de protection du consommateur dans le cadre du Code de la consommation ». RappelConso (service-public.gouv.fr) : « Mis en place par la Direction générale de la concurrence, de la consommation et de la répression des fraudes (DGCCRF) » ; « RappelConso est un site public, accessible à tous, qui recense les rappels de produits » ; « vous pouvez rechercher un produit par catégorie »."
    },
    {
     "label": "Texte",
-    "texte": "INC-Conso, fiche DDPP (28/04/2023)."
+    "texte": "INC-Conso, fiche DDPP (28/04/2023) ; service-public.gouv.fr, « Alertes produits »."
    },
    {
     "label": "Lien",
-    "texte": "https://www.inc-conso.fr/content/direction-departementale-de-la-protection-des-populations"
+    "texte": "https://www.inc-conso.fr/content/direction-departementale-de-la-protection-des-populations ; https://www.service-public.gouv.fr/particuliers/actualites/A18561?lang=fr ; site : https://rappel.conso.gouv.fr/"
    },
    {
     "label": "Certitude",
-    "texte": "◐ DDPP lu le 31/10/2026 ; RappelConso à sourcer (https://rappel.conso.gouv.fr/)."
+    "texte": "✔ DDPP et RappelConso lus le 31/10/2026."
    }
   ],
   "motsCles": ""

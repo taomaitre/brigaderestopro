@@ -269,11 +269,11 @@ Journal officiel avis du 15/06/2015 (NOR ECOC0500094V) : lien à retrouver.
 **Citation courte** : « des procédures permanentes fondées sur les principes HACCP ».
 **Certitude** : ✔ texte consolidé du 24/03/2021 lu le 20/10/2026 ; version plus récente non vérifiée.
 
-### DDPP, RappelConso ◐
-**En bref** : INC-Conso : « Placées sous l'autorité des préfets de département, les directions départementales de la protection des populations assument les missions de protection du consommateur dans le cadre du Code de la consommation ». RappelConso : page officielle non lue (accès refusé le 31/10/2026), donc aucune description affichée.
-**Texte** : INC-Conso, fiche DDPP (28/04/2023).
-**Lien** : https://www.inc-conso.fr/content/direction-departementale-de-la-protection-des-populations
-**Certitude** : ◐ DDPP lu le 31/10/2026 ; RappelConso à sourcer (https://rappel.conso.gouv.fr/).
+### DDPP, RappelConso ✔
+**En bref** : DDPP (INC-Conso) : « Placées sous l'autorité des préfets de département, les directions départementales de la protection des populations assument les missions de protection du consommateur dans le cadre du Code de la consommation ». RappelConso (service-public.gouv.fr) : « Mis en place par la Direction générale de la concurrence, de la consommation et de la répression des fraudes (DGCCRF) » ; « RappelConso est un site public, accessible à tous, qui recense les rappels de produits » ; « vous pouvez rechercher un produit par catégorie ».
+**Texte** : INC-Conso, fiche DDPP (28/04/2023) ; service-public.gouv.fr, « Alertes produits ».
+**Lien** : https://www.inc-conso.fr/content/direction-departementale-de-la-protection-des-populations ; https://www.service-public.gouv.fr/particuliers/actualites/A18561?lang=fr ; site : https://rappel.conso.gouv.fr/
+**Certitude** : ✔ DDPP et RappelConso lus le 31/10/2026.
 
 ## 8. Critères microbiologiques (règlement (CE) n° 2073/2005) : version en vigueur au 01/07/2026
 
