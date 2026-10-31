@@ -4,11 +4,18 @@
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <meta name="color-scheme" content="light" />
-<!-- Empêche les moteurs de recherche d'indexer/lister cette page (outil interne, pas le site
-     vitrine public) : elle reste joignable pour qui a le lien, mais n'apparaît pas dans une
-     recherche et n'est pas suivie/indexée si un lien y mène depuis une autre page. -->
-<meta name="robots" content="noindex, nofollow" />
-<title>BrigadeRestoPro</title>
+<!-- Référencement : l'écran de connexion de app.brigaderestopro.fr doit être trouvable sur les moteurs de recherche.
+     Les données restent protégées par la connexion. La copie d'essai test.brigaderestopro.fr reste non indexée
+     (en-tête X-Robots-Tag dans son .htaccess). -->
+<title>BrigadeRestoPro – Connexion</title>
+<meta name="description" content="BrigadeRestoPro : logiciel de gestion de cuisine et d'hygiène HACCP pour restaurants. Températures, traçabilité, réception des marchandises, étiquettes, plan de maîtrise sanitaire (PMS). Connectez-vous à votre espace." />
+<link rel="canonical" href="https://app.brigaderestopro.fr/" />
+<meta property="og:type" content="website" />
+<meta property="og:site_name" content="BrigadeRestoPro" />
+<meta property="og:title" content="BrigadeRestoPro – Gestion de cuisine et HACCP" />
+<meta property="og:description" content="Températures, traçabilité, réception, étiquettes et PMS pour votre restaurant." />
+<meta property="og:url" content="https://app.brigaderestopro.fr/" />
+<meta property="og:image" content="https://app.brigaderestopro.fr/icon-512.png" />
 
 <!-- PWA : permet d'installer l'appli sur l'écran d'accueil de la tablette -->
 <link rel="manifest" href="manifest.json" />
@@ -166,6 +173,7 @@
 </style>
 </head>
 <body>
+<noscript><h1>BrigadeRestoPro – gestion de cuisine et HACCP</h1><p>BrigadeRestoPro aide les restaurants à tenir leurs enregistrements d'hygiène : relevés de température, traçabilité des produits, réception des marchandises, étiquettes de date limite, plan de maîtrise sanitaire (PMS). Activez JavaScript pour vous connecter à votre espace.</p></noscript>
 
 
 
