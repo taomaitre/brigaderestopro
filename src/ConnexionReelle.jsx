@@ -3,6 +3,7 @@ import { createClient } from '@supabase/supabase-js';
 import KitchenApp from './App.jsx';
 import { QRCode, NIVEAU_CORRECTION_M } from './qrVendor.js';
 import { POSTES, STATUTS_EQUIPE, estChefOuDirecteur } from './listesEquipe.js';
+import { reglesMotDePasse, motDePasseValide, forceMotDePasse, LIBELLES_FORCE } from './motDePasse.js';
 import { FICHE_ETAB_CHAMPS, FREQUENCES_RAPPEL, ajouterMois, categorieDocumentPassage } from './ficheEtablissement.js';
 
 /* =========================================================================================
@@ -29,15 +30,19 @@ const URL_FONCTION_EMPLOYES = `${URL_PROJET}/functions/v1/code-employe`;
 const URL_FONCTION_IA = `${URL_PROJET}/functions/v1/ia-gemini`;
 const URL_FONCTION_INVITATION = `${URL_PROJET}/functions/v1/invitation-appareil`;
 
+// Arrivée par un lien reçu par e-mail (lu AVANT la création du client, qui efface l'adresse après lecture) :
+// « recovery » = choix du mot de passe (e-mail n°2 / mot de passe oublié) ; « signup » ou « invite » = adresse validée (e-mail n°1).
+const HASH_ARRIVEE = (() => { try { return String(window.location.hash || ""); } catch (e) { return ""; } })();
+const ARRIVEE_CHOIX_MDP = /type=recovery/.test(HASH_ARRIVEE);
+const ARRIVEE_VALIDATION = /type=(signup|invite|email_change)/.test(HASH_ARRIVEE);
+const ARRIVEE_LIEN_EXPIRE = /error_code=|error=access_denied/.test(HASH_ARRIVEE);
+
 const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
 
-// Une adresse = un établissement (décision du 24/10). Chaque client a son sous-domaine ; un compte d'un autre
-// établissement n'ouvre jamais le logiciel d'une autre adresse (isolement). Autres adresses (ordinateur de Loïc,
-// adresse principale, futurs clients non encore listés) : aucune restriction.
-const ETABLISSEMENT_PAR_ADRESSE = {
-  "macuisine.brigaderestopro.fr": "c1b9b852-a333-433b-8cff-14ffdcff3c1f",
-  "demo.brigaderestopro.fr": "02073db5-5cff-46ee-8d35-eade94601f94",
-};
+// Une seule adresse pour tous les clients : app.brigaderestopro.fr (décision du 29/10). Le logiciel n'associe plus
+// une adresse à un établissement : c'est le compte qui décide, et la base de données cloisonne les établissements
+// (un compte n'ouvre jamais les données d'un autre). Les anciennes adresses macuisine. et demo. sont redirigées vers app.
+const ETABLISSEMENT_PAR_ADRESSE = {};
 const ETABLISSEMENT_DE_CETTE_ADRESSE = (() => {
   try { return ETABLISSEMENT_PAR_ADRESSE[String(window.location.hostname || "").toLowerCase()] || null; } catch (e) { return null; }
 })();
@@ -338,8 +343,13 @@ function effacerSessionEmploye() {
 }
 
 export default function ConnexionReelle() {
-  const [etape, setEtape] = useState("etablissement"); // "etablissement" | "code" | "connecte"
-  const [email, setEmail] = useState("demo@brigaderestopro.fr");
+  const [etape, setEtape] = useState(ARRIVEE_CHOIX_MDP && !ARRIVEE_LIEN_EXPIRE ? "nouveauMdp" : "etablissement"); // "etablissement" | "nouveauMdp" | "code" | "connecte"
+  const [vue, setVue] = useState("connexion"); // écran de connexion : "connexion" | "demande" | "envoyee"
+  const [infoConnexion, setInfoConnexion] = useState(ARRIVEE_LIEN_EXPIRE ? "Ce lien n'est plus valable (il a expiré ou a déjà été utilisé). Demandez-en un nouveau avec « Première connexion » ou « Mot de passe oublié »." : "");
+  const [nouveauMdpSaisi, setNouveauMdpSaisi] = useState("");
+  const [nouveauMdpConfirm, setNouveauMdpConfirm] = useState("");
+  const [voirNouveauMdp, setVoirNouveauMdp] = useState(false);
+  const [email, setEmail] = useState("");
   const [motDePasse, setMotDePasse] = useState("");
   const [enCours, setEnCours] = useState(false);
   const [erreur, setErreur] = useState("");
@@ -1312,6 +1322,36 @@ export default function ConnexionReelle() {
     }
   }
 
+  // « Première connexion » et « Mot de passe oublié » : même mécanisme, même réponse dans tous les cas.
+  async function demanderLienMotDePasse(e) {
+    e.preventDefault();
+    const adresse = email.trim();
+    if (!adresse) return;
+    setEnCours(true); setErreur("");
+    try {
+      await supabasePublic.auth.resetPasswordForEmail(adresse, { redirectTo: `${window.location.origin}/` });
+    } catch (e2) { /* même réponse : on ne révèle pas si l'adresse existe */ }
+    setEnCours(false); setVue("envoyee");
+  }
+  async function enregistrerNouveauMdp(e) {
+    e.preventDefault();
+    if (!motDePasseValide(nouveauMdpSaisi)) { setErreur("Le mot de passe ne respecte pas toutes les règles."); return; }
+    if (nouveauMdpSaisi !== nouveauMdpConfirm) { setErreur("Les deux saisies ne sont pas identiques."); return; }
+    setEnCours(true); setErreur("");
+    try {
+      const { error } = await supabasePublic.auth.updateUser({ password: nouveauMdpSaisi });
+      if (error) throw error;
+      try { await supabasePublic.auth.signOut(); } catch (e3) { /* pas grave */ }
+      try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch (e3) { /* ignore */ }
+      setNouveauMdpSaisi(""); setNouveauMdpConfirm(""); setMotDePasse("");
+      setInfoConnexion("Votre mot de passe est enregistré. Connectez-vous avec votre e-mail et ce mot de passe (votre navigateur peut vous proposer de l'enregistrer).");
+      setVue("connexion"); setEtape("etablissement");
+    } catch (e2) {
+      const m = String((e2 && e2.message) || "");
+      setErreur(/same|different from the old/i.test(m) ? "Choisissez un mot de passe différent de l'ancien." : /weak|password/i.test(m) ? "Ce mot de passe est refusé par le serveur (trop faible ou trop courant). Choisissez-en un autre." : "Impossible d'enregistrer : " + m + " Si le lien a expiré, redemandez-en un.");
+    } finally { setEnCours(false); }
+  }
+
   async function validerCode(e) {
     e.preventDefault();
     if (code.length !== 4) return;
@@ -1395,6 +1435,15 @@ export default function ConnexionReelle() {
     let annule = false;
     (async () => {
       try {
+        if (ARRIVEE_CHOIX_MDP && !ARRIVEE_LIEN_EXPIRE) return; // le lien reçu par e-mail ouvre le choix du mot de passe, pas le logiciel
+        if (ARRIVEE_VALIDATION) {
+          // Adresse e-mail validée : pas d'entrée automatique. La personne passe par « Première connexion » (e-mail n°2).
+          await supabasePublic.auth.getSession();
+          try { await supabasePublic.auth.signOut(); } catch (e3) { /* pas grave */ }
+          try { window.history.replaceState(null, "", window.location.pathname + window.location.search); } catch (e3) { /* ignore */ }
+          if (!annule) setInfoConnexion("Votre adresse e-mail est validée. Cliquez maintenant sur « Première connexion » pour choisir votre mot de passe.");
+          return;
+        }
         const { data } = await supabasePublic.auth.getSession();
         const s = data && data.session;
         const meta = (s && s.user && s.user.user_metadata) || {};
@@ -1724,6 +1773,44 @@ export default function ConnexionReelle() {
     );
   }
 
+  if (etape === "nouveauMdp") {
+    const regles = reglesMotDePasse(nouveauMdpSaisi);
+    const force = forceMotDePasse(nouveauMdpSaisi);
+    const couleurs = ["#D9D6D2", "#C1432D", "#D4A017", "#5C9E3F", "#1F8F5F"];
+    return (
+      <EcranConnexion>
+        <MarqueConnexion />
+        <CarteConnexion titre="Choisissez votre mot de passe" sousTitre="Il protège les données de votre établissement. Choisissez-le long et personnel.">
+          <form onSubmit={enregistrerNouveauMdp}>
+            <ChampConnexion icone="lock" droite={
+              <button type="button" onClick={() => setVoirNouveauMdp(!voirNouveauMdp)} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--steel)]" title={voirNouveauMdp ? "Masquer" : "Afficher"}>
+                <Ico d={voirNouveauMdp ? ICO.eye : ICO.eyeOff} size={20} />
+              </button>}>
+              <input className={`${champConnexion} pr-12`} type={voirNouveauMdp ? "text" : "password"} placeholder="Nouveau mot de passe" autoComplete="new-password" value={nouveauMdpSaisi} onChange={(e) => { setNouveauMdpSaisi(e.target.value); setErreur(""); }} required />
+            </ChampConnexion>
+            <div className="flex gap-1 mb-1" aria-hidden="true">
+              {[1, 2, 3, 4].map((n) => <div key={n} className="h-1.5 flex-1 rounded-full" style={{ backgroundColor: force >= n ? couleurs[force] : "#D9D6D2" }} />)}
+            </div>
+            <p className="text-xs text-[var(--steel)] mb-2 min-h-[1rem]">{nouveauMdpSaisi ? `Force : ${LIBELLES_FORCE[force]}` : ""}</p>
+            <ul className="text-sm mb-3 space-y-0.5">
+              {regles.map((r) => <li key={r.id} className="break-words" style={{ color: r.ok ? "#1F8F5F" : "var(--steel)" }}>{r.ok ? "✓" : "○"} {r.texte}</li>)}
+            </ul>
+            <ChampConnexion icone="lock">
+              <input className={champConnexion} type={voirNouveauMdp ? "text" : "password"} placeholder="Saisissez-le une seconde fois" autoComplete="new-password" value={nouveauMdpConfirm} onChange={(e) => { setNouveauMdpConfirm(e.target.value); setErreur(""); }} required />
+            </ChampConnexion>
+            {nouveauMdpConfirm && nouveauMdpSaisi !== nouveauMdpConfirm && <p className="text-sm mb-2" style={{ color: "var(--warn)" }}>Les deux saisies ne sont pas identiques.</p>}
+            {erreur && <p className="text-sm mb-3 break-words" style={{ color: "var(--warn)" }}>{erreur}</p>}
+            <button type="submit" disabled={enCours || !motDePasseValide(nouveauMdpSaisi) || nouveauMdpSaisi !== nouveauMdpConfirm} className={`${boutonConnexion} mt-2`} style={{ backgroundColor: "var(--theme)", opacity: enCours || !motDePasseValide(nouveauMdpSaisi) || nouveauMdpSaisi !== nouveauMdpConfirm ? 0.5 : 1 }}>
+              Enregistrer mon mot de passe
+            </button>
+          </form>
+        </CarteConnexion>
+        <BandeauFonctions />
+        <VersionConnexion />
+      </EcranConnexion>
+    );
+  }
+
   if (etape === "code") {
     return (
       <EcranConnexion>
@@ -1799,6 +1886,25 @@ export default function ConnexionReelle() {
       <MarqueConnexion />
       <CarteConnexion titre="Bienvenue" sousTitre="Connectez-vous à BrigadeRestoPro, votre solution de gestion de cuisine et HACCP">
         {arriveeParLien && enCours && <p className="text-sm text-[var(--steel)] mb-3 text-center">Ouverture de votre invitation…</p>}
+        {infoConnexion && <p className="text-sm mb-3 rounded-lg p-3 break-words" style={{ backgroundColor: "#E7F3EC", color: "#146B45" }}>{infoConnexion}</p>}
+        {vue === "demande" && (
+          <form onSubmit={demanderLienMotDePasse}>
+            <p className="text-sm text-[var(--ink)] mb-3">Saisissez l'adresse e-mail de votre établissement. Vous recevrez un e-mail avec un lien pour choisir votre mot de passe.</p>
+            <ChampConnexion icone="user">
+              <input className={champConnexion} type="email" placeholder="E-mail de l'établissement" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
+            </ChampConnexion>
+            <button type="submit" disabled={enCours} className={`${boutonConnexion} mt-2`} style={{ backgroundColor: "var(--theme)", opacity: enCours ? 0.6 : 1 }}>{enCours ? "Envoi…" : "Recevoir le lien par e-mail"}</button>
+            <button type="button" onClick={() => setVue("connexion")} className="block mx-auto text-sm text-[var(--steel)] mt-4 underline">← Retour à la connexion</button>
+          </form>
+        )}
+        {vue === "envoyee" && (
+          <div>
+            <p className="text-sm text-[var(--ink)] mb-3 break-words">Si cette adresse correspond à un compte dont l'e-mail est validé, un message vient d'être envoyé. Ouvrez-le et cliquez sur le lien (valable 24 heures). Pensez à regarder dans les courriers indésirables.</p>
+            <p className="text-xs text-[var(--steel)] mb-3 break-words">Si vous n'avez rien reçu, vérifiez d'abord que vous avez bien validé votre adresse avec le premier e-mail reçu à la création de votre compte.</p>
+            <button type="button" onClick={() => setVue("connexion")} className={boutonConnexion} style={{ backgroundColor: "var(--theme)" }}>Retour à la connexion</button>
+          </div>
+        )}
+        {vue === "connexion" && (<>
         <form onSubmit={seConnecterEtablissement}>
           <ChampConnexion icone="user">
             <input className={champConnexion} type="email" placeholder="E-mail de l'établissement" autoComplete="username" value={email} onChange={(e) => setEmail(e.target.value)} required />
@@ -1814,6 +1920,11 @@ export default function ConnexionReelle() {
             <Ico d={ICO.login} size={20} /> Se connecter
           </button>
         </form>
+        <div className="flex flex-wrap justify-between gap-x-4 gap-y-2 mt-4 text-sm">
+          <button type="button" onClick={() => { setInfoConnexion(""); setErreur(""); setVue("demande"); }} className="underline font-semibold" style={{ color: "var(--theme)" }}>Première connexion</button>
+          <button type="button" onClick={() => { setInfoConnexion(""); setErreur(""); setVue("demande"); }} className="underline text-[var(--steel)]">Mot de passe oublié ?</button>
+        </div>
+        </>)}
       </CarteConnexion>
       <BandeauFonctions />
       <VersionConnexion />

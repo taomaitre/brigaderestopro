@@ -1,0 +1,9 @@
+-- Changer le mot de passe du compte Démo (à faire dans Supabase > SQL Editor).
+-- 1) Remplacez NOUVEAU_MOT_DE_PASSE par le mot de passe choisi (12 caractères minimum, majuscule, minuscule, chiffre, symbole).
+-- 2) Ne jamais enregistrer ce mot de passe dans un document ou un message : après l'exécution, effacez la requête.
+-- 3) Remplacez l'adresse e-mail si le compte Démo en utilise une autre.
+update auth.users
+set encrypted_password = extensions.crypt('NOUVEAU_MOT_DE_PASSE', extensions.gen_salt('bf')),
+    updated_at = now()
+where email = 'demo@brigaderestopro.fr';
+-- Résultat attendu : « Success. 1 row affected » (0 ligne = adresse e-mail non trouvée).

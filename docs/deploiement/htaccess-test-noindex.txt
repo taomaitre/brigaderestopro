@@ -1,0 +1,4 @@
+# À mettre dans le fichier .htaccess du dossier de test.brigaderestopro.fr (copie d'essai de Loïc, non indexée)
+<IfModule mod_headers.c>
+  Header set X-Robots-Tag "noindex, nofollow"
+</IfModule>

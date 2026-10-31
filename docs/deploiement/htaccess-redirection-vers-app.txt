@@ -1,0 +1,4 @@
+# À mettre dans le .htaccess des dossiers de macuisine.brigaderestopro.fr et demo.brigaderestopro.fr
+# (redirection permanente vers l'adresse unique ; les anciens liens continuent de marcher)
+RewriteEngine On
+RewriteRule ^(.*)$ https://app.brigaderestopro.fr/$1 [R=301,L]
