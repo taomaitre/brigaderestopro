@@ -1,6 +1,6 @@
 // FICHIER GÉNÉRÉ par scripts/genererLexique.mjs à partir de docs/lexique-haccp.md : ne pas modifier à la main.
 // Chaque entrée porte sa source, son lien et son niveau de certitude (verifie / a-confirmer / mixte).
-export const LEXIQUE_DATE = "2026-10-26";
+export const LEXIQUE_DATE = "2026-10-31";
 export const LEXIQUE_GROUPES = [
  {
   "nom": "1 · Les bases : HACCP, PMS, qui contrôle",
@@ -97,7 +97,19 @@ export const LEXIQUE = [
   "champs": [
    {
     "label": "En bref",
-    "texte": "DDPP = direction départementale de la protection des populations (contrôles). RappelConso = site officiel des rappels. Liens à ajouter."
+    "texte": "INC-Conso : « Placées sous l'autorité des préfets de département, les directions départementales de la protection des populations assument les missions de protection du consommateur dans le cadre du Code de la consommation ». RappelConso : page officielle non lue (accès refusé le 31/10/2026), donc aucune description affichée."
+   },
+   {
+    "label": "Texte",
+    "texte": "INC-Conso, fiche DDPP (28/04/2023)."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://www.inc-conso.fr/content/direction-departementale-de-la-protection-des-populations"
+   },
+   {
+    "label": "Certitude",
+    "texte": "◐ DDPP lu le 31/10/2026 ; RappelConso à sourcer (https://rappel.conso.gouv.fr/)."
    }
   ],
   "motsCles": ""
@@ -252,18 +264,26 @@ export const LEXIQUE = [
   "id": "zone-de-danger-17",
   "section": "2 · Le froid et le chaud pendant le service",
   "titre": "La zone de danger",
-  "certitude": "a-confirmer",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "plage où les bactéries se multiplient vite. Repère français : de +10 °C à +63 °C (arrêté, refroidissement et remise en température ✔). Le guide cite aussi les plats cuisinés conservés au-dessus de 63 °C ou en dessous de 3 °C (fiche Clostridium perfringens, p.180)."
+    "texte": "deux textes officiels, deux repères, affichés chacun avec sa source. Arrêté du 21/12/2009 (refroidissement) : « leur température à cœur ne demeure pas à des valeurs comprises entre + 63° C et + 10° C pendant plus de deux heures ». ANSES (fiche Staphylococcus aureus) : « zone de température dangereuse (de + 10 °C à + 45 °C) »."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009 ; ANSES, fiche « Caractéristiques et sources de Staphylococcus aureus et entérotoxines staphylococciques », septembre 2011."
    },
    {
     "label": "Lien",
-    "texte": "arrêté, guide (registre)."
+    "texte": "https://davar.gouv.nc/sites/default/files/atoms/files/anses_-_fiche_sur_staphylococcus_aureus.pdf"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ citation ANSES lue le 31/10/2026 ; citation de l'arrêté lue le 20/10/2026."
    }
   ],
-  "motsCles": "cellule abattage 63 10 deux heures 2h réchauffage reheat 63 75 une heure 1h température conservation frigo congélateur annexe i"
+  "motsCles": "cellule abattage 63 10 deux heures 2h température conservation frigo congélateur annexe i"
  },
  {
   "id": "temperature-a-c-ur-18",
@@ -273,10 +293,14 @@ export const LEXIQUE = [
   "champs": [
    {
     "label": "En bref",
-    "texte": "température au centre de l'aliment, à l'endroit le plus froid. Une sonde bien placée est le seul moyen fiable."
+    "texte": "je n'ai pas trouvé de définition officielle de ce terme dans les textes lus. Emploi par l'ANSES (fiche E. coli STEC, juillet 2024) : « recommande une cuisson avec une température à cœur de 65 °C » ; « bien cuire à cœur (70 °C) les viandes hachées et les produits à base de viande hachée ». Aucune définition n'est donc affichée tant qu'elle n'est pas sourcée."
+   },
+   {
+    "label": "Certitude",
+    "texte": "◐ définition à sourcer (31/10/2026)."
    }
   ],
-  "motsCles": "température conservation frigo congélateur annexe i"
+  "motsCles": "steak haché boeuf 71 steak"
  },
  {
   "id": "baremes-cuisson-guide-p180",
@@ -328,19 +352,31 @@ export const LEXIQUE = [
   "id": "valeur-d-valeur-z-reduction-logarithmique-19",
   "section": "3 · La cuisson",
   "titre": "Valeur D, valeur z (pour comprendre les barèmes)",
-  "certitude": "a-confirmer",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "D = temps pour diviser par 10 les bactéries à une température. z = élévation de température qui divise D par 10. 6 log = 1 survivante sur 1 million, niveau jugé assainissant par l'ANSES. La température seule ne suffit pas : il faut le temps de maintien (« couples temps / température » du guide)."
+    "texte": "définitions mot pour mot de l'ANSES. Valeur D : « D est le temps (en minutes) de réduction décimale, c'est-à-dire le temps nécessaire à une température donnée pour détruire 10% de la population bactérienne ». Valeur z : « z (en °C) est la variation de température qui entraine une variation de D d'un facteur 10 ». Réduction en log10 : « Cette réduction bactérienne dénommée critère de performance, est exprimée en log10 » ; « Par exemple, une réduction de 2 log10 correspond à 100 fois moins de bactéries. »"
+   },
+   {
+    "label": "Citation",
+    "texte": "« On peut considérer que la cuisson est assainissante si le critère de performance est supérieur ou égal à 6 log10 »."
+   },
+   {
+    "label": "Exemples de couples temps / température (même fiche)",
+    "texte": "volaille « 63° - 1 min » ; saumon « 61°C – 1 min ». Les durées de maintien du guide Restaurateur sont dans la fiche « Barèmes de cuisson du guide Restaurateur » (section 3)."
    },
    {
     "label": "Texte",
-    "texte": "ANSES, fiche cuisson basse température."
+    "texte": "ANSES, fiche « La cuisson basse température », rubrique « Méthodologie de validation du procédé » (fiche sans date visible ; sources citées par l'ANSES : fiches de dangers microbiologiques, ILSI 2012, van Asselt et Zwietering 2006)."
    },
    {
     "label": "Lien",
-    "texte": "registre."
+    "texte": "https://www.anses.fr/fr/system/files/Anses%20-%20fiche%20cuisson%20basse%20temp%C3%A9rature.pdf"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ fiche ouverte et citée le 31/10/2026."
    }
   ],
   "motsCles": ""
@@ -599,15 +635,15 @@ export const LEXIQUE = [
   "id": "ufs-15",
   "section": "5 · Produits particuliers",
   "titre": "Les œufs",
-  "certitude": "mixte",
+  "certitude": "a-confirmer",
   "champs": [
    {
     "label": "En bref",
-    "texte": "l'UE demande un stockage à température de préférence constante, adaptée à la conservation, et une livraison au consommateur sous 21 jours après la ponte (853/2004, annexe III section X) ✔. Préparations liquides d'œufs entiers : 5 min à 60 °C (guide p.180) ✔. Œufs en coquille, pratique française (fiche pédagogique, date inconnue) ◐ : catégorie A, froid positif, 28 jours après la ponte, cuisson supérieure à 70 °C à cœur 5 min."
+    "texte": "l'UE demande un stockage à température de préférence constante, adaptée à la conservation, et une livraison au consommateur sous 21 jours après la ponte (853/2004, annexe III section X) ✔ lu le 20/10/2026. Préparations liquides d'œufs entiers : 5 min à 60 °C (guide p.180) ✔. ANSES (fiche Salmonella, 2021) : « les œufs et les produits à base d'œufs crus » ; à éviter « d'œufs crus ou peu cuits » pour les personnes vulnérables. Le règlement 589/2008 n'est plus en vigueur depuis le 27/11/2023 (EUR-Lex) : le texte qui s'applique maintenant n'a pas été lu, donc aucune durée en jours ni température n'est affichée à sa place."
    },
    {
     "label": "Texte",
-    "texte": "règlement (CE) 853/2004 ; guide p.180 ; fiche PMS 2.10. Règlement 589/2008 non lu."
+    "texte": "règlement (CE) 853/2004 ; guide Restaurateur p.180 ; ANSES fiche Salmonella spp."
    },
    {
     "label": "Lien",
@@ -615,10 +651,10 @@ export const LEXIQUE = [
    },
    {
     "label": "Certitude",
-    "texte": "mixte, voir ci-dessus. 20/10/2026."
+    "texte": "mixte. 853/2004 lu le 20/10/2026 ; ANSES et statut du 589/2008 le 31/10/2026."
    }
   ],
-  "motsCles": "température conservation frigo congélateur annexe i"
+  "motsCles": "salmonelle œuf volaille"
  },
  {
   "id": "histamine-poisson-38",
@@ -662,22 +698,26 @@ export const LEXIQUE = [
   "id": "dlc-et-ddm-32",
   "section": "6 · Dates, allergènes et information du client",
   "titre": "DLC et DDM : la différence",
-  "certitude": "a-confirmer",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "DLC « à consommer jusqu'au » (denrées très périssables ; au-delà, ne pas servir). DDM « à consommer de préférence avant » (qualité, pas danger)."
+    "texte": "Santé.fr (information du ministère de l'Agriculture et de l'Alimentation) : DLC, « À consommer jusqu'au... » ; denrées « impérativement retirées de la vente une fois la date dépassée ». DDM, « À consommer de préférence avant... » ; « Une fois la date passée, la denrée ne présente pas de danger », mais elle peut « avoir perdu tout ou partie de ses qualités : goût, texture... ». Texte de l'article 24 du règlement 1169/2011 : non relu."
    },
    {
     "label": "Texte",
-    "texte": "règlement (UE) 1169/2011."
+    "texte": "Santé.fr, « Comment conserver les aliments ? DLC, DDM, quelle différence ? » (publié 09/10/2024, modifié 06/07/2026) ; règlement (UE) 1169/2011."
    },
    {
     "label": "Lien",
-    "texte": "registre."
+    "texte": "https://www.sante.fr/node/8999023"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ page Santé.fr lue le 31/10/2026 ; règlement non relu."
    }
   ],
-  "motsCles": ""
+  "motsCles": "hygiène 5 octobre 2011 manipulateur"
  },
  {
   "id": "14-allergenes-31",
@@ -830,11 +870,15 @@ export const LEXIQUE = [
   "id": "contamination-croisee-21",
   "section": "7 · Hygiène du personnel, locaux et nettoyage",
   "titre": "La contamination croisée",
-  "certitude": "a-confirmer",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "passage de bactéries d'un cru vers un prêt à consommer, par mains, ustensiles, surfaces, eau."
+    "texte": "voir l'entrée « Contamination croisée, déchets, eau, nuisibles » (section 7) : elle reprend le texte du règlement 852/2004. Aucune définition propre n'est affichée ici faute de texte officiel lu."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ renvoi au texte lu le 20/10/2026."
    }
   ],
   "motsCles": ""
@@ -843,11 +887,23 @@ export const LEXIQUE = [
   "id": "tiac-22",
   "section": "8 · Les germes et les intoxications",
   "titre": "TIAC : intoxication alimentaire collective",
-  "certitude": "a-confirmer",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "au moins 2 cas similaires liés au même aliment. Déclaration à l'ARS ou à la DDPP. Source officielle (Santé publique France) à ajouter."
+    "texte": "Santé publique France : une TIAC « est définie par l'apparition d'au moins 2 cas d'une symptomatologie similaire, en général gastro-intestinale » (la page précise le lien avec une même origine alimentaire). Déclaration : « les TIAC sont à déclaration obligatoire (DO) depuis 1987 ». À qui déclarer : non précisé sur la page lue, donc non indiqué ici."
+   },
+   {
+    "label": "Texte",
+    "texte": "Santé publique France, page « Toxi-infections alimentaires collectives, la maladie »."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://www.santepubliquefrance.fr/toxi-infections-alimentaires-collectives/la-maladie"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 31/10/2026."
    }
   ],
   "motsCles": "intoxication alimentaire déclaration ars ddpp"
@@ -874,25 +930,29 @@ export const LEXIQUE = [
   "motsCles": "échantillon conservation 5 jours 0 3"
  },
  {
-  "id": "salmonella-cuisson-reste-23",
+  "id": "salmonella-fiche-anses-23",
   "section": "8 · Les germes et les intoxications",
   "titre": "Salmonella",
-  "certitude": "mixte",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "surtout volaille, œufs, viandes. 60 °C pendant 5 min = 5 réductions décimales dans les préparations liquides d'œufs entiers (guide, p.181). L'ANSES cite 63 °C pendant 1 min pour la volaille (procédé validé)."
+    "texte": "ANSES (fiche Salmonella spp., mise à jour juin 2021) : « La thermorésistance dépend de la souche et de la matrice alimentaire » ; recommandation : « cuire à cœur (70°C) les aliments et en particulier les viandes de porc et de volailles ». Œufs : la fiche cite « les œufs et les produits à base d'œufs crus » comme cause d'environ 45 % des TIAC liées aux aliments. Barème cité par l'ANSES dans sa fiche cuisson basse température : volaille « 63° - 1 min ». Guide Restaurateur p.181 : 60 °C pendant 5 min pour les préparations liquides d'œufs entiers (lu le 20/10/2026)."
    },
    {
     "label": "Texte",
-    "texte": "guide Restaurateur 2015 p.181 ; ANSES cuisson basse température."
+    "texte": "ANSES, fiche de description de danger biologique Salmonella spp. (juin 2021) ; ANSES, fiche cuisson basse température ; guide Restaurateur 2015 p.181."
    },
    {
     "label": "Lien",
-    "texte": "registre."
+    "texte": "https://www.anses.fr/fr/system/files/BIORISK2016SA0080.pdf?download=1"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ fiche ANSES lue le 31/10/2026."
    }
   ],
-  "motsCles": "salmonelle œuf volaille"
+  "motsCles": "salmonelle œuf volaille intoxication alimentaire déclaration ars ddpp"
  },
  {
   "id": "listeria-monocytogenes-24",
@@ -932,11 +992,23 @@ export const LEXIQUE = [
   "id": "e-coli-stec-26",
   "section": "8 · Les germes et les intoxications",
   "titre": "E. coli STEC",
-  "certitude": "a-confirmer",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "liées au bœuf haché et au lait cru, d'où la cuisson à cœur de la viande hachée (fiche citée p.180). Source ANSES complète à ajouter."
+    "texte": "ANSES (fiche STEC/EHEC, juillet 2024) : « Dans le monde, les principaux aliments mis en cause lors d'épidémies sont la viande hachée de bœuf insuffisamment cuite » ; « Parmi les produits laitiers au lait cru, les fromages à pâte pressée non cuites à affinage court » ; « bien cuire à cœur (70 °C) les viandes hachées et les produits à base de viande hachée »."
+   },
+   {
+    "label": "Texte",
+    "texte": "ANSES, saisine n° 2024-MPEX-0031, fiche de description de danger biologique « E. coli producteurs de shigatoxines (STEC) / EHEC », mise à jour juillet 2024."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://www.anses.fr/sites/default/files/Fiche-EHEC-2024-MPEX-0031.pdf?download=1"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 31/10/2026."
    }
   ],
   "motsCles": "steak haché boeuf 71 steak"
@@ -945,14 +1017,26 @@ export const LEXIQUE = [
   "id": "staphylococcus-aureus-27",
   "section": "8 · Les germes et les intoxications",
   "titre": "Staphylococcus aureus",
-  "certitude": "mixte",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "sa destruction demande plus qu'une pasteurisation (guide p.181). Reste à sourcer (ANSES)."
+    "texte": "ANSES (fiche de septembre 2011) : « les SE sont stables dans les conditions de traitements thermiques généralement appliqués aux aliments » ; « Ce dernier détruira les bactéries mais pas leurs entérotoxines si elles sont présentes » ; « Les principaux aliments incriminés dans les TIAC à entérotoxines staphylococciques sont des plats cuisinés »."
+   },
+   {
+    "label": "Texte",
+    "texte": "ANSES, « Caractéristiques et sources de Staphylococcus aureus et entérotoxines staphylococciques », septembre 2011."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://davar.gouv.nc/sites/default/files/atoms/files/anses_-_fiche_sur_staphylococcus_aureus.pdf"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 31/10/2026."
    }
   ],
-  "motsCles": ""
+  "motsCles": "intoxication alimentaire déclaration ars ddpp"
  },
  {
   "id": "clostridium-perfringens-et-bacillus-cereus-28",
@@ -971,11 +1055,23 @@ export const LEXIQUE = [
   "id": "clostridium-botulinum-29",
   "section": "8 · Les germes et les intoxications",
   "titre": "Clostridium botulinum (botulisme)",
-  "certitude": "a-confirmer",
+  "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "spores du sol, danger des conserves et produits sous vide mal maîtrisés. Aucun chiffre publié."
+    "texte": "ANSES (fiche de janvier 2011) : « Le réservoir de C. botulinum, comme des autres Clostridium est l'environnement: sol, poussière » ; « Les aliments à risque pour le consommateur sont des aliments conservés peu acides » ; toxines : « Détruites après 10 min à 100 °C ou 30 min à 80 °C » ; « Une cuisson par ébullition est insuffisante pour stériliser les denrées alimentaires »."
+   },
+   {
+    "label": "Texte",
+    "texte": "ANSES, « Caractéristiques et sources des Clostridium botulinum et des Clostridium neurotoxinogènes », janvier 2011."
+   },
+   {
+    "label": "Lien",
+    "texte": "https://www.anses.fr/fr/system/files/MIC-Fi-Clostridiumbotu.pdf"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 31/10/2026."
    }
   ],
   "motsCles": ""
@@ -988,15 +1084,19 @@ export const LEXIQUE = [
   "champs": [
    {
     "label": "En bref",
-    "texte": "Clostridium et Bacillus cereus forment des spores que la cuisson ne détruit pas. Un refroidissement rapide empêche leur réveil."
+    "texte": "ANSES, fiche cuisson basse température : « Les formes sporulées de Bacillus cereus, Clostridium botulinum et Clostridium perfringens ne sont jamais détruites par un procédé de cuisson basse température, mais un refroidissement rapide immédiatement consécutif à la cuisson permet d'éviter leur germination. »"
    },
    {
     "label": "Texte",
-    "texte": "ANSES, fiche cuisson basse température."
+    "texte": "ANSES, fiche « La cuisson basse température », rubrique « Analyse des dangers »."
    },
    {
     "label": "Lien",
-    "texte": "registre."
+    "texte": "https://www.anses.fr/fr/system/files/Anses%20-%20fiche%20cuisson%20basse%20temp%C3%A9rature.pdf"
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu et cité le 31/10/2026."
    }
   ],
   "motsCles": "cellule abattage 63 10 deux heures 2h température conservation frigo congélateur annexe i"
