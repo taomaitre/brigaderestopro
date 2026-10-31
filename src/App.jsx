@@ -10546,6 +10546,7 @@ function diagnosticCout(ingredients, stock) {
   const out = [];
   (ingredients || []).filter((i) => (i.nom || "").trim()).forEach((ing) => {
     const nom = ing.nom.trim();
+    if (ing.lienType === "fiche" && ing.lienId) return;
     if (ing.lienType !== "stock" || !ing.lienId) { out.push([nom, "pas relié au catalogue"]); return; }
     const art = (stock || []).find((x) => x.id === ing.lienId);
     if (!art) { out.push([nom, "produit introuvable"]); return; }
@@ -10556,9 +10557,34 @@ function diagnosticCout(ingredients, stock) {
   return out;
 }
 
-function calculerCoutRecette(ingredients, stock) {
+// Coût d'une unité d'une préparation (fiche « Partagé », base, sauce…) : coût de la fiche ÷ quantité qu'elle produit (« Total : 12 kg »).
+function coutParUniteFiche(f, stock, fiches, profondeur) {
+  const ligneTotal = (Array.isArray(f.rendement) ? f.rendement : []).map((l) => /^Total\s*:\s*([\d.,]+)\s*(.*)$/.exec(String(l))).find(Boolean);
+  if (!ligneTotal) return null;
+  const quantite = parseFloat(String(ligneTotal[1]).replace(",", "."));
+  const unite = ligneTotal[2].trim();
+  if (!(quantite > 0) || !unite) return null;
+  // Coût recalculé avec les prix d'achat actuels ; à défaut, coût enregistré dans la fiche.
+  let cout = NaN;
+  if (profondeur < 3) { const c = calculerCoutRecette(f.ingredients || [], stock, fiches, profondeur + 1); if (c.coutRecette !== "" && !c.partiel) cout = Number(c.coutRecette); }
+  if (!Number.isFinite(cout)) cout = f.cout && f.cout.coutRecette !== "" && f.cout.coutRecette != null ? Number(f.cout.coutRecette) : NaN;
+  if (!Number.isFinite(cout) || cout <= 0) return null;
+  return { val: cout / quantite, unite };
+}
+
+function calculerCoutRecette(ingredients, stock, fiches, profondeur = 0) {
   let total = 0, compte = 0, partiel = false, approx = false;
   ingredients.forEach((ing) => {
+    if (ing.lienType === "fiche" && ing.lienId && profondeur < 3) {
+      const f = (fiches || []).find((x) => x.id === ing.lienId);
+      const u = f ? coutParUniteFiche(f, stock, fiches, profondeur) : null;
+      const conv = u ? convertirQuantiteCout(ing.quantite ?? ing.qte, ing.unite, u.unite) : null;
+      if (!u || conv === null) { partiel = true; return; }
+      if (conv.approx) approx = true;
+      total += conv.val * u.val;
+      compte += 1;
+      return;
+    }
     if (ing.lienType !== "stock" || !ing.lienId) { partiel = true; return; }
     const art = (stock || []).find((s) => s.id === ing.lienId);
     if (!art) { partiel = true; return; }
@@ -10838,7 +10864,7 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
     if (nouveaux.length) setS((prev) => ({ ...prev, allergenes: [...new Set([...prev.allergenes, ...nouveaux])], allgConfirm: false }));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [suggestions.join("|")]);
-  const coutApercu = calculerCoutRecette(ingOk.map((i) => ({ ...i, quantite: i.qte })), stock);
+  const coutApercu = calculerCoutRecette(ingOk.map((i) => ({ ...i, quantite: i.qte })), stock, fiches);
   const coutPortionApercu = coutApercu.coutRecette && Number(S.rendement.portions) > 0
     ? (Number(coutApercu.coutRecette) / Number(S.rendement.portions)).toFixed(2) : "";
 
@@ -10930,7 +10956,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     if (S.dressage.assiette) dressage.push(`Contenant : ${S.dressage.assiette}`);
     if (S.dressage.envoi) dressage.push(`Délai d'envoi : ${S.dressage.envoi}`);
     if (S.dressage.notes) dressage.push(S.dressage.notes);
-    const coutFinal = calculerCoutRecette(ingFinal, stock);
+    const coutFinal = calculerCoutRecette(ingFinal, stock, fiches);
     const coutPortionFinal = coutFinal.coutRecette && Number(S.rendement.portions) > 0 ? (Number(coutFinal.coutRecette) / Number(S.rendement.portions)).toFixed(2) : "";
 
     const nouvelleFiche = {
