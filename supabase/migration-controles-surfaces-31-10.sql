@@ -35,3 +35,7 @@ create policy isolation_etablissement on public.controles_surfaces as permissive
 -- Les corrections et suppressions sont conservées dans l'historique des modifications (comme les autres enregistrements).
 drop trigger if exists tracer_modification on public.controles_surfaces;
 create trigger tracer_modification after update or delete on public.controles_surfaces for each row execute function public.tracer_modification();
+
+-- Ajout (31/10, appliqué) : la direction peut autoriser le chef à choisir le mode.
+alter table public.etablissements add column if not exists chef_choisit_verification_hygiene boolean not null default false;
+grant select (chef_choisit_verification_hygiene), update (chef_choisit_verification_hygiene) on public.etablissements to authenticated;
