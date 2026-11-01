@@ -6236,11 +6236,86 @@ const CHAMPS_FOURNISSEUR = [
 const UNITES_PRODUIT = ["kg", "g", "L", "cL", "pièce", "botte", "boîte", "sachet", "barquette"];
 const UNITES_PRIX = ["€/kg", "€/L", "€/pièce", "€/botte", "€/boîte", "€/sachet", "€/barquette"];
 
+// Remplir la fiche d'un produit à partir d'une photo / image (lue par l'IA) ou d'un fichier Excel / CSV (première ligne). Rien n'est enregistré :
+// les cases se remplissent, on relit, on corrige, puis on enregistre.
+const CONSIGNE_PHOTO_FICHE_PRODUIT = `Tu regardes la fiche produit d'un fournisseur (fiche technique, étiquette, page de catalogue ou facture) pour un produit alimentaire ou d'entretien destiné à une cuisine professionnelle. Relève, uniquement si c'est écrit et visible : le nom du produit, la référence / le code article du fournisseur, le conditionnement (ex. « Barquette de 2,5 kg », « Carton de 6 x 1 L »), l'unité de comptage (kg, L, pièce, botte, boîte, sachet ou barquette), le prix d'achat HT en nombre, l'unité du prix (€/kg, €/L, €/pièce, €/botte, €/boîte, €/sachet ou €/barquette), la catégorie, la famille de conservation (frais, viande, hache, abats, poisson, plat, surgele), le type de date (DLC ou DDM), le délai de consommation après ouverture en jours, les allergènes (parmi : Gluten, Crustacés, Œufs, Poissons, Arachides, Soja, Lait, Fruits à coque, Céleri, Moutarde, Sésame, Sulfites, Lupin, Mollusques) et l'origine. Réponds UNIQUEMENT en JSON strict, sans texte autour : {"nom": ..., "reference": ..., "conditionnement": ..., "unite": ..., "prix_achat": nombre ou null, "prix_unite": ..., "categorie": ..., "conservation": ..., "type_date": ..., "dlcApresOuvertureJours": nombre entier ou null, "allergenes": [liste] ou null, "origine": ...}. Mets null pour tout ce qui n'est pas clairement visible. N'invente jamais.`;
+function RemplirProduitDepuisFichier({ onLu }) {
+  const idPhoto = React.useMemo(() => "prod-photo-" + Math.random().toString(36).slice(2, 9), []);
+  const idImage = React.useMemo(() => "prod-image-" + Math.random().toString(36).slice(2, 9), []);
+  const idExcel = React.useMemo(() => "prod-excel-" + Math.random().toString(36).slice(2, 9), []);
+  const [message, setMessage] = useState("");
+  const [enCours, setEnCours] = useState(false);
+  const ia = iaDispo();
+  const lireImage = async (e) => {
+    const file = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!file) return;
+    setEnCours(true); setMessage("");
+    try {
+      const r = await analyserImage(await fileToDataURL(file), CONSIGNE_PHOTO_FICHE_PRODUIT);
+      if (!r || typeof r !== "object" || Array.isArray(r)) { setMessage("L'IA n'a pas réussi à lire cette image (image floue, IA non activée ou format non pris en charge). Réessayez avec une photo plus nette, ou remplissez à la main."); return; }
+      setMessage(onLu({
+        nom: r.nom, reference: r.reference, conditionnement: r.conditionnement, unite: r.unite, prix_achat: r.prix_achat, prix_unite: r.prix_unite,
+        categorie: r.categorie, conservation: r.conservation, type_date: r.type_date, delai_apres_ouverture_jours: r.dlcApresOuvertureJours,
+        allergenes_norme: Array.isArray(r.allergenes) ? r.allergenes : null, origine_norme: r.origine,
+      }));
+    } catch (err) { setMessage("L'image n'a pas pu être lue."); } finally { setEnCours(false); }
+  };
+  const lireExcel = async (e) => {
+    const file = e.target.files && e.target.files[0]; e.target.value = "";
+    if (!file) return;
+    setEnCours(true); setMessage("");
+    try {
+      const rows = await lireFichierTableau(file);
+      const r = rows && rows[0];
+      if (!r) { setMessage("Le fichier est vide."); return; }
+      const norm = (t) => String(t == null ? "" : t).toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+      const val = (...noms) => { for (const n of noms) { const k = Object.keys(r).find((x) => norm(x) === norm(n)); if (k && String(r[k]).trim() !== "") return String(r[k]).trim(); } return null; };
+      const prix = val("Prix d'achat", "Prix", "Prix HT", "PU HT");
+      setMessage(onLu({ nom: val("Nom", "Produit", "Désignation"), reference: val("Référence", "Reference", "Réf.", "Code"), conditionnement: val("Conditionnement"), unite: val("Unité", "Unite"), prix_achat: prix == null ? null : Number(String(prix).replace(/[€\s]/g, "").replace(",", ".")), categorie: val("Catégorie", "Categorie") }, "première ligne du fichier"));
+    } catch (err) { setMessage("Le fichier n'a pas pu être lu (Excel .xlsx ou CSV attendu)."); } finally { setEnCours(false); }
+  };
+  const bouton = "inline-flex items-center gap-2 px-3 py-2 rounded-lg text-xs font-semibold border border-[var(--cadre)] bg-white text-[var(--ink)] cursor-pointer";
+  return (
+    <div className="mb-3 rounded-xl p-3 border-2" style={{ background: "#F3FBFC", borderColor: "#0E7490" }}>
+      <p className="text-xs text-[var(--ink)] mb-2"><b>Remplir automatiquement la fiche</b> à partir de la fiche du fournisseur : photo, image ou capture d'écran{ia ? " (lue par l'IA)" : ""}, ou fichier Excel / CSV. Les cases se remplissent ; vous relisez et corrigez avant d'enregistrer.</p>
+      <div className="flex flex-wrap gap-2">
+        {ia && <label htmlFor={idPhoto} className={`${bouton} ${enCours ? "opacity-50 pointer-events-none" : ""}`}><Camera size={16} /> Prendre une photo</label>}
+        {ia && <label htmlFor={idImage} className={`${bouton} ${enCours ? "opacity-50 pointer-events-none" : ""}`}>🖼 Choisir une image</label>}
+        <label htmlFor={idExcel} className={`${bouton} ${enCours ? "opacity-50 pointer-events-none" : ""}`}>📄 Fichier Excel / CSV</label>
+        <input id={idPhoto} type="file" accept="image/*" capture="environment" className="hidden" onChange={lireImage} />
+        <input id={idImage} type="file" accept="image/*" className="hidden" onChange={lireImage} />
+        <input id={idExcel} type="file" accept=".xlsx,.xls,.csv" className="hidden" onChange={lireExcel} />
+      </div>
+      {!ia && <p className="text-xs text-[var(--steel)] mt-2">La lecture d'une photo ou d'une image par l'IA n'est pas activée pour votre établissement : utilisez le fichier Excel / CSV, ou remplissez à la main.</p>}
+      {enCours && <p className="text-xs text-[var(--steel)] mt-2">Lecture en cours…</p>}
+      {message && <p className="text-xs text-[var(--ink)] mt-2">{message}</p>}
+    </div>
+  );
+}
+
 function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreur, onSauver, onAnnuler }) {
   const estProduit = edition.table === "produits";
   const [v, setV] = useState(() => { const b = { ...edition.valeurs }; if (b.delai_apres_ouverture_jours == null && b.delai_jours_dlc != null) b.delai_apres_ouverture_jours = b.delai_jours_dlc; return b; });
   const [categorieNouvelle, setCategorieNouvelle] = useState(false);
   const maj = (cle, val) => setV((x) => ({ ...x, [cle]: val }));
+  // Reprend ce qui a été lu (photo, image, Excel) dans les cases du produit ; seules les valeurs reconnues sont reprises.
+  const remplirDepuisLecture = (lu, source = "photo") => {
+    const rempli = []; const maj2 = {};
+    const texte = (cle, x, libelle) => { const t = x == null ? "" : String(x).trim(); if (t) { maj2[cle] = t; rempli.push(libelle); } };
+    texte("nom", lu.nom, "nom"); texte("reference", lu.reference, "référence"); texte("conditionnement", lu.conditionnement, "conditionnement");
+    if (lu.unite) { const u = UNITES_PRODUIT.find((x) => x.toLowerCase() === String(lu.unite).trim().toLowerCase()); if (u) { maj2.unite = u; rempli.push("unité"); } }
+    if (lu.prix_achat != null && lu.prix_achat !== "" && Number.isFinite(Number(lu.prix_achat))) { maj2.prix_achat = String(lu.prix_achat).replace(".", ","); rempli.push("prix d'achat"); }
+    if (lu.prix_unite) { const pu = UNITES_PRIX.find((x) => x.toLowerCase().replace(/\s/g, "") === String(lu.prix_unite).toLowerCase().replace(/\s/g, "")); if (pu) { maj2.prix_unite = pu; rempli.push("unité du prix"); } }
+    if (lu.categorie) { const t = String(lu.categorie).trim(); const c = [...categories, "Boissons", "Produits d'hygiène"].find((x) => x.toLowerCase() === t.toLowerCase()); if (c) { maj2.categorie = c; rempli.push("catégorie"); } else if (t) { setCategorieNouvelle(true); maj2.categorie = t; rempli.push("catégorie (nouvelle)"); } }
+    if (lu.conservation) { const c = [...CONSERVATIONS.map((x) => x.v), "surgele"].find((x) => x === String(lu.conservation).trim().toLowerCase()); if (c) { maj2.conservation = c; rempli.push("famille de température"); } }
+    if (lu.type_date) { const t = String(lu.type_date).trim().toUpperCase(); if (t === "DLC" || t === "DDM") { maj2.type_date = t; rempli.push("type de date"); } }
+    if (lu.delai_apres_ouverture_jours != null && Number.isFinite(Number(lu.delai_apres_ouverture_jours))) { maj2.delai_apres_ouverture_jours = String(Math.round(Number(lu.delai_apres_ouverture_jours))); rempli.push("DLC après ouverture"); }
+    if (Array.isArray(lu.allergenes_norme) && lu.allergenes_norme.length) { const a = lu.allergenes_norme.map((x) => ALLERGENES_14.find((y) => y.toLowerCase() === String(x).trim().toLowerCase())).filter(Boolean); if (a.length) { maj2.allergenes_norme = a; rempli.push("allergènes"); } }
+    if (lu.origine_norme) { texte("origine_norme", lu.origine_norme, "origine"); }
+    if (!rempli.length) return "Rien de reconnu dans cette " + (source === "photo" ? "image" : "lecture") + " : remplissez à la main ou essayez avec une image plus nette.";
+    setV((x) => ({ ...x, ...maj2 }));
+    return `Cases remplies (${source}) : ${rempli.join(", ")}. Relisez et corrigez avant d'enregistrer.`;
+  };
   const champTexte = (cle, label, requis) => (
     <label key={cle} className="block text-xs text-[var(--steel)]">
       {label}{requis ? " *" : ""}
@@ -6284,6 +6359,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
       <div className="font-semibold text-sm text-[var(--ink)] mb-3">
         {edition.id ? "Modifier" : "Ajouter"} {estProduit ? "un produit" : "un fournisseur"}
       </div>
+      {estProduit && <RemplirProduitDepuisFichier onLu={remplirDepuisLecture} />}
       <div className="grid gap-2 sm:grid-cols-2">
         {estProduit ? (
           <>
