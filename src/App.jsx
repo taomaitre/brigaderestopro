@@ -6278,8 +6278,8 @@ function RemplirProduitDepuisFichier({ onLu }) {
   return (
     <div className="mb-3 rounded-xl p-3 border-2" style={{ background: "#F3FBFC", borderColor: "#0E7490" }}>
       <p className="text-xs text-[var(--ink)] mb-2"><b>Remplir automatiquement la fiche</b> à partir de la fiche du fournisseur : photo, image ou capture d'écran{ia ? " (lue par l'IA)" : ""}, ou fichier Excel / CSV. Les cases se remplissent ; vous relisez et corrigez avant d'enregistrer.</p>
-      <div className="flex flex-wrap gap-2">
-        {ia && <label htmlFor={idPhoto} className={`${bouton} ${enCours ? "opacity-50 pointer-events-none" : ""}`}><Camera size={16} /> Prendre une photo</label>}
+      <div className="flex flex-wrap items-center gap-3">
+        {ia && <label htmlFor={idPhoto} className={`inline-flex items-center gap-3 cursor-pointer ${enCours ? "opacity-50 pointer-events-none" : ""}`}><span className="w-14 h-14 rounded-full flex items-center justify-center text-white shadow-md shrink-0 hover:opacity-90" style={{ backgroundColor: "#1E7B4B" }}><Camera size={26} /></span><span className="text-sm font-medium text-[var(--ink)]">Prendre une photo</span></label>}
         {ia && <label htmlFor={idImage} className={`${bouton} ${enCours ? "opacity-50 pointer-events-none" : ""}`}>🖼 Choisir une image</label>}
         <label htmlFor={idExcel} className={`${bouton} ${enCours ? "opacity-50 pointer-events-none" : ""}`}>📄 Fichier Excel / CSV</label>
         <input id={idPhoto} type="file" accept="image/*" capture="environment" className="hidden" onChange={lireImage} />
@@ -9796,9 +9796,11 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-x-5 items-start">
         <div className="lg:col-span-5 xl:col-span-4 min-w-0">
           <div className="mb-5 rounded-xl overflow-hidden border border-[var(--line)] bg-white" style={{ borderTop: "3px solid #e0658f" }}>
-            {fiche.photoPlat
-              ? <img src={fiche.photoPlat} alt={fiche.nom} className="w-full h-48 object-cover" />
-              : <div className="w-full h-32 flex flex-col items-center justify-center gap-1 text-[#b4306b]" style={{ background: "#fdeaf3" }}><Camera size={30} /><span className="text-xs font-semibold">Pas encore de photo du plat</span></div>}
+            {(() => { const ph = (fiche.photosPlat && fiche.photosPlat.length) ? fiche.photosPlat : (fiche.photoPlat ? [fiche.photoPlat] : []); return ph.length > 1
+              ? <div className="grid grid-cols-2 gap-0.5">{ph.map((src, idx) => <img key={idx} src={src} alt={fiche.nom} className={`w-full h-40 object-cover ${idx === 0 && ph.length % 2 === 1 ? "col-span-2" : ""}`} />)}</div>
+              : ph.length === 1 ? <img src={ph[0]} alt={fiche.nom} className="w-full h-48 object-cover" /> : null; })()}
+            {!(fiche.photosPlat && fiche.photosPlat.length) && !fiche.photoPlat
+              && <div className="w-full h-32 flex flex-col items-center justify-center gap-1 text-[#b4306b]" style={{ background: "#fdeaf3" }}><Camera size={30} /><span className="text-xs font-semibold">Pas encore de photo du plat</span></div>}
           </div>
       {avecModes && fiche.ingredients.length > 0 && (
         <Card className="mb-5 border-[var(--accent)]/30">
@@ -10415,7 +10417,7 @@ function ficheVersFormulaire(f, mode) {
     n.procedes = { ...base.procedes, ...(n.procedes || {}) };
   } else {
     n = base;
-    n.nom = f.nom || ""; n.sousTitre = f.sousTitre || ""; n.categorie = f.categorie || ""; n.photoPlat = f.photoPlat || "";
+    n.nom = f.nom || ""; n.sousTitre = f.sousTitre || ""; n.categorie = f.categorie || ""; n.photoPlat = f.photoPlat || ""; n.photosPlat = Array.isArray(f.photosPlat) && f.photosPlat.length ? f.photosPlat : (f.photoPlat ? [f.photoPlat] : []);
     if (n.categorie && !CATEGORIES_FICHE_TECHNIQUE.some((c) => c[0] === n.categorie) && !CATEGORIES_FICHE_GENERALES.some((c) => c[0] === n.categorie)) { n.catAutre = n.categorie; n.categorie = "__autre"; }
     n.poste = f.poste || ""; n.type = f.type || "recette"; n.badge = f.rendementCourt || "";
     if ((f.ingredients || []).length) n.ingredients = f.ingredients.map((i) => ({ nom: i.nom || "", qte: String(i.quantite ?? ""), unite: i.unite || "g", lienType: i.lienType || null, lienId: i.lienId || null }));
@@ -10450,7 +10452,7 @@ function ficheVersFormulaire(f, mode) {
 
 function ficheVideInit() {
   return {
-    nom: "", sousTitre: "", categorie: "", catAutre: "", poste: "", type: "recette", badge: "", photoPlat: "",
+    nom: "", sousTitre: "", categorie: "", catAutre: "", poste: "", type: "recette", badge: "", photoPlat: "", photosPlat: [],
     ingredients: [{ nom: "", qte: "", unite: "g", lienType: null, lienId: null }],
     allergenes: [], allgConfirm: false,
     procedes: {
@@ -10886,6 +10888,8 @@ function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom,
   const [photoApercu, setPhotoApercu] = useState(null);
   const [iaEnCours, setIaEnCours] = useState(false);
   const [iaMessage, setIaMessage] = useState(null);
+  const photosFiche = (S.photosPlat && S.photosPlat.length) ? S.photosPlat : (S.photoPlat ? [S.photoPlat] : []);
+  const majPhotosFiche = (liste) => setS((x) => ({ ...x, photosPlat: liste, photoPlat: liste[0] || "" }));
   // Mode simple (l'essentiel, guidé) ou expert (tous les champs). Même fiche enregistrée dans les deux cas.
   const [modeFiche, setModeFiche] = useState(avecModes ? "simple" : "expert");
 
@@ -11119,7 +11123,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
       if (!resultat) { setIaMessage({ type: "err", texte: "L'analyse par IA n'a pas pu aboutir (vérifiez la configuration). Remplissez le questionnaire ci-dessous." }); return; }
       if (resultat.erreur) { setIaMessage({ type: "err", texte: "L'image ne semble pas être une recette. Essayez une photo plus nette, bien cadrée." }); return; }
       appliquerResultatIA(resultat);
-      setIaMessage({ type: "warn", texte: "À relire — l'IA a pré-rempli le questionnaire. Vérifiez chaque grammage, les allergènes et les températures avant d'enregistrer." });
+      setIaMessage({ type: "warn", texte: "À relire — l'IA a pré-rempli le questionnaire. Vérifiez chaque grammage, les allergènes et les températures avant d'enregistrer. Tout reste modifiable : passez d'étape en étape avec les onglets, ou touchez « ✎ Modifier » dans l'aperçu de la fiche." });
     } catch (e) {
       setIaEnCours(false);
       setIaMessage({ type: "err", texte: "L'analyse a échoué. Réessayez ou remplissez le questionnaire ci-dessous." });
@@ -11154,7 +11158,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     const coutPortionFinal = coutFinal.coutRecette && Number(S.rendement.portions) > 0 ? (Number(coutFinal.coutRecette) / Number(S.rendement.portions)).toFixed(2) : "";
 
     const nouvelleFiche = {
-      id: modifier ? ficheInitiale.id : uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(), photoPlat: S.photoPlat || "",
+      id: modifier ? ficheInitiale.id : uid(), code, nom: S.nom.trim(), sousTitre: S.sousTitre.trim(), photoPlat: (S.photosPlat && S.photosPlat[0]) || S.photoPlat || "", photosPlat: S.photosPlat || (S.photoPlat ? [S.photoPlat] : []),
       categorie: categorieLabelActuelle, sousCategorie: null,
       groupeFiche: modifier ? (ficheInitiale.groupeFiche || null) : null, ordreFiche: modifier && ficheInitiale.ordreFiche != null ? ficheInitiale.ordreFiche : null,
       rendementCourt: S.badge.trim() || (S.rendement.portions ? `${S.rendement.portions} PORTIONS` : ""),
@@ -11283,15 +11287,14 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             </div>
             </ZoneEtape>
             <div className="flex items-center gap-3 flex-wrap rounded-xl p-3" style={{ background: "#fdeaf3", border: "1px solid #f3c4da" }}>
-              {S.photoPlat
-                ? <img src={S.photoPlat} alt="" className="w-24 h-24 object-cover rounded-lg border border-[var(--cadre)]" />
-                : <div className="w-24 h-24 rounded-lg border-2 border-dashed border-[#e58cb5] flex items-center justify-center text-[#b4306b]"><Camera size={28} /></div>}
-              <div>
-                <div className="text-sm font-semibold text-[var(--ink)]">Photo du plat (facultatif)</div>
-                <p className="text-xs text-[var(--steel)] mb-1.5">Elle s'affiche sur la fiche, pour que tout le monde sache à quoi doit ressembler le plat.</p>
-                <div className="flex items-center gap-3">
-                  <PhotoInput value={null} onChange={(v) => champ("photoPlat", v)} label={S.photoPlat ? "Changer la photo" : "Ajouter une photo"} />
-                  {S.photoPlat && <button type="button" onClick={() => champ("photoPlat", "")} className="text-xs text-[var(--steel)] underline">Retirer</button>}
+              <div className="w-full">
+                <div className="text-sm font-semibold text-[var(--ink)]">Photos du plat (facultatif)</div>
+                <p className="text-xs text-[var(--steel)] mb-2">Elles s'affichent sur la fiche, pour que tout le monde sache à quoi doit ressembler le plat. Plusieurs photos possibles ; touchez une photo pour l'agrandir, la valider ou la refaire.</p>
+                <div className="flex items-center gap-3 flex-wrap">
+                  {photosFiche.map((src, idx) => (
+                    <PhotoVignetteZoomable key={idx} src={src} onRetake={(v) => majPhotosFiche(photosFiche.map((x, j) => (j === idx ? v : x)))} onRemove={() => majPhotosFiche(photosFiche.filter((_, j) => j !== idx))} />
+                  ))}
+                  <PhotoInput value={null} onChange={(v) => majPhotosFiche([...photosFiche, v])} label={photosFiche.length ? "Ajouter une autre photo" : "Ajouter une photo"} />
                 </div>
               </div>
             </div>
@@ -11781,8 +11784,8 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             <div className="text-right text-[10px] text-[var(--steel)]">Fiche générée par<br /><strong>BrigadeRestoPro</strong></div>
           </div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
-            {S.photoPlat
-              ? <img src={S.photoPlat} alt="" className="w-24 h-24 object-cover rounded-lg border border-[var(--cadre)] shrink-0" />
+            {photosFiche.length
+              ? <div className="flex gap-1.5 shrink-0 flex-wrap">{photosFiche.map((src, idx) => <img key={idx} src={src} alt="" className={`${photosFiche.length > 1 ? "w-16 h-16" : "w-24 h-24"} object-cover rounded-lg border border-[var(--cadre)]`} />)}</div>
               : <div className="w-24 h-24 rounded-lg shrink-0 flex flex-col items-center justify-center gap-1 text-[#b4306b] text-[10px] font-semibold text-center border-2 border-dashed border-[#e58cb5]" style={{ background: "#fdeaf3" }}><Camera size={22} />Photo du plat</div>}
             <div className="text-white font-bold text-center px-3 py-1.5 rounded shrink-0" style={{ backgroundColor: "#C1432D" }}>
               <div className="text-[10px] leading-none">{codeCatActuel ? `FT ${codeCatActuel}` : "FT CATÉGORIE"}</div>
@@ -11800,33 +11803,33 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-3">
-              <ApercuSection titre="1. Ingrédients">
+              <ApercuSection titre="1. Ingrédients" onModifier={() => { setStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 {ingOk.length ? (
                   <table className="w-full text-xs">
                     <tbody>{ingOk.map((i, idx) => <tr key={idx} className="border-b border-[var(--line)] last:border-0"><td className="py-1">{i.nom}</td><td className="py-1 text-right">{i.qte} {i.unite}</td></tr>)}</tbody>
                   </table>
                 ) : <ApercuVide texte="Ingrédients, quantités et unités — reliés au stock." />}
               </ApercuSection>
-              <ApercuSection titre="3. Allergènes">
+              <ApercuSection titre="3. Allergènes" onModifier={() => { setStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 {avecModes && S.allergenes.length === 0
                   ? <p className="text-[11px] text-[var(--steel)] italic">{S.allgConfirm ? "Aucun allergène déclaré (confirmé)." : "Aucune information donnée ni confirmée."}</p>
                   : <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
                   {ALLERGENES_14.map((a) => <span key={a} className={S.allergenes.includes(a) ? "font-semibold text-[var(--accent)]" : "text-[var(--steel)]"}>{S.allergenes.includes(a) ? "■" : "□"} {a}</span>)}
                 </div>}
               </ApercuSection>
-              <ApercuSection titre="5. Préparation">
+              <ApercuSection titre="5. Préparation" onModifier={() => { setStep(4); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 {S.etapes.some((e) => e.titre || e.texte) ? (
                   <ol className="space-y-1 text-xs list-decimal list-inside">
                     {S.etapes.filter((e) => e.titre || e.texte).map((e, idx) => <li key={idx}><strong>{(e.titre || "Étape").toUpperCase()}</strong>{e.crit ? " [point critique]" : ""} — {e.texte}</li>)}
                   </ol>
                 ) : <ApercuVide texte="Étapes numérotées, dans l'ordre." />}
               </ApercuSection>
-              <ApercuSection titre="8. Durée de conservation">
+              <ApercuSection titre="8. Durée de conservation" onModifier={() => { setStep(5); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 <p className="text-xs"><strong>{S.conservation.type} : J+{S.conservation.jours || "?"}</strong> (jour de fabrication compris) — {S.conservation.temp}{S.conservation.contenant ? `, ${S.conservation.contenant}` : ""}</p>
               </ApercuSection>
             </div>
             <div className="space-y-3">
-              <ApercuSection titre="2. Matériel et ustensiles">
+              <ApercuSection titre="2. Matériel et ustensiles" onModifier={() => { setStep((modeFiche === "expert" ? 3 : 2)); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 {(S.appareils.length + S.materiel.length + S.ustensiles.length) ? (
                   <p className="text-xs">{[...S.appareils, ...S.materiel, ...S.ustensiles].join(" · ")}</p>
                 ) : <ApercuVide texte="Appareils, matériel et ustensiles utilisés." />}
@@ -11903,12 +11906,15 @@ const COULEURS_APERCU_SECTION = {
   4: ["#f0a030", "#fdf0dc", "#8a5200"], 5: ["#6a7de0", "#e8ebfb", "#2c3a8c"], 8: ["#2fa38a", "#dff5ef", "#12604d"],
   9: ["#e0524a", "#fdeaea", "#8a1f1a"], 11: ["#c06bd1", "#f6e5f9", "#6b2b7a"], 12: ["#9ca3af", "#eef0f2", "#4b5563"],
 };
-function ApercuSection({ titre, children }) {
+function ApercuSection({ titre, children, onModifier = null }) {
   const num = parseInt(String(titre), 10);
   const [bord, fond, texte] = COULEURS_APERCU_SECTION[num] || ["#C1432D", "#fdeaea", "#8a1f1a"];
   return (
     <div className="border border-[var(--cadre)] rounded-lg overflow-hidden bg-white" style={{ borderTop: `3px solid ${bord}` }}>
-      <div className="text-[11px] font-bold uppercase tracking-wide px-2.5 py-1.5" style={{ background: fond, color: texte }}>{titre}</div>
+      <div className="text-[11px] font-bold uppercase tracking-wide px-2.5 py-1.5 flex items-center justify-between gap-2" style={{ background: fond, color: texte }}>
+        <span>{titre}</span>
+        {onModifier && <button type="button" onClick={onModifier} className="normal-case tracking-normal text-xs font-semibold underline">✎ Modifier</button>}
+      </div>
       <div className="p-2.5">{children}</div>
     </div>
   );
