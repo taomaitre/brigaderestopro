@@ -5757,7 +5757,13 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
     const u = uniteNormaliseeFiche(x.unite);
     if (u === uniteNormaliseeFiche(prix.unite)) return Math.round(Number(qte) * prix.val * 100) / 100;
     const conv = convertirQuantiteCout(qte, x.unite, prix.unite);
-    return conv === null ? null : Math.round(conv.val * prix.val * 100) / 100;
+    if (conv !== null) return Math.round(conv.val * prix.val * 100) / 100;
+    // Compté en pièces / barquettes mais prix au kg ou au L : le poids (ou volume) d'une pièce vient du conditionnement (« Barquette de 500 g »).
+    if (UNITES_PIECE.includes(String(x.unite || "").toLowerCase()) && ["kg", "l"].includes(prix.unite)) {
+      const parPiece = quantiteParConditionnement({ conditionnement: x.conditionnement, unite: prix.unite });
+      if (parPiece) return Math.round(Number(qte) * parPiece * prix.val * 100) / 100;
+    }
+    return null;
   };
   const qteFinale = (x) => { const c = compteDe(x); return c === null ? Number(x.quantite) : c; };
   const fmtEuro = (n) => `${(Math.round(n * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -6326,11 +6332,17 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   const uCompte = String(v.unite || "").toLowerCase();
   const uPrix = String(v.prix_unite || "").replace(/^€\s*\/\s*/, "").toLowerCase();
   const prixSaisi = nb(v.prix_achat);
-  const incoherence = estProduit && uCompte && uPrix && prixSaisi > 0 && (convertirQuantiteCout(1, uCompte, uPrix) === null)
-    ? `Le stock est compté en « ${v.unite} » mais le prix est en « ${v.prix_unite} » : le logiciel ne peut pas convertir l'un en l'autre, donc le coût des fiches techniques et la valeur du stock ne seront pas calculés. Choisissez la même unité des deux côtés (ou utilisez le calculateur ci-dessus).`
+  // Compté en pièces / barquettes avec un prix au kg ou au L : le poids d'une pièce est lu dans le conditionnement.
+  const parPieceForm = (UNITES_PIECE.includes(uCompte) && ["kg", "l"].includes(uPrix)) ? quantiteParConditionnement({ conditionnement: v.conditionnement, unite: uPrix }) : null;
+  const incoherence = estProduit && uCompte && uPrix && prixSaisi > 0 && !parPieceForm && (convertirQuantiteCout(1, uCompte, uPrix) === null)
+    ? (UNITES_PIECE.includes(uCompte) && ["kg", "l"].includes(uPrix)
+      ? `Le stock est compté en « ${v.unite} » avec un prix ${v.prix_unite} : écrivez le poids (ou le volume) d'une ${v.unite} dans le conditionnement, par exemple « Barquette de 500 g », pour que la valeur du stock soit calculée.`
+      : `Le stock est compté en « ${v.unite} » mais le prix est en « ${v.prix_unite} » : le logiciel ne peut pas convertir l'un en l'autre, donc le coût des fiches techniques et la valeur du stock ne seront pas calculés. Choisissez la même unité des deux côtés (ou utilisez le calculateur ci-dessus).`)
     : "";
   const resumePrix = estProduit && prixSaisi > 0 && v.prix_unite && v.unite && !incoherence
-    ? `1 ${v.unite} = ${eur(prixSaisi)} (${v.prix_unite}) · 2 ${v.unite} = ${eur(2 * prixSaisi)}.${String(v.unite).toLowerCase() === "kg" ? ` 100 g = ${eur(prixSaisi / 10)}.` : ""} C'est ce prix qui est utilisé dans les fiches techniques et la valeur du stock.`
+    ? (parPieceForm
+      ? `1 ${v.unite} = ${parPieceForm} ${uPrix} (lu dans le conditionnement) = ${eur(parPieceForm * prixSaisi)} · 6 ${v.unite} = ${eur(6 * parPieceForm * prixSaisi)}. Dans les fiches techniques, le prix de ${eur(prixSaisi)} ${v.prix_unite} s'applique aux grammes / kilos utilisés.`
+      : `1 ${v.unite} = ${eur(prixSaisi)} (${v.prix_unite}) · 2 ${v.unite} = ${eur(2 * prixSaisi)}.${String(v.unite).toLowerCase() === "kg" ? ` 100 g = ${eur(prixSaisi / 10)}.` : ""} C'est ce prix qui est utilisé dans les fiches techniques et la valeur du stock.`)
     : "";
   // Reprend ce qui a été lu (photo, image, Excel) dans les cases du produit ; seules les valeurs reconnues sont reprises.
   const remplirDepuisLecture = (lu, source = "photo") => {
@@ -16303,7 +16315,8 @@ function libelleQte(s, n) {
 }
 
 function quantiteParConditionnement(s) {
-  const txt = String(s.conditionnement || "").toLowerCase().replace(",", ".");
+  const txt = String(s.conditionnement || "").toLowerCase().replace(",", ".")
+    .replace(/(\d)\s*(kilogrammes?|kilos?)\b/g, "$1 kg").replace(/(\d)\s*grammes?\b/g, "$1 g").replace(/(\d)\s*centilitres?\b/g, "$1 cl").replace(/(\d)\s*millilitres?\b/g, "$1 ml");
   const unite = String(s.unite || "").toLowerCase();
   const nb = (x) => parseFloat(x);
   const conv = (val, u) => {
