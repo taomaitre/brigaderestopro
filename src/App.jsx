@@ -5856,7 +5856,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
 
   const nbComptes = produitsAffiches.filter((x) => compteDe(x) !== null).length;
   const nbEcarts = produitsAffiches.filter((x) => { const c = compteDe(x); return c !== null && c !== Number(x.quantite); }).length;
-  const grille = "grid-cols-[5rem_minmax(0,1.3fr)_7rem_minmax(0,2.7fr)_5rem_5.5rem]";
+  const grille = "grid-cols-[5rem_minmax(0,1.3fr)_7rem_25rem_5rem_5.5rem]";
   const [messageExport, setMessageExport] = useState("");
   const exporterExcel = async () => {
     try {
@@ -5907,7 +5907,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
           {Object.entries(parCategorie).map(([categorie, items]) => (
             <CarteZone key={categorie} icone={Package} titre={categorie} sous={`${items.length} produit${items.length > 1 ? "s" : ""} — valeur ${fmtEuro(valeurTotale(items))}${sansPrix(items) > 0 ? ` (${sansPrix(items)} sans prix)` : ""}`} className="mb-3">
               <div className="overflow-x-auto print:overflow-visible">
-                <div className="min-w-[850px] print:min-w-0">
+                <div className="min-w-[1000px] print:min-w-0">
                   <div className={`grid ${grille} gap-3 px-2 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)] rounded-md`}>
                     <span>Référence</span><span>Nom / format</span><span>Qté système</span><span>Comptage : pièces entières + reste entamé</span><span>Écart</span><span className="text-right">Valeur</span>
                   </div>
@@ -5923,19 +5923,20 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
                         <span className="text-[var(--ink)] font-medium leading-tight">{x.nom}{x.conditionnement ? <span className="block text-xs font-semibold text-[var(--ink)] opacity-80">Format : {x.conditionnement}</span> : <span className="block text-[11px] font-normal text-[var(--steel)]">format non renseigné</span>}</span>
                         <span className="text-[var(--steel)]">{fmtNb(x.quantite)} {x.unite}{f && f.mode === "poids" && f.contenu > 0 ? <span className="block text-[11px]">≈ {fmtNb(Number(x.quantite) / (f.contenu * f.facteur))} × {fmtNb(f.contenu)} {f.base === "kg" ? "kg" : "L"}</span> : null}</span>
                         {f ? (
-                          <div className="flex flex-wrap items-center gap-1.5">
-                            <input className={`${inputCls} !h-9 w-16 print:border-0`} type="text" inputMode="decimal" aria-label={`Pièces entières de ${x.nom}`} placeholder="0" value={pieces[x.id] ?? ""} onChange={(e) => setPieces({ ...pieces, [x.id]: e.target.value })} />
-                            <span className="text-xs text-[var(--steel)]">{f.mode === "poids" ? nomPiece.toLowerCase() : x.unite} +</span>
-                            <input className={`${inputCls} !h-9 w-20 print:border-0`} type="text" inputMode="decimal" aria-label={`Reste entamé de ${x.nom}`} placeholder="reste" title="Ce qui reste d'entamé. Plusieurs restes : 300+150" value={restes[x.id] ?? ""} onChange={(e) => setRestes({ ...restes, [x.id]: e.target.value })} />
-                            <select className={`${inputCls} !h-9 !w-16 !px-1 print:hidden`} aria-label="Unité du reste" value={unitesReste[x.id] || UNITES_RESTE[f.base][0][0]} onChange={(e) => setUnitesReste({ ...unitesReste, [x.id]: e.target.value })}>
+                          <div className="flex flex-nowrap items-center gap-1.5">
+                            <input className={`${inputCls} !h-9 !w-16 shrink-0 text-center print:border-0`} type="text" inputMode="decimal" aria-label={`Pièces entières de ${x.nom}`} placeholder="0" value={pieces[x.id] ?? ""} onChange={(e) => setPieces({ ...pieces, [x.id]: e.target.value })} />
+                            <span className="w-20 shrink-0 truncate text-xs text-[var(--steel)]" title={f.mode === "poids" ? nomPiece.toLowerCase() : x.unite}>{f.mode === "poids" ? nomPiece.toLowerCase() : x.unite} +</span>
+                            <input className={`${inputCls} !h-9 !w-20 shrink-0 text-center print:border-0`} type="text" inputMode="decimal" aria-label={`Reste entamé de ${x.nom}`} placeholder="reste" title="Ce qui reste d'entamé. Plusieurs restes : 300+150" value={restes[x.id] ?? ""} onChange={(e) => setRestes({ ...restes, [x.id]: e.target.value })} />
+                            <select className={`${inputCls} !h-9 !w-16 shrink-0 !px-1 print:hidden`} aria-label="Unité du reste" value={unitesReste[x.id] || UNITES_RESTE[f.base][0][0]} onChange={(e) => setUnitesReste({ ...unitesReste, [x.id]: e.target.value })}>
                               {UNITES_RESTE[f.base].map((u) => <option key={u[0]} value={u[0]}>{u[1]}</option>)}
                             </select>
-                            {!lisible ? <span className="text-xs font-semibold" style={{ color: "#B4233A" }}>nombre illisible</span> : compte !== null ? <span className="text-xs font-semibold text-[var(--ink)]">= {fmtNb(compte)} {x.unite}</span> : null}
+                            <span className="w-24 shrink-0 whitespace-nowrap text-xs font-semibold text-[var(--ink)]">{!lisible ? <span style={{ color: "#B4233A" }}>illisible</span> : compte !== null ? `= ${fmtNb(compte)} ${x.unite}` : ""}</span>
                           </div>
                         ) : (
-                          <div className="flex items-center gap-1.5">
-                            <input className={`${inputCls} !h-9 w-28 print:border-0`} type="number" placeholder={`${x.quantite}`} value={comptage[x.id] ?? ""} onChange={(e) => setComptage({ ...comptage, [x.id]: e.target.value })} />
-                            {x.detailAchat && <button type="button" onClick={() => setModalCompte(x.id)} className="print:hidden px-2.5 h-9 rounded-lg text-xs font-bold text-white bg-[var(--accent)] whitespace-nowrap">Compter</button>}
+                          <div className="flex flex-nowrap items-center gap-1.5">
+                            <input className={`${inputCls} !h-9 !w-16 shrink-0 text-center print:border-0`} type="number" placeholder={`${x.quantite}`} value={comptage[x.id] ?? ""} onChange={(e) => setComptage({ ...comptage, [x.id]: e.target.value })} />
+                            <span className="w-20 shrink-0 truncate text-xs text-[var(--steel)]" title={x.unite}>{x.unite}</span>
+                            {x.detailAchat ? <button type="button" onClick={() => setModalCompte(x.id)} className="print:hidden w-20 shrink-0 h-9 rounded-lg text-xs font-bold text-white bg-[var(--accent)]">Compter</button> : <span className="w-20 shrink-0" />}
                           </div>
                         )}
                         <span className="text-xs font-semibold" style={{ color: ecart ? "#B45309" : "#15803D" }}>{ecart === null ? "" : ecart === 0 ? "✓ OK" : `${ecart > 0 ? "+" : ""}${ecart}`}</span>
