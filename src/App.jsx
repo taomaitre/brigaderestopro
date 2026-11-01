@@ -5695,36 +5695,77 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   );
 }
 
+// Inventaire par conditionnement : on compte les pièces entières (8 barquettes) + ce qui reste d'entamé (300 g),
+// et le logiciel calcule la quantité exacte dans l'unité du stock. Le format (« Barquette de 2,5 kg ») est lu dans le conditionnement du produit.
+const UNITES_RESTE = { kg: [["g", "g", 0.001], ["kg", "kg", 1]], l: [["cl", "cl", 0.01], ["ml", "ml", 0.001], ["L", "L", 1]] };
+function formatInventaire(s) {
+  const cond = String((s && s.conditionnement) || "");
+  if (!cond) return null;
+  let base = "kg", val = quantiteParConditionnement({ conditionnement: cond, unite: "kg" });
+  if (!val) { base = "l"; val = quantiteParConditionnement({ conditionnement: cond, unite: "l" }); }
+  if (!val || val <= 0) return null;
+  const u = String(s.unite || "").toLowerCase();
+  let mode = null, facteur = 1;
+  if (u === "kg" && base === "kg") mode = "poids";
+  else if (u === "g" && base === "kg") { mode = "poids"; facteur = 1000; }
+  else if ((u === "l" || u === "litre" || u === "litres") && base === "l") mode = "poids";
+  else if (UNITES_PIECE.includes(u)) mode = "piece";
+  if (!mode) return null;
+  return { mode, base, contenu: val, facteur };
+}
+// « 300 » ou « 300+150 » (plusieurs restes) → nombre ; vide → 0 ; illisible → null.
+function sommeSaisie(t) {
+  const txt = String(t == null ? "" : t).trim();
+  if (!txt) return 0;
+  let tot = 0;
+  for (const part of txt.split("+")) { const n = parseFloat(part.replace(",", ".").trim()); if (Number.isNaN(n) || n < 0) return null; tot += n; }
+  return tot;
+}
 function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
   const [comptage, setComptage] = useState({});
+  const [pieces, setPieces] = useState({});
+  const [restes, setRestes] = useState({});
+  const [unitesReste, setUnitesReste] = useState({});
   const [valide, setValide] = useState(false);
+  // Quantité comptée, dans l'unité du stock (null = produit pas encore compté).
+  const compteDe = (x) => {
+    const f = formatInventaire(x);
+    if (!f) { const v = comptage[x.id]; return v === undefined || v === "" ? null : Number(v); }
+    const p = sommeSaisie(pieces[x.id]); const r = sommeSaisie(restes[x.id]);
+    if (p === null || r === null) return null;
+    if ((pieces[x.id] === undefined || String(pieces[x.id]).trim() === "") && (restes[x.id] === undefined || String(restes[x.id]).trim() === "")) return null;
+    const choix = (UNITES_RESTE[f.base] || []).find((u) => u[0] === (unitesReste[x.id] || UNITES_RESTE[f.base][0][0])) || UNITES_RESTE[f.base][0];
+    const resteBase = r * choix[2]; // en kg ou en L
+    if (f.mode === "poids") return Math.round((p * f.contenu + resteBase) * f.facteur * 1000) / 1000;
+    return Math.round((p + resteBase / f.contenu) * 1000) / 1000;
+  };
 
   const parCategorie = Object.fromEntries(Object.entries(stock.reduce((acc, s) => { const k = normaliserGroupe(s.categorie) || "Sans catégorie"; (acc[k] = acc[k] || []).push(s); return acc; }, {})).sort(([a], [b]) => comparerGroupes(a, b)));
 
   const validerInventaire = () => {
     let ecarts = 0;
     const next = stock.map((s) => {
-      const saisi = comptage[s.id];
-      if (saisi === undefined || saisi === "" || Number(saisi) === Number(s.quantite)) return s;
+      const saisi = compteDe(s);
+      if (saisi === null || saisi === Number(s.quantite)) return s;
       ecarts += 1;
-      return { ...s, quantite: Number(saisi) };
+      return { ...s, quantite: saisi };
     });
     setStock(next);
     logActivity("Stock", "Inventaire mensuel réalisé", `${ecarts} écart(s) corrigé(s) — ${today}`);
     setValide(true);
   };
 
-  const nbComptes = Object.values(comptage).filter((v) => v !== "" && v !== undefined).length;
-  const nbEcarts = stock.filter((x) => comptage[x.id] !== undefined && comptage[x.id] !== "" && Number(comptage[x.id]) !== Number(x.quantite)).length;
-  const grille = "grid-cols-[7rem_minmax(0,1fr)_7rem_11rem_6rem]";
+  const nbComptes = stock.filter((x) => compteDe(x) !== null).length;
+  const nbEcarts = stock.filter((x) => { const c = compteDe(x); return c !== null && c !== Number(x.quantite); }).length;
+  const grille = "grid-cols-[5rem_minmax(0,1.3fr)_7rem_minmax(0,2.7fr)_5rem]";
   const [messageExport, setMessageExport] = useState("");
   const exporterExcel = async () => {
     try {
       const XLSX = await import("xlsx");
       const lignes = [["Catégorie", "Référence", "Nom", "Qté système", "Unité", "Qté comptée", "Écart"]];
       Object.entries(parCategorie).forEach(([categorie, items]) => items.forEach((x) => {
-        const saisi = comptage[x.id]; const a = saisi !== undefined && saisi !== "";
-        lignes.push([categorie, x.reference || "", x.nom, Number(x.quantite), x.unite || "", a ? Number(saisi) : "", a ? Math.round((Number(saisi) - Number(x.quantite)) * 1000) / 1000 : ""]);
+        const saisi = compteDe(x); const a = saisi !== null;
+        lignes.push([categorie, x.reference || "", x.nom, Number(x.quantite), x.unite || "", a ? saisi : "", a ? Math.round((saisi - Number(x.quantite)) * 1000) / 1000 : ""]);
       }));
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lignes), "Inventaire");
       XLSX.writeFile(wb, `inventaire-${today}.xlsx`); setMessageExport("Fichier Excel téléchargé.");
@@ -5750,19 +5791,34 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
           {Object.entries(parCategorie).map(([categorie, items]) => (
             <CarteZone key={categorie} icone={Package} titre={categorie} sous={`${items.length} produit${items.length > 1 ? "s" : ""}`} className="mb-3">
               <div className="overflow-x-auto print:overflow-visible">
-                <div className="min-w-[560px] print:min-w-0">
+                <div className="min-w-[760px] print:min-w-0">
                   <div className={`grid ${grille} gap-3 px-2 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)] rounded-md`}>
-                    <span>Référence</span><span>Nom</span><span>Qté système</span><span>Qté comptée</span><span>Écart</span>
+                    <span>Référence</span><span>Nom / format</span><span>Qté système</span><span>Comptage : pièces entières + reste entamé</span><span>Écart</span>
                   </div>
                   {items.map((x) => {
-                    const saisi = comptage[x.id];
-                    const ecart = saisi !== undefined && saisi !== "" ? Math.round((Number(saisi) - Number(x.quantite)) * 1000) / 1000 : null;
+                    const f = formatInventaire(x);
+                    const compte = compteDe(x);
+                    const ecart = compte !== null ? Math.round((compte - Number(x.quantite)) * 1000) / 1000 : null;
+                    const lisible = !f || (sommeSaisie(pieces[x.id]) !== null && sommeSaisie(restes[x.id]) !== null);
+                    const nomPiece = (String(x.conditionnement || "").match(/^\s*([a-zéèêîôû]+)/i) || [])[1] || "pièces";
                     return (
                       <div key={x.id} className={`grid ${grille} gap-3 px-2 py-1 border-b border-[var(--line)] last:border-b-0 items-center text-sm`}>
                         <span className="text-xs text-[var(--steel)]">{x.reference || "—"}</span>
-                        <span className="text-[var(--ink)] font-medium leading-tight">{x.nom}</span>
-                        <span className="text-[var(--steel)]">{x.quantite} {x.unite}</span>
-                        <input className={`${inputCls} !h-9 w-28 print:border-0`} type="number" placeholder={`${x.quantite}`} value={saisi ?? ""} onChange={(e) => setComptage({ ...comptage, [x.id]: e.target.value })} />
+                        <span className="text-[var(--ink)] font-medium leading-tight">{x.nom}{x.conditionnement ? <span className="block text-[11px] font-normal text-[var(--steel)]">{x.conditionnement}</span> : null}</span>
+                        <span className="text-[var(--steel)]">{fmtNb(x.quantite)} {x.unite}{f && f.mode === "poids" && f.contenu > 0 ? <span className="block text-[11px]">≈ {fmtNb(Number(x.quantite) / (f.contenu * f.facteur))} × {fmtNb(f.contenu)} {f.base === "kg" ? "kg" : "L"}</span> : null}</span>
+                        {f ? (
+                          <div className="flex flex-wrap items-center gap-1.5">
+                            <input className={`${inputCls} !h-9 w-16 print:border-0`} type="text" inputMode="decimal" aria-label={`Pièces entières de ${x.nom}`} placeholder="0" value={pieces[x.id] ?? ""} onChange={(e) => setPieces({ ...pieces, [x.id]: e.target.value })} />
+                            <span className="text-xs text-[var(--steel)]">{f.mode === "poids" ? nomPiece.toLowerCase() : x.unite} +</span>
+                            <input className={`${inputCls} !h-9 w-20 print:border-0`} type="text" inputMode="decimal" aria-label={`Reste entamé de ${x.nom}`} placeholder="reste" title="Ce qui reste d'entamé. Plusieurs restes : 300+150" value={restes[x.id] ?? ""} onChange={(e) => setRestes({ ...restes, [x.id]: e.target.value })} />
+                            <select className={`${inputCls} !h-9 !w-16 !px-1 print:hidden`} aria-label="Unité du reste" value={unitesReste[x.id] || UNITES_RESTE[f.base][0][0]} onChange={(e) => setUnitesReste({ ...unitesReste, [x.id]: e.target.value })}>
+                              {UNITES_RESTE[f.base].map((u) => <option key={u[0]} value={u[0]}>{u[1]}</option>)}
+                            </select>
+                            {!lisible ? <span className="text-xs font-semibold" style={{ color: "#B4233A" }}>nombre illisible</span> : compte !== null ? <span className="text-xs font-semibold text-[var(--ink)]">= {fmtNb(compte)} {x.unite}</span> : null}
+                          </div>
+                        ) : (
+                          <input className={`${inputCls} !h-9 w-28 print:border-0`} type="number" placeholder={`${x.quantite}`} value={comptage[x.id] ?? ""} onChange={(e) => setComptage({ ...comptage, [x.id]: e.target.value })} />
+                        )}
                         <span className="text-xs font-semibold" style={{ color: ecart ? "#B45309" : "#15803D" }}>{ecart === null ? "" : ecart === 0 ? "✓ OK" : `${ecart > 0 ? "+" : ""}${ecart}`}</span>
                       </div>
                     );
