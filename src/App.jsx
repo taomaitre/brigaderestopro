@@ -6308,6 +6308,30 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   const [v, setV] = useState(() => { const b = { ...edition.valeurs }; if (b.delai_apres_ouverture_jours == null && b.delai_jours_dlc != null) b.delai_apres_ouverture_jours = b.delai_jours_dlc; return b; });
   const [categorieNouvelle, setCategorieNouvelle] = useState(false);
   const maj = (cle, val) => setV((x) => ({ ...x, [cle]: val }));
+  // Calculateur de prix : colis de N pièces à P € -> prix par pièce (ou par kg si le poids est connu).
+  const [calc, setCalc] = useState({ n: "", prix: "", poids: "" });
+  const nb = (t) => { const x = parseFloat(String(t == null ? "" : t).replace(",", ".")); return Number.isFinite(x) ? x : 0; };
+  const cN = nb(calc.n), cPrix = nb(calc.prix), cPoids = nb(calc.poids);
+  const eur = (n) => `${(Math.round(n * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  const appliquerCalc = (mode) => {
+    setV((x) => {
+      const y = { ...x };
+      if (mode === "pièce") { y.unite = "pièce"; y.prix_unite = "€/pièce"; y.prix_achat = String(Math.round((cPrix / cN) * 10000) / 10000).replace(".", ","); }
+      else { y.unite = "kg"; y.prix_unite = "€/kg"; y.prix_achat = String(Math.round((cPrix / (cPoids / 1000)) * 10000) / 10000).replace(".", ","); }
+      if (!String(y.conditionnement || "").trim()) y.conditionnement = `Colis de ${cN} pièces${cPoids > 0 ? ` (${cPoids} g)` : ""}`;
+      if (cPoids > 0 && cN > 0 && !String(y.poids_par_piece || "").trim()) y.poids_par_piece = `${Math.round((cPoids / cN) * 10) / 10} g/pièce`;
+      return y;
+    });
+  };
+  const uCompte = String(v.unite || "").toLowerCase();
+  const uPrix = String(v.prix_unite || "").replace(/^€\s*\/\s*/, "").toLowerCase();
+  const prixSaisi = nb(v.prix_achat);
+  const incoherence = estProduit && uCompte && uPrix && prixSaisi > 0 && (convertirQuantiteCout(1, uCompte, uPrix) === null)
+    ? `Le stock est compté en « ${v.unite} » mais le prix est en « ${v.prix_unite} » : le logiciel ne peut pas convertir l'un en l'autre, donc le coût des fiches techniques et la valeur du stock ne seront pas calculés. Choisissez la même unité des deux côtés (ou utilisez le calculateur ci-dessus).`
+    : "";
+  const resumePrix = estProduit && prixSaisi > 0 && v.prix_unite && v.unite && !incoherence
+    ? `1 ${v.unite} = ${eur(prixSaisi)} (${v.prix_unite}) · 2 ${v.unite} = ${eur(2 * prixSaisi)}.${String(v.unite).toLowerCase() === "kg" ? ` 100 g = ${eur(prixSaisi / 10)}.` : ""} C'est ce prix qui est utilisé dans les fiches techniques et la valeur du stock.`
+    : "";
   // Reprend ce qui a été lu (photo, image, Excel) dans les cases du produit ; seules les valeurs reconnues sont reprises.
   const remplirDepuisLecture = (lu, source = "photo") => {
     const rempli = []; const maj2 = {};
@@ -6438,21 +6462,48 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 <p className="text-[11px] text-[var(--steel)] mt-2">Température ambiante : non proposée comme méthode (interdite par les normes générales). Si le fabricant l'autorise par écrit, on l'ajoutera.</p>
               </div>
             )}
-            {champTexte("conditionnement", "Conditionnement (ex. Carton 6 x 1 L)")}
-            <label className="block text-xs text-[var(--steel)]">Unité
+            <div className="sm:col-span-2 rounded-xl border-2 p-3 text-xs" style={{ borderColor: "#0E7490", background: "#F3FBFC", color: "var(--ink)" }}>
+              <div className="font-bold text-sm mb-1">Comment remplir : conditionnement, unité et prix</div>
+              <ul className="space-y-1 list-disc list-inside">
+                <li><b>Conditionnement</b> : simple texte pour s'y retrouver, comme l'écrit le fournisseur (ex. « Barquette de 10 x 50 g »). Il ne sert à aucun calcul.</li>
+                <li><b>Unité</b> : ce que vous <b>comptez</b> dans le stock et à l'inventaire (pièce, kg, barquette…).</li>
+                <li><b>Prix d'achat + « exprimé en »</b> : le prix pour <b>UNE unité</b>, dans la même unité que celle que vous comptez. C'est ce prix qui sert au coût des fiches techniques et à la valeur du stock.</li>
+              </ul>
+              <div className="mt-2 rounded-lg bg-white border border-[var(--cadre)] p-2.5">
+                <div className="font-semibold mb-1">Calculateur : 10 pièces dans une barquette à 9 € ? Il calcule le prix à enregistrer.</div>
+                <div className="grid grid-cols-3 gap-2">
+                  <label className="block text-[11px] text-[var(--steel)]">Nombre de pièces dans le colis<input inputMode="decimal" value={calc.n} onChange={(e) => setCalc((x) => ({ ...x, n: e.target.value }))} placeholder="10" className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2 py-1.5 text-sm text-[var(--ink)] bg-white" /></label>
+                  <label className="block text-[11px] text-[var(--steel)]">Prix du colis (€)<input inputMode="decimal" value={calc.prix} onChange={(e) => setCalc((x) => ({ ...x, prix: e.target.value }))} placeholder="9" className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2 py-1.5 text-sm text-[var(--ink)] bg-white" /></label>
+                  <label className="block text-[11px] text-[var(--steel)]">Poids du colis (g), facultatif<input inputMode="decimal" value={calc.poids} onChange={(e) => setCalc((x) => ({ ...x, poids: e.target.value }))} placeholder="500" className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2 py-1.5 text-sm text-[var(--ink)] bg-white" /></label>
+                </div>
+                {cPrix > 0 && cN > 0 && (
+                  <div className="mt-2 space-y-1.5">
+                    <div>1 pièce = <b>{eur(cPrix / cN)}</b> · 1 colis = {cN} pièces = {eur(cPrix)} · 2 colis = {2 * cN} pièces = {eur(2 * cPrix)}{cPoids > 0 ? ` · 1 kg = ${eur(cPrix / (cPoids / 1000))}` : ""}</div>
+                    <div className="flex flex-wrap gap-2">
+                      <button type="button" onClick={() => appliquerCalc("pièce")} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--accent)]">Compter en pièces : enregistrer {eur(cPrix / cN)} / pièce</button>
+                      {cPoids > 0 && <button type="button" onClick={() => appliquerCalc("kg")} className="px-3 py-1.5 rounded-lg text-xs font-bold border-2 border-[var(--accent)] text-[var(--accent)] bg-white">Compter en kg : enregistrer {eur(cPrix / (cPoids / 1000))} / kg</button>}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+            {champTexte("conditionnement", "Conditionnement — texte libre (ex. Barquette de 10 x 50 g)")}
+            <label className="block text-xs text-[var(--steel)]">Unité de comptage (stock et inventaire)
               <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">—</option>
                 {UNITES_PRODUIT.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </label>
-            {champTexte("prix_achat", "Prix d'achat (€)")}
-            <label className="block text-xs text-[var(--steel)]">Le prix est exprimé en
+            {champTexte("prix_achat", "Prix d'achat HT (€) pour UNE unité de comptage")}
+            <label className="block text-xs text-[var(--steel)]">Le prix est exprimé en (doit correspondre à l'unité de comptage)
               <select value={v.prix_unite || ""} onChange={(e) => maj("prix_unite", e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
                 <option value="">—</option>
                 {UNITES_PRIX.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </label>
-            {champTexte("poids_par_piece", "Poids par pièce (ex. 150 g)")}
+            {incoherence && <div className="sm:col-span-2 rounded-lg border-2 px-3 py-2 text-xs font-semibold" style={{ borderColor: "#E0A100", background: "#FFF4CC", color: "#6B4A00" }}>⚠ {incoherence}</div>}
+            {resumePrix && <div className="sm:col-span-2 rounded-lg px-3 py-2 text-xs" style={{ background: "#EAF6EE", color: "#14532D" }}><b>Résumé :</b> {resumePrix}</div>}
+            {champTexte("poids_par_piece", "Poids par pièce — indicatif (ex. 50 g)")}
             {champTexte("origine_norme", "Origine du produit (ex. France, UE, Italie)")}
             <div className="sm:col-span-2 text-xs text-[var(--steel)]">
               Allergènes du produit (14 réglementaires) — ils se coucheront tout seuls dans les fiches techniques qui utilisent ce produit
