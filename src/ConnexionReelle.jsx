@@ -335,8 +335,9 @@ function lireSessionEmploye() {
     return s;
   } catch (e) { return null; }
 }
-function ecrireSessionEmploye(employeId) {
-  try { localStorage.setItem(CLE_SESSION_EMPLOYE, JSON.stringify({ employeId, jusqua: prochain4hIso() })); } catch (e) { /* stockage indisponible */ }
+// `chef` : le code de chef / directeur a été saisi aujourd'hui sur ce téléphone, donc Paramétrage et Contrôle & Gestion ne le redemandent plus jusqu'au prochain 4h.
+function ecrireSessionEmploye(employeId, chef = false) {
+  try { localStorage.setItem(CLE_SESSION_EMPLOYE, JSON.stringify({ employeId, chef: !!chef, jusqua: prochain4hIso() })); } catch (e) { /* stockage indisponible */ }
 }
 function effacerSessionEmploye() {
   try { localStorage.removeItem(CLE_SESSION_EMPLOYE); } catch (e) { /* stockage indisponible */ }
@@ -1440,9 +1441,12 @@ export default function ConnexionReelle() {
     setErreur("");
     const chef = estChefOuDirecteur(emp.role);
     setEmployeIdentifie({ id: emp.id, nom: [emp.prenom, emp.nom].filter(Boolean).join(" ") || emp.nom || "", poste: emp.poste || "", role: emp.role });
-    setDebloqueParCode(!!(chef && codeSaisiOk));
+    // Téléphone : un chef / directeur qui a déjà saisi son code aujourd'hui (avant le prochain 4h) reste débloqué, sans nouveau code à chaque entrée dans Paramétrage.
+    const sessAvant = estTelephoneAppareil() ? lireSessionEmploye() : null;
+    const chefDejaValide = !!(chef && sessAvant && sessAvant.employeId === emp.id && sessAvant.chef);
+    setDebloqueParCode(!!(chef && codeSaisiOk) || chefDejaValide);
     if (codeSaisiOk && chef) { setCode(codeSaisiOk); chargerEquipe(jeton, codeSaisiOk); }
-    if (codeSaisiOk && estTelephoneAppareil()) ecrireSessionEmploye(emp.id);
+    if (codeSaisiOk && estTelephoneAppareil()) ecrireSessionEmploye(emp.id, chef);
     setChoixNoms(false);
     setEtape("connecte");
     setVoirAppliReelle(ADRESSE_EN_LIGNE); // en ligne : directement dans l'application
@@ -1622,6 +1626,8 @@ export default function ConnexionReelle() {
         if (!estChefOuDirecteur(data.employe.role)) return { ok: false };
         setCode(codeSaisi); // gestion des comptes (inviter, supprimer) : réservée à ce code de chef / directeur
         chargerEquipe(session.token, codeSaisi);
+        // Téléphone : le code de chef saisi pour Paramétrage / Contrôle & Gestion vaut jusqu'au prochain 4h (une seule fois par jour).
+        if (estTelephoneAppareil() && employeIdentifie && data.employe.id === employeIdentifie.id) { ecrireSessionEmploye(employeIdentifie.id, true); setDebloqueParCode(true); }
         return { ok: true, nom: data.employe.nom };
       },
       reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, enregistrerGroupesFiches, enregistrerGroupesInventaire, enregistrerModeVerif, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
