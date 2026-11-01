@@ -408,7 +408,13 @@ export default function ConnexionReelle() {
       // Ordre choisi par l'établissement dans son stock : requête à part (colonne absente = ordre alphabétique, rien ne casse).
       const rop = await supabasePublic.from("produits").select("id, ordre_stock");
       const ordreParProduit = new Map(rop.error ? [] : (rop.data || []).map((x) => [x.id, x.ordre_stock]));
+      // Détail d'achat et de comptage : requête à part (colonne absente = produit sans détail, rien ne casse).
+      const rda = await supabasePublic.from("produits").select("id, detail_achat");
+      const detailParProduit = new Map(rda.error ? [] : (rda.data || []).map((x) => [x.id, x.detail_achat]));
+      const prixTexte = (n) => { let t = Number(n).toFixed(4).replace(/0+$/, ""); const [e, f = ""] = t.split("."); return `${e},${f.padEnd(2, "0")}`; };
       const liste = (rp.data || []).map((p) => ({
+        detailAchat: detailParProduit.get(p.id) || null,
+        contenuPiece: (detailParProduit.get(p.id) && Number(detailParProduit.get(p.id).contenu) > 0) ? { val: Number(detailParProduit.get(p.id).contenu), unite: detailParProduit.get(p.id).contenuUnite === "ml" ? "ml" : "g" } : null,
         groupeStock: groupeParProduit.get(p.id) || "",
         ordreStock: ordreParProduit.get(p.id) == null ? null : Number(ordreParProduit.get(p.id)),
         id: p.id, nom: p.nom, categorie: p.conservation === "surgele" ? "Surgelés" : (p.categorie || "Autres"), conservation: p.conservation || "",
@@ -416,12 +422,12 @@ export default function ConnexionReelle() {
         decongelMethode: p.decongel_methode || "", decongelJours: p.decongel_jours == null ? null : Number(p.decongel_jours), decongelSource: p.decongel_source || "",
         fournisseur: (p.fournisseurs && p.fournisseurs.nom) || "",
         reference: p.reference || "", conditionnement: p.conditionnement || "",
-        prixUnitaire: p.prix_achat != null ? `${Number(p.prix_achat).toFixed(2).replace(".", ",")} ${p.prix_unite || "€"}` : "",
+        prixUnitaire: p.prix_achat != null ? `${prixTexte(p.prix_achat)} ${p.prix_unite || "€"}` : "",
         poidsParPiece: p.poids_par_piece || "", referenceVerifiee: !!p.reference_verifiee, note: p.note || "",
         allergenesNorme: (p.allergenes_norme || []).join(", "), origineNorme: p.origine_norme || "",
         quantite: Number(p.quantite_stock) || 0, cible: Number(p.quantite_cible) || 0, unite: p.unite || "",
         lot: (dernierLot.get(p.id) || {}).numero_lot || "", dlc: (dernierLot.get(p.id) || {}).dlc || "",
-        brut: p, // valeurs de la base, pour le formulaire de modification
+        brut: { ...p, detail_achat: detailParProduit.get(p.id) || null }, // valeurs de la base, pour le formulaire de modification
       }));
       setCatalogue(liste);
       return liste;

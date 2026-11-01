@@ -5699,6 +5699,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
 // et le logiciel calcule la quantité exacte dans l'unité du stock. Le format (« Barquette de 2,5 kg ») est lu dans le conditionnement du produit.
 const UNITES_RESTE = { kg: [["g", "g", 0.001], ["kg", "kg", 1]], l: [["cl", "cl", 0.01], ["ml", "ml", 0.001], ["L", "L", 1]] };
 function formatInventaire(s) {
+  if (s && s.detailAchat) return null; // produit détaillé : comptage par la fenêtre « Compter »
   const cond = String((s && s.conditionnement) || "");
   if (!cond) return null;
   let base = "kg", val = quantiteParConditionnement({ conditionnement: cond, unite: "kg" });
@@ -5721,12 +5722,80 @@ function sommeSaisie(t) {
   for (const part of txt.split("+")) { const n = parseFloat(part.replace(",", ".").trim()); if (Number.isNaN(n) || n < 0) return null; tot += n; }
   return tot;
 }
+// Fenêtre « Compter » de l'inventaire : colis + sachets + pièces seules, ou plusieurs quantités en kg / L à additionner.
+function DetailComptage({ x, onValider, onFermer }) {
+  const d = x.detailAchat || {};
+  const r = calculerDetailAchat(d);
+  const nomPiece = (d.nomPiece || "").trim() || "pièce";
+  const [colisN, setColisN] = useState("");
+  const [sousN, setSousN] = useState("");
+  const [piecesN, setPiecesN] = useState("");
+  const [lignes, setLignes] = useState([{ val: "", u: d.comptage === "l" ? "L" : "kg" }]);
+  const base = d.comptage === "l" ? "l" : "kg";
+  const contenuBase = r.contenuPiece ? r.contenuPiece.val / 1000 : 0;
+  const nbSous = d.vente === "colis" ? nbDetail(d.nbSous) : 0;
+  let total = null;
+  if (d.comptage === "piece") {
+    const a = sommeSaisie(colisN), b = sommeSaisie(sousN), c = sommeSaisie(piecesN);
+    total = a === null || b === null || c === null ? null : a * r.piecesParColis + b * r.piecesParSous + c;
+  } else {
+    const p = sommeSaisie(piecesN);
+    let t = p === null ? null : p * contenuBase;
+    lignes.forEach((l) => { if (t === null) return; const v = sommeSaisie(l.val); if (v === null) { t = null; return; } const choix = UNITES_RESTE[base].find((u) => u[0] === l.u) || UNITES_RESTE[base][0]; t += v * choix[2]; });
+    total = t;
+  }
+  const arrondi = total === null ? null : Math.round(total * 1000) / 1000;
+  const prix = parserPrixUnitaire(x.prixUnitaire);
+  const valeur = arrondi !== null && prix ? Math.round(arrondi * prix.val * 100) / 100 : null;
+  const champ = "w-20 border border-[var(--cadre)] rounded-lg px-2 py-1.5 text-sm text-[var(--ink)] bg-white";
+  const ligneNb = (label, val, set) => (
+    <label className="flex items-center justify-between gap-2 text-sm"><span>{label}</span><input inputMode="decimal" className={champ} placeholder="0" value={val} onChange={(e) => set(e.target.value)} /></label>
+  );
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onFermer}>
+      <div className="bg-white rounded-xl max-w-md w-full p-5 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
+        <div className="font-bold text-[var(--ink)] mb-0.5">Compter : {x.nom}</div>
+        <p className="text-[11px] text-[var(--steel)] mb-3">{x.conditionnement || ""} — vous pouvez écrire plusieurs nombres avec « + » (ex. 3+2).</p>
+        <div className="space-y-2">
+          {d.comptage === "piece" ? (
+            <>
+              {d.vente === "colis" && ligneNb(`${pluriel(capitale(d.nomColis || "colis"))} entiers (${fmtDetail(r.piecesParColis)} ${pluriel(nomPiece)} chacun)`, colisN, setColisN)}
+              {nbSous > 0 && ligneNb(`${pluriel(capitale(d.nomSous || "sachet"))} entiers (${fmtDetail(r.piecesParSous)} ${pluriel(nomPiece)} chacun)`, sousN, setSousN)}
+              {ligneNb(`${capitale(pluriel(nomPiece))} à l'unité`, piecesN, setPiecesN)}
+            </>
+          ) : (
+            <>
+              {contenuBase > 0 && ligneNb(`${capitale(pluriel(nomPiece))} entières (${fmtDetail(r.contenuPiece.val)} ${r.contenuPiece.unite} chacune)`, piecesN, setPiecesN)}
+              <div className="text-xs font-semibold text-[var(--ink)]">Morceaux, restes entamés (à additionner)</div>
+              {lignes.map((l, i) => (
+                <div key={i} className="flex items-center gap-2">
+                  <input inputMode="decimal" className={champ} placeholder="0" value={l.val} onChange={(e) => setLignes(lignes.map((z, j) => (j === i ? { ...z, val: e.target.value } : z)))} />
+                  <select className="border border-[var(--cadre)] rounded-lg px-2 py-1.5 text-sm bg-white" value={l.u} onChange={(e) => setLignes(lignes.map((z, j) => (j === i ? { ...z, u: e.target.value } : z)))}>{UNITES_RESTE[base].map((u) => <option key={u[0]} value={u[0]}>{u[1]}</option>)}</select>
+                  {lignes.length > 1 && <button type="button" onClick={() => setLignes(lignes.filter((_, j) => j !== i))} className="text-xs text-[var(--steel)] underline">retirer</button>}
+                </div>
+              ))}
+              <button type="button" onClick={() => setLignes([...lignes, { val: "", u: lignes[lignes.length - 1].u }])} className="text-xs font-semibold text-[var(--accent)]">+ Ajouter un morceau</button>
+            </>
+          )}
+        </div>
+        <div className="mt-3 rounded-lg px-3 py-2 text-sm" style={{ background: "#EAF6EE", color: "#14532D" }}>
+          {arrondi === null ? <span className="font-semibold" style={{ color: "#B4233A" }}>Un nombre est illisible.</span> : <><b>Total : {fmtDetail(arrondi)} {x.unite}</b>{valeur !== null ? ` — ${eurDetail(valeur)}` : ""}</>}
+        </div>
+        <div className="flex gap-2 mt-4">
+          <button type="button" disabled={arrondi === null} onClick={() => onValider(arrondi)} className="px-4 h-11 rounded-xl text-sm font-bold text-white bg-[var(--accent)] disabled:opacity-40">Valider ce comptage</button>
+          <button type="button" onClick={onFermer} className="px-4 h-11 text-sm" style={{ color: "var(--steel)" }}>Annuler</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesStock, masques, setMasques }) {
   const [comptage, setComptage] = useState({});
   const [pieces, setPieces] = useState({});
   const [restes, setRestes] = useState({});
   const [unitesReste, setUnitesReste] = useState({});
   const [valide, setValide] = useState(false);
+  const [modalCompte, setModalCompte] = useState(null);
   // Quantité comptée, dans l'unité du stock (null = produit pas encore compté).
   const compteDe = (x) => {
     const f = formatInventaire(x);
@@ -5864,7 +5933,10 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
                             {!lisible ? <span className="text-xs font-semibold" style={{ color: "#B4233A" }}>nombre illisible</span> : compte !== null ? <span className="text-xs font-semibold text-[var(--ink)]">= {fmtNb(compte)} {x.unite}</span> : null}
                           </div>
                         ) : (
-                          <input className={`${inputCls} !h-9 w-28 print:border-0`} type="number" placeholder={`${x.quantite}`} value={comptage[x.id] ?? ""} onChange={(e) => setComptage({ ...comptage, [x.id]: e.target.value })} />
+                          <div className="flex items-center gap-1.5">
+                            <input className={`${inputCls} !h-9 w-28 print:border-0`} type="number" placeholder={`${x.quantite}`} value={comptage[x.id] ?? ""} onChange={(e) => setComptage({ ...comptage, [x.id]: e.target.value })} />
+                            {x.detailAchat && <button type="button" onClick={() => setModalCompte(x.id)} className="print:hidden px-2.5 h-9 rounded-lg text-xs font-bold text-white bg-[var(--accent)] whitespace-nowrap">Compter</button>}
+                          </div>
                         )}
                         <span className="text-xs font-semibold" style={{ color: ecart ? "#B45309" : "#15803D" }}>{ecart === null ? "" : ecart === 0 ? "✓ OK" : `${ecart > 0 ? "+" : ""}${ecart}`}</span>
                         <span className="text-xs text-right font-semibold text-[var(--ink)]" title={x.prixUnitaire ? `Prix : ${x.prixUnitaire}` : "Prix d'achat non renseigné"}>{(() => { const v = valeurDe(x, qteFinale(x)); return v === null ? <span className="font-normal text-[var(--steel)]">prix ?</span> : fmtEuro(v); })()}</span>
@@ -5889,6 +5961,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
           </div>
         </>
       )}
+      {modalCompte && (() => { const px = stock.find((z) => z.id === modalCompte); return px ? <DetailComptage x={px} onFermer={() => setModalCompte(null)} onValider={(t) => { setComptage((c) => ({ ...c, [px.id]: String(t) })); setModalCompte(null); }} /> : null; })()}
     </div>
   );
 }
@@ -6251,6 +6324,176 @@ const CHAMPS_FOURNISSEUR = [
 ];
 const UNITES_PRODUIT = ["kg", "g", "L", "cL", "pièce", "botte", "boîte", "sachet", "barquette"];
 const UNITES_PRIX = ["€/kg", "€/L", "€/pièce", "€/botte", "€/boîte", "€/sachet", "€/barquette"];
+// ===== Détail d'achat et de comptage d'un produit =====
+// Le fournisseur vend un colis (ex. 3 sachets de 15 pains), le prix de la facture porte sur le colis, le sachet, la pièce, le kilo ou le litre,
+// et on compte l'inventaire en pièces, en kilos ou en litres. Ce détail est saisi UNE fois dans la fiche produit ; le logiciel en déduit
+// l'unité de comptage, le prix par unité et le texte du conditionnement, que le stock, l'inventaire et les fiches techniques utilisent tous.
+const nbDetail = (t) => { const x = parseFloat(String(t == null ? "" : t).replace(",", ".")); return Number.isFinite(x) ? x : 0; };
+const pluriel = (m) => { const t = String(m || "").trim(); return !t || /[sxz]$/i.test(t) ? t : t + "s"; };
+const capitale = (t) => { const x = String(t || ""); return x.charAt(0).toUpperCase() + x.slice(1); };
+const fmtDetail = (n) => (Math.round(n * 1000) / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 3 });
+const eurDetail = (n) => `${(Math.round(n * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+const eurPrecis = (n) => `${(Math.round(n * 10000) / 10000).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 4 })} €`;
+function calculerDetailAchat(d) {
+  const out = { ok: false, erreurs: [], resume: [], derive: null, piecesParColis: 1, piecesParSous: 1, prixPiece: null, prixKg: null, prixL: null, contenuPiece: null };
+  if (!d || !d.vente) { out.erreurs.push("Choisissez comment le fournisseur vend ce produit."); return out; }
+  const colis = d.vente === "colis";
+  const nbSous = colis ? nbDetail(d.nbSous) : 0;
+  const nbPieces = d.vente === "colis" ? nbDetail(d.nbPieces) : 1;
+  if (colis && !(nbPieces > 0)) out.erreurs.push(nbSous > 0 ? "Indiquez le nombre de pièces dans chaque " + (d.nomSous || "sous-paquet") + "." : "Indiquez le nombre de pièces dans le " + (d.nomColis || "colis") + ".");
+  const piecesParSous = colis ? (nbPieces > 0 ? nbPieces : 0) : 1;
+  const piecesParColis = colis ? (nbSous > 0 ? nbSous * piecesParSous : piecesParSous) : 1;
+  out.piecesParColis = piecesParColis; out.piecesParSous = piecesParSous;
+  const contenu = nbDetail(d.contenu);
+  const cu = d.contenuUnite === "ml" ? "ml" : "g";
+  const contenuBase = contenu > 0 ? contenu / 1000 : 0; // kg ou L
+  if (contenu > 0) out.contenuPiece = { val: contenu, unite: cu };
+  const prix = nbDetail(d.prix);
+  if (!d.prixPour) out.erreurs.push("Indiquez pour quoi le prix de la facture est donné (le colis, la pièce, le kilo…).");
+  else if (!(prix > 0)) out.erreurs.push("Indiquez le prix de la facture.");
+  let prixPiece = null, prixKg = null, prixL = null;
+  if (prix > 0) {
+    if (d.prixPour === "colis" && piecesParColis > 0) prixPiece = prix / piecesParColis;
+    else if (d.prixPour === "sous" && piecesParSous > 0) prixPiece = prix / piecesParSous;
+    else if (d.prixPour === "piece") prixPiece = prix;
+    else if (d.prixPour === "kg") { prixKg = prix; if (contenuBase > 0 && cu === "g") prixPiece = prix * contenuBase; }
+    else if (d.prixPour === "l") { prixL = prix; if (contenuBase > 0 && cu === "ml") prixPiece = prix * contenuBase; }
+    if (prixPiece != null && contenuBase > 0) { if (cu === "g" && prixKg == null) prixKg = prixPiece / contenuBase; if (cu === "ml" && prixL == null) prixL = prixPiece / contenuBase; }
+  }
+  Object.assign(out, { prixPiece, prixKg, prixL });
+  const nomPiece = String(d.nomPiece || "").trim() || "pièce";
+  const nomPieceMin = nomPiece.toLowerCase();
+  const uniteListe = UNITES_PRODUIT.find((u) => u.toLowerCase() === nomPieceMin);
+  const unitePiece = uniteListe || "pièce";
+  // texte du conditionnement
+  const poidsTxt = contenu <= 0 ? "" : (contenu >= 1000 ? `${fmtDetail(contenu / 1000)} ${cu === "ml" ? "L" : "kg"}` : `${fmtDetail(contenu)} ${cu}`);
+  let cond = "";
+  if (d.vente === "colis") cond = `${capitale(d.nomColis || "colis")} de ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} de ` : ""}${fmtDetail(nbPieces)} ${nbPieces > 1 ? pluriel(nomPiece) : nomPiece}${poidsTxt ? ` (${poidsTxt} pièce)` : ""}`;
+  else if (d.vente === "piece") cond = `${capitale(nomPiece)}${poidsTxt ? ` de ${poidsTxt}` : ""}`;
+  else cond = poidsTxt ? `${capitale(nomPiece)} de ${poidsTxt}` : (d.vente === "poids" ? "Vendu au poids" : "Vendu au volume");
+  // unité de comptage et prix par unité de comptage
+  const c = d.comptage;
+  if (!c) out.erreurs.push("Indiquez comment vous comptez ce produit à l'inventaire.");
+  let derive = null;
+  if (c === "piece") {
+    if (prixPiece == null && prix > 0 && d.prixPour) out.erreurs.push("Pour compter en pièces avec un prix au " + (d.prixPour === "kg" ? "kilo" : "litre") + ", indiquez le poids (ou le volume) d'une pièce.");
+    if (prixPiece != null) derive = { unite: unitePiece, prix_achat: prixPiece, prix_unite: "€/" + (UNITES_PRIX.includes("€/" + unitePiece) ? unitePiece : "pièce") };
+    if (derive && !UNITES_PRIX.includes(derive.prix_unite)) derive.prix_unite = "€/pièce";
+  } else if (c === "kg") {
+    if (prixKg == null && prix > 0 && d.prixPour) out.erreurs.push("Pour compter en kilos, indiquez le prix au kilo ou le poids d'une pièce.");
+    if (prixKg != null) derive = { unite: "kg", prix_achat: prixKg, prix_unite: "€/kg" };
+  } else if (c === "l") {
+    if (prixL == null && prix > 0 && d.prixPour) out.erreurs.push("Pour compter en litres, indiquez le prix au litre ou le volume d'une pièce.");
+    if (prixL != null) derive = { unite: "L", prix_achat: prixL, prix_unite: "€/L" };
+  }
+  if (derive) derive.prix_achat = Math.round(derive.prix_achat * 10000) / 10000;
+  if (derive) derive.conditionnement = cond, derive.poids_par_piece = poidsTxt;
+  // récapitulatif lisible
+  const r = [];
+  if (colis) r.push(`1 ${d.nomColis || "colis"} = ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} = ` : ""}${fmtDetail(piecesParColis)} ${pluriel(nomPiece)}${prix > 0 && d.prixPour === "colis" ? ` = ${eurDetail(prix)}` : ""}`);
+  if (prixPiece != null) r.push(`1 ${nomPiece} = ${eurPrecis(prixPiece)}${poidsTxt ? ` (${poidsTxt})` : ""}`);
+  if (prixKg != null) r.push(`1 kg = ${eurDetail(prixKg)}${contenuBase > 0 && cu === "g" ? ` · 100 g = ${eurDetail(prixKg / 10)}` : ""}`);
+  if (prixL != null) r.push(`1 L = ${eurDetail(prixL)}`);
+  if (colis && prixPiece != null && piecesParColis > 0) r.push(`2 ${pluriel(d.nomColis || "colis")} = ${fmtDetail(2 * piecesParColis)} ${pluriel(nomPiece)} = ${eurDetail(2 * prixPiece * piecesParColis)}`);
+  out.resume = r; out.derive = derive; out.conditionnement = cond; out.ok = !!derive && out.erreurs.length === 0;
+  return out;
+}
+// Questions guidées de la fiche produit : comment il est vendu, ce qu'il contient, le prix de la facture, comment on le compte.
+function GuideAchatProduit({ v, setV }) {
+  const d = v.detail_achat || {};
+  const r = calculerDetailAchat(d);
+  const changer = (patch) => setV((x) => {
+    const nd = { ...(x.detail_achat || {}), ...patch };
+    const rr = calculerDetailAchat(nd);
+    const y = { ...x, detail_achat: nd };
+    if (rr.ok) { y.unite = rr.derive.unite; y.prix_achat = String(rr.derive.prix_achat).replace(".", ","); y.prix_unite = rr.derive.prix_unite; y.conditionnement = rr.derive.conditionnement; y.poids_par_piece = rr.derive.poids_par_piece || ""; }
+    return y;
+  });
+  const champ = "mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white";
+  const bouton = (actif, texte, onClick, sous) => (
+    <button type="button" onClick={onClick} className={`text-left rounded-lg border-2 px-3 py-2 ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
+      <span className="block text-sm font-semibold text-[var(--ink)]">{actif ? "● " : "○ "}{texte}</span>{sous && <span className="block text-[11px] text-[var(--steel)]">{sous}</span>}
+    </button>
+  );
+  const colis = d.vente === "colis";
+  const nomPiece = (d.nomPiece || "").trim() || "pièce";
+  const optionsPrix = [];
+  if (colis) { optionsPrix.push(["colis", `le ${d.nomColis || "colis"} entier`]); if (nbDetail(d.nbSous) > 0) optionsPrix.push(["sous", `un ${d.nomSous || "sachet"}`]); optionsPrix.push(["piece", `une ${nomPiece}`]); }
+  else if (d.vente === "piece") optionsPrix.push(["piece", `une ${nomPiece}`]);
+  else if (d.vente === "poids") { optionsPrix.push(["kg", "le kilo"]); if (nbDetail(d.contenu) > 0) optionsPrix.push(["piece", `une ${nomPiece}`]); }
+  else if (d.vente === "volume") { optionsPrix.push(["l", "le litre"]); if (nbDetail(d.contenu) > 0) optionsPrix.push(["piece", `une ${nomPiece}`]); }
+  else optionsPrix.push(["piece", "une pièce"]);
+  return (
+    <div className="sm:col-span-2 rounded-xl border-2 p-3 text-xs space-y-3" style={{ borderColor: "#0E7490", background: "#F3FBFC", color: "var(--ink)" }}>
+      <div>
+        <div className="font-bold text-sm">Comment ce produit est acheté et compté</div>
+        <p className="text-[11px] text-[var(--steel)]">Répondez une seule fois ici : le stock, l'inventaire, les prix et les fiches techniques utiliseront ces réponses. Vous n'aurez plus rien à régler ailleurs.</p>
+      </div>
+      <div>
+        <div className="font-semibold mb-1">1. Comment le fournisseur le vend-il ?</div>
+        <div className="grid gap-1.5 sm:grid-cols-2">
+          {bouton(d.vente === "colis", "Par colis", () => changer({ vente: "colis", prixPour: d.prixPour === "kg" || d.prixPour === "l" ? "" : d.prixPour }), "carton, caisse, sachets dans un colis…")}
+          {bouton(d.vente === "piece", "À la pièce", () => changer({ vente: "piece", prixPour: "piece" }), "une boîte, une brique, un pot…")}
+          {bouton(d.vente === "poids", "Au poids (kg)", () => changer({ vente: "poids", prixPour: "kg", comptage: d.comptage || "kg" }), "viande, charcuterie, fromage, légumes…")}
+          {bouton(d.vente === "volume", "Au volume (litre)", () => changer({ vente: "volume", prixPour: "l", comptage: d.comptage || "l" }), "huile, lait en vrac…")}
+        </div>
+      </div>
+      {d.vente && (
+        <div>
+          <div className="font-semibold mb-1">2. Que contient-il ?</div>
+          <div className="grid gap-2 sm:grid-cols-2">
+            {colis && <>
+              <label className="block text-[11px] text-[var(--steel)]">Le colis s'appelle
+                <select className={champ} value={d.nomColis || "colis"} onChange={(e) => changer({ nomColis: e.target.value })}>{["colis", "carton", "caisse", "pack", "seau", "bidon", "sac"].map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
+              <label className="block text-[11px] text-[var(--steel)]">Nombre de sachets / barquettes dans le colis (vide s'il n'y en a pas)
+                <input inputMode="numeric" className={champ} placeholder="ex. 3" value={d.nbSous ?? ""} onChange={(e) => changer({ nbSous: e.target.value, prixPour: d.prixPour === "sous" && !(nbDetail(e.target.value) > 0) ? "colis" : d.prixPour })} /></label>
+              {nbDetail(d.nbSous) > 0 && <label className="block text-[11px] text-[var(--steel)]">Ces paquets s'appellent
+                <select className={champ} value={d.nomSous || "sachet"} onChange={(e) => changer({ nomSous: e.target.value })}>{["sachet", "barquette", "boîte", "paquet", "pack", "brique", "sac"].map((x) => <option key={x} value={x}>{x}</option>)}</select></label>}
+              <label className="block text-[11px] text-[var(--steel)]">{nbDetail(d.nbSous) > 0 ? `Nombre de pièces dans chaque ${d.nomSous || "sachet"}` : `Nombre de pièces dans le ${d.nomColis || "colis"}`}
+                <input inputMode="numeric" className={champ} placeholder="ex. 15" value={d.nbPieces ?? ""} onChange={(e) => changer({ nbPieces: e.target.value })} /></label>
+            </>}
+            <label className="block text-[11px] text-[var(--steel)]">Une pièce s'appelle
+              <input className={champ} placeholder="ex. pain, tranche, brique, barquette" value={d.nomPiece ?? ""} onChange={(e) => changer({ nomPiece: e.target.value })} /></label>
+            <div className="grid grid-cols-[1fr_5rem] gap-1.5">
+              <label className="block text-[11px] text-[var(--steel)]">Poids ou volume d'une pièce (facultatif)
+                <input inputMode="decimal" className={champ} placeholder="ex. 250" value={d.contenu ?? ""} onChange={(e) => changer({ contenu: e.target.value })} /></label>
+              <label className="block text-[11px] text-[var(--steel)]">Unité
+                <select className={champ} value={d.contenuUnite || "g"} onChange={(e) => changer({ contenuUnite: e.target.value })}><option value="g">g</option><option value="ml">ml</option></select></label>
+            </div>
+          </div>
+          <p className="text-[11px] text-[var(--steel)] mt-1">Le poids ou le volume d'une pièce permet d'utiliser le produit en grammes dans les fiches techniques (ex. 250 g de comté, 3 tranches de 20 g).</p>
+        </div>
+      )}
+      {d.vente && (
+        <div>
+          <div className="font-semibold mb-1">3. Le prix de la facture est pour…</div>
+          <div className="flex flex-wrap gap-1.5 mb-1.5">
+            {optionsPrix.map(([k, l]) => <button key={k} type="button" onClick={() => changer({ prixPour: k })} className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold ${d.prixPour === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--cadre)] bg-white text-[var(--steel)]"}`}>{d.prixPour === k ? "● " : "○ "}{l}</button>)}
+          </div>
+          <label className="block text-[11px] text-[var(--steel)] max-w-[12rem]">Prix HT (€)
+            <input inputMode="decimal" className={champ} placeholder="ex. 27,00" value={d.prix ?? ""} onChange={(e) => changer({ prix: e.target.value })} /></label>
+        </div>
+      )}
+      {d.vente && (
+        <div>
+          <div className="font-semibold mb-1">4. À l'inventaire, vous le comptez en…</div>
+          <div className="flex flex-wrap gap-1.5">
+            {[["piece", `${pluriel(nomPiece)} (pièces)`], ["kg", "kilos"], ["l", "litres"]].map(([k, l]) => <button key={k} type="button" onClick={() => changer({ comptage: k })} className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold ${d.comptage === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--cadre)] bg-white text-[var(--steel)]"}`}>{d.comptage === k ? "● " : "○ "}{l}</button>)}
+          </div>
+          <p className="text-[11px] text-[var(--steel)] mt-1">Au moment de l'inventaire, une fenêtre « Compter » vous laisse saisir les colis, les sachets, les pièces seules ou les restes ; le total se calcule tout seul.</p>
+        </div>
+      )}
+      {d.vente && r.erreurs.length > 0 && <div className="rounded-lg border-2 px-3 py-2 font-semibold" style={{ borderColor: "#E0A100", background: "#FFF4CC", color: "#6B4A00" }}>⚠ {r.erreurs.join(" ")}</div>}
+      {r.ok && (
+        <div className="rounded-lg px-3 py-2" style={{ background: "#EAF6EE", color: "#14532D" }}>
+          <div className="font-bold mb-0.5">Récapitulatif (vérifiez que c'est juste)</div>
+          <ul className="list-disc list-inside space-y-0.5">{r.resume.map((t, i) => <li key={i}>{t}</li>)}</ul>
+          <div className="mt-1">Enregistré : compté en <b>{r.derive.unite}</b> · prix <b>{eurPrecis(r.derive.prix_achat)} {r.derive.prix_unite}</b> · {r.derive.conditionnement}.</div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // Remplir la fiche d'un produit à partir d'une photo / image (lue par l'IA) ou d'un fichier Excel / CSV (première ligne). Rien n'est enregistré :
 // les cases se remplissent, on relit, on corrige, puis on enregistre.
@@ -6313,22 +6556,10 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   const estProduit = edition.table === "produits";
   const [v, setV] = useState(() => { const b = { ...edition.valeurs }; if (b.delai_apres_ouverture_jours == null && b.delai_jours_dlc != null) b.delai_apres_ouverture_jours = b.delai_jours_dlc; return b; });
   const [categorieNouvelle, setCategorieNouvelle] = useState(false);
-  const maj = (cle, val) => setV((x) => ({ ...x, [cle]: val }));
-  // Calculateur de prix : colis de N pièces à P € -> prix par pièce (ou par kg si le poids est connu).
-  const [calc, setCalc] = useState({ n: "", prix: "", poids: "" });
+  // Modifier à la main un des champs calculés par le guide d'achat rend le guide caduc : il est effacé pour éviter deux vérités.
+  const maj = (cle, val) => setV((x) => ({ ...x, [cle]: val, ...(["unite", "prix_achat", "prix_unite", "conditionnement", "poids_par_piece"].includes(cle) ? { detail_achat: null } : {}) }));
   const nb = (t) => { const x = parseFloat(String(t == null ? "" : t).replace(",", ".")); return Number.isFinite(x) ? x : 0; };
-  const cN = nb(calc.n), cPrix = nb(calc.prix), cPoids = nb(calc.poids);
   const eur = (n) => `${(Math.round(n * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
-  const appliquerCalc = (mode) => {
-    setV((x) => {
-      const y = { ...x };
-      if (mode === "pièce") { y.unite = "pièce"; y.prix_unite = "€/pièce"; y.prix_achat = String(Math.round((cPrix / cN) * 10000) / 10000).replace(".", ","); }
-      else { y.unite = "kg"; y.prix_unite = "€/kg"; y.prix_achat = String(Math.round((cPrix / (cPoids / 1000)) * 10000) / 10000).replace(".", ","); }
-      if (!String(y.conditionnement || "").trim()) y.conditionnement = `Colis de ${cN} pièces${cPoids > 0 ? ` (${cPoids} g)` : ""}`;
-      if (cPoids > 0 && cN > 0 && !String(y.poids_par_piece || "").trim()) y.poids_par_piece = `${Math.round((cPoids / cN) * 10) / 10} g/pièce`;
-      return y;
-    });
-  };
   const uCompte = String(v.unite || "").toLowerCase();
   const uPrix = String(v.prix_unite || "").replace(/^€\s*\/\s*/, "").toLowerCase();
   const prixSaisi = nb(v.prix_achat);
@@ -6359,7 +6590,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     if (Array.isArray(lu.allergenes_norme) && lu.allergenes_norme.length) { const a = lu.allergenes_norme.map((x) => ALLERGENES_14.find((y) => y.toLowerCase() === String(x).trim().toLowerCase())).filter(Boolean); if (a.length) { maj2.allergenes_norme = a; rempli.push("allergènes"); } }
     if (lu.origine_norme) { texte("origine_norme", lu.origine_norme, "origine"); }
     if (!rempli.length) return "Rien de reconnu dans cette " + (source === "photo" ? "image" : "lecture") + " : remplissez à la main ou essayez avec une image plus nette.";
-    setV((x) => ({ ...x, ...maj2 }));
+    setV((x) => ({ ...x, ...maj2, ...(maj2.unite || maj2.prix_achat || maj2.prix_unite || maj2.conditionnement ? { detail_achat: null } : {}) }));
     return `Cases remplies (${source}) : ${rempli.join(", ")}. Relisez et corrigez avant d'enregistrer.`;
   };
   const champTexte = (cle, label, requis) => (
@@ -6372,11 +6603,12 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     if (!String(v.nom || "").trim()) return;
     const sortie = {};
     const cles = estProduit
-      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours", "decongel_methode", "decongel_jours", "decongel_source", "allergenes_norme", "origine_norme"]
+      ? ["nom", "reference", "categorie", "conservation", "fournisseur_id", "unite", "prix_achat", "conditionnement", "prix_unite", "poids_par_piece", "reference_verifiee", "note", "type_date", "delai_jours_dlc", "delai_apres_ouverture_jours", "decongel_methode", "decongel_jours", "decongel_source", "allergenes_norme", "origine_norme", "detail_achat"]
       : [...CHAMPS_FOURNISSEUR.map((c) => c.cle), "jours_livraison", "planning_commande", "planning_livraison"];
     cles.forEach((c) => {
       let val = v[c];
-      if (c === "reference_verifiee") val = !!val;
+      if (c === "detail_achat") val = val && typeof val === "object" && val.vente ? val : null;
+      else if (c === "reference_verifiee") val = !!val;
       else if (c === "prix_achat") val = val === "" || val == null ? null : Number(String(val).replace(",", "."));
       else if (c === "delai_jours_dlc" || c === "delai_apres_ouverture_jours" || c === "decongel_jours") { const n = parseInt(String(val == null ? "" : val), 10); val = Number.isNaN(n) || n < 0 ? null : n; }
       else if (c === "type_date") val = val === "DLC" || val === "DDM" ? val : null;
@@ -6474,31 +6706,10 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 <p className="text-[11px] text-[var(--steel)] mt-2">Température ambiante : non proposée comme méthode (interdite par les normes générales). Si le fabricant l'autorise par écrit, on l'ajoutera.</p>
               </div>
             )}
-            <div className="sm:col-span-2 rounded-xl border-2 p-3 text-xs" style={{ borderColor: "#0E7490", background: "#F3FBFC", color: "var(--ink)" }}>
-              <div className="font-bold text-sm mb-1">Comment remplir : conditionnement, unité et prix</div>
-              <ul className="space-y-1 list-disc list-inside">
-                <li><b>Conditionnement</b> : simple texte pour s'y retrouver, comme l'écrit le fournisseur (ex. « Barquette de 10 x 50 g »). Il ne sert à aucun calcul.</li>
-                <li><b>Unité</b> : ce que vous <b>comptez</b> dans le stock et à l'inventaire (pièce, kg, barquette…).</li>
-                <li><b>Prix d'achat + « exprimé en »</b> : le prix pour <b>UNE unité</b>, dans la même unité que celle que vous comptez. C'est ce prix qui sert au coût des fiches techniques et à la valeur du stock.</li>
-              </ul>
-              <div className="mt-2 rounded-lg bg-white border border-[var(--cadre)] p-2.5">
-                <div className="font-semibold mb-1">Calculateur : 10 pièces dans une barquette à 9 € ? Il calcule le prix à enregistrer.</div>
-                <div className="grid grid-cols-3 gap-2">
-                  <label className="block text-[11px] text-[var(--steel)]">Nombre de pièces dans le colis<input inputMode="decimal" value={calc.n} onChange={(e) => setCalc((x) => ({ ...x, n: e.target.value }))} placeholder="10" className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2 py-1.5 text-sm text-[var(--ink)] bg-white" /></label>
-                  <label className="block text-[11px] text-[var(--steel)]">Prix du colis (€)<input inputMode="decimal" value={calc.prix} onChange={(e) => setCalc((x) => ({ ...x, prix: e.target.value }))} placeholder="9" className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2 py-1.5 text-sm text-[var(--ink)] bg-white" /></label>
-                  <label className="block text-[11px] text-[var(--steel)]">Poids du colis (g), facultatif<input inputMode="decimal" value={calc.poids} onChange={(e) => setCalc((x) => ({ ...x, poids: e.target.value }))} placeholder="500" className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2 py-1.5 text-sm text-[var(--ink)] bg-white" /></label>
-                </div>
-                {cPrix > 0 && cN > 0 && (
-                  <div className="mt-2 space-y-1.5">
-                    <div>1 pièce = <b>{eur(cPrix / cN)}</b> · 1 colis = {cN} pièces = {eur(cPrix)} · 2 colis = {2 * cN} pièces = {eur(2 * cPrix)}{cPoids > 0 ? ` · 1 kg = ${eur(cPrix / (cPoids / 1000))}` : ""}</div>
-                    <div className="flex flex-wrap gap-2">
-                      <button type="button" onClick={() => appliquerCalc("pièce")} className="px-3 py-1.5 rounded-lg text-xs font-bold text-white bg-[var(--accent)]">Compter en pièces : enregistrer {eur(cPrix / cN)} / pièce</button>
-                      {cPoids > 0 && <button type="button" onClick={() => appliquerCalc("kg")} className="px-3 py-1.5 rounded-lg text-xs font-bold border-2 border-[var(--accent)] text-[var(--accent)] bg-white">Compter en kg : enregistrer {eur(cPrix / (cPoids / 1000))} / kg</button>}
-                    </div>
-                  </div>
-                )}
-              </div>
-            </div>
+            <GuideAchatProduit v={v} setV={setV} />
+            <details className="sm:col-span-2 text-xs text-[var(--steel)]" open={!v.detail_achat && !!(v.unite || v.prix_achat)}>
+              <summary className="cursor-pointer font-semibold text-[var(--ink)]">Réglage manuel (avancé) : conditionnement, unité, prix</summary>
+              <div className="grid gap-2 sm:grid-cols-2 mt-2">
             {champTexte("conditionnement", "Conditionnement — texte libre (ex. Barquette de 10 x 50 g)")}
             <label className="block text-xs text-[var(--steel)]">Unité de comptage (stock et inventaire)
               <select value={v.unite || ""} onChange={(e) => maj("unite", e.target.value)} className="mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white">
@@ -6513,9 +6724,11 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 {UNITES_PRIX.map((u) => <option key={u} value={u}>{u}</option>)}
               </select>
             </label>
-            {incoherence && <div className="sm:col-span-2 rounded-lg border-2 px-3 py-2 text-xs font-semibold" style={{ borderColor: "#E0A100", background: "#FFF4CC", color: "#6B4A00" }}>⚠ {incoherence}</div>}
-            {resumePrix && <div className="sm:col-span-2 rounded-lg px-3 py-2 text-xs" style={{ background: "#EAF6EE", color: "#14532D" }}><b>Résumé :</b> {resumePrix}</div>}
+            {!v.detail_achat && incoherence && <div className="sm:col-span-2 rounded-lg border-2 px-3 py-2 text-xs font-semibold" style={{ borderColor: "#E0A100", background: "#FFF4CC", color: "#6B4A00" }}>⚠ {incoherence}</div>}
+            {!v.detail_achat && resumePrix && <div className="sm:col-span-2 rounded-lg px-3 py-2 text-xs" style={{ background: "#EAF6EE", color: "#14532D" }}><b>Résumé :</b> {resumePrix}</div>}
             {champTexte("poids_par_piece", "Poids par pièce — indicatif (ex. 50 g)")}
+              </div>
+            </details>
             {champTexte("origine_norme", "Origine du produit (ex. France, UE, Italie)")}
             <div className="sm:col-span-2 text-xs text-[var(--steel)]">
               Allergènes du produit (14 réglementaires) — ils se coucheront tout seuls dans les fiches techniques qui utilisent ce produit
@@ -10811,6 +11024,18 @@ function convertirQuantiteCout(qte, uniteSource, uniteCible) {
   if (ml !== null && convertirQuantiteFiche(1, "g", uniteCible) !== null) return { val: convertirQuantiteFiche(ml, "g", uniteCible), approx: true };
   return null;
 }
+// Produit compté en pièces dont on connaît le poids / volume (fiche produit) : on convertit grammes <-> pièces. Et l'inverse pour un prix au kilo / litre.
+function convertirViaContenu(qte, uniteSource, uniteCible, contenuPiece) {
+  if (!contenuPiece || !(contenuPiece.val > 0)) return null;
+  const mat = contenuPiece.unite === "ml" ? "ml" : "g";
+  const sourcePiece = uniteNormaliseeFiche(uniteSource) === "pc";
+  const ciblePiece = !["g", "kg", "ml", "l", "cl"].includes(uniteNormaliseeFiche(uniteCible));
+  const q = parseFloat(String(qte).replace(",", "."));
+  if (Number.isNaN(q)) return null;
+  if (!sourcePiece && ciblePiece) { const c = convertirQuantiteCout(q, uniteSource, mat); return c === null ? null : { val: c.val / contenuPiece.val, approx: c.approx }; }
+  if (sourcePiece && !ciblePiece) { const c = convertirQuantiteCout(q * contenuPiece.val, mat, uniteCible); return c === null ? null : { val: c.val, approx: c.approx }; }
+  return null;
+}
 function diagnosticCout(ingredients, stock) {
   const out = [];
   (ingredients || []).filter((i) => (i.nom || "").trim()).forEach((ing) => {
@@ -10821,7 +11046,7 @@ function diagnosticCout(ingredients, stock) {
     if (!art) { out.push([nom, "produit introuvable"]); return; }
     const prix = parserPrixUnitaire(art.prixUnitaire);
     if (!prix) { out.push([nom, "prix d'achat absent du catalogue"]); return; }
-    if (convertirQuantiteCout(ing.qte ?? ing.quantite, ing.unite, prix.unite) === null) out.push([nom, `quantité à saisir en ${prix.unite} (le prix est en €/${prix.unite})`]);
+    if (convertirQuantiteCout(ing.qte ?? ing.quantite, ing.unite, prix.unite) === null && convertirViaContenu(ing.qte ?? ing.quantite, ing.unite, prix.unite, art.contenuPiece) === null) out.push([nom, `quantité à saisir en ${prix.unite} (le prix est en €/${prix.unite})`]);
   });
   return out;
 }
@@ -10859,7 +11084,8 @@ function calculerCoutRecette(ingredients, stock, fiches, profondeur = 0) {
     if (!art) { partiel = true; return; }
     const prix = parserPrixUnitaire(art.prixUnitaire);
     if (!prix) { partiel = true; return; }
-    const conv = convertirQuantiteCout(ing.quantite ?? ing.qte, ing.unite, prix.unite);
+    let conv = convertirQuantiteCout(ing.quantite ?? ing.qte, ing.unite, prix.unite);
+    if (conv === null) conv = convertirViaContenu(ing.quantite ?? ing.qte, ing.unite, prix.unite, art.contenuPiece);
     if (conv === null) { partiel = true; return; }
     if (conv.approx) approx = true;
     total += conv.val * prix.val;
