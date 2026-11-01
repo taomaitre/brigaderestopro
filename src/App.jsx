@@ -10230,7 +10230,15 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
     .filter((x) => x.liste.length > 0 || (!recherchee && groupeActif !== "__tous__"));
   const enSurbrillance = (type, id) => !!(glisse.etat && glisse.etat.cible && glisse.etat.cible.type === type && glisse.etat.cible.id === id);
   // Glisser-déposer : une fiche lâchée sur une autre s'y insère (et prend son groupe) ; lâchée sur un groupe du menu, elle va à la fin du groupe.
+  const deplacerGroupeFiche = (idGroupe, cible) => {
+    if (!cible || cible.type !== "groupe" || cible.id === idGroupe) return;
+    const i = groupesBase.findIndex((g) => g.id === idGroupe); const j = groupesBase.findIndex((g) => g.id === cible.id);
+    if (i < 0 || j < 0) return;
+    const l = [...groupesBase]; const [x] = l.splice(i, 1); l.splice(j, 0, x);
+    setGroupesFiches(l);
+  };
   const deposerFiche = (idFiche, cible) => {
+    if (String(idFiche).startsWith("g:")) { deplacerGroupeFiche(String(idFiche).slice(2), cible); return; }
     const f = fiches.find((x) => x.id === idFiche); if (!f || !cible) return;
     const avant = groupeDeFiche(f);
     let idGroupe;
@@ -10306,13 +10314,13 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
 
       <div className="grid grid-cols-1 lg:grid-cols-[15rem_minmax(0,1fr)] gap-4 mb-6">
         <div className="lg:sticky lg:top-2 lg:self-start lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto min-w-0">
-          <CarteZone icone={BookOpen} titre="Groupes" sous={peutOrganiser ? "Choisissez un groupe. Glissez une fiche dessus pour l'y ranger." : "Choisissez un groupe"}>
+          <CarteZone icone={BookOpen} titre="Groupes" sous={peutOrganiser ? "Choisissez un groupe. Glissez une fiche dessus pour l'y ranger. Maintenez un groupe puis glissez-le sur un autre pour changer l'ordre." : "Choisissez un groupe"}>
             <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
               <button type="button" onClick={() => { setCategorieFiltre(null); setRecherche(""); }} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-11 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !recherchee && groupeActif === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
                 <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Toutes les fiches <span className="font-normal opacity-80">({fiches.length - nbParGroupe(GROUPE_PAUSE.id)})</span></span>
               </button>
               {groupesAff.map((g) => (
-                <button key={g.id} type="button" data-depot={"groupe:" + g.id} onClick={() => { setCategorieFiltre(g.id); setRecherche(""); }} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-11 text-left" style={{ backgroundColor: g.fond, color: g.texte, outline: enSurbrillance("groupe", g.id) ? "4px solid #F5B301" : (!recherchee && g.id === groupeActif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
+                <button key={g.id} type="button" data-depot={"groupe:" + g.id} {...(peutOrganiser && g.id !== GROUPE_NON_CLASSE.id && g.id !== GROUPE_PAUSE.id ? { "data-poignee": "groupe", ...glisse.props("g:" + g.id, g.nom) } : {})} onClick={() => { setCategorieFiltre(g.id); setRecherche(""); }} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-11 text-left" style={{ opacity: glisse.etat && glisse.etat.id === "g:" + g.id ? 0.35 : 1, WebkitTouchCallout: "none", backgroundColor: g.fond, color: g.texte, outline: enSurbrillance("groupe", g.id) ? "4px solid #F5B301" : (!recherchee && g.id === groupeActif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
                   <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{g.nom} <span className="font-normal opacity-80">({nbParGroupe(g.id)})</span></span>
                 </button>
               ))}
@@ -16316,7 +16324,7 @@ function useGlisserDeposer(onDeposer, actif = true) {
     if (!actif || (e.pointerType === "mouse" && e.button !== 0)) return;
     if (e.target.closest && e.target.closest("input, select, textarea, a, button:not([data-poignee])")) return;
     if (s.current) nettoyer();
-    const poignee = !!(e.target.closest && e.target.closest("[data-poignee]"));
+    const poignee = !!(e.target.closest && e.target.closest("[data-poignee]:not([data-poignee=\"groupe\"])"));
     const c = { id, label, x0: e.clientX, y0: e.clientY, x: e.clientX, y: e.clientY, actif: false, userSelect: document.body.style.userSelect };
     c.move = (ev) => {
       c.x = ev.clientX; c.y = ev.clientY;
@@ -16530,8 +16538,18 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     setStock(stock.map((x) => (x.id === s.id ? { ...x, groupeStock: idGroupe, ordreStock: null } : x)));
     logActivity("Stock", "Produit déplacé de groupe", `${s.nom} → ${g.nom}`);
   };
+  // Glisser un groupe du menu sur un autre : il prend sa place (les autres se décalent). Seuls les groupes de l'établissement bougent ; « Non classés » et « En pause » restent en bas.
+  const deplacerGroupe = (idGroupe, cible) => {
+    if (!cible || cible.type !== "groupe" || cible.id === idGroupe || !setGroupesStock) return;
+    const i = groupesBase.findIndex((g) => g.id === idGroupe); const j = groupesBase.findIndex((g) => g.id === cible.id);
+    if (i < 0 || j < 0) return;
+    const l = [...groupesBase]; const [x] = l.splice(i, 1); l.splice(j, 0, x);
+    setGroupesStock(l);
+    logActivity && logActivity("Stock", "Groupe déplacé", `${x.nom}`);
+  };
   // Glisser-déposer : un produit lâché sur une autre ligne s'y insère (et prend le groupe de cette ligne) ; lâché sur un groupe du menu, il va à la fin du groupe.
   const deposerProduit = (idProduit, cible) => {
+    if (String(idProduit).startsWith("g:")) { deplacerGroupe(String(idProduit).slice(2), cible); return; }
     const p = stock.find((x) => x.id === idProduit); if (!p || !cible) return;
     const groupeAvant = catDuProduit.get(p.id);
     let idGroupe; let pos = null;
@@ -16623,7 +16641,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
 
       <div className="grid grid-cols-1 lg:grid-cols-[16rem_minmax(0,1fr)] gap-4 mb-6">
         <div className="lg:sticky lg:top-2 lg:self-start lg:max-h-[calc(100vh-1rem)] lg:overflow-y-auto min-w-0">
-        <CarteZone icone={Package} titre="Catégories" sous={peutGlisser ? "Choisissez un groupe. Glissez un produit dessus pour l'y ranger." : "Choisissez une catégorie"}>
+        <CarteZone icone={Package} titre="Catégories" sous={peutGlisser ? "Choisissez un groupe. Glissez un produit dessus pour l'y ranger. Maintenez un groupe puis glissez-le sur un autre pour changer l'ordre." : "Choisissez une catégorie"}>
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
             {alertes.length > 0 && (
               <button type="button" onClick={() => aller("alerte")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#B4233A", color: "#fff", outline: filtreEtat === "alerte" ? "3px solid #1D2321" : "none" }}>
@@ -16640,7 +16658,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             {groupesAff.map((c) => {
               const actif = !q && c.id === catActive;
               return (
-                <button key={c.id} type="button" data-depot={"groupe:" + c.id} onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: c.fond, color: c.texte, outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === c.id) ? "4px solid #F5B301" : (actif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
+                <button key={c.id} type="button" data-depot={"groupe:" + c.id} {...(peutGlisser && c.id !== GROUPE_NON_CLASSE.id && c.id !== GROUPE_PAUSE.id ? { "data-poignee": "groupe", ...glisse.props("g:" + c.id, c.nom) } : {})} onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ opacity: glisse.etat && glisse.etat.id === "g:" + c.id ? 0.35 : 1, WebkitTouchCallout: "none", backgroundColor: c.fond, color: c.texte, outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === c.id) ? "4px solid #F5B301" : (actif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
                   <Package size={20} className="shrink-0" />
                   <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.id)})</span></span>
                   <ChevronRight size={16} className="shrink-0 hidden lg:block" />
