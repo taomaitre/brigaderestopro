@@ -6366,7 +6366,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
   };
   return (
     <Card className="mb-5 border-2" style={{ borderColor: "var(--accent)" }}>
-      <div className="font-semibold text-sm text-[var(--ink)] mb-3">
+      <div ref={(el) => { if (el && !el.dataset.vu) { el.dataset.vu = "1"; setTimeout(() => { try { el.scrollIntoView({ block: "start", behavior: "smooth" }); } catch (e) { /* ignore */ } }, 30); } }} className="font-semibold text-sm text-[var(--ink)] mb-3 scroll-mt-24">
         {edition.id ? "Modifier" : "Ajouter"} {estProduit ? "un produit" : "un fournisseur"}
       </div>
       {estProduit && <RemplirProduitDepuisFichier onLu={remplirDepuisLecture} />}
