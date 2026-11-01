@@ -5721,7 +5721,7 @@ function sommeSaisie(t) {
   for (const part of txt.split("+")) { const n = parseFloat(part.replace(",", ".").trim()); if (Number.isNaN(n) || n < 0) return null; tot += n; }
   return tot;
 }
-function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
+function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesStock, masques, setMasques }) {
   const [comptage, setComptage] = useState({});
   const [pieces, setPieces] = useState({});
   const [restes, setRestes] = useState({});
@@ -5740,33 +5740,59 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
     return Math.round((p + resteBase / f.contenu) * 1000) / 1000;
   };
 
-  const parCategorie = Object.fromEntries(Object.entries(stock.reduce((acc, s) => { const k = normaliserGroupe(s.categorie) || "Sans catégorie"; (acc[k] = acc[k] || []).push(s); return acc; }, {})).sort(([a], [b]) => comparerGroupes(a, b)));
+  // Mêmes groupes que l'écran Stock (ceux de l'établissement). Les groupes décochés ne sont pas comptés ; « En pause » n'apparaît jamais.
+  const groupesBase = Array.isArray(groupesStock) && groupesStock.length > 0 ? groupesStock : groupesStockParDefaut();
+  const [masquesLocaux, setMasquesLocaux] = useState([]);
+  const listeMasques = Array.isArray(masques) ? masques : masquesLocaux;
+  const changerMasques = (l) => { if (setMasques) setMasques(l); else setMasquesLocaux(l); };
+  const produitsParGroupe = {};
+  stock.forEach((x) => { const g = groupeDuProduit(x, groupesBase); if (g === GROUPE_PAUSE.id) return; (produitsParGroupe[g] = produitsParGroupe[g] || []).push(x); });
+  const groupesPresents = [...groupesBase, GROUPE_NON_CLASSE].filter((g) => (produitsParGroupe[g.id] || []).length > 0);
+  const parCategorie = Object.fromEntries(groupesPresents.filter((g) => !listeMasques.includes(g.id)).map((g) => [g.nom, produitsParGroupe[g.id].slice().sort(ordreStockCmp)]));
+  const produitsAffiches = Object.values(parCategorie).flat();
+  // Valeur : quantité (comptée, sinon celle du stock) × prix d'achat du produit.
+  const valeurDe = (x, qte) => {
+    const prix = parserPrixUnitaire(x.prixUnitaire);
+    if (!prix) return null;
+    const u = uniteNormaliseeFiche(x.unite);
+    if (u === uniteNormaliseeFiche(prix.unite)) return Math.round(Number(qte) * prix.val * 100) / 100;
+    const conv = convertirQuantiteCout(qte, x.unite, prix.unite);
+    return conv === null ? null : Math.round(conv.val * prix.val * 100) / 100;
+  };
+  const qteFinale = (x) => { const c = compteDe(x); return c === null ? Number(x.quantite) : c; };
+  const fmtEuro = (n) => `${(Math.round(n * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
+  const valeurTotale = (liste) => liste.reduce((t, x) => { const v = valeurDe(x, qteFinale(x)); return v === null ? t : t + v; }, 0);
+  const sansPrix = (liste) => liste.filter((x) => valeurDe(x, qteFinale(x)) === null).length;
 
   const validerInventaire = () => {
     let ecarts = 0;
+    const idsAffiches = new Set(produitsAffiches.map((x) => x.id));
     const next = stock.map((s) => {
+      if (!idsAffiches.has(s.id)) return s;
       const saisi = compteDe(s);
       if (saisi === null || saisi === Number(s.quantite)) return s;
       ecarts += 1;
       return { ...s, quantite: saisi };
     });
     setStock(next);
-    logActivity("Stock", "Inventaire mensuel réalisé", `${ecarts} écart(s) corrigé(s) — ${today}`);
+    logActivity("Stock", "Inventaire mensuel réalisé", `${ecarts} écart(s) corrigé(s) — valeur du stock ${fmtEuro(valeurTotale(produitsAffiches))} — ${today}`);
     setValide(true);
   };
 
-  const nbComptes = stock.filter((x) => compteDe(x) !== null).length;
-  const nbEcarts = stock.filter((x) => { const c = compteDe(x); return c !== null && c !== Number(x.quantite); }).length;
-  const grille = "grid-cols-[5rem_minmax(0,1.3fr)_7rem_minmax(0,2.7fr)_5rem]";
+  const nbComptes = produitsAffiches.filter((x) => compteDe(x) !== null).length;
+  const nbEcarts = produitsAffiches.filter((x) => { const c = compteDe(x); return c !== null && c !== Number(x.quantite); }).length;
+  const grille = "grid-cols-[5rem_minmax(0,1.3fr)_7rem_minmax(0,2.7fr)_5rem_5.5rem]";
   const [messageExport, setMessageExport] = useState("");
   const exporterExcel = async () => {
     try {
       const XLSX = await import("xlsx");
-      const lignes = [["Catégorie", "Référence", "Nom", "Qté système", "Unité", "Qté comptée", "Écart"]];
+      const lignes = [["Catégorie", "Référence", "Nom", "Conditionnement", "Qté système", "Unité", "Qté comptée", "Écart", "Prix", "Valeur (€)"]];
       Object.entries(parCategorie).forEach(([categorie, items]) => items.forEach((x) => {
         const saisi = compteDe(x); const a = saisi !== null;
-        lignes.push([categorie, x.reference || "", x.nom, Number(x.quantite), x.unite || "", a ? saisi : "", a ? Math.round((saisi - Number(x.quantite)) * 1000) / 1000 : ""]);
+        const val = valeurDe(x, qteFinale(x));
+        lignes.push([categorie, x.reference || "", x.nom, x.conditionnement || "", Number(x.quantite), x.unite || "", a ? saisi : "", a ? Math.round((saisi - Number(x.quantite)) * 1000) / 1000 : "", x.prixUnitaire || "", val === null ? "" : val]);
       }));
+      lignes.push([]); lignes.push(["", "", "", "", "", "", "", "", "Valeur totale (€)", Math.round(valeurTotale(produitsAffiches) * 100) / 100]);
       const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(lignes), "Inventaire");
       XLSX.writeFile(wb, `inventaire-${today}.xlsx`); setMessageExport("Fichier Excel téléchargé.");
     } catch (e) { setMessageExport("L'export Excel n'a pas pu être créé."); }
@@ -5783,17 +5809,32 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
 
       {valide ? (
         <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/30 mb-4">
-          <p className="text-sm text-[var(--ink)]">Inventaire validé — le stock a été corrigé selon les quantités comptées.</p>
+          <p className="text-sm text-[var(--ink)]">Inventaire validé — le stock a été corrigé selon les quantités comptées. Valeur de la marchandise : <b>{fmtEuro(valeurTotale(produitsAffiches))}</b>.</p>
         </Card>
       ) : (
         <>
-          <div className="print:hidden"><TuilesResume fonction="stock" items={[[Package, stock.length, "produits à compter"], [ClipboardList, Object.keys(parCategorie).length, "catégories"], [CheckCircle2, nbComptes, "déjà comptés"], [AlertTriangle, nbEcarts, "écarts constatés", nbEcarts > 0]]} /></div>
+          <div className="print:hidden"><TuilesResume fonction="stock" items={[[Package, produitsAffiches.length, "produits à compter"], [ClipboardList, Object.keys(parCategorie).length, "catégories"], [CheckCircle2, nbComptes, "déjà comptés"], [AlertTriangle, nbEcarts, "écarts constatés", nbEcarts > 0]]} /></div>
+          <div className="print:hidden mb-3 rounded-xl border border-[var(--cadre)] bg-white p-3">
+            <p className="text-sm font-semibold text-[var(--ink)] mb-1">Catégories à compter</p>
+            <p className="text-xs text-[var(--steel)] mb-2">Décochez les catégories que vous ne comptez pas (produits d'entretien, par exemple) : elles disparaissent de l'inventaire et de son total. Ce choix est gardé pour les prochains inventaires. Les produits « En pause » ne sont jamais comptés.</p>
+            <div className="flex flex-wrap gap-2">
+              {groupesPresents.map((g) => {
+                const actif = !listeMasques.includes(g.id);
+                return (
+                  <button key={g.id} type="button" onClick={() => changerMasques(actif ? [...listeMasques, g.id] : listeMasques.filter((i) => i !== g.id))}
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border-2" style={actif ? { background: g.fond, color: g.texte, borderColor: g.fond } : { background: "#fff", color: "#6B7280", borderColor: "#D1D5DB", textDecoration: "line-through" }}>
+                    {actif ? "✓ " : ""}{g.nom} ({produitsParGroupe[g.id].length})
+                  </button>
+                );
+              })}
+            </div>
+          </div>
           {Object.entries(parCategorie).map(([categorie, items]) => (
-            <CarteZone key={categorie} icone={Package} titre={categorie} sous={`${items.length} produit${items.length > 1 ? "s" : ""}`} className="mb-3">
+            <CarteZone key={categorie} icone={Package} titre={categorie} sous={`${items.length} produit${items.length > 1 ? "s" : ""} — valeur ${fmtEuro(valeurTotale(items))}${sansPrix(items) > 0 ? ` (${sansPrix(items)} sans prix)` : ""}`} className="mb-3">
               <div className="overflow-x-auto print:overflow-visible">
-                <div className="min-w-[760px] print:min-w-0">
+                <div className="min-w-[850px] print:min-w-0">
                   <div className={`grid ${grille} gap-3 px-2 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)] rounded-md`}>
-                    <span>Référence</span><span>Nom / format</span><span>Qté système</span><span>Comptage : pièces entières + reste entamé</span><span>Écart</span>
+                    <span>Référence</span><span>Nom / format</span><span>Qté système</span><span>Comptage : pièces entières + reste entamé</span><span>Écart</span><span className="text-right">Valeur</span>
                   </div>
                   {items.map((x) => {
                     const f = formatInventaire(x);
@@ -5804,7 +5845,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
                     return (
                       <div key={x.id} className={`grid ${grille} gap-3 px-2 py-1 border-b border-[var(--line)] last:border-b-0 items-center text-sm`}>
                         <span className="text-xs text-[var(--steel)]">{x.reference || "—"}</span>
-                        <span className="text-[var(--ink)] font-medium leading-tight">{x.nom}{x.conditionnement ? <span className="block text-[11px] font-normal text-[var(--steel)]">{x.conditionnement}</span> : null}</span>
+                        <span className="text-[var(--ink)] font-medium leading-tight">{x.nom}{x.conditionnement ? <span className="block text-xs font-semibold text-[var(--ink)] opacity-80">Format : {x.conditionnement}</span> : <span className="block text-[11px] font-normal text-[var(--steel)]">format non renseigné</span>}</span>
                         <span className="text-[var(--steel)]">{fmtNb(x.quantite)} {x.unite}{f && f.mode === "poids" && f.contenu > 0 ? <span className="block text-[11px]">≈ {fmtNb(Number(x.quantite) / (f.contenu * f.facteur))} × {fmtNb(f.contenu)} {f.base === "kg" ? "kg" : "L"}</span> : null}</span>
                         {f ? (
                           <div className="flex flex-wrap items-center gap-1.5">
@@ -5820,6 +5861,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
                           <input className={`${inputCls} !h-9 w-28 print:border-0`} type="number" placeholder={`${x.quantite}`} value={comptage[x.id] ?? ""} onChange={(e) => setComptage({ ...comptage, [x.id]: e.target.value })} />
                         )}
                         <span className="text-xs font-semibold" style={{ color: ecart ? "#B45309" : "#15803D" }}>{ecart === null ? "" : ecart === 0 ? "✓ OK" : `${ecart > 0 ? "+" : ""}${ecart}`}</span>
+                        <span className="text-xs text-right font-semibold text-[var(--ink)]" title={x.prixUnitaire ? `Prix : ${x.prixUnitaire}` : "Prix d'achat non renseigné"}>{(() => { const v = valeurDe(x, qteFinale(x)); return v === null ? <span className="font-normal text-[var(--steel)]">prix ?</span> : fmtEuro(v); })()}</span>
                       </div>
                     );
                   })}
@@ -5827,6 +5869,11 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack }) {
               </div>
             </CarteZone>
           ))}
+          <div className="rounded-xl border-2 p-4 mb-3" style={{ borderColor: "#1F8F5F", background: "#EAF6EF" }}>
+            <p className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide">Valeur de la marchandise en stock</p>
+            <p className="text-2xl font-bold text-[var(--ink)]">{fmtEuro(valeurTotale(produitsAffiches))}</p>
+            <p className="text-xs text-[var(--steel)]">Quantité comptée (ou, à défaut, quantité du stock) × prix d'achat de chaque produit, sur les catégories cochées.{sansPrix(produitsAffiches) > 0 ? ` ${sansPrix(produitsAffiches)} produit(s) sans prix d'achat exploitable ne sont pas comptés dans ce total.` : ""}</p>
+          </div>
           <button type="button" onClick={validerInventaire} className="print:hidden w-full h-14 rounded-xl text-white text-base font-bold flex items-center justify-center gap-2 shadow-md mb-4" style={{ backgroundColor: "#1F8F5F" }}><CheckCircle2 size={22} /> Valider l'inventaire et corriger le stock</button>
           <div className="print:hidden flex flex-wrap items-center gap-2 mb-4">
             <Button variant="ghost" onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
@@ -9500,7 +9547,7 @@ function TuileInfoFiche({ icone: Ic, valeur, libelle, fond, couleur }) {
   );
 }
 
-function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes, onModifier, verifierCodeChef }) {
+function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuisson, onDemarrerMaintienChaud, onEditerDlc, onTracabiliteIngredients, who, estChef, avecModes, onModifier, verifierCodeChef, onPause }) {
   const [demandeCode, setDemandeCode] = useState(null);
   const whoSafe = who || (() => null);
   // Mode simple (simple) ou expert, seulement dans la nouvelle version ; l'ancienne application affiche tout, comme avant.
@@ -9644,6 +9691,12 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         <div className="flex flex-wrap gap-2 mb-4 print:hidden">
           <Button variant="ghost" onClick={() => (estChef ? onModifier(fiche, "modifier") : setDemandeCode("modifier"))}>Modifier cette fiche</Button>
           <Button variant="ghost" onClick={() => (estChef ? onModifier(fiche, "dupliquer") : setDemandeCode("dupliquer"))}>Dupliquer</Button>
+        </div>
+      )}
+      {onPause && (
+        <div className="mb-4 print:hidden">
+          <Button variant="ghost" onClick={() => onPause(fiche)}>{fiche.groupeFiche === "__pause__" ? "▶ Réactiver cette fiche" : "⏸ Mettre cette fiche en pause"}</Button>
+          <p className="text-xs text-[var(--steel)] mt-1">{fiche.groupeFiche === "__pause__" ? "La fiche revient dans son groupe et réapparaît partout." : "La fiche est rangée dans le groupe « En pause » (dernier du menu) : elle n'apparaît plus dans les listes ni dans la carte du jour, mais reste intacte."}</p>
         </div>
       )}
       {demandeCode && (
@@ -10067,7 +10120,7 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
     const periodique = tr.length > 0 && tr[0].typeCarte !== "fixe";
     const carteJ = tr.find((c) => !periodique || (c.debut <= auj && auj <= c.fin)) || null;
     if (!carteJ) return [];
-    return platsAuCarte(carteJ, auj).map((id) => fiches.find((f) => f.id === id)).filter(Boolean);
+    return platsAuCarte(carteJ, auj).map((id) => fiches.find((f) => f.id === id)).filter((f) => f && f.groupeFiche !== GROUPE_PAUSE.id);
   }, [cartes, fiches]);
   // Un seul carré au-dessus de la liste : « Carte du jour » si la carte change selon les jours ou les périodes
   // (les plats prévus aujourd'hui, rien d'autre), sinon « Carte fixe » (carte à l'année ou aucune carte) avec les 10 fiches les plus ouvertes.
@@ -10076,7 +10129,7 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
     return tr.length > 0 && tr[0].typeCarte !== "fixe" && fichesDuJour.length > 0;
   }, [cartes, fichesDuJour]);
   const fichesFavorites = React.useMemo(() => fiches
-    .filter((f) => ouverturesRecentes(f.id) >= 1)
+    .filter((f) => f.groupeFiche !== GROUPE_PAUSE.id && ouverturesRecentes(f.id) >= 1)
     .sort((a, b) => ouverturesRecentes(b.id) - ouverturesRecentes(a.id)).slice(0, 10), [fiches, usage]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // La recherche filtre directement la liste affichée (plutôt que de simplement faire défiler
@@ -10088,14 +10141,15 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
   const recherchee = q.length >= 2;
   const groupesBase = Array.isArray(groupesFiches) && groupesFiches.length > 0 ? groupesFiches : groupesFichesParDefaut(fiches);
   const groupeDeFiche = (f) => {
+    if (f.groupeFiche === GROUPE_PAUSE.id) return GROUPE_PAUSE.id;
     if (f.groupeFiche && groupesBase.some((g) => g.id === f.groupeFiche)) return f.groupeFiche;
     const base = groupesBase.find((g) => g.id === "base:" + classeGroupeFiche(f));
     return base ? base.id : GROUPE_NON_CLASSE.id;
   };
   const nbParGroupe = (id) => fiches.filter((f) => groupeDeFiche(f) === id).length;
-  const groupesAff = nbParGroupe(GROUPE_NON_CLASSE.id) > 0 ? [...groupesBase, GROUPE_NON_CLASSE] : groupesBase;
+  const groupesAff = [...groupesBase, ...(nbParGroupe(GROUPE_NON_CLASSE.id) > 0 ? [GROUPE_NON_CLASSE] : []), GROUPE_PAUSE];
   const groupeActif = categorieFiltre && groupesAff.some((g) => g.id === categorieFiltre) ? categorieFiltre : "__tous__";
-  const sectionsAff = (recherchee || groupeActif === "__tous__" ? groupesAff : groupesAff.filter((g) => g.id === groupeActif))
+  const sectionsAff = (recherchee || groupeActif === "__tous__" ? groupesAff.filter((g) => g.id !== GROUPE_PAUSE.id) : groupesAff.filter((g) => g.id === groupeActif))
     .map((g) => ({ g, liste: fichesFiltrees.filter((f) => groupeDeFiche(f) === g.id).sort(ordreFicheCmp) }))
     .filter((x) => x.liste.length > 0 || (!recherchee && groupeActif !== "__tous__"));
   const enSurbrillance = (type, id) => !!(glisse.etat && glisse.etat.cible && glisse.etat.cible.type === type && glisse.etat.cible.id === id);
@@ -10131,7 +10185,7 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
   }
 
   if (selected) {
-    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} avecModes={avecModes} verifierCodeChef={verifierCodeChef} onModifier={editionProps ? (f, mode) => setEdition({ fiche: f, mode }) : undefined} />;
+    return <FicheDetail fiche={selected} onBack={() => setSelectedId(null)} onDemarrerRefroidissement={onDemarrerRefroidissement} onDemarrerCuisson={onDemarrerCuisson} onDemarrerMaintienChaud={onDemarrerMaintienChaud} onEditerDlc={onEditerDlc} onTracabiliteIngredients={onTracabiliteIngredients} who={who} estChef={estChef} avecModes={avecModes} verifierCodeChef={verifierCodeChef} onModifier={editionProps ? (f, mode) => setEdition({ fiche: f, mode }) : undefined} onPause={peutOrganiser ? (f) => { const enPause = f.groupeFiche === GROUPE_PAUSE.id; setFichesCustom((fichesCustom || []).map((x) => (x.id === f.id ? { ...x, groupeFiche: enPause ? null : GROUPE_PAUSE.id, ordreFiche: null } : x))); setSelectedId(null); } : undefined} />;
   }
 
   return (
@@ -10179,7 +10233,7 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
           <CarteZone icone={BookOpen} titre="Groupes" sous={peutOrganiser ? "Choisissez un groupe. Glissez une fiche dessus pour l'y ranger." : "Choisissez un groupe"}>
             <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
               <button type="button" onClick={() => { setCategorieFiltre(null); setRecherche(""); }} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-11 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !recherchee && groupeActif === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
-                <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Toutes les fiches <span className="font-normal opacity-80">({fiches.length})</span></span>
+                <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Toutes les fiches <span className="font-normal opacity-80">({fiches.length - nbParGroupe(GROUPE_PAUSE.id)})</span></span>
               </button>
               {groupesAff.map((g) => (
                 <button key={g.id} type="button" data-depot={"groupe:" + g.id} onClick={() => { setCategorieFiltre(g.id); setRecherche(""); }} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-11 text-left" style={{ backgroundColor: g.fond, color: g.texte, outline: enSurbrillance("groupe", g.id) ? "4px solid #F5B301" : (!recherchee && g.id === groupeActif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
@@ -15999,8 +16053,11 @@ function categorieStock(s) {
 // celui choisi par l'établissement (groupeStock) ou, à défaut, le groupe de départ que le logiciel lui attribue d'après son nom.
 const PALETTE_GROUPES_STOCK = [["#0E8A8A", "#fff"], ["#7A4DE0", "#fff"], ["#C2477A", "#fff"], ["#1769D6", "#fff"], ["#F28C28", "#fff"], ["#1E7B4B", "#fff"], ["#8A5A3C", "#fff"], ["#4B5D78", "#fff"]];
 const GROUPE_NON_CLASSE = { id: "__aucun__", nom: "Non classés", fond: "#7C8794", texte: "#fff" };
+// Dernier groupe, discret : produits et fiches mis de côté (pas affichés dans « Tous », ni comptés, ni en alerte), mais gardés intacts.
+const GROUPE_PAUSE = { id: "__pause__", nom: "En pause", fond: "#A7AFB9", texte: "#1D2321" };
 const groupesStockParDefaut = () => CATEGORIES_STOCK.map((c) => ({ id: "base:" + c.nom, nom: c.nom, fond: c.fond, texte: c.texte }));
 function groupeDuProduit(s, groupes) {
+  if (s.groupeStock === GROUPE_PAUSE.id) return GROUPE_PAUSE.id;
   if (s.groupeStock === GROUPE_NON_CLASSE.id) return GROUPE_NON_CLASSE.id;
   if (s.groupeStock && groupes.some((g) => g.id === s.groupeStock)) return s.groupeStock;
   // La famille choisie dans la fiche (surgelé, boissons, entretien, emballages) range le produit dans le groupe correspondant, même renommé.
@@ -16219,7 +16276,7 @@ function GlisseFlottant({ etat }) {
 }
 const ordreStockCmp = (a, b) => ((a.ordreStock == null ? 1e9 : a.ordreStock) - (b.ordreStock == null ? 1e9 : b.ordreStock)) || String(a.nom || "").localeCompare(String(b.nom || ""), "fr");
 
-function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle, groupesStock, setGroupesStock }) {
+function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle, groupesStock, setGroupesStock, groupesInventaireMasques, setGroupesInventaireMasques }) {
   const acces = useAcces();
   const rapideStock = React.useContext(RapideContext);
   const [suppOuverte, setSuppOuverte] = useState(false);
@@ -16270,7 +16327,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const produitASupprimer = nomASupprimer.trim() ? stock.find((s) => s.nom.trim().toLowerCase() === nomASupprimer.trim().toLowerCase()) : null;
   const pasDe = (s) => quantiteParConditionnement(s) || 1;
   const enAlerte = (s) => Number(s.cible) > 0 && Number(s.quantite) < Number(s.cible);
-  const alertes = stock.filter(enAlerte);
+  const alertes = stock.filter((s) => s.groupeStock !== GROUPE_PAUSE.id && enAlerte(s));
   const dansPanier = (s) => panier[s.id] != null;
   const qteSuggeree = (s) => { const pas = pasDe(s); const manque = Math.max(0, Number(s.cible) - Number(s.quantite)); return arrondiQte(Math.max(pas, Math.ceil(manque / pas - 1e-9) * pas)); };
   const basculerPanier = (s) => setPanier((p) => { const n = { ...p }; if (n[s.id] != null) delete n[s.id]; else n[s.id] = qteSuggeree(s); return n; });
@@ -16291,7 +16348,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   };
 
   if (inventaireActif) {
-    return <FicheInventaire stock={stock} setStock={setStock} logActivity={logActivity} today={today} onBack={() => setInventaireActif(false)} />;
+    return <FicheInventaire stock={stock} setStock={setStock} logActivity={logActivity} today={today} onBack={() => setInventaireActif(false)} groupesStock={groupesStock} masques={groupesInventaireMasques} setMasques={setGroupesInventaireMasques} />;
   }
 
   if (vueListeCommande) {
@@ -16379,7 +16436,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const groupesBase = Array.isArray(groupesStock) && groupesStock.length > 0 ? groupesStock : groupesStockParDefaut();
   const avecCat = stock.map((s) => ({ s, cat: groupeDuProduit(s, groupesBase) }));
   const nbParCat = (id) => avecCat.filter((x) => x.cat === id).length;
-  const groupesAff = nbParCat(GROUPE_NON_CLASSE.id) > 0 ? [...groupesBase, GROUPE_NON_CLASSE] : groupesBase;
+  const groupesAff = [...groupesBase, ...(nbParCat(GROUPE_NON_CLASSE.id) > 0 ? [GROUPE_NON_CLASSE] : []), GROUPE_PAUSE];
   const catActive = categorieChoisie === "__tous__" || groupesAff.some((g) => g.id === categorieChoisie) ? categorieChoisie : "__tous__";
   const toutLeStock = catActive === "__tous__";
   const infoCat = toutLeStock ? { nom: "Tous les produits", fond: "#1D2321", texte: "#fff" } : (groupesAff.find((g) => g.id === catActive) || groupesAff[groupesAff.length - 1]);
@@ -16388,7 +16445,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   // Quand on voit plusieurs groupes à la fois (« Tous les produits » ou une recherche), les produits sont regroupés comme le menu de gauche :
   // un titre par groupe, dans le même ordre, puis l'ordre alphabétique dans chaque groupe.
   const rangGroupe = (id) => groupesAff.findIndex((g) => g.id === id);
-  const liste = avecCat.filter((x) => (q || toutLeStock ? true : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).sort((a, b) => ((q || toutLeStock) ? rangGroupe(a.cat) - rangGroupe(b.cat) : 0) || ordreStockCmp(a.s, b.s)).map((x) => x.s);
+  const liste = avecCat.filter((x) => (q || toutLeStock ? x.cat !== GROUPE_PAUSE.id : x.cat === catActive) && correspond(x.s) && etatOk(x.s)).sort((a, b) => ((q || toutLeStock) ? rangGroupe(a.cat) - rangGroupe(b.cat) : 0) || ordreStockCmp(a.s, b.s)).map((x) => x.s);
   const groupeStockActif = q || toutLeStock;
   const catDuProduit = new Map(avecCat.map((x) => [x.s.id, x.cat]));
   const nbDansGroupe = (id) => liste.filter((s) => catDuProduit.get(s.id) === id).length;
@@ -16501,7 +16558,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             )}
             <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
-              <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Tous les produits <span className="font-normal opacity-80">({stock.length})</span></span>
+              <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Tous les produits <span className="font-normal opacity-80">({stock.length - nbParCat(GROUPE_PAUSE.id)})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
             {groupesAff.map((c) => {
@@ -24456,6 +24513,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const stock = modeExterne ? stockExterneEtat : stockStocke;
   const setStock = modeExterne ? setStockExterne : setStockStocke;
   const [groupesFichesLocal, setGroupesFichesLocal] = useStored("fiches-groupes", null);
+  const [masquesInventaireLocal, setMasquesInventaireLocal] = useStored("inventaire-masques", []);
   const [groupesStockLocal, setGroupesStockLocal] = useStored("stock-groupes", null); // groupes du stock (prévisualisation) ; en vrai mode ils sont dans la fiche de l'établissement
   // Réceptions : nouvelle base en prévisualisation, ancien stockage sinon.
   const [receptionsStockees, setReceptionsStockees] = useStored("stock-receptions", []);
@@ -24528,11 +24586,11 @@ function KitchenApp({ identiteExterne } = {}) {
   }, true);
   // Prévisualisation : les cuissons pré-programmées et les produits du maintien au chaud viennent des fiches techniques (nouvelle base).
   const catalogueCuissonFiches = React.useMemo(() => fichesExternes
-    .filter((f) => f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
+    .filter((f) => f.groupeFiche !== "__pause__" && f.procedes && f.procedes.cuisson && f.procedes.cuisson.on && Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin) > 0)
     .map((f) => ({ nom: f.nom, dureeMin: Number(f.procedes.cuisson.dureeMin || f.cuissonDureeMin), famille: f.procedes.cuisson.famille || f.familleCuisson || "general", appareil: f.procedes.cuisson.appareil || "", reglage: f.procedes.cuisson.reglage || "", controles: f.procedes.cuisson.controles || null, seuilPerso: f.procedes.cuisson.coeurAutre ? seuilCuissonPerso(f.procedes.cuisson) : undefined })), [fichesExternes]);
   NORMES_PERSO_FICHES = React.useMemo(() => (modeExterne ? construireNormesPersoFiches(fichesExternes) : {}), [modeExterne, fichesExternes]);
   QUANTITES_FICHES = React.useMemo(() => construireQuantitesFiches(fiches), [fiches]);
-  const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
+  const catalogueMaintienFiches = React.useMemo(() => fichesExternes.filter((f) => f.groupeFiche !== "__pause__" && f.procedes && f.procedes.maintien && f.procedes.maintien.on).map((f) => f.nom), [fichesExternes]);
   const [modelesCuisson, ajouterModeleCuisson] = useModelesCuisson();
   // Les modèles enregistrés par l'équipe s'ajoutent à la liste (une fiche technique du même nom reste prioritaire).
   const catalogueCuissonBrut = modeExterne ? catalogueCuissonFiches : catalogueCuissonBase;
@@ -25522,11 +25580,13 @@ function KitchenApp({ identiteExterne } = {}) {
   const selectAccount = (id) => { setCurrentUserId(id); setSessionActive(true); };
 
   const alertesTemp = tempLogs.filter((l) => l.date === todayISO() && !isTempOk(l.type, l.valeur)).length + relevesFroid.filter((r) => r.date === todayISO() && !r.conforme).length;
-  const alertesStock = stock.filter((s) => Number(s.quantite) < Number(s.cible)).length;
+  const alertesStock = stock.filter((s) => s.groupeStock !== GROUPE_PAUSE.id && Number(s.quantite) < Number(s.cible)).length;
   const badges = { haccp: alertesTemp, stock: alertesStock };
   const reglagesEtablissementApp = modeExterne ? identiteExterne.reglagesEtablissement : null;
   const groupesFichesApp = modeExterne ? ((reglagesEtablissementApp && reglagesEtablissementApp.groupesFiches) || null) : groupesFichesLocal;
   const setGroupesFichesApp = (g) => { if (modeExterne) { if (reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesFiches) reglagesEtablissementApp.enregistrerGroupesFiches(g); } else setGroupesFichesLocal(g); };
+  const masquesInventaireApp = modeExterne ? ((reglagesEtablissementApp && reglagesEtablissementApp.groupesInventaireMasques) || []) : masquesInventaireLocal;
+  const setMasquesInventaireApp = (l) => { if (modeExterne) { if (reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesInventaire) reglagesEtablissementApp.enregistrerGroupesInventaire(l); } else setMasquesInventaireLocal(l); };
   const groupesStockApp = modeExterne ? ((reglagesEtablissementApp && reglagesEtablissementApp.groupesStock) || null) : groupesStockLocal;
   const setGroupesStockApp = (g) => { if (modeExterne) { if (reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesStock) reglagesEtablissementApp.enregistrerGroupesStock(g); } else setGroupesStockLocal(g); };
   const nbNotifications = (alertesControle || []).filter((a) => !a.vue).length;
@@ -26005,7 +26065,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "stock" && (
           consentementAccorde()
-            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} saisieManuelle={modeExterne} groupesStock={groupesStockApp} setGroupesStock={modeExterne && !(reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesStock) ? undefined : setGroupesStockApp} />
+            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} saisieManuelle={modeExterne} groupesStock={groupesStockApp} setGroupesStock={modeExterne && !(reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesStock) ? undefined : setGroupesStockApp} groupesInventaireMasques={masquesInventaireApp} setGroupesInventaireMasques={setMasquesInventaireApp} />
             : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
         )}
         {tab === "reception" && (

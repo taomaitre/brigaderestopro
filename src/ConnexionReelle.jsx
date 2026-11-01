@@ -843,6 +843,9 @@ export default function ConnexionReelle() {
       // Groupes des fiches techniques : requête à part (colonne absente = groupes de départ, rien ne casse).
       const rgf = await supabasePublic.from("etablissements").select("groupes_fiches").eq("id", session.etablissement.id).maybeSingle();
       if (!rgf.error && rgf.data) setReglagesEtab((r) => (r ? { ...r, groupesFiches: Array.isArray(rgf.data.groupes_fiches) && rgf.data.groupes_fiches.length > 0 ? rgf.data.groupes_fiches : null } : r));
+      // Groupes non comptés à l'inventaire : requête à part (colonne absente = tout est compté).
+      const rim = await supabasePublic.from("etablissements").select("inventaire_groupes_masques").eq("id", session.etablissement.id).maybeSingle();
+      if (!rim.error && rim.data) setReglagesEtab((r) => (r ? { ...r, groupesInventaireMasques: Array.isArray(rim.data.inventaire_groupes_masques) ? rim.data.inventaire_groupes_masques : [] } : r));
       // Mode de vérification de l'hygiène (laboratoire ou autocontrôle) : requête à part (colonne absente = non choisi, rien ne casse).
       const rmv = await supabasePublic.from("etablissements").select("mode_verification_hygiene").eq("id", session.etablissement.id).maybeSingle();
       if (!rmv.error && rmv.data) setReglagesEtab((r) => (r ? { ...r, modeVerifHygiene: rmv.data.mode_verification_hygiene || "" } : r));
@@ -861,6 +864,13 @@ export default function ConnexionReelle() {
     setReglagesEtab((r) => (r ? { ...r, groupesFiches: liste } : r));
     const { error } = await supabasePublic.from("etablissements").update({ groupes_fiches: liste }).eq("id", session.etablissement.id);
     if (error) { console.error("Groupes des fiches non enregistrés :", error); chargerReglagesEtab(); }
+  }
+  // Enregistre les groupes du stock qu'on ne compte pas à l'inventaire (liste d'identifiants de groupes).
+  async function enregistrerGroupesInventaire(liste) {
+    const l = Array.isArray(liste) ? liste : [];
+    setReglagesEtab((r) => (r ? { ...r, groupesInventaireMasques: l } : r));
+    const { error } = await supabasePublic.from("etablissements").update({ inventaire_groupes_masques: l }).eq("id", session.etablissement.id);
+    if (error) { console.error("Groupes d'inventaire non enregistrés :", error); chargerReglagesEtab(); }
   }
   async function enregistrerReglageEtab(champ, valeur) {
     const colonne = champ === "congelPms" ? "congelation_decrite_pms" : "dispose_cellule_refroidissement";
@@ -1614,7 +1624,7 @@ export default function ConnexionReelle() {
         chargerEquipe(session.token, codeSaisi);
         return { ok: true, nom: data.employe.nom };
       },
-      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, enregistrerGroupesFiches, enregistrerModeVerif, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
+      reglagesEtablissement: reglagesEtab ? { ...reglagesEtab, enregistrer: enregistrerReglageEtab, enregistrerGroupesStock, enregistrerGroupesFiches, enregistrerGroupesInventaire, enregistrerModeVerif, fiche: ficheEtab || undefined, enregistrerFiche: enregistrerFicheEtab,
         suiviPmsDisponible: !!(pmsDonnees.charge && pmsDonnees.complet),
         pms: pmsDonnees.charge && pmsDonnees.complet ? { ...pmsDonnees, enregistrerPrestataire, supprimerPrestataire, enregistrerFormation, supprimerFormation, ajouterDocument, supprimerDocument, urlDocument, ajouterPassage, supprimerPassage, ajouterControleSurface, supprimerControleSurface, chargerJournal, enregistrerPoint: enregistrerPointPms, terminerDemarrage: terminerDemarragePms } : undefined } : undefined,
       demandesAjout: demandesAjoutListe,
