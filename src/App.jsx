@@ -4933,7 +4933,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   }
 
   if (referentielActif) {
-    return <>{menuParamSombre}<ReferentielProduits vue={referentielVue} stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); finOverlay(); }} /></>;
+    return <>{menuParamSombre}<ReferentielProduits vue={referentielVue} stock={stockCatalogue || stock} fournisseurs={fournisseursCatalogue} gestion={gestionCatalogue} ouvrirProduit={produitAOuvrir} groupesStock={reglagesEtablissement && reglagesEtablissement.groupesStock} onBack={() => { setReferentielActif(false); setProduitAOuvrir(null); finOverlay(); }} /></>;
   }
 
   if (verifReceptionsActif) {
@@ -5976,7 +5976,7 @@ const MARQUE_A_VALIDER = "À VALIDER — ";
 const NOTE_A_VALIDER = MARQUE_A_VALIDER + "nouveau produit créé à la réception, fiche à compléter et à valider par le chef.";
 const estAValider = (note) => String(note || "").startsWith(MARQUE_A_VALIDER);
 
-function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrirProduit }) {
+function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrirProduit, groupesStock }) {
   const [catOuverte, setCatOuverte] = useState(null);
   const [fournisseurOuvert, setFournisseurOuvert] = useState(null);
   // Édition (uniquement quand l'écran est branché sur la nouvelle base : prop `gestion`)
@@ -6005,6 +6005,55 @@ function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrir
   const parGroupe = stockFiltre.reduce((acc, s) => { const k = groupement === "fournisseur" ? (s.fournisseur || "Sans fournisseur") : (normaliserGroupe(s.categorie) || "Autres"); (acc[k] = acc[k] || []).push(s); return acc; }, {});
   const groupes = Object.keys(parGroupe).sort(groupement === "fournisseur" ? ((a, b) => a.localeCompare(b)) : comparerGroupes);
   const aValider = gestion ? stock.filter((s) => estAValider(s.note)) : [];
+  const groupesBaseRef = Array.isArray(groupesStock) && groupesStock.length > 0 ? groupesStock : groupesStockParDefaut();
+  const groupesOrdreRef = [...groupesBaseRef, GROUPE_NON_CLASSE, GROUPE_PAUSE];
+  // Dans un fournisseur : un titre coloré par groupe du stock (même rangement et mêmes couleurs que le Stock), seulement pour les groupes qui ont des produits.
+  const sousGroupesDe = (liste) => { const m = new Map(); liste.forEach((x) => { const id = groupeDuProduit(x, groupesBaseRef); if (!m.has(id)) m.set(id, []); m.get(id).push(x); }); return groupesOrdreRef.filter((g) => m.has(g.id)).map((g) => ({ g, items: m.get(g.id).slice().sort((a, b) => String(a.nom).localeCompare(String(b.nom), "fr")) })); };
+  const ligneProduit = (s) => (
+                    <li key={s.id} className="px-4 py-2.5 bg-white">
+                      <div className="flex items-center justify-between gap-2 flex-wrap">
+                        <div className="text-sm font-medium text-[var(--ink)] flex items-center gap-2">
+                          {s.nom} {gestion && estAValider(s.note) && <span className="text-[10px] uppercase font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: "#FFE08A", color: "#6B4A00" }}>nouveau produit — à valider</span>}
+                          {(gestion || s.brut) && (!s.reference || !s.prixUnitaire) && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à compléter : {[!s.reference && "référence", !s.prixUnitaire && "prix"].filter(Boolean).join(", ")}</span>}
+                          {!gestion && !s.referenceVerifiee && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à vérifier</span>}
+                        </div>
+                        {s.prixUnitaire && <div className="text-sm font-semibold text-[var(--ink)]">{s.prixUnitaire}</div>}
+                      </div>
+                      {gestion ? (
+                        <dl className="mt-1 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 text-xs">
+                          {[
+                            ["Fournisseur", s.fournisseur || "—"],
+                            ["Catégorie", s.categorie || "—"],
+                            ["Référence", s.reference || "—"],
+                            ["Conditionnement", s.conditionnement || "—"],
+                            ["Prix d'achat", s.prixUnitaire || "—"],
+                            ["Type", s.conservation ? (LIBELLE_CONSERVATION[s.conservation] || s.conservation) : "—"],
+                            ["DLC après ouverture", (s.delaiOuverture != null ? s.delaiOuverture : s.dlcJours) != null ? `${s.delaiOuverture != null ? s.delaiOuverture : s.dlcJours} j` : "—"],
+                            ["Origine", s.origineNorme || "—"],
+                            ["Allergènes", s.allergenesNorme || "À vérifier"],
+                            ["Poids par pièce", s.poidsParPiece || "—"],
+                          ].map(([k, val]) => (
+                            <div key={k}><dt className="text-[var(--steel)]">{k}</dt><dd className="text-[var(--ink)] font-medium">{val}</dd></div>
+                          ))}
+                        </dl>
+                      ) : (
+                      <div className="text-xs text-[var(--steel)] mt-0.5">
+                        {s.reference ? `${s.fournisseur} · Réf. ${s.reference}` : `${s.fournisseur} (hors Sysco)`}{s.conditionnement ? ` · ${s.conditionnement}` : ""}
+                      </div>
+                      )}
+                      {s.poidsParPiece && <div className="text-xs text-[var(--accent)] mt-0.5">Poids/pièce calculé : {s.poidsParPiece}</div>}
+                      {s.note && !estAValider(s.note) && <div className="text-xs text-[var(--steel)] italic mt-0.5">{s.note}</div>}
+                      {estAValider(s.note) && <div className="text-xs font-semibold mt-0.5" style={{ color: "#6B4A00" }}>Nouveau produit créé à la réception : fiche à compléter puis enregistrer.</div>}
+                      {(gestion || s.brut) && (!s.reference || !s.prixUnitaire) && (
+                        <div className="mt-2 flex items-center justify-between gap-3 flex-wrap rounded-xl border-2 px-3 py-2" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
+                          <span className="text-sm font-bold" style={{ color: "#6B4A00" }}>Il manque : {[!s.reference && "la référence", !s.prixUnitaire && "le prix"].filter(Boolean).join(" et ")}</span>
+                          <button type="button" onClick={() => { if (gestion) { setRefusProduit(null); setEdition({ table: "produits", id: s.id, valeurs: s.brut, focus: !s.prixUnitaire ? "prix_achat" : "reference" }); } else setRefusProduit(s.id); }} className="min-h-[44px] px-5 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Modifier</button>
+                        </div>
+                      )}
+                      {refusProduit === s.id && !gestion && <BlocPasDeDroit sujet={`produit « ${s.nom} » à compléter`} onFermer={() => setRefusProduit(null)} />}
+                      {gestion && s.brut && !(!s.reference || !s.prixUnitaire) && <div className="mt-2 flex justify-end"><button type="button" onClick={() => setEdition({ table: "produits", id: s.id, valeurs: s.brut })} className="min-h-[44px] px-5 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Modifier</button></div>}
+                    </li>
+  );
 
   return (
     <div>
@@ -6094,50 +6143,11 @@ function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrir
               </button>
               {(catOuverte === cat || qProd) && (
                 <ul className="divide-y divide-[var(--line)]">
-                  {parGroupe[cat].map((s) => (
-                    <li key={s.id} className="px-4 py-2.5">
-                      <div className="flex items-center justify-between gap-2 flex-wrap">
-                        <div className="text-sm font-medium text-[var(--ink)] flex items-center gap-2">
-                          {s.nom} {gestion && estAValider(s.note) && <span className="text-[10px] uppercase font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: "#FFE08A", color: "#6B4A00" }}>nouveau produit — à valider</span>}
-                          {(gestion || s.brut) && (!s.reference || !s.prixUnitaire) && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à compléter : {[!s.reference && "référence", !s.prixUnitaire && "prix"].filter(Boolean).join(", ")}</span>}
-                          {!gestion && !s.referenceVerifiee && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à vérifier</span>}
-                        </div>
-                        {s.prixUnitaire && <div className="text-sm font-semibold text-[var(--ink)]">{s.prixUnitaire}</div>}
-                      </div>
-                      {gestion ? (
-                        <dl className="mt-1 grid grid-cols-2 sm:grid-cols-3 gap-x-4 gap-y-0.5 text-xs">
-                          {[
-                            ["Fournisseur", s.fournisseur || "—"],
-                            ["Catégorie", s.categorie || "—"],
-                            ["Référence", s.reference || "—"],
-                            ["Conditionnement", s.conditionnement || "—"],
-                            ["Prix d'achat", s.prixUnitaire || "—"],
-                            ["Type", s.conservation ? (LIBELLE_CONSERVATION[s.conservation] || s.conservation) : "—"],
-                            ["DLC après ouverture", (s.delaiOuverture != null ? s.delaiOuverture : s.dlcJours) != null ? `${s.delaiOuverture != null ? s.delaiOuverture : s.dlcJours} j` : "—"],
-                            ["Origine", s.origineNorme || "—"],
-                            ["Allergènes", s.allergenesNorme || "À vérifier"],
-                            ["Poids par pièce", s.poidsParPiece || "—"],
-                          ].map(([k, val]) => (
-                            <div key={k}><dt className="text-[var(--steel)]">{k}</dt><dd className="text-[var(--ink)] font-medium">{val}</dd></div>
-                          ))}
-                        </dl>
-                      ) : (
-                      <div className="text-xs text-[var(--steel)] mt-0.5">
-                        {s.reference ? `${s.fournisseur} · Réf. ${s.reference}` : `${s.fournisseur} (hors Sysco)`}{s.conditionnement ? ` · ${s.conditionnement}` : ""}
-                      </div>
-                      )}
-                      {s.poidsParPiece && <div className="text-xs text-[var(--accent)] mt-0.5">Poids/pièce calculé : {s.poidsParPiece}</div>}
-                      {s.note && !estAValider(s.note) && <div className="text-xs text-[var(--steel)] italic mt-0.5">{s.note}</div>}
-                      {estAValider(s.note) && <div className="text-xs font-semibold mt-0.5" style={{ color: "#6B4A00" }}>Nouveau produit créé à la réception : fiche à compléter puis enregistrer.</div>}
-                      {(gestion || s.brut) && (!s.reference || !s.prixUnitaire) && (
-                        <div className="mt-2 flex items-center justify-between gap-3 flex-wrap rounded-xl border-2 px-3 py-2" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
-                          <span className="text-sm font-bold" style={{ color: "#6B4A00" }}>Il manque : {[!s.reference && "la référence", !s.prixUnitaire && "le prix"].filter(Boolean).join(" et ")}</span>
-                          <button type="button" onClick={() => { if (gestion) { setRefusProduit(null); setEdition({ table: "produits", id: s.id, valeurs: s.brut, focus: !s.prixUnitaire ? "prix_achat" : "reference" }); } else setRefusProduit(s.id); }} className="min-h-[44px] px-5 rounded-xl text-sm font-bold text-white bg-[var(--accent)]">Compléter</button>
-                        </div>
-                      )}
-                      {refusProduit === s.id && !gestion && <BlocPasDeDroit sujet={`produit « ${s.nom} » à compléter`} onFermer={() => setRefusProduit(null)} />}
-                      {gestion && s.brut && <button onClick={() => setEdition({ table: "produits", id: s.id, valeurs: s.brut })} className="mt-1 text-xs font-medium text-[var(--accent)]">Modifier ce produit</button>}
-                    </li>
+                  {(groupement === "fournisseur" ? sousGroupesDe(parGroupe[cat]) : [{ g: null, items: parGroupe[cat] }]).map(({ g, items }) => (
+                    <React.Fragment key={g ? g.id : "tous"}>
+                      {g && <li className="px-4 py-1.5 flex items-center justify-between text-xs font-bold" style={{ backgroundColor: g.fond, color: g.texte }}><span>{g.nom}</span><span className="font-semibold opacity-90">{items.length} produit(s)</span></li>}
+                      {items.map((s) => ligneProduit(s))}
+                    </React.Fragment>
                   ))}
                 </ul>
               )}
