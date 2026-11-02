@@ -6442,6 +6442,7 @@ function GuideAchatProduit({ v, setV }) {
   else if (d.vente === "piece") optionsPrix.push(["piece", "une pièce"]);
   else if (d.vente === "poids") { optionsPrix.push(["kg", "le kilo"]); optionsPrix.push(["piece", "une pièce"]); }
   else if (d.vente === "volume") { optionsPrix.push(["l", "le litre"]); optionsPrix.push(["piece", "une pièce"]); }
+  const libPrix = { colis: `Prix HT du ${nomColis} entier (€)`, piece: "Prix HT d'une pièce (€)", poids: "Prix HT du kilo (€)", volume: "Prix HT du litre (€)" }[d.vente] || "Prix HT (€)";
   const choisirVente = (vente) => changer({ vente, prixPour: { colis: "colis", piece: "piece", poids: "kg", volume: "l" }[vente], comptage: d.comptage || (vente === "poids" ? "kg" : vente === "volume" ? "l" : "piece") });
   return (
     <div className="sm:col-span-2 space-y-3 text-xs" style={{ color: "var(--ink)" }}>
@@ -6451,12 +6452,15 @@ function GuideAchatProduit({ v, setV }) {
       </div>
 
       {bloc(1, "Chez le fournisseur : comment je l'achète", "Ce qui est écrit sur la facture ou le bon de commande.", "#0E7490", "#F3FBFC", <>
-        <div className="grid gap-1.5 sm:grid-cols-2">
-          {bouton(d.vente === "colis", "Par colis", () => choisirVente("colis"), "carton, caisse, pack, sachets dans un colis…")}
-          {bouton(d.vente === "piece", "À la pièce", () => choisirVente("piece"), "une boîte, une brique, un pot…")}
-          {bouton(d.vente === "poids", "Au poids (kg)", () => choisirVente("poids"), "viande, charcuterie, fromage, légumes…")}
-          {bouton(d.vente === "volume", "Au volume (litre)", () => choisirVente("volume"), "huile, lait en vrac…")}
-        </div>
+        <label className={lib}>Comment le fournisseur le vend-il ?
+          <select className={`${champ} font-semibold`} value={d.vente || ""} onChange={(e) => e.target.value && choisirVente(e.target.value)}>
+            <option value="">— Choisir —</option>
+            <option value="colis">Par colis (carton, caisse, pack, sachets dans un colis…)</option>
+            <option value="piece">À la pièce (une boîte, une brique, un pot…)</option>
+            <option value="poids">Au poids, au kilo (viande, charcuterie, fromage, légumes…)</option>
+            <option value="volume">Au volume, au litre (huile, lait en vrac…)</option>
+          </select>
+        </label>
         {colis && (
           <div className="grid gap-2 sm:grid-cols-2">
             <label className={lib}>Le colis s'appelle
@@ -6471,14 +6475,11 @@ function GuideAchatProduit({ v, setV }) {
         )}
         {d.vente && (
           <div className="grid gap-2 sm:grid-cols-2">
-            <div>
-              <label className={lib}>Prix HT de la facture (€)
-                <input inputMode="decimal" className={champ} placeholder="ex. 27,00" value={d.prix ?? ""} onChange={(e) => changer({ prix: e.target.value })} /></label>
-              <div className="flex flex-wrap items-center gap-1.5 mt-1.5"><span className="text-[11px] text-[var(--steel)]">Ce prix est pour :</span>{optionsPrix.map(([k, l]) => puce(d.prixPour === k, l, () => changer({ prixPour: k })))}</div>
-            </div>
-            {colis && (
+            <label className={lib}>{libPrix}
+              <input inputMode="decimal" className={champ} placeholder="ex. 27,00" value={d.prix ?? ""} onChange={(e) => changer({ prix: e.target.value })} /></label>
+            {(colis || d.vente === "piece") && (
               <div className="grid grid-cols-[1fr_5.5rem] gap-1.5">
-                <label className={lib}>Poids ou volume total du {nomColis} (facultatif)
+                <label className={lib}>{colis ? `Poids ou volume total du ${nomColis}` : "Poids ou volume d'une pièce"} (facultatif)
                   <input inputMode="decimal" className={champ} placeholder="ex. 1800" value={d.poidsColis ?? ""} onChange={(e) => changer({ poidsColis: e.target.value })} /></label>
                 <label className={lib}>Unité
                   <select className={champ} value={d.poidsColisUnite || "g"} onChange={(e) => changer({ poidsColisUnite: e.target.value })}><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">L</option></select></label>
@@ -6488,7 +6489,7 @@ function GuideAchatProduit({ v, setV }) {
         )}
       </>)}
 
-      {d.vente && bloc(2, "Le produit lui-même", "Une seule pièce : son nom et, si vous le connaissez, son poids ou son volume. Le prix à l'unité se calcule tout seul.", "#6E36AE", "#F7F2FC", <>
+      {d.vente && bloc(2, "La même chose, à l'unité", "Une seule pièce : son prix et son poids se calculent tout seuls à partir du bloc 1. Vous pouvez corriger le poids si vous le connaissez.", "#6E36AE", "#F7F2FC", <>
         <div className="grid gap-2 sm:grid-cols-2">
           <label className={lib}>Nom d'une pièce (facultatif)
             <input className={champ} placeholder="ex. œuf, pain, tranche, brique" value={d.nomPiece ?? ""} onChange={(e) => changer({ nomPiece: e.target.value })} /></label>
@@ -6500,11 +6501,14 @@ function GuideAchatProduit({ v, setV }) {
           </div>
         </div>
         {r.contenuDeduit > 0 && !(nbDetail(d.contenu) > 0) && <p className="text-[11px] text-[var(--steel)]">Poids d'une pièce calculé depuis le {nomColis} : <b>{fmtDetail(r.contenuDeduit)} {r.contenuUniteEff}</b>.</p>}
-        {r.prixPiece != null && (
-          <div className="rounded-lg bg-white border border-[var(--cadre)] px-3 py-2 font-semibold">
-            Prix à l'unité : 1 {nomPiece} = {eurPrecis(r.prixPiece)}{r.prixKg != null ? ` · 1 kg = ${eurDetail(r.prixKg)}` : ""}{r.prixL != null ? ` · 1 L = ${eurDetail(r.prixL)}` : ""}
-          </div>
-        )}
+        <div className="grid grid-cols-3 gap-2 text-center">
+          {[
+            ["Pièces dans le " + (colis ? nomColis : "produit"), colis ? fmtDetail(r.piecesParColis) : "1"],
+            [`Prix d'1 ${nomPiece}`, r.prixPiece != null ? eurPrecis(r.prixPiece) : "—"],
+            [`Poids d'1 ${nomPiece}`, r.contenuPiece ? `${fmtDetail(r.contenuPiece.val)} ${r.contenuPiece.unite}` : "—"],
+          ].map(([t, val]) => <div key={t} className="rounded-lg bg-white border border-[var(--cadre)] px-2 py-2"><div className="text-[10px] text-[var(--steel)] leading-tight">{t}</div><div className="text-sm font-bold">{val}</div></div>)}
+        </div>
+        {(r.prixKg != null || r.prixL != null) && <div className="text-[11px] text-[var(--steel)]">{r.prixKg != null ? `Soit ${eurDetail(r.prixKg)} le kilo` : ""}{r.prixL != null ? `Soit ${eurDetail(r.prixL)} le litre` : ""}.</div>}
         <p className="text-[11px] text-[var(--steel)]">Le poids d'une pièce sert à utiliser le produit en grammes dans les fiches techniques (ex. 3 tranches de 20 g). Sans lui, tout fonctionne en pièces.</p>
       </>)}
 
