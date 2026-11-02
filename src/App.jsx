@@ -17205,12 +17205,8 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                 <div className="col-span-2 lg:col-span-1 min-w-0">
                   {estChefStock ? <button type="button" data-poignee={peutGlisser ? "nom" : undefined} onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{peutGlisser && <span data-poignee="grip" style={{ touchAction: "none" }} className="inline-block mr-1.5 text-[var(--steel)] cursor-grab select-none" title="Maintenir pour déplacer" aria-hidden="true">⠿</span>}{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
                   <input className="text-xs text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
-                  {estChefStock && setGroupesStock && (
-                    <select aria-label={`Groupe de ${s.nom}`} className="text-[11px] text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none max-w-full" value={catS} onChange={(e) => deplacerProduit(s, e.target.value)}>
-                      {groupesAff.map((g) => <option key={g.id} value={g.id}>Groupe : {g.nom}</option>)}
-                    </select>
-                  )}
                   {s.reference ? <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference}</div> : null}
+                  {s.conditionnement ? <div className="text-[11px] leading-tight text-[var(--steel)]">{s.conditionnement}</div> : null}
                   {estAValider(s.note) && (
                     <div className="mt-1">
                       <button type="button" onClick={() => { if (acces.estResponsable && rapideStock && rapideStock.ouvrirProduitAcompleter) rapideStock.ouvrirProduitAcompleter(s.id, "reference"); else setProduitSansDroit(s.id); }}
