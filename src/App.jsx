@@ -3088,7 +3088,7 @@ function Dashboard({ employees, activityLog, shifts, tempLogs, stock, reservatio
         <Card>
           <h3 className="font-semibold text-[var(--ink)] mb-3">Stock à commander</h3>
           {stockBas.length === 0 ? (
-            <p className="text-sm text-[var(--steel)]">Tous les produits ont au moins le stock à avoir en réserve.</p>
+            <p className="text-sm text-[var(--steel)]">Tous les produits ont au moins le stock cible en réserve.</p>
           ) : (
             <ul className="space-y-2">
               {stockBas.map((s) => (
@@ -16741,7 +16741,29 @@ const arrondiQte = (n) => Math.round(n * 1000) / 1000;
 // (« 2 boîtes »), le stock reste enregistré en kg / L (coûts des fiches inchangés). Les produits vendus au poids
 // (viandes, charcuterie, fruits et légumes) restent comptés en kg. Même règle pour tous les établissements.
 const GROUPES_AU_POIDS = new Set(["Viandes & volaille", "Charcuterie", "Fruits & légumes"]);
+// « 6 × 0,7 L » ou « 18 » : ce qu'il y a dans un colis, d'après la fiche d'achat du produit.
+function compositionColis(s) {
+  const d = s && s.detailAchat; if (!d) return "";
+  let r; try { r = calculerDetailAchat(d); } catch (e) { return ""; }
+  if (!r || !r.ok || !(r.piecesParColis > 1)) return "";
+  const cp = r.contenuPiece;
+  return cp && cp.val > 0 ? `${fmtDetail(r.piecesParColis)} × ${poidsTexte(cp.val, cp.unite)}` : fmtDetail(r.piecesParColis);
+}
 function infosColis(s) {
+  // Produit dont la fiche d'achat est renseignée : on compte en colis entiers (carton, barquette…), le stock reste dans son unité.
+  const d = s && s.detailAchat; const nomC = d ? String(d.nomColis || "").trim() : "";
+  if (d && nomC && !/^pi[eè]ces?$/i.test(nomC)) {
+    let r = null; try { r = calculerDetailAchat(d); } catch (e) { r = null; }
+    if (r && r.ok) {
+      const u0 = String((s && s.unite) || "").toLowerCase(); const tp = r.totalPiece;
+      let contenu = 0;
+      if (u0 === "kg") contenu = tp && tp.unite === "g" ? tp.val / 1000 : 0;
+      else if (u0 === "l" || u0 === "litre" || u0 === "litres") contenu = tp && tp.unite === "ml" ? tp.val / 1000 : 0;
+      else if (u0 !== "g" && u0 !== "ml") contenu = r.piecesParColis;
+      contenu = Math.round(contenu * 1000) / 1000;
+      if (contenu > 1 || (contenu > 0 && (u0 === "kg" || u0 === "l" || u0 === "litre" || u0 === "litres"))) return { contenu, nom: nomC.toLowerCase(), compo: compositionColis(s) };
+    }
+  }
   const u = String((s && s.unite) || "").toLowerCase();
   if (u !== "kg" && u !== "l" && u !== "litre" && u !== "litres") return null;
   const cond = String((s && s.conditionnement) || "");
@@ -16752,7 +16774,7 @@ function infosColis(s) {
   if (!m) return null;
   const contenu = quantiteParConditionnement(s);
   if (!contenu || contenu <= 0) return null;
-  return { contenu, nom: m[1].toLowerCase().replace("î", "i").replace("oite", "oîte") };
+  return { contenu, nom: m[1].toLowerCase().replace("î", "i").replace("oite", "oîte"), compo: "" };
 }
 const fmtNb = (n) => String(Math.round(Number(n) * 100) / 100).replace(".", ",");
 
@@ -16863,6 +16885,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [inventaireActif, setInventaireActif] = useState(false);
   const [produitDetail, setProduitDetail] = useState(null); // chef : id du produit dont on ouvre la page
   const estChefStock = !!acces.estResponsable;
+  const [modifCibles, setModifCibles] = useState(false); // le chef seul peut modifier le stock cible ; les + et − n'apparaissent qu'à sa demande
   const deposerRef = React.useRef(null);
   const peutGlisser = !!(estChefStock && setGroupesStock);
   const glisse = useGlisserDeposer((id, cible) => { if (deposerRef.current) deposerRef.current(id, cible); }, peutGlisser);
@@ -16882,13 +16905,13 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const fixerCible = (id, n) => {
     const s = stock.find((x) => x.id === id);
     setStock(stock.map((x) => (x.id === id ? { ...x, cible: n } : x)));
-    if (s && Number(s.cible) !== n) logActivity("Stock", "Stock à avoir modifié", `${s.nom} : ${s.cible || 0} → ${n} ${s.unite}`);
+    if (s && Number(s.cible) !== n) logActivity("Stock", "Stock cible modifié", `${s.nom} : ${s.cible || 0} → ${n} ${s.unite}`);
   };
   const updateFournisseur = (id, valeur) => setStock(stock.map((s) => (s.id === id ? { ...s, fournisseur: valeur } : s)));
   const removeItem = (id) => setStock(stock.filter((s) => s.id !== id));
 
   const produitASupprimer = nomASupprimer.trim() ? stock.find((s) => s.nom.trim().toLowerCase() === nomASupprimer.trim().toLowerCase()) : null;
-  const pasDe = (s) => (s.commande && s.commande.taille > 0 ? s.commande.taille : (quantiteParConditionnement(s) || 1));
+  const pasDe = (s) => { const ic = infosColis(s); return ic ? ic.contenu : (s.commande && s.commande.taille > 0 ? s.commande.taille : (quantiteParConditionnement(s) || 1)); };
   const libelleLigne = (s, qte) => (s.commande && s.commande.taille > 0 ? texteCommande(s.commande, Number(qte) / s.commande.taille) : `${qte} ${s.unite}`);
   const enAlerte = (s) => Number(s.cible) > 0 && Number(s.quantite) < Number(s.cible);
   const alertes = stock.filter((s) => !estPrepMaison(s) && s.groupeStock !== GROUPE_PAUSE.id && enAlerte(s));
@@ -17160,11 +17183,12 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--line)] flex-wrap" style={{ background: zoneDepuisFonction("stock").fond }}>
             <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: q ? "#1D2321" : infoCat.fond, color: q ? "#fff" : infoCat.texte }}><Package size={20} /></span>
             <h3 className="text-xl font-bold text-[var(--ink)]">{q ? "Résultats de la recherche" : infoCat.nom} ({liste.length})</h3>
+            {estChefStock && <button type="button" onClick={() => setModifCibles((m) => !m)} className="ml-auto h-9 px-3 rounded-lg border-2 text-sm font-semibold" style={modifCibles ? { background: "#1B4F9C", borderColor: "#1B4F9C", color: "#fff" } : { background: "#fff", borderColor: "#1B4F9C", color: "#1B4F9C" }}>{modifCibles ? "Terminer la modification du stock cible" : "Modifier le stock cible"}</button>}
             {filtreEtat !== "tous" && <span className="text-xs font-semibold px-2 py-1 rounded-md bg-[var(--bg)] text-[var(--ink)]">Filtre : {filtreEtat === "alerte" ? "en alerte" : "dans le panier"} <button type="button" className="underline ml-1" onClick={() => setFiltreEtat("tous")}>retirer</button></span>}
           </div>
           {peutGlisser && <p className="px-4 py-1.5 text-xs text-[var(--steel)] border-b border-[var(--line)]">Pour ranger vos produits : maintenez le doigt (ou la souris) sur un produit, puis glissez-le plus haut, plus bas, ou sur un groupe du menu. Son groupe change tout seul.</p>}
           <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_9.5rem_7rem_3.5rem] gap-3 px-4 py-1.5 text-xs font-semibold text-[var(--ink)] bg-[var(--bg)]" style={{ borderBottom: `2px solid ${zoneDepuisFonction("stock").bord}55` }}>
-            <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que vous voulez toujours avoir en réserve">Stock à avoir</span><span title="Ce que fait un clic sur + ou −">Un clic =</span><span className="text-center">Panier</span>
+            <span>Produit</span><span>DLC / lot</span><span className="text-center">Stock actuel</span><span className="text-center" title="Quantité que le chef veut toujours avoir en réserve">Stock cible</span><span title="Ce que fait un clic sur + ou −">Un clic =</span><span className="text-center">Panier</span>
           </div>
           {liste.length === 0 ? (
             <p className="px-4 py-8 text-sm text-[var(--steel)]">Aucun produit dans cette sélection.</p>
@@ -17196,9 +17220,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   )}
                 </div>
                 <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>{s.dlc ? <>DLC : {s.dlc}<br /></> : null}{s.lot ? <>Lot : {s.lot}</> : null}{!s.dlc && !s.lot ? <span className="opacity-40">—</span> : null}</div>
-                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div>{colis ? <><CelluleQuantite valeur={arrondiQte(Number(s.quantite) / colis.contenu)} pas={1} onSet={(n) => fixerQty(s.id, arrondiQte(n * colis.contenu))} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom} en ${colis.nom}s`} /><div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{fmtNb(Number(s.quantite) / colis.contenu)} {colis.nom}{Number(s.quantite) / colis.contenu >= 2 ? "s" : ""} = {fmtNb(s.quantite)} {s.unite}</div></> : <CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />}{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{libelleQte(s, s.quantite)}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
-                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div>{colis ? <CelluleQuantite valeur={arrondiQte(Number(s.cible || 0) / colis.contenu)} pas={1} onSet={(n) => fixerCible(s.id, arrondiQte(n * colis.contenu))} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom} en ${colis.nom}s`} /> : <CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} />}</div>
-                <div className="text-sm text-[var(--ink)] leading-tight"><b>{colis ? colis.nom : (s.unite || "—")}</b><div className="text-[11px] text-[var(--steel)]">{colis ? `1 ${colis.nom} = ${fmtNb(colis.contenu)} ${s.unite}` : s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `un clic = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `un clic = 1 ${s.unite || ""}`))}</div></div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div>{colis ? <><CelluleQuantite valeur={arrondiQte(Number(s.quantite) / colis.contenu)} pas={1} onSet={(n) => fixerQty(s.id, arrondiQte(n * colis.contenu))} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom} en ${colis.nom}s`} /><div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{fmtNb(Number(s.quantite) / colis.contenu)} {Number(s.quantite) / colis.contenu >= 2 ? pluriel(colis.nom) : colis.nom}{colis.compo ? ` de ${colis.compo}` : ""} = {fmtNb(s.quantite)} {s.unite}</div></> : <CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />}{s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{libelleQte(s, s.quantite)}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock cible</div>{!(estChefStock && modifCibles) ? <div className="inline-flex items-center justify-center min-w-[3.5rem] h-9 px-3 rounded-lg text-sm font-semibold" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{colis ? `${fmtNb(Number(s.cible || 0) / colis.contenu)} ${Number(s.cible || 0) / colis.contenu >= 2 ? pluriel(colis.nom) : colis.nom}` : `${fmtNb(s.cible || 0)} ${s.unite || ""}`}</div> : colis ? <CelluleQuantite valeur={arrondiQte(Number(s.cible || 0) / colis.contenu)} pas={1} onSet={(n) => fixerCible(s.id, arrondiQte(n * colis.contenu))} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom} en ${colis.nom}s`} /> : <CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom}`} />}</div>
+                <div className="text-sm text-[var(--ink)] leading-tight"><b>{colis ? colis.nom : (s.unite || "—")}</b><div className="text-[11px] text-[var(--steel)]">{colis ? `1 ${colis.nom}${colis.compo ? " = " + colis.compo : ""} = ${fmtNb(colis.contenu)} ${s.unite}` : s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `un clic = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `un clic = 1 ${s.unite || ""}`))}</div></div>
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
                   className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#B45309" }}><ShoppingCart size={20} /></button></div>
               </div>
@@ -17238,7 +17262,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   </select>
                 </Field>
                 <Field label="Quantité en stock"><input className={inputCls} type="number" value={item.quantite} onChange={(e) => setItem({ ...item, quantite: e.target.value })} /></Field>
-                <Field label="Stock à avoir en réserve (sert à calculer les commandes)"><input className={inputCls} type="number" value={item.cible} onChange={(e) => setItem({ ...item, cible: e.target.value })} /></Field>
+                <Field label="Stock cible en réserve (sert à calculer les commandes)"><input className={inputCls} type="number" value={item.cible} onChange={(e) => setItem({ ...item, cible: e.target.value })} /></Field>
               </div>
               <div className="flex justify-end gap-2">
                 <Button variant="ghost" onClick={() => { setModeCatalogue(null); setItem({ reference: "", nom: "", categorie: "", fournisseur: "", quantite: "", unite: "kg", cible: "" }); }}>Annuler</Button>
@@ -17336,7 +17360,7 @@ function PageProduit({ s, onBack, onModifier, onSupprimer }) {
         {b.prix_achat != null && ligne("Prix d'achat", `${b.prix_achat} €`)}
         {b.conservation && ligne("Famille de température", b.conservation)}
         {ligne("Stock actuel", `${s.quantite ?? 0} ${s.unite || ""}`.trim())}
-        {ligne("Stock à avoir", s.cible ? `${s.cible} ${s.unite || ""}`.trim() : "")}
+        {ligne("Stock cible", s.cible ? `${s.cible} ${s.unite || ""}`.trim() : "")}
         {ligne("Dernier lot", s.lot)}
         {ligne("DLC", s.dlc)}
         {(b.delai_apres_ouverture_jours != null || b.delai_jours_dlc != null) && ligne("DLC après ouverture", jours(b.delai_apres_ouverture_jours != null ? b.delai_apres_ouverture_jours : b.delai_jours_dlc))}
@@ -18077,7 +18101,7 @@ const FICHES_NORMES = {
       {
         titre: "Gestion des ruptures et des réapprovisionnements",
         contenu: [
-          "Respecter le stock à avoir en réserve défini pour chaque produit afin d'anticiper les ruptures avant qu'elles n'affectent le service.",
+          "Respecter le stock cible en réserve défini pour chaque produit afin d'anticiper les ruptures avant qu'elles n'affectent le service.",
           "Vérifier la conformité de chaque réapprovisionnement à la réception (voir la fiche Réception des marchandises) avant de l'ajouter au stock.",
           "En cas de rupture, ne jamais utiliser un produit de substitution non prévu sans en informer le chef.",
         ],
