@@ -414,7 +414,7 @@ export default function ConnexionReelle() {
       const prixTexte = (n) => { let t = Number(n).toFixed(4).replace(/0+$/, ""); const [e, f = ""] = t.split("."); return `${e},${f.padEnd(2, "0")}`; };
       const liste = (rp.data || []).map((p) => ({
         detailAchat: detailParProduit.get(p.id) || null,
-        contenuPiece: (detailParProduit.get(p.id) && Number(detailParProduit.get(p.id).contenu) > 0) ? { val: Number(detailParProduit.get(p.id).contenu), unite: detailParProduit.get(p.id).contenuUnite === "ml" ? "ml" : "g" } : null,
+        contenuPiece: (() => { const dd = detailParProduit.get(p.id); if (!dd) return null; const ce = dd.contenuEff; if (ce && Number(ce.val) > 0) return { val: Number(ce.val), unite: ce.unite === "ml" ? "ml" : "g" }; return Number(dd.contenu) > 0 ? { val: Number(dd.contenu), unite: dd.contenuUnite === "ml" ? "ml" : "g" } : null; })(),
         groupeStock: groupeParProduit.get(p.id) || "",
         ordreStock: ordreParProduit.get(p.id) == null ? null : Number(ordreParProduit.get(p.id)),
         id: p.id, nom: p.nom, categorie: p.conservation === "surgele" ? "Surgelés" : (p.categorie || "Autres"), conservation: p.conservation || "",

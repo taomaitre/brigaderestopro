@@ -6345,8 +6345,16 @@ function calculerDetailAchat(d) {
   const piecesParSous = colis ? (nbPieces > 0 ? nbPieces : 0) : 1;
   const piecesParColis = colis ? (nbSous > 0 ? nbSous * piecesParSous : piecesParSous) : 1;
   out.piecesParColis = piecesParColis; out.piecesParSous = piecesParSous;
-  const contenu = nbDetail(d.contenu);
-  const cu = d.contenuUnite === "ml" ? "ml" : "g";
+  // Poids / volume d'une pièce : saisi, sinon déduit du poids (ou volume) total du colis ÷ nombre de pièces.
+  const pcBrut = nbDetail(d.poidsColis);
+  const pcU = ["kg", "l", "ml"].includes(d.poidsColisUnite) ? d.poidsColisUnite : "g";
+  const pcBase = pcU === "kg" ? pcBrut * 1000 : pcU === "l" ? pcBrut * 1000 : pcBrut; // en g ou en ml
+  const pcMat = pcU === "ml" || pcU === "l" ? "ml" : "g";
+  const contenuSaisi = nbDetail(d.contenu);
+  const contenuDeduit = !(contenuSaisi > 0) && pcBase > 0 && piecesParColis > 0 ? pcBase / piecesParColis : 0;
+  const contenu = contenuSaisi > 0 ? contenuSaisi : contenuDeduit;
+  const cu = contenuSaisi > 0 ? (d.contenuUnite === "ml" ? "ml" : "g") : pcMat;
+  out.contenuDeduit = contenuDeduit > 0 ? contenuDeduit : 0; out.contenuUniteEff = cu;
   const contenuBase = contenu > 0 ? contenu / 1000 : 0; // kg ou L
   if (contenu > 0) out.contenuPiece = { val: contenu, unite: cu };
   const prix = nbDetail(d.prix);
@@ -6369,7 +6377,7 @@ function calculerDetailAchat(d) {
   // texte du conditionnement
   const poidsTxt = contenu <= 0 ? "" : (contenu >= 1000 ? `${fmtDetail(contenu / 1000)} ${cu === "ml" ? "L" : "kg"}` : `${fmtDetail(contenu)} ${cu}`);
   let cond = "";
-  if (d.vente === "colis") cond = `${capitale(d.nomColis || "colis")} de ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} de ` : ""}${fmtDetail(nbPieces)} ${nbPieces > 1 ? pluriel(nomPiece) : nomPiece}${poidsTxt ? ` (${poidsTxt} pièce)` : ""}`;
+  if (d.vente === "colis") cond = `${capitale(d.nomColis || "colis")} de ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} de ` : ""}${fmtDetail(nbPieces)} ${nbPieces > 1 ? pluriel(nomPiece) : nomPiece}${poidsTxt ? ` (${poidsTxt} l'unité)` : ""}`;
   else if (d.vente === "piece") cond = `${capitale(nomPiece)}${poidsTxt ? ` de ${poidsTxt}` : ""}`;
   else cond = poidsTxt ? `${capitale(nomPiece)} de ${poidsTxt}` : (d.vente === "poids" ? "Vendu au poids" : "Vendu au volume");
   // unité de comptage et prix par unité de comptage
@@ -6406,84 +6414,108 @@ function GuideAchatProduit({ v, setV }) {
   const changer = (patch) => setV((x) => {
     const nd = { ...(x.detail_achat || {}), ...patch };
     const rr = calculerDetailAchat(nd);
+    nd.contenuEff = rr.contenuPiece || null; // poids / volume d'une pièce retenu (saisi ou déduit du colis), utilisé par le coût des fiches
     const y = { ...x, detail_achat: nd };
     if (rr.ok) { y.unite = rr.derive.unite; y.prix_achat = String(rr.derive.prix_achat).replace(".", ","); y.prix_unite = rr.derive.prix_unite; y.conditionnement = rr.derive.conditionnement; y.poids_par_piece = rr.derive.poids_par_piece || ""; }
     return y;
   });
-  const champ = "mt-0.5 w-full border border-[var(--cadre)] rounded-lg px-2.5 py-1.5 text-sm text-[var(--ink)] bg-white";
+  const champ = "mt-0.5 w-full h-10 border border-[var(--cadre)] rounded-lg px-2.5 text-sm text-[var(--ink)] bg-white";
+  const lib = "block text-[11px] text-[var(--steel)]";
   const bouton = (actif, texte, onClick, sous) => (
     <button type="button" onClick={onClick} className={`text-left rounded-lg border-2 px-3 py-2 ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
       <span className="block text-sm font-semibold text-[var(--ink)]">{actif ? "● " : "○ "}{texte}</span>{sous && <span className="block text-[11px] text-[var(--steel)]">{sous}</span>}
     </button>
   );
+  const puce = (actif, texte, onClick) => <button key={texte} type="button" onClick={onClick} className={`px-3 h-9 rounded-lg border-2 text-xs font-semibold ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--cadre)] bg-white text-[var(--steel)]"}`}>{actif ? "● " : "○ "}{texte}</button>;
+  const bloc = (num, titre, aide, couleur, fond, contenu) => (
+    <div className="rounded-xl border-2 p-3 space-y-2.5" style={{ borderColor: couleur, background: fond }}>
+      <div><div className="font-bold text-sm" style={{ color: couleur }}>{num}. {titre}</div><p className="text-[11px] text-[var(--steel)]">{aide}</p></div>
+      {contenu}
+    </div>
+  );
   const colis = d.vente === "colis";
+  const nomColis = d.nomColis || "colis";
   const nomPiece = (d.nomPiece || "").trim() || "pièce";
+  const avecSous = nbDetail(d.nbSous) > 0;
   const optionsPrix = [];
-  if (colis) { optionsPrix.push(["colis", `le ${d.nomColis || "colis"} entier`]); if (nbDetail(d.nbSous) > 0) optionsPrix.push(["sous", `un ${d.nomSous || "sachet"}`]); optionsPrix.push(["piece", `une ${nomPiece}`]); }
-  else if (d.vente === "piece") optionsPrix.push(["piece", `une ${nomPiece}`]);
-  else if (d.vente === "poids") { optionsPrix.push(["kg", "le kilo"]); if (nbDetail(d.contenu) > 0) optionsPrix.push(["piece", `une ${nomPiece}`]); }
-  else if (d.vente === "volume") { optionsPrix.push(["l", "le litre"]); if (nbDetail(d.contenu) > 0) optionsPrix.push(["piece", `une ${nomPiece}`]); }
-  else optionsPrix.push(["piece", "une pièce"]);
+  if (colis) { optionsPrix.push(["colis", `le ${nomColis} entier`]); if (avecSous) optionsPrix.push(["sous", `un ${d.nomSous || "sachet"}`]); optionsPrix.push(["piece", `une pièce`]); }
+  else if (d.vente === "piece") optionsPrix.push(["piece", "une pièce"]);
+  else if (d.vente === "poids") { optionsPrix.push(["kg", "le kilo"]); optionsPrix.push(["piece", "une pièce"]); }
+  else if (d.vente === "volume") { optionsPrix.push(["l", "le litre"]); optionsPrix.push(["piece", "une pièce"]); }
+  const choisirVente = (vente) => changer({ vente, prixPour: { colis: "colis", piece: "piece", poids: "kg", volume: "l" }[vente], comptage: d.comptage || (vente === "poids" ? "kg" : vente === "volume" ? "l" : "piece") });
   return (
-    <div className="sm:col-span-2 rounded-xl border-2 p-3 text-xs space-y-3" style={{ borderColor: "#0E7490", background: "#F3FBFC", color: "var(--ink)" }}>
+    <div className="sm:col-span-2 space-y-3 text-xs" style={{ color: "var(--ink)" }}>
       <div>
         <div className="font-bold text-sm">Comment ce produit est acheté et compté</div>
-        <p className="text-[11px] text-[var(--steel)]">Répondez une seule fois ici : le stock, l'inventaire, les prix et les fiches techniques utiliseront ces réponses. Vous n'aurez plus rien à régler ailleurs.</p>
+        <p className="text-[11px] text-[var(--steel)]">Trois blocs, dans l'ordre. Vos réponses sont gardées dans le produit : le stock, l'inventaire, les prix et les fiches techniques les utilisent.</p>
       </div>
-      <div>
-        <div className="font-semibold mb-1">1. Comment le fournisseur le vend-il ?</div>
+
+      {bloc(1, "Chez le fournisseur : comment je l'achète", "Ce qui est écrit sur la facture ou le bon de commande.", "#0E7490", "#F3FBFC", <>
         <div className="grid gap-1.5 sm:grid-cols-2">
-          {bouton(d.vente === "colis", "Par colis", () => changer({ vente: "colis", prixPour: d.prixPour === "kg" || d.prixPour === "l" ? "" : d.prixPour }), "carton, caisse, sachets dans un colis…")}
-          {bouton(d.vente === "piece", "À la pièce", () => changer({ vente: "piece", prixPour: "piece" }), "une boîte, une brique, un pot…")}
-          {bouton(d.vente === "poids", "Au poids (kg)", () => changer({ vente: "poids", prixPour: "kg", comptage: d.comptage || "kg" }), "viande, charcuterie, fromage, légumes…")}
-          {bouton(d.vente === "volume", "Au volume (litre)", () => changer({ vente: "volume", prixPour: "l", comptage: d.comptage || "l" }), "huile, lait en vrac…")}
+          {bouton(d.vente === "colis", "Par colis", () => choisirVente("colis"), "carton, caisse, pack, sachets dans un colis…")}
+          {bouton(d.vente === "piece", "À la pièce", () => choisirVente("piece"), "une boîte, une brique, un pot…")}
+          {bouton(d.vente === "poids", "Au poids (kg)", () => choisirVente("poids"), "viande, charcuterie, fromage, légumes…")}
+          {bouton(d.vente === "volume", "Au volume (litre)", () => choisirVente("volume"), "huile, lait en vrac…")}
         </div>
-      </div>
-      {d.vente && (
-        <div>
-          <div className="font-semibold mb-1">2. Que contient-il ?</div>
+        {colis && (
           <div className="grid gap-2 sm:grid-cols-2">
-            {colis && <>
-              <label className="block text-[11px] text-[var(--steel)]">Le colis s'appelle
-                <select className={champ} value={d.nomColis || "colis"} onChange={(e) => changer({ nomColis: e.target.value })}>{["colis", "carton", "caisse", "pack", "seau", "bidon", "sac"].map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
-              <label className="block text-[11px] text-[var(--steel)]">Nombre de sachets / barquettes dans le colis (vide s'il n'y en a pas)
-                <input inputMode="numeric" className={champ} placeholder="ex. 3" value={d.nbSous ?? ""} onChange={(e) => changer({ nbSous: e.target.value, prixPour: d.prixPour === "sous" && !(nbDetail(e.target.value) > 0) ? "colis" : d.prixPour })} /></label>
-              {nbDetail(d.nbSous) > 0 && <label className="block text-[11px] text-[var(--steel)]">Ces paquets s'appellent
-                <select className={champ} value={d.nomSous || "sachet"} onChange={(e) => changer({ nomSous: e.target.value })}>{["sachet", "barquette", "boîte", "paquet", "pack", "brique", "sac"].map((x) => <option key={x} value={x}>{x}</option>)}</select></label>}
-              <label className="block text-[11px] text-[var(--steel)]">{nbDetail(d.nbSous) > 0 ? `Nombre de pièces dans chaque ${d.nomSous || "sachet"}` : `Nombre de pièces dans le ${d.nomColis || "colis"}`}
-                <input inputMode="numeric" className={champ} placeholder="ex. 15" value={d.nbPieces ?? ""} onChange={(e) => changer({ nbPieces: e.target.value })} /></label>
-            </>}
-            <label className="block text-[11px] text-[var(--steel)]">Une pièce s'appelle
-              <input className={champ} placeholder="ex. pain, tranche, brique, barquette" value={d.nomPiece ?? ""} onChange={(e) => changer({ nomPiece: e.target.value })} /></label>
-            <div className="grid grid-cols-[1fr_5rem] gap-1.5">
-              <label className="block text-[11px] text-[var(--steel)]">Poids ou volume d'une pièce (facultatif)
-                <input inputMode="decimal" className={champ} placeholder="ex. 250" value={d.contenu ?? ""} onChange={(e) => changer({ contenu: e.target.value })} /></label>
-              <label className="block text-[11px] text-[var(--steel)]">Unité
-                <select className={champ} value={d.contenuUnite || "g"} onChange={(e) => changer({ contenuUnite: e.target.value })}><option value="g">g</option><option value="ml">ml</option></select></label>
+            <label className={lib}>Le colis s'appelle
+              <select className={champ} value={nomColis} onChange={(e) => changer({ nomColis: e.target.value })}>{["colis", "carton", "caisse", "pack", "seau", "bidon", "sac", "plateau"].map((x) => <option key={x} value={x}>{x}</option>)}</select></label>
+            <label className={lib}>{avecSous ? `Nombre de pièces dans chaque ${d.nomSous || "sachet"}` : `Nombre de pièces dans le ${nomColis}`}
+              <input inputMode="numeric" className={champ} placeholder="ex. 30" value={d.nbPieces ?? ""} onChange={(e) => changer({ nbPieces: e.target.value })} /></label>
+            <label className={lib}>Sachets / barquettes dans le {nomColis} (vide s'il n'y en a pas)
+              <input inputMode="numeric" className={champ} placeholder="ex. 3" value={d.nbSous ?? ""} onChange={(e) => changer({ nbSous: e.target.value, prixPour: d.prixPour === "sous" && !(nbDetail(e.target.value) > 0) ? "colis" : d.prixPour })} /></label>
+            {avecSous ? <label className={lib}>Ces paquets s'appellent
+              <select className={champ} value={d.nomSous || "sachet"} onChange={(e) => changer({ nomSous: e.target.value })}>{["sachet", "barquette", "boîte", "paquet", "pack", "brique", "sac"].map((x) => <option key={x} value={x}>{x}</option>)}</select></label> : <span />}
+          </div>
+        )}
+        {d.vente && (
+          <div className="grid gap-2 sm:grid-cols-2">
+            <div>
+              <label className={lib}>Prix HT de la facture (€)
+                <input inputMode="decimal" className={champ} placeholder="ex. 27,00" value={d.prix ?? ""} onChange={(e) => changer({ prix: e.target.value })} /></label>
+              <div className="flex flex-wrap items-center gap-1.5 mt-1.5"><span className="text-[11px] text-[var(--steel)]">Ce prix est pour :</span>{optionsPrix.map(([k, l]) => puce(d.prixPour === k, l, () => changer({ prixPour: k })))}</div>
             </div>
+            {colis && (
+              <div className="grid grid-cols-[1fr_5.5rem] gap-1.5">
+                <label className={lib}>Poids ou volume total du {nomColis} (facultatif)
+                  <input inputMode="decimal" className={champ} placeholder="ex. 1800" value={d.poidsColis ?? ""} onChange={(e) => changer({ poidsColis: e.target.value })} /></label>
+                <label className={lib}>Unité
+                  <select className={champ} value={d.poidsColisUnite || "g"} onChange={(e) => changer({ poidsColisUnite: e.target.value })}><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">L</option></select></label>
+              </div>
+            )}
           </div>
-          <p className="text-[11px] text-[var(--steel)] mt-1">Le poids ou le volume d'une pièce permet d'utiliser le produit en grammes dans les fiches techniques (ex. 250 g de comté, 3 tranches de 20 g).</p>
-        </div>
-      )}
-      {d.vente && (
-        <div>
-          <div className="font-semibold mb-1">3. Le prix de la facture est pour…</div>
-          <div className="flex flex-wrap gap-1.5 mb-1.5">
-            {optionsPrix.map(([k, l]) => <button key={k} type="button" onClick={() => changer({ prixPour: k })} className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold ${d.prixPour === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--cadre)] bg-white text-[var(--steel)]"}`}>{d.prixPour === k ? "● " : "○ "}{l}</button>)}
+        )}
+      </>)}
+
+      {d.vente && bloc(2, "Le produit lui-même", "Une seule pièce : son nom et, si vous le connaissez, son poids ou son volume. Le prix à l'unité se calcule tout seul.", "#6E36AE", "#F7F2FC", <>
+        <div className="grid gap-2 sm:grid-cols-2">
+          <label className={lib}>Nom d'une pièce (facultatif)
+            <input className={champ} placeholder="ex. œuf, pain, tranche, brique" value={d.nomPiece ?? ""} onChange={(e) => changer({ nomPiece: e.target.value })} /></label>
+          <div className="grid grid-cols-[1fr_5.5rem] gap-1.5">
+            <label className={lib}>Poids ou volume d'une pièce (facultatif)
+              <input inputMode="decimal" className={champ} placeholder={r.contenuDeduit > 0 ? `calculé : ${fmtDetail(r.contenuDeduit)}` : "ex. 250"} value={d.contenu ?? ""} onChange={(e) => changer({ contenu: e.target.value })} /></label>
+            <label className={lib}>Unité
+              <select className={champ} value={d.contenuUnite || "g"} onChange={(e) => changer({ contenuUnite: e.target.value })}><option value="g">g</option><option value="ml">ml</option></select></label>
           </div>
-          <label className="block text-[11px] text-[var(--steel)] max-w-[12rem]">Prix HT (€)
-            <input inputMode="decimal" className={champ} placeholder="ex. 27,00" value={d.prix ?? ""} onChange={(e) => changer({ prix: e.target.value })} /></label>
         </div>
-      )}
-      {d.vente && (
-        <div>
-          <div className="font-semibold mb-1">4. À l'inventaire, vous le comptez en…</div>
-          <div className="flex flex-wrap gap-1.5">
-            {[["piece", `${pluriel(nomPiece)} (pièces)`], ["kg", "kilos"], ["l", "litres"]].map(([k, l]) => <button key={k} type="button" onClick={() => changer({ comptage: k })} className={`px-3 py-1.5 rounded-lg border-2 text-xs font-semibold ${d.comptage === k ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : "border-[var(--cadre)] bg-white text-[var(--steel)]"}`}>{d.comptage === k ? "● " : "○ "}{l}</button>)}
+        {r.contenuDeduit > 0 && !(nbDetail(d.contenu) > 0) && <p className="text-[11px] text-[var(--steel)]">Poids d'une pièce calculé depuis le {nomColis} : <b>{fmtDetail(r.contenuDeduit)} {r.contenuUniteEff}</b>.</p>}
+        {r.prixPiece != null && (
+          <div className="rounded-lg bg-white border border-[var(--cadre)] px-3 py-2 font-semibold">
+            Prix à l'unité : 1 {nomPiece} = {eurPrecis(r.prixPiece)}{r.prixKg != null ? ` · 1 kg = ${eurDetail(r.prixKg)}` : ""}{r.prixL != null ? ` · 1 L = ${eurDetail(r.prixL)}` : ""}
           </div>
-          <p className="text-[11px] text-[var(--steel)] mt-1">Au moment de l'inventaire, une fenêtre « Compter » vous laisse saisir les colis, les sachets, les pièces seules ou les restes ; le total se calcule tout seul.</p>
+        )}
+        <p className="text-[11px] text-[var(--steel)]">Le poids d'une pièce sert à utiliser le produit en grammes dans les fiches techniques (ex. 3 tranches de 20 g). Sans lui, tout fonctionne en pièces.</p>
+      </>)}
+
+      {d.vente && bloc(3, "À l'inventaire : comment je le compte", "Au moment de l'inventaire, le bouton « Compter » additionne les colis, les paquets, les pièces seules ou les restes.", "#1F8F5F", "#EAF6EF", <>
+        <div className="flex flex-wrap gap-1.5">
+          {puce(d.comptage === "piece", `en pièces (${pluriel(nomPiece)})`, () => changer({ comptage: "piece" }))}
+          {puce(d.comptage === "kg", "en kilos", () => changer({ comptage: "kg" }))}
+          {puce(d.comptage === "l", "en litres", () => changer({ comptage: "l" }))}
         </div>
-      )}
+      </>)}
+
       {d.vente && r.erreurs.length > 0 && <div className="rounded-lg border-2 px-3 py-2 font-semibold" style={{ borderColor: "#E0A100", background: "#FFF4CC", color: "#6B4A00" }}>⚠ {r.erreurs.join(" ")}</div>}
       {r.ok && (
         <div className="rounded-lg px-3 py-2" style={{ background: "#EAF6EE", color: "#14532D" }}>
