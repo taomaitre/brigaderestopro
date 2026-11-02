@@ -23,7 +23,7 @@ export function lireContenu(expr) {
 }
 
 export function calculerDetailAchat(d) {
-  const out = { ok: false, erreurs: [], avertissements: [], resume: [], derive: null, piecesParColis: 1, piecesParSous: 1, prixPiece: null, prixKg: null, prixL: null, contenuPiece: null, contenuRecette: null, totalPiece: null, contenuDeduit: 0, contenuUniteEff: "g", conditionnement: "" };
+  const out = { ok: false, erreurs: [], avertissements: [], resume: [], derive: null, piecesParColis: 1, piecesParSous: 1, prixPiece: null, prixKg: null, prixL: null, contenuPiece: null, contenuRecette: null, coefNet: 1, densite: null, totalPiece: null, contenuDeduit: 0, contenuUniteEff: "g", conditionnement: "" };
   if (!d || !d.vente) { out.erreurs.push("Choisissez comment le fournisseur vend ce produit."); return out; }
   const avecPieces = ["colis", "piece", "poids", "volume"].includes(d.vente); // un produit vendu au kilo peut aussi contenir des pièces (50 bouchées de 20 g)
   const nbSous = nbDetail(d.nbSous);
@@ -45,14 +45,42 @@ export function calculerDetailAchat(d) {
   const cu = contenuSaisi > 0 ? cuSaisi : ptMat;
   out.contenuDeduit = contenuDeduit; out.contenuUniteEff = cu;
   if (contenu > 0) out.contenuPiece = { val: contenu, unite: cu };
+  // Poids net (égoutté, utile en cuisine) par rapport au poids total (brut) : ex. cornichons 4,2 kg brut, 2,12 kg net.
+  // On achète, compte et commande sur le brut ; les fiches techniques sont calculées sur le net.
+  const netBrut = nbDetail(d.netVal);
+  const netU = ["g", "kg", "l", "ml"].includes(d.netUnite) ? d.netUnite : ptU;
+  if (netBrut > 0 && ptBase > 0) {
+    if (MATIERE[netU] !== ptMat) out.erreurs.push("Le poids net doit être dans la même mesure que le poids total (grammes avec grammes, litres avec litres).");
+    else {
+      const coef = (netBrut * FACTEUR[netU]) / ptBase;
+      if (coef > 1.0001) out.erreurs.push("Le poids net ne peut pas dépasser le poids total (brut).");
+      else if (coef < 1) { out.coefNet = Math.round(coef * 10000) / 10000; if (coef < 0.3) out.avertissements.push(`Le net (${poidsTexte(netBrut * FACTEUR[netU], ptMat)}) ne représente que ${Math.round(coef * 100)} % du brut : vérifiez.`); }
+    }
+  } else if (netBrut > 0 && !(ptBase > 0)) out.erreurs.push("Pour indiquer un poids net, indiquez d'abord le poids total (brut).");
+  // Équivalence poids <-> volume (glace : 2,5 L = 1,63 kg) : sert à convertir les grammes d'une fiche en litres.
+  const eqVal = nbDetail(d.equivVal);
+  const eqU = ["kg", "l", "ml", "g"].includes(d.equivUnite) ? d.equivUnite : (ptMat === "ml" ? "kg" : "l");
+  if (eqVal > 0 && ptBase > 0) {
+    if (MATIERE[eqU] === ptMat) out.erreurs.push(ptMat === "ml" ? "Indiquez l'équivalent en poids (g ou kg) du volume total." : "Indiquez l'équivalent en volume (ml ou L) du poids total.");
+    else {
+      const eqBase = eqVal * FACTEUR[eqU];
+      out.densite = Math.round((ptMat === "ml" ? eqBase / ptBase : ptBase / eqBase) * 10000) / 10000; // grammes par millilitre
+      if (out.densite < 0.2 || out.densite > 2.5) out.avertissements.push(`Densité surprenante (${out.densite} g par ml) : vérifiez le poids et le volume.`);
+    }
+  }
   // Pour les fiches techniques, « 1 pièce » = le poids d'une pièce SEULEMENT si le produit contient des pièces ou si on l'a saisi : un sachet de 1 kg vendu au kilo ne vaut pas « 1 pièce de 1 kg ».
-  if (contenu > 0 && (piecesParColis > 1 || contenuSaisi > 0 || d.comptage === "piece" || d.vente === "piece" || d.vente === "colis")) out.contenuRecette = { val: contenu, unite: cu };
+  if (contenu > 0 && (piecesParColis > 1 || contenuSaisi > 0 || d.comptage === "piece" || d.vente === "piece" || d.vente === "colis")) out.contenuRecette = { val: Math.round(contenu * out.coefNet * 1000) / 1000, unite: cu };
   const total = ptBase > 0 ? { val: ptBase, unite: ptMat } : (contenu > 0 && piecesParColis > 1 ? { val: contenu * piecesParColis, unite: cu } : null);
   out.totalPiece = total;
   if (contenuSaisi > 0 && ptBase > 0 && cuSaisi === ptMat && Math.abs(contenuSaisi * piecesParColis - ptBase) / ptBase > 0.03) out.avertissements.push(`${fmtDetail(piecesParColis)} pièces de ${poidsTexte(contenuSaisi, cuSaisi)} font ${poidsTexte(contenuSaisi * piecesParColis, cuSaisi)}, pas ${poidsTexte(ptBase, ptMat)} : vérifiez le nombre de pièces ou les poids.`);
   const contenuBase = contenu > 0 ? contenu / 1000 : 0; // kg ou L
-  const prix = nbDetail(d.prix);
+  let prix = nbDetail(d.prix);
   let prixPour = d.prixPour;
+  // Prix donné au kilo NET (égoutté) : on le ramène au kilo brut (celui qu'on commande et compte), le net servira aux fiches.
+  if (prixPour === "kgnet") {
+    prixPour = "kg";
+    if (out.coefNet < 1) prix = prix * out.coefNet; else out.erreurs.push("Prix au kilo net : indiquez d'abord le poids net.");
+  }
   if (d.vente === "piece" && prixPour === "piece") prixPour = "colis";
   if (!prixPour) out.erreurs.push("Indiquez le prix de la facture.");
   else if (!(prix > 0)) out.erreurs.push("Indiquez le prix de la facture.");
@@ -107,6 +135,12 @@ export function calculerDetailAchat(d) {
   if (prixPiece != null) r.push(`1 ${nomPiece} = ${eurPrecis(prixPiece)}${poidsPieceTxt ? ` (${poidsPieceTxt})` : ""}`);
   if (prixKg != null) r.push(`1 kg = ${eurDetail(prixKg)}${contenuBase > 0 && cu === "g" ? ` · 100 g = ${eurDetail(prixKg / 10)}` : ""}`);
   if (prixL != null) r.push(`1 L = ${eurDetail(prixL)}`);
+  if (out.coefNet < 1) {
+    r.push(`Net utilisé en fiche : ${Math.round(out.coefNet * 100)} % du poids total (brut) → les fiches techniques comptent sur le net`);
+    if (prixKg != null) r.push(`1 kg net = ${eurDetail(prixKg / out.coefNet)} (1 kg brut = ${eurDetail(prixKg)})`);
+    if (prixL != null) r.push(`1 L net = ${eurDetail(prixL / out.coefNet)} (1 L brut = ${eurDetail(prixL)})`);
+  }
+  if (out.densite) r.push(`1 L pèse ${fmtDetail(Math.round(out.densite * 1000))} g (100 g = ${fmtDetail(Math.round(100 / out.densite * 10) / 10)} ml) : sert à passer des grammes des fiches aux litres`);
   if (avecPieces && piecesParColis > 1 && prixPiece != null) r.push(`2 ${pluriel(nomVendu)} = ${fmtDetail(2 * piecesParColis)} ${pluriel(nomPiece)} = ${eurDetail(2 * prixPiece * piecesParColis)}`);
   out.resume = r; out.derive = derive; out.ok = !!derive && out.erreurs.length === 0;
   return out;
