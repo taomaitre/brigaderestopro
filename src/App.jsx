@@ -6395,6 +6395,7 @@ function GuideAchatProduit({ v, setV, prerempli }) {
     }
     const rr = calculerDetailAchat(nd);
     nd.contenuEff = rr.contenuRecette || null;
+    nd.coefNet = rr.coefNet < 1 ? rr.coefNet : null; nd.densite = rr.densite || null;
     const y = { ...x, detail_achat: nd };
     if (rr.ok) { y.unite = rr.derive.unite; y.prix_achat = String(rr.derive.prix_achat).replace(".", ","); y.prix_unite = rr.derive.prix_unite; y.conditionnement = rr.derive.conditionnement; y.poids_par_piece = rr.derive.poids_par_piece || ""; }
     return y;
@@ -6409,7 +6410,7 @@ function GuideAchatProduit({ v, setV, prerempli }) {
     </div>
   );
   const prixEntier = d.prixPour === "colis" || d.prixPour === "sous";
-  const libPrix = d.vente === "poids" ? (prixEntier ? `Prix HT du ${nomColis} entier (€)` : "Prix HT du kilo (€)") : d.vente === "volume" ? (prixEntier ? `Prix HT du ${nomColis} entier (€)` : "Prix HT du litre (€)") : (d.prixPour === "sous" ? `Prix HT d'un ${d.nomSous || "paquet"} (€)` : d.prixPour === "piece" ? `Prix HT d'1 ${nomPiece} (€)` : `Prix HT du ${nomColis} entier (€)`);
+  const libPrix = d.prixPour === "kgnet" ? "Prix HT du kilo net, égoutté (€)" : d.vente === "poids" ? (prixEntier ? `Prix HT du ${nomColis} entier (€)` : "Prix HT du kilo (€)") : d.vente === "volume" ? (prixEntier ? `Prix HT du ${nomColis} entier (€)` : "Prix HT du litre (€)") : (d.prixPour === "sous" ? `Prix HT d'un ${d.nomSous || "paquet"} (€)` : d.prixPour === "piece" ? `Prix HT d'1 ${nomPiece} (€)` : `Prix HT du ${nomColis} entier (€)`);
   const choisirVente = (vente) => changer({ vente, prixPour: { colis: "colis", piece: "colis", poids: "kg", volume: "l" }[vente], comptage: d.comptage || (vente === "poids" ? "kg" : vente === "volume" ? "l" : "piece") });
   const avecSous = nbDetail(d.nbSous) > 0;
   const choixPoids = ["g", "kg", "ml", "cl", "L"];
@@ -6458,6 +6459,25 @@ function GuideAchatProduit({ v, setV, prerempli }) {
               <label className={lib}>Unité
                 <select className={champ} value={d.poidsColisUnite || "g"} onChange={(e) => changer({ poidsColisUnite: e.target.value })}><option value="g">g</option><option value="kg">kg</option><option value="ml">ml</option><option value="l">L</option></select></label>
             </div>
+            {nbDetail(d.poidsColis) > 0 && (() => {
+              const matL = ["l", "ml"].includes(d.poidsColisUnite);
+              return (
+                <>
+                  <div className="grid grid-cols-[1fr_5.5rem] gap-1.5">
+                    <label className={lib}>Dont poids net, égoutté (facultatif)
+                      <input inputMode="decimal" className={champ} placeholder={matL ? "ex. 2 (sans le liquide)" : "ex. 2,12 (sans le jus)"} value={d.netVal ?? ""} onChange={(e) => changer({ netVal: e.target.value })} /></label>
+                    <label className={lib}>Unité
+                      <select className={champ} value={d.netUnite || d.poidsColisUnite || "g"} onChange={(e) => changer({ netUnite: e.target.value })}>{(matL ? ["ml", "l"] : ["g", "kg"]).map((k) => <option key={k} value={k}>{k === "l" ? "L" : k}</option>)}</select></label>
+                  </div>
+                  <div className="grid grid-cols-[1fr_5.5rem] gap-1.5">
+                    <label className={lib}>{matL ? "Ce volume pèse (facultatif)" : "Ce poids fait en volume (facultatif)"}
+                      <input inputMode="decimal" className={champ} placeholder={matL ? "ex. 1,63 (glace : 2,5 L)" : "ex. 2,5"} value={d.equivVal ?? ""} onChange={(e) => changer({ equivVal: e.target.value })} /></label>
+                    <label className={lib}>Unité
+                      <select className={champ} value={d.equivUnite || (matL ? "kg" : "l")} onChange={(e) => changer({ equivUnite: e.target.value })}>{(matL ? ["g", "kg"] : ["ml", "l"]).map((k) => <option key={k} value={k}>{k === "l" ? "L" : k}</option>)}</select></label>
+                  </div>
+                </>
+              );
+            })()}
             {avecPieces && (
               <div className="grid grid-cols-[1fr_5.5rem] gap-1.5">
                 <label className={lib}>Poids ou volume d'1 {nomPiece} (facultatif)
@@ -6474,6 +6494,7 @@ function GuideAchatProduit({ v, setV, prerempli }) {
                 {avecSous && <option value="sous">un {d.nomSous || "paquet"}</option>}
                 {(d.vente === "colis" || d.vente === "piece" || nbDetail(d.nbPieces) > 1) && <option value="piece">une pièce / portion</option>}
                 {d.vente !== "volume" && <option value="kg">le kilo</option>}
+                {d.vente !== "volume" && (nbDetail(d.netVal) > 0 || d.prixPour === "kgnet") && <option value="kgnet">le kilo net (égoutté)</option>}
                 {d.vente !== "poids" && <option value="l">le litre</option>}
               </select></label>
             <label className={`${lib} sm:col-span-2`}>Précisions (facultatif : poids net, volume, variable…)
@@ -6580,7 +6601,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     // Produit déjà saisi sans guide : on retrouve le détail depuis son conditionnement, son unité et son prix (gardé seulement s'il redonne le même prix).
     if (edition.table === "produits" && !(b.detail_achat && b.detail_achat.vente)) {
       const dd = detailDepuisProduit(b);
-      if (dd) { const rr = calculerDetailAchat(dd); dd.contenuEff = rr.contenuRecette || null; if (dd.contenu && !dd.contenuVal) { dd.contenuVal = String(parseFloat(dd.contenu)).replace(".", ","); dd.contenuU = dd.contenuUnite === "ml" ? "ml" : "g"; } b.detail_achat = dd; }
+      if (dd) { const rr = calculerDetailAchat(dd); dd.contenuEff = rr.contenuRecette || null; dd.coefNet = rr.coefNet < 1 ? rr.coefNet : null; dd.densite = rr.densite || null; if (dd.contenu && !dd.contenuVal) { dd.contenuVal = String(parseFloat(dd.contenu)).replace(".", ","); dd.contenuU = dd.contenuUnite === "ml" ? "ml" : "g"; } b.detail_achat = dd; }
     }
     return b;
   });
@@ -11045,26 +11066,40 @@ function allergenesDepuisCatalogue(ingredients, stock, fiches) {
 // Pourquoi une ligne n'entre pas dans le coût matière (pour guider la saisie du catalogue).
 // Coût matière : quand le prix est au litre et la quantité en grammes (ou l'inverse), on compte 1 g = 1 ml
 // (vrai pour le lait, la crème, l'eau…) : résultat estimé, signalé comme tel.
-function convertirQuantiteCout(qte, uniteSource, uniteCible) {
+function convertirQuantiteCout(qte, uniteSource, uniteCible, densite) {
   const direct = convertirQuantiteFiche(qte, uniteSource, uniteCible);
   if (direct !== null) return { val: direct, approx: false };
   const g = convertirQuantiteFiche(qte, uniteSource, "g");
   const ml = convertirQuantiteFiche(qte, uniteSource, "ml");
+  // Densité connue (glace : 1 L = 652 g) : passage exact entre poids et volume, au lieu de « 1 g = 1 ml ».
+  if (densite > 0) {
+    if (g !== null && convertirQuantiteFiche(1, "ml", uniteCible) !== null) return { val: convertirQuantiteFiche(g / densite, "ml", uniteCible), approx: false };
+    if (ml !== null && convertirQuantiteFiche(1, "g", uniteCible) !== null) return { val: convertirQuantiteFiche(ml * densite, "g", uniteCible), approx: false };
+  }
   if (g !== null && convertirQuantiteFiche(1, "ml", uniteCible) !== null) return { val: convertirQuantiteFiche(g, "ml", uniteCible), approx: true };
   if (ml !== null && convertirQuantiteFiche(1, "g", uniteCible) !== null) return { val: convertirQuantiteFiche(ml, "g", uniteCible), approx: true };
   return null;
 }
 // Produit compté en pièces dont on connaît le poids / volume (fiche produit) : on convertit grammes <-> pièces. Et l'inverse pour un prix au kilo / litre.
-function convertirViaContenu(qte, uniteSource, uniteCible, contenuPiece) {
+function convertirViaContenu(qte, uniteSource, uniteCible, contenuPiece, densite) {
   if (!contenuPiece || !(contenuPiece.val > 0)) return null;
   const mat = contenuPiece.unite === "ml" ? "ml" : "g";
   const sourcePiece = uniteNormaliseeFiche(uniteSource) === "pc";
   const ciblePiece = !["g", "kg", "ml", "l", "cl"].includes(uniteNormaliseeFiche(uniteCible));
   const q = parseFloat(String(qte).replace(",", "."));
   if (Number.isNaN(q)) return null;
-  if (!sourcePiece && ciblePiece) { const c = convertirQuantiteCout(q, uniteSource, mat); return c === null ? null : { val: c.val / contenuPiece.val, approx: c.approx }; }
-  if (sourcePiece && !ciblePiece) { const c = convertirQuantiteCout(q * contenuPiece.val, mat, uniteCible); return c === null ? null : { val: c.val, approx: c.approx }; }
+  if (!sourcePiece && ciblePiece) { const c = convertirQuantiteCout(q, uniteSource, mat, densite); return c === null ? null : { val: c.val / contenuPiece.val, approx: c.approx }; }
+  if (sourcePiece && !ciblePiece) { const c = convertirQuantiteCout(q * contenuPiece.val, mat, uniteCible, densite); return c === null ? null : { val: c.val, approx: c.approx }; }
   return null;
+}
+// Quantité d'une fiche technique (ex. 100 g d'olives) convertie dans l'unité du stock : sur le net (jus exclu) on retire du brut,
+// et un produit compté en pièces (tranches de 20 g) est décompté en pièces.
+function convertirVersStock(qte, uniteIng, item) {
+  if (!uniteIng || !item || !item.unite) return qte;
+  let c = convertirQuantiteCout(qte, uniteIng, item.unite, item.densite);
+  if (c !== null) return c.val / (["g", "kg", "ml", "l", "cl"].includes(uniteNormaliseeFiche(item.unite)) && item.coefNet > 0 && item.coefNet < 1 ? item.coefNet : 1);
+  c = convertirViaContenu(qte, uniteIng, item.unite, item.contenuPiece, item.densite);
+  return c !== null ? c.val : qte;
 }
 function diagnosticCout(ingredients, stock) {
   const out = [];
@@ -11076,7 +11111,7 @@ function diagnosticCout(ingredients, stock) {
     if (!art) { out.push([nom, "produit introuvable"]); return; }
     const prix = parserPrixUnitaire(art.prixUnitaire);
     if (!prix) { out.push([nom, "prix d'achat absent du catalogue"]); return; }
-    if (convertirQuantiteCout(ing.qte ?? ing.quantite, ing.unite, prix.unite) === null && convertirViaContenu(ing.qte ?? ing.quantite, ing.unite, prix.unite, art.contenuPiece) === null) out.push([nom, `quantité à saisir en ${prix.unite} (le prix est en €/${prix.unite})`]);
+    if (convertirQuantiteCout(ing.qte ?? ing.quantite, ing.unite, prix.unite, art.densite) === null && convertirViaContenu(ing.qte ?? ing.quantite, ing.unite, prix.unite, art.contenuPiece, art.densite) === null) out.push([nom, `quantité à saisir en ${prix.unite} (le prix est en €/${prix.unite})`]);
   });
   return out;
 }
@@ -11114,11 +11149,14 @@ function calculerCoutRecette(ingredients, stock, fiches, profondeur = 0) {
     if (!art) { partiel = true; return; }
     const prix = parserPrixUnitaire(art.prixUnitaire);
     if (!prix) { partiel = true; return; }
-    let conv = convertirQuantiteCout(ing.quantite ?? ing.qte, ing.unite, prix.unite);
-    if (conv === null) conv = convertirViaContenu(ing.quantite ?? ing.qte, ing.unite, prix.unite, art.contenuPiece);
+    let conv = convertirQuantiteCout(ing.quantite ?? ing.qte, ing.unite, prix.unite, art.densite);
+    // Poids net : le prix au kilo (ou au litre) du produit brut est ramené au prix du net (cornichons égouttés, olives sans jus) ;
+    // si le prix est à la pièce, le poids de la pièce enregistré est déjà le net.
+    const surNet = conv !== null && ["g", "kg", "ml", "l", "cl"].includes(uniteNormaliseeFiche(prix.unite)) && art.coefNet > 0 && art.coefNet < 1;
+    if (conv === null) conv = convertirViaContenu(ing.quantite ?? ing.qte, ing.unite, prix.unite, art.contenuPiece, art.densite);
     if (conv === null) { partiel = true; return; }
     if (conv.approx) approx = true;
-    total += conv.val * prix.val;
+    total += conv.val * prix.val / (surNet ? art.coefNet : 1);
     compte += 1;
   });
   return { coutRecette: compte > 0 ? total.toFixed(2) : "", partiel: partiel || compte === 0, approx };
@@ -19460,6 +19498,18 @@ function commandeDemoFranceFrais() {
   return { id: "demo-commande-france-frais", demo: true, date: hier, employeeId: null, texte: `France Frais (commande de démonstration) :\n${lignes.map((l) => `  - ${l.nom} — ${l.quantite} ${l.unite}`).join("\n")}`, lignes };
 }
 
+// Réception : si le produit se commande par colis (carton, sachet…), on compte ce qui est reçu en colis
+// (« 3 cartons ») et l'application en déduit la quantité réelle (15 kg) pour le stock, comme à la commande.
+function colisDuStock(stock, nom) {
+  const t = String(nom || "").trim().toLowerCase();
+  const st = (stock || []).find((x) => String(x.nom || "").trim().toLowerCase() === t);
+  return st && st.commande && st.commande.taille > 0 ? st.commande : null;
+}
+function texteQuantiteRecue(info, qte, unite) {
+  const q = Number(qte) || 0;
+  return info ? texteCommande(info, q / info.taille) : `${qte} ${unite || ""}`.trim();
+}
+
 function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes, currentUserId, employees, logActivity, onDone, onCancel }) {
   const moi = employees.find((e) => e.id === currentUserId);
   const nomMoi = (moi && moi.nom) || optionsExterne.moiNom || "";
@@ -19899,7 +19949,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                 <p className="text-sm font-bold text-[var(--ink)] mb-1.5">Livrés hors commande</p>
                 <div className="flex flex-wrap gap-1.5">
                   {horsCommande.map((p) => (
-                    <button key={p.id} type="button" onClick={() => setBrouillon(p)} className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full border-2" style={{ borderColor: p.conforme ? "#B3E0C5" : "#F6B8C2", backgroundColor: p.conforme ? "#EAF6EF" : "#FDE4E8", color: p.conforme ? "#14653A" : "#B4233A" }}>{p.conforme ? "✓" : "✗"} {p.nom} · {p.quantite}</button>
+                    <button key={p.id} type="button" onClick={() => setBrouillon(p)} className="inline-flex items-center gap-1.5 text-sm font-semibold px-3 py-1.5 rounded-full border-2" style={{ borderColor: p.conforme ? "#B3E0C5" : "#F6B8C2", backgroundColor: p.conforme ? "#EAF6EF" : "#FDE4E8", color: p.conforme ? "#14653A" : "#B4233A" }}>{p.conforme ? "✓" : "✗"} {p.nom} · {colisDuStock(stock, p.nom) ? texteQuantiteRecue(colisDuStock(stock, p.nom), p.quantite) : p.quantite}</button>
                   ))}
                 </div>
               </div>
@@ -19911,6 +19961,8 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
             {bf && fenetre && (() => {
               const evf = evalue(bf); const famf = familleDe(bf.conservation);
               const qn = Number(bf.quantite) || 0;
+              const infoColis = colisDuStock(stock, bf.nom);
+              const pasQ = infoColis ? infoColis.taille : 1;
               const fixerQ = (v) => maj({ quantite: String(Math.max(0, Math.round(v * 1000) / 1000)) });
               const fermer = () => { setBrouillon(null); setFenetre(null); setScanMsg(""); };
               const bouton = "min-h-[56px] rounded-2xl border-2 text-lg font-extrabold px-5";
@@ -19922,7 +19974,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                       <div className="min-w-0">
                         <div className="text-xs font-bold uppercase" style={{ color: "#1B4F9C" }}>{fenetre === "infos" ? "Produit — 1 / 2 : photo, lot et DLC" : "Produit — 2 / 2 : quantité reçue"}</div>
                         <div className="text-2xl font-extrabold text-[var(--ink)] break-words">{bf.nom}</div>
-                        <div className="text-sm text-[var(--steel)]">Commandé : <b>{bf.commandeQte} {bf.commandeUnite}</b></div>
+                        <div className="text-sm text-[var(--steel)]">Commandé : <b>{texteQuantiteRecue(infoColis, bf.commandeQte, bf.commandeUnite)}</b></div>
                       </div>
                       <button type="button" onClick={fermer} aria-label="Fermer" className="shrink-0 w-11 h-11 rounded-full border-2 border-[var(--cadre)] flex items-center justify-center"><X size={20} /></button>
                     </div>
@@ -19971,19 +20023,22 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
 
                     {fenetre === "quantite" && (
                       <div className="mt-4 space-y-4">
-                        <label className={`${lab} text-center`}>Quantité reçue</label>
+                        <label className={`${lab} text-center`}>{infoColis ? `Quantité reçue (en ${pluriel(infoColis.nom)})` : "Quantité reçue"}</label>
                         <div className="flex items-center justify-center gap-3">
-                          <button type="button" aria-label="Moins" onClick={() => fixerQ(qn - 1)} className="w-16 h-16 rounded-2xl border-2 text-4xl font-extrabold leading-none" style={{ borderColor: "#1B5FA8", color: "#1B4F9C", backgroundColor: "#E3EDFB" }}>−</button>
-                          <input className={`${inputCls} !w-32 !h-16 !text-3xl font-extrabold text-center`} type="number" inputMode="decimal" placeholder="0" value={bf.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
-                          <button type="button" aria-label="Plus" onClick={() => fixerQ(qn + 1)} className="w-16 h-16 rounded-2xl border-2 text-4xl font-extrabold leading-none" style={{ borderColor: "#1B5FA8", color: "#1B4F9C", backgroundColor: "#E3EDFB" }}>+</button>
+                          <button type="button" aria-label="Moins" onClick={() => fixerQ(qn - pasQ)} className="w-16 h-16 rounded-2xl border-2 text-4xl font-extrabold leading-none" style={{ borderColor: "#1B5FA8", color: "#1B4F9C", backgroundColor: "#E3EDFB" }}>−</button>
+                          <input className={`${inputCls} !w-32 !h-16 !text-3xl font-extrabold text-center`} type="number" inputMode="decimal" placeholder="0"
+                            value={infoColis && bf.quantite !== "" ? String(Math.round((qn / infoColis.taille) * 1000) / 1000) : bf.quantite}
+                            onChange={(e) => maj({ quantite: infoColis && e.target.value !== "" ? String(Math.round(Number(e.target.value) * infoColis.taille * 1000) / 1000) : e.target.value })} />
+                          <button type="button" aria-label="Plus" onClick={() => fixerQ(qn + pasQ)} className="w-16 h-16 rounded-2xl border-2 text-4xl font-extrabold leading-none" style={{ borderColor: "#1B5FA8", color: "#1B4F9C", backgroundColor: "#E3EDFB" }}>+</button>
                         </div>
+                        {infoColis && qn > 0 && <p className="text-center text-base font-bold text-[var(--ink)]">= {texteQuantiteRecue(infoColis, qn)}</p>}
                         <p className="text-center text-sm text-[var(--steel)]">Touchez le chiffre pour le taper, ou utilisez − et +.</p>
                         {bf.commandeQte != null && String(bf.quantite) !== String(bf.commandeQte) && (
-                          <button type="button" onClick={() => maj({ quantite: String(bf.commandeQte) })} className="w-full min-h-[48px] rounded-xl border-2 text-base font-bold" style={{ borderColor: "#1E7B4B", backgroundColor: "#EAF6EF", color: "#14653A" }}>Reçu comme commandé : {bf.commandeQte}</button>
+                          <button type="button" onClick={() => maj({ quantite: String(bf.commandeQte) })} className="w-full min-h-[48px] rounded-xl border-2 text-base font-bold" style={{ borderColor: "#1E7B4B", backgroundColor: "#EAF6EF", color: "#14653A" }}>Reçu comme commandé : {texteQuantiteRecue(infoColis, bf.commandeQte, bf.commandeUnite)}</button>
                         )}
                         {excedent > 0 && (
                           <div className="rounded-xl border-2 p-3" style={{ borderColor: "#F3D69A", backgroundColor: "#FFF8E8" }}>
-                            <label className={lab}>Reçu {excedent} {bf.commandeUnite} de plus que la commande : que faites-vous de l'excédent ?</label>
+                            <label className={lab}>Reçu {infoColis ? texteQuantiteRecue(infoColis, excedent) : `${excedent} ${bf.commandeUnite}`} de plus que la commande : que faites-vous de l'excédent ?</label>
                             <div className="grid grid-cols-2 gap-2">
                               <button type="button" onClick={() => maj({ excesRenvoye: false })} className="h-12 rounded-lg border-2 text-sm font-semibold" style={!bf.excesRenvoye ? { borderColor: "#2F6B4F", backgroundColor: "#E7F1EB", color: "#2F6B4F" } : { borderColor: "var(--cadre)", color: "var(--ink)" }}>Je le garde</button>
                               <button type="button" onClick={() => maj({ excesRenvoye: true })} className="h-12 rounded-lg border-2 text-sm font-semibold" style={bf.excesRenvoye ? { borderColor: "#C1432D", backgroundColor: "#FDE4E8", color: "#C1432D" } : { borderColor: "var(--cadre)", color: "var(--ink)" }}>Je le renvoie</button>
@@ -20082,7 +20137,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
           <div className="flex items-start justify-between gap-3 flex-wrap mb-1">
             <div>
               <h3 className="font-semibold text-lg text-[var(--ink)]">{b.kind === "plus" ? "Produit livré en plus (non commandé)" : (b.ligneId ? b.nom : `Produit ${numero}`)}</h3>
-              <p className="text-sm text-[var(--steel)]">Fournisseur : {fournisseur}{b.commandeQte != null ? ` · commandé : ${b.commandeQte} ${b.commandeUnite || ""}` : ""}</p>
+              <p className="text-sm text-[var(--steel)]">Fournisseur : {fournisseur}{b.commandeQte != null ? ` · commandé : ${texteQuantiteRecue(colisDuStock(stock, b.nom), b.commandeQte, b.commandeUnite)}` : ""}</p>
             </div>
             {iaDispo && (
               <div className="flex items-center gap-3">
@@ -20147,11 +20202,16 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
               <ChampDateSaisie value={b.dlc} onChange={(v) => maj({ dlc: v })} placeholder="JJ/MM/AAAA ou MM/AAAA" />
             </div>
             <div>
-              <label className={lab}>Quantité reçue</label>
-              <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" inputMode="decimal" placeholder="0" value={b.quantite} onChange={(e) => maj({ quantite: e.target.value })} />
-              {b.commandeQte != null && String(b.quantite) !== String(b.commandeQte) && <button type="button" onClick={() => maj({ quantite: String(b.commandeQte) })} className="mt-2 w-full min-h-[44px] rounded-lg border-2 text-sm font-bold" style={{ borderColor: "#1E7B4B", backgroundColor: "#EAF6EF", color: "#14653A" }}>Reçu comme commandé : {b.commandeQte}</button>}
-              {b.commandeQte != null && <p className="text-xs mt-1.5 text-[var(--steel)]">Commandé : <b>{b.commandeQte} {b.commandeUnite}</b></p>}
-              {(() => { const st = stock.find((x) => norm(x.nom) === norm(b.nom)); const fmt = b.poidsNet || (st && st.conditionnement) || ""; if (!fmt) return null; const tot = Number(b.quantite) > 0 ? formatTotal(fmt, b.quantite) : null; return <p className="text-xs mt-1 text-[var(--ink)]">Format d'une unité : <b>{fmt}</b> — saisir le <b>nombre</b>{Number(b.quantite) > 0 ? <> : <b>{b.quantite} × {fmt}{tot ? ` = ${tot}` : ""}</b></> : "."}</p>; })()}
+              {(() => { const ic = colisDuStock(stock, b.nom); return (<>
+              <label className={lab}>{ic ? `Quantité reçue (en ${pluriel(ic.nom)})` : "Quantité reçue"}</label>
+              <input className={`${inputCls} w-full !h-14 !text-2xl font-bold text-center`} type="number" inputMode="decimal" placeholder="0"
+                value={ic && b.quantite !== "" ? String(Math.round((Number(b.quantite) / ic.taille) * 1000) / 1000) : b.quantite}
+                onChange={(e) => maj({ quantite: ic && e.target.value !== "" ? String(Math.round(Number(e.target.value) * ic.taille * 1000) / 1000) : e.target.value })} />
+              {ic && Number(b.quantite) > 0 && <p className="text-sm mt-1.5 font-bold text-[var(--ink)] text-center">= {texteQuantiteRecue(ic, b.quantite)}</p>}
+              {b.commandeQte != null && String(b.quantite) !== String(b.commandeQte) && <button type="button" onClick={() => maj({ quantite: String(b.commandeQte) })} className="mt-2 w-full min-h-[44px] rounded-lg border-2 text-sm font-bold" style={{ borderColor: "#1E7B4B", backgroundColor: "#EAF6EF", color: "#14653A" }}>Reçu comme commandé : {texteQuantiteRecue(ic, b.commandeQte, b.commandeUnite)}</button>}
+              {b.commandeQte != null && <p className="text-xs mt-1.5 text-[var(--steel)]">Commandé : <b>{texteQuantiteRecue(ic, b.commandeQte, b.commandeUnite)}</b></p>}
+              </>); })()}
+              {(() => { const st = stock.find((x) => norm(x.nom) === norm(b.nom)); const fmt = b.poidsNet || (st && st.conditionnement) || ""; if (!fmt || (st && st.commande && st.commande.taille > 0)) return null; const tot = Number(b.quantite) > 0 ? formatTotal(fmt, b.quantite) : null; return <p className="text-xs mt-1 text-[var(--ink)]">Format d'une unité : <b>{fmt}</b> — saisir le <b>nombre</b>{Number(b.quantite) > 0 ? <> : <b>{b.quantite} × {fmt}{tot ? ` = ${tot}` : ""}</b></> : "."}</p>; })()}
             </div>
             <div>
               {!(b.ligneId && b.conservation) && <label className={lab}>Type de produit</label>}
@@ -20348,7 +20408,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                 <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
                 {!p.conforme && !p.manquant && <div className="text-xs" style={{ color: "#B4233A" }}>{p.raison}</div>}
               </div>
-              <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Qté : </span>{p.quantite}{p.poidsNet ? <span className="block text-[11px] text-[var(--steel)]">× {p.poidsNet}</span> : null}</div>
+              <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Qté : </span>{colisDuStock(stock, p.nom) ? texteQuantiteRecue(colisDuStock(stock, p.nom), p.quantite) : p.quantite}{p.poidsNet ? <span className="block text-[11px] text-[var(--steel)]">× {p.poidsNet}</span> : null}</div>
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "—" : (LIBELLE_CONSERVATION[p.conservation] || "—")}</div>
               <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Temp. : </span>{p.temperature !== "" && p.temperature != null && !p.manquant ? `${p.temperature} °C` : "—"}</div>
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "Non livré" : `${p.lot || "—"} · ${p.dlc || "—"}`}</div>
@@ -25647,10 +25707,7 @@ function KitchenApp({ identiteExterne } = {}) {
           const stockItem = parId || trouverCorrespondance(ing.nom, next, (s) => s.nom);
           if (!stockItem) return;
           // Conversion dans l'unité du stock (ex. 867 g de lait → 0,87 L ; 1 g est compté comme 1 ml).
-          if (ing.unite && stockItem.unite) {
-            const c = convertirQuantiteCout(qte, ing.unite, stockItem.unite);
-            if (c) qte = c.val;
-          }
+          if (ing.unite && stockItem.unite) qte = convertirVersStock(qte, ing.unite, stockItem);
           qte = Math.round(qte * 1000) / 1000;
           next = next.map((s) => (s.id === stockItem.id ? { ...s, quantite: Math.max(0, Math.round((Number(s.quantite) - qte) * 1000) / 1000) } : s));
         });
@@ -25872,7 +25929,7 @@ function KitchenApp({ identiteExterne } = {}) {
               const parId = ing.lienType === "stock" && ing.lienId ? next.find((x) => x.id === ing.lienId) : null;
               const it = parId || trouverCorrespondance(ing.nom, next, (x) => x.nom);
               if (!it) return;
-              if (ing.unite && it.unite) { const c = convertirQuantiteCout(qte, ing.unite, it.unite); if (c) qte = c.val; }
+              if (ing.unite && it.unite) qte = convertirVersStock(qte, ing.unite, it);
               qte = Math.round(qte * 1000) / 1000;
               next = next.map((x) => (x.id === it.id ? { ...x, quantite: Math.max(0, Math.round((Number(x.quantite) - qte) * 1000) / 1000) } : x));
             });

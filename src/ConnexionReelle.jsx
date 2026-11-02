@@ -415,6 +415,8 @@ export default function ConnexionReelle() {
       const prixTexte = (n) => { let t = Number(n).toFixed(4).replace(/0+$/, ""); const [e, f = ""] = t.split("."); return `${e},${f.padEnd(2, "0")}`; };
       const liste = (rp.data || []).map((p) => ({
         detailAchat: detailParProduit.get(p.id) || null,
+        coefNet: (() => { const dd = detailParProduit.get(p.id); const c = dd && Number(dd.coefNet); return c > 0 && c < 1 ? c : null; })(),
+        densite: (() => { const dd = detailParProduit.get(p.id); const c = dd && Number(dd.densite); return c > 0 ? c : null; })(),
         commande: (() => { const dd = detailParProduit.get(p.id); try { return dd && dd.vente ? infosCommande(dd) : null; } catch (e) { return null; } })(),
         contenuPiece: (() => { const dd = detailParProduit.get(p.id); if (!dd) return null; const ce = dd.contenuEff; if (ce && Number(ce.val) > 0) return { val: Number(ce.val), unite: ce.unite === "ml" ? "ml" : "g" }; return Number(dd.contenu) > 0 ? { val: Number(dd.contenu), unite: dd.contenuUnite === "ml" ? "ml" : "g" } : null; })(),
         groupeStock: groupeParProduit.get(p.id) || "",
