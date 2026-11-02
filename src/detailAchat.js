@@ -110,7 +110,7 @@ export function calculerDetailAchat(d) {
   const aDesPieces = piecesParColis > 1 || nbSous > 0;
   const nomPlein = capitale(nomVendu === "colis" && !aDesPieces && !d.nomColis ? (d.vente === "poids" ? "Vendu au poids" : d.vente === "volume" ? "Vendu au volume" : "colis") : nomVendu);
   if (aDesPieces) {
-    cond = `${nomPlein} de ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} de ` : ""}${fmtDetail(piecesParSous)} ${piecesParSous > 1 ? pluriel(nomPiece) : nomPiece}${poidsPieceTxt ? ` de ${poidsPieceTxt}` : ""}${totalTxt ? ` (${totalTxt})` : ""}`;
+    cond = `${nomPlein} de ${nbSous > 1 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} de ` : ""}${fmtDetail(piecesParSous)} ${piecesParSous > 1 ? pluriel(nomPiece) : nomPiece}${poidsPieceTxt ? ` de ${poidsPieceTxt}` : ""}${totalTxt ? ` (${totalTxt})` : ""}`;
   } else if (d.nomColis || d.vente === "piece") cond = `${nomPlein}${totalTxt || poidsPieceTxt ? ` de ${totalTxt || poidsPieceTxt}` : ""}`;
   else cond = totalTxt ? `Vendu au ${d.vente === "volume" ? "volume" : "poids"} (${totalTxt})` : (d.vente === "volume" ? "Vendu au volume" : "Vendu au poids");
   if (String(d.precision || "").trim()) cond += ` — ${String(d.precision).trim()}`;
@@ -132,7 +132,7 @@ export function calculerDetailAchat(d) {
   }
   if (derive) { derive.prix_achat = Math.round(derive.prix_achat * 10000) / 10000; derive.conditionnement = cond; derive.poids_par_piece = out.contenuRecette ? poidsTexte(out.contenuRecette.val, out.contenuRecette.unite) : ""; }
   const r = [];
-  if (avecPieces && piecesParColis > 1) r.push(`1 ${nomVendu} = ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} = ` : ""}${fmtDetail(piecesParColis)} ${pluriel(nomPiece)}${prix > 0 && prixPour === "colis" ? ` = ${eurDetail(prix)}` : ""}${totalTxt ? ` = ${totalTxt}` : ""}`);
+  if (avecPieces && piecesParColis > 1) r.push(`1 ${nomVendu} = ${nbSous > 1 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} = ` : ""}${fmtDetail(piecesParColis)} ${pluriel(nomPiece)}${prix > 0 && prixPour === "colis" ? ` = ${eurDetail(prix)}` : ""}${totalTxt ? ` = ${totalTxt}` : ""}`);
   if (prixPiece != null) r.push(`1 ${!String(d.nomPiece || "").trim() && piecesParColis <= 1 ? nomVendu : nomPiece} = ${eurPrecis(prixPiece)}${poidsPieceTxt ? ` (${poidsPieceTxt})` : ""}`);
   if (prixKg != null) r.push(`1 kg = ${eurDetail(prixKg)}${contenuBase > 0 && cu === "g" ? ` · 100 g = ${eurDetail(prixKg / 10)}` : ""}`);
   if (prixL != null) r.push(`1 L = ${eurDetail(prixL)}`);
