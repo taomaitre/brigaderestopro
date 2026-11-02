@@ -16956,26 +16956,32 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           <>
             {Object.entries(groupesPanier).map(([fournisseur, items]) => (
               <CarteZone key={fournisseur} icone={Truck} titre={fournisseur} sous={`${items.length} produit${items.length > 1 ? "s" : ""} à commander`} className="mb-3">
-                <div className="hidden lg:grid grid-cols-[minmax(0,1.6fr)_6.5rem_6.5rem_10rem_6rem_2rem] gap-3 px-1 pb-1 text-xs font-semibold text-[var(--steel)] border-b border-[var(--line)]">
-                  <span>Produit / code</span><span>En stock</span><span>À avoir</span><span className="text-center">Quantité à commander</span><span>Unité</span><span />
+                <div className="hidden lg:grid grid-cols-[minmax(0,1.3fr)_12rem_6rem_6rem_9.5rem_12rem_2rem] gap-3 px-1 pb-1 text-xs font-semibold text-[var(--steel)] border-b border-[var(--line)]">
+                  <span>Produit / code</span><span>Conditionnement</span><span>En stock</span><span>Stock cible</span><span className="text-center">Quantité à commander</span><span>Total</span><span />
                 </div>
-                {items.map((s) => (
-                  <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_6.5rem_6.5rem_10rem_6rem_2rem] gap-x-3 gap-y-1 px-1 py-1.5 border-b border-[var(--line)] last:border-b-0 items-center">
+                {items.map((s) => {
+                  const cm = s.commande && s.commande.taille > 0 ? s.commande : null;
+                  const ic = infosColis(s);
+                  const detailCond = ic ? (ic.compo && ic.compo.includes("×") ? ic.compo : `${ic.compo || fmtNb(ic.contenu)} ${uniteQ(ic.compo || ic.contenu, s.unite)}`) : (cm ? `${fmtDetail(cm.taille)} ${uniteQ(cm.taille, s.unite)}` : "");
+                  return (
+                  <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_12rem_6rem_6rem_9.5rem_12rem_2rem] gap-x-3 gap-y-1 px-1 py-1.5 border-b border-[var(--line)] last:border-b-0 items-center">
                     <div className="col-span-2 lg:col-span-1 min-w-0">
                       <div className="text-sm font-semibold text-[var(--ink)] leading-tight break-words">{s.nom}</div>
                       <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference || "— (produit non référencé)"}</div>
                     </div>
+                    <div className="text-sm font-semibold leading-tight" style={{ color: "#0B4F5E" }}><span className="lg:hidden text-xs">Conditionnement : </span>{cm ? `1 ${cm.nom} de ${detailCond} = ${eurDetail(cm.prixColis)}` : (s.conditionnement || s.unite || "—")}</div>
                     <div className="text-xs text-[var(--ink)]"><span className="lg:hidden font-semibold">En stock : </span>{s.quantite} {s.unite}</div>
-                    <div className="text-xs text-[var(--ink)]"><span className="lg:hidden font-semibold">À avoir : </span>{s.cible || 0} {s.unite}</div>
-                    <div className="lg:text-center">{s.commande && s.commande.taille > 0
-                      ? <CelluleQuantite valeur={arrondiQte(Number(panier[s.id]) / s.commande.taille)} pas={1} onSet={(n) => setPanier({ ...panier, [s.id]: arrondiQte(n * s.commande.taille) })} label={`nombre de ${s.commande.nom} à commander de ${s.nom}`} />
+                    <div className="text-xs text-[var(--ink)]"><span className="lg:hidden font-semibold">Stock cible : </span>{s.cible || 0} {s.unite}</div>
+                    <div className="lg:text-center">{cm
+                      ? <CelluleQuantite valeur={arrondiQte(Number(panier[s.id]) / cm.taille)} pas={1} onSet={(n) => setPanier({ ...panier, [s.id]: arrondiQte(n * cm.taille) })} label={`nombre de ${cm.nom} à commander de ${s.nom}`} />
                       : <CelluleQuantite valeur={panier[s.id]} pas={pasDe(s)} onSet={(n) => setPanier({ ...panier, [s.id]: n })} label={`quantité à commander de ${s.nom}`} />}</div>
-                    <div className="text-xs text-[var(--steel)] leading-tight">{s.commande && s.commande.taille > 0
-                      ? <><b className="text-sm text-[var(--ink)]">{pluriel(s.commande.nom)}</b><div>1 {s.commande.nom} = {fmtDetail(s.commande.taille)} {s.unite} ≈ {eurDetail(s.commande.prixColis)}</div><div className="font-semibold text-[var(--ink)]">Total : {libelleLigne(s, panier[s.id])} ≈ {eurDetail(Number(panier[s.id]) / s.commande.taille * s.commande.prixColis)}</div></>
-                      : <><b className="text-sm text-[var(--ink)]">{s.unite}</b>{s.conditionnement ? <div>{s.conditionnement}</div> : null}</>}</div>
+                    <div className="text-sm font-bold leading-tight text-[var(--ink)]">{cm
+                      ? `Total : ${libelleLigne(s, panier[s.id])} = ${eurDetail(Number(panier[s.id]) / cm.taille * cm.prixColis)}`
+                      : `Total : ${panier[s.id]} ${s.unite}`}</div>
                     <button type="button" onClick={() => basculerPanier(s)} className="text-[var(--steel)] hover:text-[var(--warn)] justify-self-end" title="Retirer du panier"><X size={18} /></button>
                   </div>
-                ))}
+                  );
+                })}
               </CarteZone>
             ))}
             <div className="flex flex-wrap gap-3 mb-4">
