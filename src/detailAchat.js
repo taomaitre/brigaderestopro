@@ -23,7 +23,7 @@ export function lireContenu(expr) {
 }
 
 export function calculerDetailAchat(d) {
-  const out = { ok: false, erreurs: [], avertissements: [], resume: [], derive: null, piecesParColis: 1, piecesParSous: 1, prixPiece: null, prixKg: null, prixL: null, contenuPiece: null, totalPiece: null, contenuDeduit: 0, contenuUniteEff: "g", conditionnement: "" };
+  const out = { ok: false, erreurs: [], avertissements: [], resume: [], derive: null, piecesParColis: 1, piecesParSous: 1, prixPiece: null, prixKg: null, prixL: null, contenuPiece: null, contenuRecette: null, totalPiece: null, contenuDeduit: 0, contenuUniteEff: "g", conditionnement: "" };
   if (!d || !d.vente) { out.erreurs.push("Choisissez comment le fournisseur vend ce produit."); return out; }
   const avecPieces = d.vente === "colis" || d.vente === "piece";
   const nbSous = avecPieces ? nbDetail(d.nbSous) : 0;
@@ -45,6 +45,8 @@ export function calculerDetailAchat(d) {
   const cu = contenuSaisi > 0 ? cuSaisi : ptMat;
   out.contenuDeduit = contenuDeduit; out.contenuUniteEff = cu;
   if (contenu > 0) out.contenuPiece = { val: contenu, unite: cu };
+  // Pour les fiches techniques, « 1 pièce » = le poids d'une pièce SEULEMENT si le produit contient des pièces ou si on l'a saisi : un sachet de 1 kg vendu au kilo ne vaut pas « 1 pièce de 1 kg ».
+  if (contenu > 0 && (avecPieces || contenuSaisi > 0)) out.contenuRecette = { val: contenu, unite: cu };
   const total = ptBase > 0 ? { val: ptBase, unite: ptMat } : (contenu > 0 && piecesParColis > 1 ? { val: contenu * piecesParColis, unite: cu } : null);
   out.totalPiece = total;
   if (contenuSaisi > 0 && ptBase > 0 && cuSaisi === ptMat && Math.abs(contenuSaisi * piecesParColis - ptBase) / ptBase > 0.03) out.avertissements.push(`${fmtDetail(piecesParColis)} pièces de ${poidsTexte(contenuSaisi, cuSaisi)} font ${poidsTexte(contenuSaisi * piecesParColis, cuSaisi)}, pas ${poidsTexte(ptBase, ptMat)} : vérifiez le nombre de pièces ou les poids.`);

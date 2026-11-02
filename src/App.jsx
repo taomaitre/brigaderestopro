@@ -6392,7 +6392,7 @@ function GuideAchatProduit({ v, setV, prerempli }) {
       nd.contenu = n > 0 ? String(Math.round(n * f * 1000) / 1000) : ""; nd.contenuUnite = ["ml", "cl", "L"].includes(u) ? "ml" : "g";
     }
     const rr = calculerDetailAchat(nd);
-    nd.contenuEff = rr.contenuPiece || null;
+    nd.contenuEff = rr.contenuRecette || null;
     const y = { ...x, detail_achat: nd };
     if (rr.ok) { y.unite = rr.derive.unite; y.prix_achat = String(rr.derive.prix_achat).replace(".", ","); y.prix_unite = rr.derive.prix_unite; y.conditionnement = rr.derive.conditionnement; y.poids_par_piece = rr.derive.poids_par_piece || ""; }
     return y;
@@ -6567,7 +6567,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
     // Produit déjà saisi sans guide : on retrouve le détail depuis son conditionnement, son unité et son prix (gardé seulement s'il redonne le même prix).
     if (edition.table === "produits" && !(b.detail_achat && b.detail_achat.vente)) {
       const dd = detailDepuisProduit(b);
-      if (dd) { const rr = calculerDetailAchat(dd); dd.contenuEff = rr.contenuPiece || null; if (dd.contenu && !dd.contenuVal) { dd.contenuVal = String(parseFloat(dd.contenu)).replace(".", ","); dd.contenuU = dd.contenuUnite === "ml" ? "ml" : "g"; } b.detail_achat = dd; }
+      if (dd) { const rr = calculerDetailAchat(dd); dd.contenuEff = rr.contenuRecette || null; if (dd.contenu && !dd.contenuVal) { dd.contenuVal = String(parseFloat(dd.contenu)).replace(".", ","); dd.contenuU = dd.contenuUnite === "ml" ? "ml" : "g"; } b.detail_achat = dd; }
     }
     return b;
   });
