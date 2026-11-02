@@ -1402,7 +1402,7 @@ function IndicateurHorsLigne() {
 
 // Pastilles de résumé en haut d'un écran (simples informations, jamais des boutons ni des blocages).
 function ChipsResume({ items }) {
-  const tons = { neutre: ["#EEF1F5", "#334155"], ok: ["#E4F4EA", "#15803D"], attention: ["#FBF1D3", "#A16207"] };
+  const tons = { neutre: ["#EEF1F5", "#334155"], ok: ["#E4F4EA", "#136B33"], attention: ["#FBF1D3", "#8A5207"] };
   return (
     <div className="flex flex-wrap gap-2 mb-4">
       {items.map(([texte, ton], i) => { const [fond, coul] = tons[ton || "neutre"]; return <span key={i} className="px-3 py-1 rounded-full text-xs font-semibold" style={{ background: fond, color: coul }}>{texte}</span>; })}
@@ -1832,7 +1832,7 @@ function PmsControlesSurfaces({ pms, mode, onMode, peutChoisir, peutSaisir, nomU
           {optionMode("autocontrole", "Nous faisons des tests d'autocontrôle", "Le chef contrôle lui-même les plans de travail et les ustensiles (bandelettes, lames, test ATP) et enregistre chaque test ici : photo, résultat, action corrective.")}
         </div>
         {!peutChoisir && <p className="text-xs text-[var(--steel)] mt-2">Le choix est fait par la direction.</p>}
-        {!mode && <p className="text-xs mt-2" style={{ color: "#B7791F" }}>Aucun choix n'a encore été fait.</p>}
+        {!mode && <p className="text-xs mt-2" style={{ color: "#8A5A00" }}>Aucun choix n'a encore été fait.</p>}
       </Card>
 
       {mode === "laboratoire" && (
@@ -2704,7 +2704,7 @@ function PmsPreparationInspection({ pms, locales }) {
                   <div className="px-3 pb-3 text-sm text-[var(--ink)] space-y-2">
                     <p><span className="text-xs font-semibold text-[var(--steel)] uppercase">Ce que l'inspecteur regarde</span><br />{it.regarde}</p>
                     {it.d && it.d.length > 0 && <div><span className="text-xs font-semibold uppercase" style={{ color: "#C1432D" }}>Écarts majeurs (note D)</span><ul className="list-disc pl-5">{it.d.map((x) => <li key={x}>{x}</li>)}</ul></div>}
-                    {it.c && it.c.length > 0 && <div><span className="text-xs font-semibold uppercase" style={{ color: "#B7791F" }}>Écarts moyens (note C)</span><ul className="list-disc pl-5">{it.c.map((x) => <li key={x}>{x}</li>)}</ul></div>}
+                    {it.c && it.c.length > 0 && <div><span className="text-xs font-semibold uppercase" style={{ color: "#8A5A00" }}>Écarts moyens (note C)</span><ul className="list-disc pl-5">{it.c.map((x) => <li key={x}>{x}</li>)}</ul></div>}
                     <div><span className="text-xs font-semibold text-[var(--steel)] uppercase">Vos points du Dossier PMS</span>
                       <ul className="mt-0.5">{it.points.map((id) => { const et = (reponses[id] && reponses[id].etat) || "pas_fait"; return (
                         <li key={id} className="flex items-start gap-2 py-0.5"><span className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style={{ background: couleur(et) }} /><span className="flex-1">{titrePoint(id)}</span><span className="text-xs text-[var(--steel)] shrink-0">{libelleEtat[et]}</span></li>
@@ -3261,7 +3261,7 @@ function NotificationFournisseur({ notif, employees, onMarquerEnvoyee, emailsFou
   const [emailSaisi, setEmailSaisi] = useState(emailConnu);
   const mailtoHref = `mailto:${encodeURIComponent(emailConnu)}?subject=${encodeURIComponent(notif.sujet)}&body=${encodeURIComponent(notif.corps)}`;
   return (
-    <Card className={notif.envoyee ? "opacity-60" : "border-[var(--warn)]/40"}>
+    <Card className={notif.envoyee ? "border-[var(--line)]" : "border-[var(--warn)]/40"}>
       <div className="flex items-center justify-between mb-2">
         <div>
           <div className="font-medium text-[var(--ink)] text-sm">{notif.fournisseur || "Fournisseur non renseigné"}</div>
@@ -4753,7 +4753,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   const identiteExterneCG = exporterSauvegarde ? { exporterSauvegarde } : null;
   const SECTIONS_CG = [
     { id: "urgence", label: "Urgence sanitaire", desc: "Intoxication alimentaire (TIAC) ou rappel de produit : que faire, que déclarer", icon: AlertTriangle, urgence: true, couleur: { fond: "linear-gradient(160deg, #DC2626 0%, #7F1D1D 100%)", ombre: "rgba(127,29,29,0.4)" } },
-    { id: "controle", label: "Contrôles du jour", desc: "Tâches, températures, huiles, cuissons, refroidissements, maintien au chaud, traçabilité", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
+    { id: "controle", label: "Contrôles du jour", desc: "Tâches, températures, huiles, cuissons, refroidissements, maintien au chaud, traçabilité", icon: ClipboardCheck, couleur: { fond: "linear-gradient(160deg, #1E7B4B 0%, #1F6B47 100%)", ombre: "rgba(31,107,71,0.35)" } },
     { id: "reception", label: "Réception et fournisseurs", desc: "Livraisons reçues, fournisseurs et produits, notifications à envoyer", icon: Truck, couleur: { fond: "linear-gradient(160deg, #3B82F6 0%, #1D4ED8 100%)", ombre: "rgba(29,78,216,0.35)" } },
     { id: "cuisine", label: "Cuisine et carte", desc: "Fiches techniques et carte du restaurant", icon: ChefHat, couleur: { fond: "linear-gradient(160deg, #E08A2C 0%, #B45309 100%)", ombre: "rgba(180,83,9,0.35)" } },
     { id: "hygiene", label: "PMS et réglementation", desc: "Dossier PMS, plan de nettoyage, prestataires, allergènes, origine des viandes", icon: SprayCan, couleur: { fond: "linear-gradient(160deg, #B83A6B 0%, #8B2450 100%)", ombre: "rgba(139,36,80,0.35)" } },
@@ -5940,7 +5940,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
                             {x.detailAchat ? <button type="button" onClick={() => setModalCompte(x.id)} className="print:hidden w-20 shrink-0 h-9 rounded-lg text-xs font-bold text-white bg-[var(--accent)]">Compter</button> : <span className="w-20 shrink-0" />}
                           </div>
                         )}
-                        <span className="text-xs font-semibold" style={{ color: ecart ? "#B45309" : "#15803D" }}>{ecart === null ? "" : ecart === 0 ? "✓ OK" : `${ecart > 0 ? "+" : ""}${ecart}`}</span>
+                        <span className="text-xs font-semibold" style={{ color: ecart ? "#B45309" : "#136B33" }}>{ecart === null ? "" : ecart === 0 ? "✓ OK" : `${ecart > 0 ? "+" : ""}${ecart}`}</span>
                         <span className="text-xs text-right font-semibold text-[var(--ink)]" title={x.prixUnitaire ? `Prix : ${x.prixUnitaire}` : "Prix d'achat non renseigné"}>{(() => { const v = valeurDe(x, qteFinale(x)); return v === null ? <span className="font-normal text-[var(--steel)]">prix ?</span> : fmtEuro(v); })()}</span>
                       </div>
                     );
@@ -6186,20 +6186,20 @@ function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrir
         <div className="mb-3">
           <button type="button" onClick={() => setVueTableau(!vueTableau)} className="px-3 h-9 rounded-lg border-2 border-[var(--accent)] text-xs font-bold text-[var(--accent)] bg-white">{vueTableau ? "Revenir à la liste" : "Voir le tableau de tous les produits"}</button>
           {vueTableau && (
-            <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--cadre)] bg-white">
-              <table className="min-w-full text-xs">
-                <thead><tr className="text-left text-[var(--steel)] border-b border-[var(--cadre)]">{["Produit", "Fournisseur", "Vendu", "Pièces dedans", "Poids d'1 pièce", "Prix d'1 pièce", "Prix au kg / L", "Compté en", "Guide d'achat", ""].map((h) => <th key={h} className="px-2 py-2 font-semibold whitespace-nowrap">{h}</th>)}</tr></thead>
+            <div className="mt-2 overflow-x-auto rounded-xl border border-[var(--cadre)] bg-white" style={{ color: "#1D2321" }}>
+              <table className="min-w-full text-xs" style={{ color: "#1D2321" }}>
+                <thead><tr className="text-left text-[#3F4A45] border-b border-[var(--cadre)]">{["Produit", "Fournisseur", "Vendu", "Pièces dedans", "Poids d'1 pièce", "Prix d'1 pièce", "Prix au kg / L", "Compté en", "Guide d'achat", ""].map((h) => <th key={h} className="px-2 py-2 font-semibold whitespace-nowrap">{h}</th>)}</tr></thead>
                 <tbody>
                   {stockFiltre.slice().sort((a, b) => String(a.fournisseur || "").localeCompare(String(b.fournisseur || ""), "fr") || String(a.nom).localeCompare(String(b.nom), "fr")).map((s) => { const e = elementsAchat(s); return (
                     <tr key={s.id} className="border-b border-[var(--cadre)] last:border-0">
-                      <td className="px-2 py-1.5 font-medium text-[var(--ink)]">{s.nom}</td>
-                      <td className="px-2 py-1.5">{s.fournisseur || "—"}</td>
-                      <td className="px-2 py-1.5">{e.vendu}</td>
-                      <td className="px-2 py-1.5">{e.pieces}</td>
-                      <td className="px-2 py-1.5">{e.poidsPiece}</td>
-                      <td className="px-2 py-1.5">{e.prixPiece}</td>
-                      <td className="px-2 py-1.5">{e.prixKgL}</td>
-                      <td className="px-2 py-1.5">{e.compte}</td>
+                      <td className="px-2 py-1.5 font-medium text-[#1D2321]">{s.nom}</td>
+                      <td className="px-2 py-1.5 text-[#1D2321]">{s.fournisseur || "—"}</td>
+                      <td className="px-2 py-1.5 text-[#1D2321]">{e.vendu}</td>
+                      <td className="px-2 py-1.5 text-[#1D2321]">{e.pieces}</td>
+                      <td className="px-2 py-1.5 text-[#1D2321]">{e.poidsPiece}</td>
+                      <td className="px-2 py-1.5 text-[#1D2321]">{e.prixPiece}</td>
+                      <td className="px-2 py-1.5 text-[#1D2321]">{e.prixKgL}</td>
+                      <td className="px-2 py-1.5 text-[#1D2321]">{e.compte}</td>
                       <td className="px-2 py-1.5 font-semibold whitespace-nowrap" style={{ color: e.enregistre ? "#1F8F5F" : e.ok ? "#9A6B00" : "#B4233A" }}>{e.etat}</td>
                       <td className="px-2 py-1.5">{s.brut && <button type="button" onClick={() => setEdition({ table: "produits", id: s.id, valeurs: s.brut })} className="px-3 h-8 rounded-lg text-xs font-bold text-white bg-[var(--accent)]">Modifier</button>}</td>
                     </tr>); })}
@@ -12778,7 +12778,7 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
                         <tr>
                           <td className="px-3 py-1.5 bg-white" style={{ position: "sticky", left: 0, zIndex: 2, borderBottom: "1px solid var(--cadre)", borderRight: "1px solid var(--cadre)" }}>
                             <button type="button" onClick={() => setOuvert((o) => ({ ...o, [cle]: !o[cle] }))} className="text-left font-semibold text-[var(--ink)]">{x.nom}</button>
-                            {x.lu.vide && <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FFF1D6", color: "#B45309" }}>à compléter</span>}
+                            {x.lu.vide && <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FFF1D6", color: "#8F4506" }}>à compléter</span>}
                             {lotException && lotException[x.nom] && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">variable selon le lot</span>}
                           </td>
                           {ALLERGENES_14.map((a, i) => (
@@ -13247,7 +13247,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                     </div>
                     <div className="sticky bottom-2 z-30 mt-3 rounded-xl border-2 shadow-lg px-4 py-3 flex flex-wrap items-center gap-3" style={{ background: "#FFF7ED", borderColor: "#D9691A" }}>
                       <span className="text-sm font-semibold text-[var(--ink)]">{nbCoches} plat{nbCoches > 1 ? "s" : ""} coché{nbCoches > 1 ? "s" : ""}{avecJours ? ` · ${joursChoisis.length} jour${joursChoisis.length > 1 ? "s" : ""}` : typeJour ? " · ce jour" : " · tous les jours"}</span>
-                      {messageCarte && <span className="text-sm font-semibold" style={{ color: "#15803D" }}>{messageCarte}</span>}
+                      {messageCarte && <span className="text-sm font-semibold" style={{ color: "#136B33" }}>{messageCarte}</span>}
                       <button type="button" disabled={!nbCoches || !joursChoisis.length} onClick={valider} className="ml-auto px-6 py-3 rounded-xl text-white text-base font-bold disabled:opacity-40" style={{ background: "#D9691A" }}>✓ Valider</button>
                     </div>
                   </div>
@@ -13780,7 +13780,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
                         </div>
                       ) : <div className="text-xs font-semibold" style={{ color: "#B45309" }}>✋ Relevé à la main (matin et soir)</div>}
                     </td>
-                    <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#15803D" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
+                    <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#136B33" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
                     <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
                     <td className="px-3 py-2 align-top whitespace-nowrap">
                       <button className="text-xs text-[var(--steel)] underline mr-2" onClick={() => commencerEdition(eq)}>Modifier</button>
@@ -13944,7 +13944,7 @@ function HaccpTemperatures({
   const vueManuelle = () => {
     const auj = todayISO();
     const familles = [
-      { cle: "frigo", titre: "Réfrigérateurs et chambres froides", sous: "0 à +4 °C", couleur: "#15803D", fond: "#E4F4EA", liste: sansSonde.filter((e) => e.type !== "congelateur") },
+      { cle: "frigo", titre: "Réfrigérateurs et chambres froides", sous: "0 à +4 °C", couleur: "#136B33", fond: "#E4F4EA", liste: sansSonde.filter((e) => e.type !== "congelateur") },
       { cle: "congelateur", titre: "Congélateurs", sous: "−18 °C ou moins", couleur: "#1B4F9C", fond: "#DCEBFB", liste: sansSonde.filter((e) => e.type === "congelateur") },
     ];
     const cellule = (eq, creneau, couleur) => {
@@ -13956,8 +13956,8 @@ function HaccpTemperatures({
         <div className="rounded-lg p-1.5 h-full" style={{ background: r ? (r.conforme === false ? "#FFF4E5" : "#F1FAF4") : "#fff", border: `1px solid ${couleur}55` }}>
           {r && (
             <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
-              <span className="text-base font-bold" style={{ color: r.conforme === false ? "var(--warn)" : "#15803D" }}>{r.valeur} °C</span>
-              <span className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={r.conforme === false ? { background: "#FDECEC", color: "#B3261E" } : { background: "#E4F4EA", color: "#15803D" }}>{r.conforme === false ? "Hors norme" : "Conforme"}</span>
+              <span className="text-base font-bold" style={{ color: r.conforme === false ? "var(--warn)" : "#136B33" }}>{r.valeur} °C</span>
+              <span className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={r.conforme === false ? { background: "#FDECEC", color: "#B3261E" } : { background: "#E4F4EA", color: "#136B33" }}>{r.conforme === false ? "Hors norme" : "Conforme"}</span>
               <span className="text-[11px] text-[var(--steel)]">à {r.heure}</span>
             </div>
           )}
@@ -14057,7 +14057,7 @@ function HaccpTemperatures({
                         </div>
                       ) : <div className="text-xs text-[var(--steel)]">Sonde non renseignée</div>}
                     </td>
-                    <td className="px-3 py-1.5 align-middle whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#15803D" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
+                    <td className="px-3 py-1.5 align-middle whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#136B33" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
                     <td className="px-3 py-1.5 align-middle text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
                     <td className="px-3 py-1.5 align-middle whitespace-nowrap">
                       {dr ? (
@@ -14067,7 +14067,7 @@ function HaccpTemperatures({
                         </>
                       ) : <span className="text-xs text-[var(--steel)]">Aucun relevé</span>}
                     </td>
-                    <td className="px-3 py-1.5 align-middle whitespace-nowrap">{!dr ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#EEF1F5", color: "#475569" }}>Non relevé</span> : dr.conforme === false ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FDECEC", color: "#B3261E" }}>Hors norme</span> : <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#E4F4EA", color: "#15803D" }}>Conforme</span>}</td>
+                    <td className="px-3 py-1.5 align-middle whitespace-nowrap">{!dr ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#EEF1F5", color: "#475569" }}>Non relevé</span> : dr.conforme === false ? <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FDECEC", color: "#B3261E" }}>Hors norme</span> : <span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#E4F4EA", color: "#136B33" }}>Conforme</span>}</td>
                     <td className="px-3 py-1.5 align-middle">
                       {dr && dr.conforme === false ? (
                         correctionOuverte === eq.id ? (
@@ -16974,7 +16974,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {peutGererProduits && (
           <>
-            <button type="button" onClick={() => rapideStock.ajouterProduit()} className="min-h-[48px] px-5 rounded-xl text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
+            <button type="button" onClick={() => rapideStock.ajouterProduit()} className="min-h-[48px] px-5 rounded-xl text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #1E7B4B 0%, #1F6B47 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
               <Plus size={18} /> Ajouter un produit
             </button>
             <button type="button" onClick={() => { setRechercheSupp(""); setProduitASupp(null); setSuppOuverte(true); }} className="min-h-[48px] px-5 rounded-xl text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #D64545 0%, #A62828 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
@@ -17095,7 +17095,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock à avoir</div>{colis ? <CelluleQuantite valeur={arrondiQte(Number(s.cible || 0) / colis.contenu)} pas={1} onSet={(n) => fixerCible(s.id, arrondiQte(n * colis.contenu))} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom} en ${colis.nom}s`} /> : <CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock à avoir de ${s.nom}`} />}</div>
                 <div className="text-sm text-[var(--ink)] leading-tight"><b>{colis ? colis.nom : (s.unite || "—")}</b><div className="text-[11px] text-[var(--steel)]">{colis ? `1 ${colis.nom} = ${fmtNb(colis.contenu)} ${s.unite}` : s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? `1 ${s.unite} = ${s.conditionnement}` : (pasConnu ? `un clic = ${pas} ${s.unite}` : (UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) ? "format à préciser" : `un clic = 1 ${s.unite || ""}`))}</div></div>
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
-                  className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#F28C28" }}><ShoppingCart size={20} /></button></div>
+                  className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#B45309" }}><ShoppingCart size={20} /></button></div>
               </div>
               </React.Fragment>
             );
@@ -17175,7 +17175,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
         <div className="grid grid-cols-2 gap-3 mt-6">
           <button type="button" onClick={() => setInventaireActif(true)}
             className="min-h-[96px] rounded-2xl px-4 py-3 flex flex-col items-center justify-center gap-1 text-white font-bold active:scale-95 transition-transform"
-            style={{ background: "linear-gradient(160deg, #2F8F63 0%, #1F6B47 100%)", boxShadow: estDernierJourDuMois(today) ? "0 0 0 4px #6EE7A8, 0 6px 14px rgba(0,0,0,0.2)" : "0 6px 14px rgba(0,0,0,0.2)" }}>
+            style={{ background: "linear-gradient(160deg, #1E7B4B 0%, #1F6B47 100%)", boxShadow: estDernierJourDuMois(today) ? "0 0 0 4px #6EE7A8, 0 6px 14px rgba(0,0,0,0.2)" : "0 6px 14px rgba(0,0,0,0.2)" }}>
             <ClipboardList size={28} />
             <span className="text-lg">Inventaire</span>
             <span className="text-xs font-normal text-white/85">{estDernierJourDuMois(today) ? "À faire aujourd'hui (fin de mois)" : "Fiche d'inventaire du mois"}</span>
@@ -19761,7 +19761,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
 
   // Verdict immédiat d'un relevé de température (étape 2) : vert / orange / rouge.
   const verdictFamille = (f, valeur) => {
-    const VERT = { bord: "#B3E0C5", fond: "#EAF6EF", texte: "#14653A", pastille: "#2F9D63" };
+    const VERT = { bord: "#B3E0C5", fond: "#EAF6EF", texte: "#14653A", pastille: "#1E7B4B" };
     const ORANGE = { bord: "#F3D69A", fond: "#FFF4DC", texte: "#8A5300", pastille: "#E0920F" };
     const ROUGE = { bord: "#F6B8C2", fond: "#FDE4E8", texte: "#B4233A", pastille: "#C1432D" };
     const GRIS = { bord: "#D5DAE0", fond: "#F4F6F8", texte: "#5B6670", pastille: "#9AA5B1" };
@@ -19796,8 +19796,8 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
           const fait = i + 1 < etape, courant = i + 1 === etape;
           return (
             <React.Fragment key={i}>
-              <span className="flex items-center gap-2 px-2.5 py-1.5 rounded-full text-xs font-semibold" style={courant ? { background: COULEURS_FONCTION.reception.fond, color: "#fff", boxShadow: `0 4px 10px ${COULEURS_FONCTION.reception.ombre}` } : fait ? { background: "#E4F4EA", color: "#15803D" } : { background: "#EEF1F5", color: "#64748B" }}>
-                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold" style={courant ? { background: "rgba(255,255,255,.25)" } : fait ? { background: "#15803D", color: "#fff" } : { background: "#fff" }}>{fait ? "✓" : i + 1}</span>
+              <span className="flex items-center gap-2 px-2.5 py-1.5 rounded-full text-xs font-semibold" style={courant ? { background: COULEURS_FONCTION.reception.fond, color: "#fff", boxShadow: `0 4px 10px ${COULEURS_FONCTION.reception.ombre}` } : fait ? { background: "#E4F4EA", color: "#136B33" } : { background: "#EEF1F5", color: "#64748B" }}>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold" style={courant ? { background: "rgba(255,255,255,.25)" } : fait ? { background: "#136B33", color: "#fff" } : { background: "#fff" }}>{fait ? "✓" : i + 1}</span>
                 <span className="hidden sm:inline">{lib}</span>
               </span>
               {i < libelleEtapes.length - 1 && <ChevronRight size={14} className="text-[var(--steel)] shrink-0" />}
@@ -19930,7 +19930,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
             <p className="text-sm text-[var(--ink)] mb-1">Commande du {commandeInfo.date} — <b>{fournisseur}</b>. Touchez chaque produit que vous recevez : vous le validez en quelques secondes (photo si l'IA est activée, lot, DLC, quantité).</p>
             <div className="rounded-xl px-3 py-2.5 my-3 text-sm font-bold flex items-center justify-between gap-3 flex-wrap" style={{ backgroundColor: "#EAF1FB", color: "#1B4F9C" }}>
               <span>{lignesSaisies.length} / {commandeLignes.length} produits saisis</span>
-              <span className="h-2.5 flex-1 min-w-[120px] rounded-full bg-white overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${Math.round(100 * lignesSaisies.length / commandeLignes.length)}%`, backgroundColor: "#2F9D63" }} /></span>
+              <span className="h-2.5 flex-1 min-w-[120px] rounded-full bg-white overflow-hidden"><span className="block h-full rounded-full" style={{ width: `${Math.round(100 * lignesSaisies.length / commandeLignes.length)}%`, backgroundColor: "#1E7B4B" }} /></span>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-2">
               {commandeLignes.map((l) => {
@@ -20016,7 +20016,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                         )}
                         <div className="grid grid-cols-2 gap-3">
                           <button type="button" onClick={fermer} className={bouton} style={{ borderColor: "var(--cadre)", color: "var(--ink)" }}>Annuler</button>
-                          <button type="button" onClick={() => setFenetre("quantite")} disabled={!bf.conservation} className={`${bouton} text-white disabled:opacity-50`} style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63" }}>Valider</button>
+                          <button type="button" onClick={() => setFenetre("quantite")} disabled={!bf.conservation} className={`${bouton} text-white disabled:opacity-50`} style={{ borderColor: "#1E7B4B", backgroundColor: "#1E7B4B" }}>Valider</button>
                         </div>
                       </div>
                     )}
@@ -20056,7 +20056,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                         {manque.filter((m) => m !== "la quantité").length > 0 && <p className="text-sm font-bold rounded-lg px-3 py-2" style={{ backgroundColor: "#FFF4CC", color: "#6B4A00" }}>À compléter : {manque.filter((m) => m !== "la quantité").join(", ")}.</p>}
                         <div className="grid grid-cols-2 gap-3">
                           <button type="button" onClick={() => setFenetre("infos")} className={bouton} style={{ borderColor: "var(--cadre)", color: "var(--ink)" }}>← Retour</button>
-                          <button type="button" onClick={() => { produitSuivant(); }} disabled={!(qn > 0) || manque.length > 0} className={`${bouton} text-white disabled:opacity-50`} style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63" }}>Valider</button>
+                          <button type="button" onClick={() => { produitSuivant(); }} disabled={!(qn > 0) || manque.length > 0} className={`${bouton} text-white disabled:opacity-50`} style={{ borderColor: "#1E7B4B", backgroundColor: "#1E7B4B" }}>Valider</button>
                         </div>
                       </div>
                     )}
@@ -20090,7 +20090,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                 <>
                   <p className="text-lg text-[var(--ink)] mt-3">Voulez-vous créer sa fiche pour la valider ?</p>
                   <div className="grid grid-cols-2 gap-3 mt-5">
-                    <button type="button" onClick={() => setFicheNouveau(true)} className="min-h-[72px] rounded-2xl border-2 text-xl font-extrabold text-white" style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63" }}>Oui</button>
+                    <button type="button" onClick={() => setFicheNouveau(true)} className="min-h-[72px] rounded-2xl border-2 text-xl font-extrabold text-white" style={{ borderColor: "#1E7B4B", backgroundColor: "#1E7B4B" }}>Oui</button>
                     <button type="button" onClick={() => repondreNouveau("non")} className="min-h-[72px] rounded-2xl border-2 text-xl font-extrabold" style={{ borderColor: "#1B5FA8", backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>Non</button>
                   </div>
                   <p className="text-sm text-[var(--steel)] mt-3"><b>Non</b> : le produit est enregistré tel quel et le chef reçoit une note « nouveau produit en attente de création et de validation » dans Gestion et contrôle.</p>
@@ -20124,7 +20124,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                       <input className={`${inputCls} w-full`} value={b.origine || ""} onChange={(e) => maj({ origine: e.target.value })} placeholder="Ex. France, UE…" />
                     </div>
                   </div>
-                  <button type="button" disabled={!b.conservation} onClick={() => repondreNouveau("fiche")} className="mt-5 w-full min-h-[64px] rounded-2xl border-2 text-lg font-extrabold text-white disabled:opacity-50" style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63" }}>Enregistrer la fiche et continuer</button>
+                  <button type="button" disabled={!b.conservation} onClick={() => repondreNouveau("fiche")} className="mt-5 w-full min-h-[64px] rounded-2xl border-2 text-lg font-extrabold text-white disabled:opacity-50" style={{ borderColor: "#1E7B4B", backgroundColor: "#1E7B4B" }}>Enregistrer la fiche et continuer</button>
                   {!b.conservation && <p className="text-sm font-bold mt-2" style={{ color: "#6B4A00" }}>Choisissez d'abord le type de produit.</p>}
                   <button type="button" onClick={() => setFicheNouveau(false)} className="mt-3 text-sm font-semibold underline text-[var(--steel)]">← Retour</button>
                 </>
@@ -20292,7 +20292,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
           <div className="mt-3 flex justify-center">
             <button type="button" onClick={() => demander("suivant")} disabled={manque.length > 0}
               className="min-h-[56px] px-8 py-2 rounded-xl border-2 text-base font-bold shadow-md flex items-center gap-2 disabled:opacity-50 active:scale-[0.98] transition-transform"
-              style={{ borderColor: "#1E7B4B", backgroundColor: "#2F9D63", color: "#fff" }}>
+              style={{ borderColor: "#1E7B4B", backgroundColor: "#1E7B4B", color: "#fff" }}>
               {modeCommande ? <><CheckCircle2 size={22} /> Valider ce produit</> : <><Plus size={22} strokeWidth={3} /> Ajouter un produit</>}
             </button>
           </div>
@@ -20350,7 +20350,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
           const nm = (l) => l.map((p) => p.nom).join(", ");
           const ligne = (etat, texte) => (
             <li className="flex items-start gap-2 text-sm text-[var(--ink)]">
-              <span className="font-extrabold w-5 shrink-0 text-center" style={{ color: etat === "ok" ? "#2F9D63" : etat === "ko" ? "#C1432D" : "#E0920F" }}>{etat === "ok" ? "✓" : etat === "ko" ? "✗" : "!"}</span><span>{texte}</span>
+              <span className="font-extrabold w-5 shrink-0 text-center" style={{ color: etat === "ok" ? "#1E7B4B" : etat === "ko" ? "#C1432D" : "#E0920F" }}>{etat === "ok" ? "✓" : etat === "ko" ? "✗" : "!"}</span><span>{texte}</span>
             </li>
           );
           return (
@@ -20368,7 +20368,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                   const t = temps[f.id]; const vide = String(t.valeur).trim() === "";
                   if (vide) return <React.Fragment key={f.id}>{ligne("warn", `${f.titre} : température non relevée.`)}</React.Fragment>;
                   const vd = verdictFamille(f, t.valeur);
-                  return <React.Fragment key={f.id}>{ligne(vd.pastille === "#2F9D63" ? "ok" : vd.pastille === "#C1432D" ? "ko" : "warn", `${f.titre} : ${t.valeur} °C — ${vd.titre}.`)}</React.Fragment>;
+                  return <React.Fragment key={f.id}>{ligne(vd.pastille === "#1E7B4B" ? "ok" : vd.pastille === "#C1432D" ? "ko" : "warn", `${f.titre} : ${t.valeur} °C — ${vd.titre}.`)}</React.Fragment>;
                 })}
                 {sansTemp.length > 0 && ligne("warn", `Température non relevée pour : ${nm(sansTemp)}.`)}
                 {refuses.length === 0 ? ligne("ok", "Aucun produit refusé.") : ligne("ko", `${refuses.length} produit(s) refusé(s) : ${nm(refuses)}.`)}
@@ -22454,7 +22454,7 @@ function CommandeVocaleFlottante({ onCommande }) {
           <div className="text-lg font-bold leading-snug" style={{ color: "#0F172A" }}>{confirmation.question}</div>
           <div className="text-sm mt-1" style={{ color: "#475569" }}>{parle ? "Je parle…" : enEcoute ? "Je vous écoute : dites oui ou non" : "Dites oui ou non, ou touchez un bouton"}</div>
           <div className="grid grid-cols-2 gap-3 mt-3">
-            <button type="button" onClick={valider} className="min-h-[60px] rounded-xl text-xl font-extrabold text-white" style={{ backgroundColor: "#2F9D63", border: "3px solid #1E7B4B" }}>Oui</button>
+            <button type="button" onClick={valider} className="min-h-[60px] rounded-xl text-xl font-extrabold text-white" style={{ backgroundColor: "#1E7B4B", border: "3px solid #1E7B4B" }}>Oui</button>
             <button type="button" onClick={refuser} className="min-h-[60px] rounded-xl text-xl font-extrabold" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C", border: "3px solid #1B5FA8" }}>Non</button>
           </div>
         </div>
@@ -23639,7 +23639,7 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
           <div className="flex gap-1.5 shrink-0">
             <button type="button" disabled={o.statut === "valide"} onClick={() => marquerFait(o)} title="Fait" aria-label="Fait"
               className="w-9 h-9 rounded-md border-2 flex items-center justify-center text-lg font-bold leading-none disabled:opacity-60"
-              style={fait ? { backgroundColor: "#2F9E5B", borderColor: "#2F9E5B", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#2F9E5B", color: "#2F9E5B" }}>✓</button>
+              style={fait ? { backgroundColor: "#1F7A45", borderColor: "#1F7A45", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#1F7A45", color: "#1F7A45" }}>✓</button>
             <button type="button" onClick={() => { setOuvert(o.cle); setMotif(""); setPhoto(null); }} title="Pas fait" aria-label="Pas fait" disabled={o.statut === "valide" || o.statut === "fait"}
               className="w-9 h-9 rounded-md border-2 flex items-center justify-center disabled:opacity-30"
               style={rate ? { backgroundColor: "#E5243B", borderColor: "#E5243B", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#E5243B", color: "#E5243B" }}><X size={18} /></button>
@@ -26352,7 +26352,7 @@ function KitchenApp({ identiteExterne } = {}) {
             )}
             <div className="relative">
               <button onClick={() => setMenuProfil(!menuProfil)} className="flex items-center gap-2 px-2 py-1.5 rounded-xl bg-white hover:bg-white/90 shadow" title="Mon compte">
-                <span className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base" style={{ backgroundColor: "#2F8F63", color: "#fff" }}>{initials(moi?.nom)}</span>
+                <span className="w-10 h-10 rounded-lg flex items-center justify-center font-bold text-base" style={{ backgroundColor: "#1E7B4B", color: "#fff" }}>{initials(moi?.nom)}</span>
                 <ChevronDown size={16} color="#121821" />
               </button>
               {menuProfil && (
