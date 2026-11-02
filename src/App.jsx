@@ -16749,6 +16749,7 @@ function compositionColis(s) {
   const cp = r.contenuPiece;
   return cp && cp.val > 0 ? `${fmtDetail(r.piecesParColis)} × ${poidsTexte(cp.val, cp.unite)}` : fmtDetail(r.piecesParColis);
 }
+const dlcFr = (d) => (/^\d{4}-\d{2}-\d{2}/.test(String(d || "")) ? `${String(d).slice(8, 10)}-${String(d).slice(5, 7)}-${String(d).slice(0, 4)}` : d);
 function infosColis(s) {
   // Produit dont la fiche d'achat est renseignée : on compte en colis entiers (carton, barquette…), le stock reste dans son unité.
   const d = s && s.detailAchat; const nomC = d ? String(d.nomColis || "").trim() : "";
@@ -17215,9 +17216,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                     </div>
                   )}
                 </div>
-                <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>{s.dlc ? <>DLC : {s.dlc}<br /></> : null}{s.lot ? <>Lot : {s.lot}</> : null}{!s.dlc && !s.lot ? <span className="opacity-40">—</span> : null}</div>
+                <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>{s.dlc ? <>DLC : {dlcFr(s.dlc)}<br /></> : null}{s.lot ? <>Lot : {s.lot}</> : null}{!s.dlc && !s.lot ? <span className="opacity-40">—</span> : null}</div>
                 <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div>{colis ? <><CelluleQuantite valeur={s.quantite} pas={1} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock réel de ${s.nom} en ${s.unite}`} /><div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{s.unite} en stock</div></> : <CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />}{!colis && s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{libelleQte(s, s.quantite)}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
-                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock cible</div>{!(estChefStock && modifCibles) ? <div className="inline-flex items-center justify-center min-w-[3.5rem] h-9 px-3 rounded-lg text-sm font-semibold" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{colis ? `${fmtNb(Number(s.cible || 0) / colis.contenu)} ${Number(s.cible || 0) / colis.contenu >= 2 ? pluriel(colis.nom) : colis.nom}` : `${fmtNb(s.cible || 0)} ${s.unite || ""}`}</div> : colis ? <CelluleQuantite valeur={arrondiQte(Number(s.cible || 0) / colis.contenu)} pas={1} onSet={(n) => fixerCible(s.id, arrondiQte(n * colis.contenu))} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom} en ${colis.nom}s`} /> : <CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom}`} />}{colis && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{fmtNb(Number(s.cible || 0) / colis.contenu)} {Number(s.cible || 0) / colis.contenu >= 2 ? pluriel(colis.nom) : colis.nom} × {fmtNb(colis.contenu)} {uniteQ(colis.contenu, s.unite)} = {fmtNb(s.cible || 0)} {uniteQ(s.cible || 0, s.unite)}</div>}</div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock cible</div>{!(estChefStock && modifCibles) ? <div className="inline-flex items-center justify-center min-w-[3.5rem] h-9 px-3 rounded-lg text-sm font-semibold" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{colis ? fmtNb(Number(s.cible || 0) / colis.contenu) : fmtNb(s.cible || 0)}</div> : colis ? <CelluleQuantite valeur={arrondiQte(Number(s.cible || 0) / colis.contenu)} pas={1} onSet={(n) => fixerCible(s.id, arrondiQte(n * colis.contenu))} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom} en ${colis.nom}s`} /> : <CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom}`} />}{colis && (() => { const n = Number(s.cible || 0) / colis.contenu; return <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{fmtNb(n)} {n >= 2 ? pluriel(colis.nom) : colis.nom} de {fmtNb(colis.contenu)} {uniteQ(colis.contenu, s.unite)}{n >= 2 ? ` = ${fmtNb(s.cible || 0)} ${uniteQ(s.cible || 0, s.unite)}` : ""}</div>; })()}</div>
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
                   className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#B45309" }}><ShoppingCart size={20} /></button></div>
               </div>
@@ -17226,7 +17227,6 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           })}
           <div className="px-4 py-2.5 border-t border-[var(--line)] text-sm text-[var(--steel)] flex items-center justify-between gap-3 flex-wrap">
             <span>{liste.length} produit{liste.length > 1 ? "s" : ""}</span>
-            <button type="button" onClick={() => setVueListeCommande(true)} className="h-10 px-4 rounded-lg text-white text-sm font-semibold flex items-center gap-2" style={{ backgroundColor: "#1B4F9C" }}><ShoppingCart size={18} /> Passer ma commande ({lignesPanier.length} produit{lignesPanier.length > 1 ? "s" : ""} au panier)</button>
           </div>
         </div>
       </div>
@@ -19880,7 +19880,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
     }
     setEnCours(false);
     logActivity("Stock", "Réception validée", `${fournisseur} — ${produitsF.filter((p) => p.conforme).length} conforme(s), ${nonConformes.length} non conforme(s)`);
-    setFini(true);
+    if (nonConformes.length) setFini(true); else onDone(); // une seule validation : sans anomalie, on revient directement
   };
 
   // Verdict immédiat d'un relevé de température (étape 2) : vert / orange / rouge.
