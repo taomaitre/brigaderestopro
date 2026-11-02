@@ -17105,8 +17105,8 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             <button type="button" onClick={() => rapideStock.ajouterProduit()} className="min-h-[48px] px-5 rounded-xl text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #1E7B4B 0%, #1F6B47 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
               <Plus size={18} /> Ajouter un produit
             </button>
-            <button type="button" onClick={() => { setRechercheSupp(""); setProduitASupp(null); setSuppOuverte(true); }} className="min-h-[48px] px-5 rounded-xl text-sm font-bold text-white flex items-center gap-2 active:scale-95 transition-transform" style={{ background: "linear-gradient(160deg, #D64545 0%, #A62828 100%)", boxShadow: "0 3px 8px rgba(0,0,0,0.15)" }}>
-              <Trash2 size={18} /> Supprimer un produit
+            <button type="button" onClick={() => setModifCibles((m) => !m)} className="min-h-[48px] px-5 rounded-xl text-sm font-bold flex items-center gap-2 active:scale-95 transition-transform" style={modifCibles ? { background: "#1B4F9C", color: "#fff", border: "2px solid #1B4F9C" } : { background: "#fff", color: "#1B4F9C", border: "2px solid #1B4F9C" }}>
+              {modifCibles ? "Terminer la modification du stock cible" : "Modifier le stock cible"}
             </button>
           </>
         )}
@@ -17183,7 +17183,6 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
           <div className="flex items-center gap-3 px-4 py-2.5 border-b border-[var(--line)] flex-wrap" style={{ background: zoneDepuisFonction("stock").fond }}>
             <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: q ? "#1D2321" : infoCat.fond, color: q ? "#fff" : infoCat.texte }}><Package size={20} /></span>
             <h3 className="text-xl font-bold text-[var(--ink)]">{q ? "Résultats de la recherche" : infoCat.nom} ({liste.length})</h3>
-            {estChefStock && <button type="button" onClick={() => setModifCibles((m) => !m)} className="ml-auto h-9 px-3 rounded-lg border-2 text-sm font-semibold" style={modifCibles ? { background: "#1B4F9C", borderColor: "#1B4F9C", color: "#fff" } : { background: "#fff", borderColor: "#1B4F9C", color: "#1B4F9C" }}>{modifCibles ? "Terminer la modification du stock cible" : "Modifier le stock cible"}</button>}
             {filtreEtat !== "tous" && <span className="text-xs font-semibold px-2 py-1 rounded-md bg-[var(--bg)] text-[var(--ink)]">Filtre : {filtreEtat === "alerte" ? "en alerte" : "dans le panier"} <button type="button" className="underline ml-1" onClick={() => setFiltreEtat("tous")}>retirer</button></span>}
           </div>
           {peutGlisser && <p className="px-4 py-1.5 text-xs text-[var(--steel)] border-b border-[var(--line)]">Pour ranger vos produits : maintenez le doigt (ou la souris) sur un produit, puis glissez-le plus haut, plus bas, ou sur un groupe du menu. Son groupe change tout seul.</p>}
