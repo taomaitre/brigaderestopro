@@ -5,7 +5,7 @@
 export const UNITES_PRODUIT_DETAIL = ["kg", "g", "L", "cL", "pièce", "botte", "boîte", "sachet", "barquette"];
 export const UNITES_PRIX_DETAIL = ["€/kg", "€/L", "€/pièce", "€/botte", "€/boîte", "€/sachet", "€/barquette"];
 export const nbDetail = (t) => { const x = parseFloat(String(t == null ? "" : t).replace(",", ".")); return Number.isFinite(x) ? x : 0; };
-export const pluriel = (m) => { const t = String(m || "").trim(); return !t || /[sxz]$/i.test(t) ? t : t + "s"; };
+export const pluriel = (m) => { const t = String(m || "").trim(); return !t || /[sxz]$/i.test(t) ? t : /(eau|eu)$/i.test(t) ? t + "x" : t + "s"; };
 export const capitale = (t) => { const x = String(t || ""); return x.charAt(0).toUpperCase() + x.slice(1); };
 export const fmtDetail = (n) => (Math.round(n * 1000) / 1000).toLocaleString("fr-FR", { maximumFractionDigits: 3 });
 export const eurDetail = (n) => `${(Math.round(n * 100) / 100).toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`;
@@ -25,9 +25,9 @@ export function lireContenu(expr) {
 export function calculerDetailAchat(d) {
   const out = { ok: false, erreurs: [], avertissements: [], resume: [], derive: null, piecesParColis: 1, piecesParSous: 1, prixPiece: null, prixKg: null, prixL: null, contenuPiece: null, contenuRecette: null, totalPiece: null, contenuDeduit: 0, contenuUniteEff: "g", conditionnement: "" };
   if (!d || !d.vente) { out.erreurs.push("Choisissez comment le fournisseur vend ce produit."); return out; }
-  const avecPieces = d.vente === "colis" || d.vente === "piece";
-  const nbSous = avecPieces ? nbDetail(d.nbSous) : 0;
-  const nbPieces = avecPieces ? nbDetail(d.nbPieces) : 1;
+  const avecPieces = ["colis", "piece", "poids", "volume"].includes(d.vente); // un produit vendu au kilo peut aussi contenir des pièces (50 bouchées de 20 g)
+  const nbSous = nbDetail(d.nbSous);
+  const nbPieces = nbDetail(d.nbPieces);
   if (d.vente === "colis" && !(nbPieces > 0)) out.erreurs.push(nbSous > 0 ? "Indiquez le nombre de pièces dans chaque " + (d.nomSous || "sachet") + "." : "Indiquez le nombre de pièces dans le " + (d.nomColis || "colis") + ".");
   if (d.vente === "piece" && nbSous > 0 && !(nbPieces > 0)) out.erreurs.push("Indiquez le nombre de pièces dans chaque " + (d.nomSous || "sachet") + ".");
   const piecesParSous = avecPieces ? (nbPieces > 0 ? nbPieces : 1) : 1;
@@ -46,7 +46,7 @@ export function calculerDetailAchat(d) {
   out.contenuDeduit = contenuDeduit; out.contenuUniteEff = cu;
   if (contenu > 0) out.contenuPiece = { val: contenu, unite: cu };
   // Pour les fiches techniques, « 1 pièce » = le poids d'une pièce SEULEMENT si le produit contient des pièces ou si on l'a saisi : un sachet de 1 kg vendu au kilo ne vaut pas « 1 pièce de 1 kg ».
-  if (contenu > 0 && (avecPieces || contenuSaisi > 0)) out.contenuRecette = { val: contenu, unite: cu };
+  if (contenu > 0 && (piecesParColis > 1 || contenuSaisi > 0 || d.comptage === "piece" || d.vente === "piece" || d.vente === "colis")) out.contenuRecette = { val: contenu, unite: cu };
   const total = ptBase > 0 ? { val: ptBase, unite: ptMat } : (contenu > 0 && piecesParColis > 1 ? { val: contenu * piecesParColis, unite: cu } : null);
   out.totalPiece = total;
   if (contenuSaisi > 0 && ptBase > 0 && cuSaisi === ptMat && Math.abs(contenuSaisi * piecesParColis - ptBase) / ptBase > 0.03) out.avertissements.push(`${fmtDetail(piecesParColis)} pièces de ${poidsTexte(contenuSaisi, cuSaisi)} font ${poidsTexte(contenuSaisi * piecesParColis, cuSaisi)}, pas ${poidsTexte(ptBase, ptMat)} : vérifiez le nombre de pièces ou les poids.`);
@@ -65,6 +65,11 @@ export function calculerDetailAchat(d) {
     else if (prixPour === "l") { prixL = prix; if (contenuBase > 0 && cu === "ml") prixPiece = prix * contenuBase; }
     if (prixPiece != null && contenuBase > 0) { if (cu === "g" && prixKg == null) prixKg = prixPiece / contenuBase; if (cu === "ml" && prixL == null) prixL = prixPiece / contenuBase; }
   }
+  // Si le poids total est connu, le prix au kilo / au litre se calcule directement dessus (plus exact que pièce × poids).
+  if (prix > 0 && ptBase > 0 && (prixPour === "colis" || (prixPour === "sous" && nbSous > 0))) {
+    const base = (prixPour === "sous" ? ptBase / nbSous : ptBase) / 1000;
+    if (ptMat === "g") prixKg = prix / base; else prixL = prix / base;
+  }
   Object.assign(out, { prixPiece, prixKg, prixL });
   const nomPiece = String(d.nomPiece || "").trim() || "pièce";
   const uniteListe = UNITES_PRODUIT_DETAIL.find((u) => u.toLowerCase() === nomPiece.toLowerCase());
@@ -74,10 +79,13 @@ export function calculerDetailAchat(d) {
   const poidsPieceTxt = contenu > 0 ? poidsTexte(contenu, cu) : "";
   const totalTxt = total ? poidsTexte(total.val, total.unite) : "";
   let cond;
-  if (avecPieces) {
-    const dedans = piecesParColis > 1 ? ` de ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} de ` : ""}${fmtDetail(piecesParSous)} ${piecesParSous > 1 ? pluriel(nomPiece) : nomPiece}${poidsPieceTxt ? ` de ${poidsPieceTxt}` : ""}${totalTxt ? ` (${totalTxt})` : ""}` : (poidsPieceTxt ? ` de ${poidsPieceTxt}` : "");
-    cond = `${capitale(nomVendu)}${dedans}`;
-  } else cond = poidsPieceTxt ? `${capitale(nomVendu === "colis" || nomVendu === "pièce" ? nomPiece : nomVendu)} de ${poidsPieceTxt}` : (d.vente === "poids" ? "Vendu au poids" : "Vendu au volume");
+  const aDesPieces = piecesParColis > 1 || nbSous > 0;
+  const nomPlein = capitale(nomVendu === "colis" && !aDesPieces && !d.nomColis ? (d.vente === "poids" ? "Vendu au poids" : d.vente === "volume" ? "Vendu au volume" : "colis") : nomVendu);
+  if (aDesPieces) {
+    cond = `${nomPlein} de ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} de ` : ""}${fmtDetail(piecesParSous)} ${piecesParSous > 1 ? pluriel(nomPiece) : nomPiece}${poidsPieceTxt ? ` de ${poidsPieceTxt}` : ""}${totalTxt ? ` (${totalTxt})` : ""}`;
+  } else if (d.nomColis || d.vente === "piece") cond = `${nomPlein}${totalTxt || poidsPieceTxt ? ` de ${totalTxt || poidsPieceTxt}` : ""}`;
+  else cond = totalTxt ? `Vendu au ${d.vente === "volume" ? "volume" : "poids"} (${totalTxt})` : (d.vente === "volume" ? "Vendu au volume" : "Vendu au poids");
+  if (String(d.precision || "").trim()) cond += ` — ${String(d.precision).trim()}`;
   out.conditionnement = cond;
   // Unité de comptage et prix par unité de comptage
   const c = d.comptage;
@@ -93,7 +101,7 @@ export function calculerDetailAchat(d) {
     if (prixL == null && prix > 0) out.erreurs.push("Pour compter en litres, indiquez le prix au litre, ou le volume d'une pièce.");
     if (prixL != null) derive = { unite: "L", prix_achat: prixL, prix_unite: "€/L" };
   }
-  if (derive) { derive.prix_achat = Math.round(derive.prix_achat * 10000) / 10000; derive.conditionnement = cond; derive.poids_par_piece = poidsPieceTxt; }
+  if (derive) { derive.prix_achat = Math.round(derive.prix_achat * 10000) / 10000; derive.conditionnement = cond; derive.poids_par_piece = out.contenuRecette ? poidsTexte(out.contenuRecette.val, out.contenuRecette.unite) : ""; }
   const r = [];
   if (avecPieces && piecesParColis > 1) r.push(`1 ${nomVendu} = ${nbSous > 0 ? `${fmtDetail(nbSous)} ${pluriel(d.nomSous || "sachet")} = ` : ""}${fmtDetail(piecesParColis)} ${pluriel(nomPiece)}${prix > 0 && prixPour === "colis" ? ` = ${eurDetail(prix)}` : ""}${totalTxt ? ` = ${totalTxt}` : ""}`);
   if (prixPiece != null) r.push(`1 ${nomPiece} = ${eurPrecis(prixPiece)}${poidsPieceTxt ? ` (${poidsPieceTxt})` : ""}`);

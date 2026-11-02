@@ -6377,8 +6377,8 @@ const UNITES_PRIX = UNITES_PRIX_DETAIL;
 function GuideAchatProduit({ v, setV, prerempli }) {
   const d = v.detail_achat || {};
   const r = calculerDetailAchat(d);
-  const avecPieces = d.vente === "colis" || d.vente === "piece";
-  const nomColis = d.nomColis || (d.vente === "piece" ? "boîte" : "colis");
+  const avecPieces = !!d.vente; // même un produit vendu au kilo peut contenir des pièces
+  const nomColis = d.nomColis || (d.vente === "piece" ? "boîte" : d.vente === "colis" ? "colis" : "conditionnement");
   const nomPiece = (d.nomPiece || "").trim() || "pièce";
   const exprAffiche = d.expr != null ? d.expr : [nbDetail(d.nbSous) > 0 ? d.nbSous : null, nbDetail(d.nbPieces) > 0 ? d.nbPieces : null].filter((z) => z != null).join(" x ");
   const uPoids = d.contenuU || (d.contenuUnite === "ml" ? "ml" : "g");
@@ -6406,7 +6406,8 @@ function GuideAchatProduit({ v, setV, prerempli }) {
       {contenu}
     </div>
   );
-  const libPrix = { colis: `Prix HT du ${nomColis} entier (€)`, piece: `Prix HT de ${/^[aeiouhéèêîôû]/i.test(nomColis) ? "l'" : "la/du "}${nomColis} entier (€)`, poids: "Prix HT du kilo (€)", volume: "Prix HT du litre (€)" }[d.vente] || "Prix HT (€)";
+  const prixEntier = d.prixPour === "colis" || d.prixPour === "sous";
+  const libPrix = d.vente === "poids" ? (prixEntier ? `Prix HT du ${nomColis} entier (€)` : "Prix HT du kilo (€)") : d.vente === "volume" ? (prixEntier ? `Prix HT du ${nomColis} entier (€)` : "Prix HT du litre (€)") : (d.prixPour === "sous" ? `Prix HT d'un ${d.nomSous || "paquet"} (€)` : d.prixPour === "piece" ? `Prix HT d'1 ${nomPiece} (€)` : `Prix HT du ${nomColis} entier (€)`);
   const choisirVente = (vente) => changer({ vente, prixPour: { colis: "colis", piece: "colis", poids: "kg", volume: "l" }[vente], comptage: d.comptage || (vente === "poids" ? "kg" : vente === "volume" ? "l" : "piece") });
   const avecSous = nbDetail(d.nbSous) > 0;
   const choixPoids = ["g", "kg", "ml", "cl", "L"];
@@ -6465,6 +6466,16 @@ function GuideAchatProduit({ v, setV, prerempli }) {
             )}
             <label className={lib}>{libPrix}
               <input inputMode="decimal" className={champ} placeholder="ex. 7,93" value={d.prix ?? ""} onChange={(e) => changer({ prix: e.target.value })} /></label>
+            <label className={lib}>Ce prix est donné pour
+              <select className={champ} value={d.prixPour || ""} onChange={(e) => changer({ prixPour: e.target.value })}>
+                <option value="colis">le {nomColis} entier</option>
+                {avecSous && <option value="sous">un {d.nomSous || "paquet"}</option>}
+                {(d.vente === "colis" || d.vente === "piece" || nbDetail(d.nbPieces) > 1) && <option value="piece">une pièce / portion</option>}
+                {d.vente !== "volume" && <option value="kg">le kilo</option>}
+                {d.vente !== "poids" && <option value="l">le litre</option>}
+              </select></label>
+            <label className={`${lib} sm:col-span-2`}>Précisions (facultatif : poids net, volume, variable…)
+              <input className={champ} placeholder="ex. bac de 2,4 L, environ 24 portions de 2 boules" value={d.precision ?? ""} onChange={(e) => changer({ precision: e.target.value })} /></label>
           </div>
         )}
         {r.avertissements.length > 0 && <div className="rounded-lg border-2 px-3 py-2 font-semibold" style={{ borderColor: "#E0A100", background: "#FFF4CC", color: "#6B4A00" }}>⚠ {r.avertissements.join(" ")}</div>}
