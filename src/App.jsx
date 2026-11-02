@@ -6379,29 +6379,22 @@ const UNITES_PRIX = UNITES_PRIX_DETAIL;
 function GuideAchatProduit({ v, setV, prerempli }) {
   const d = v.detail_achat || {};
   const r = calculerDetailAchat(d);
-  const [ouv, setOuv] = useState({});
+  const [ouvD, setOuvD] = useState({});
   const nomColisSaisi = (d.nomColis || "").trim();
   // Ce que j'achète : « kilo » et « litre » sont des cas à part ; sinon c'est le nom du conditionnement (carton, barquette…).
   const base = !nomColisSaisi && d.vente === "poids" ? "kilo" : !nomColisSaisi && d.vente === "volume" ? "litre" : nomColisSaisi;
+  const kiloLitre = base === "kilo" || base === "litre";
   const nomUnite = nomColisSaisi || (base === "kilo" ? "kilo" : base === "litre" ? "litre" : "conditionnement");
   const nomPiece = (d.nomPiece || "").trim() || "pièce";
   const nomSous = (d.nomSous || "").trim() || "sachet";
   const defPour = base === "kilo" ? "kg" : base === "litre" ? "l" : "colis";
   const uPoids = d.contenuU || (d.contenuUnite === "ml" ? "ml" : "g");
   const uPoidsVal = d.contenuVal != null ? d.contenuVal : (nbDetail(d.contenu) > 0 ? String(d.contenu).replace(".", ",") : "");
-  const sousData = nbDetail(d.nbSous) > 0 || !!(d.nomSous || "").trim();
-  const piecesData = nbDetail(d.nbPieces) > 0 || nbDetail(d.contenu) > 0 || !!(d.nomPiece || "").trim();
-  const act = {
-    sous: !!ouv.sous || sousData,
-    pieces: !!ouv.pieces || piecesData || sousData || !!ouv.sous,
-    total: !!ouv.total || nbDetail(d.poidsColis) > 0 || nbDetail(d.netVal) > 0 || nbDetail(d.equivVal) > 0 || !!ouv.net || !!ouv.eq,
-    net: !!ouv.net || nbDetail(d.netVal) > 0 || d.prixPour === "kgnet",
-    eq: !!ouv.eq || nbDetail(d.equivVal) > 0,
-    prix: !!ouv.prix || (!!d.prixPour && d.prixPour !== defPour),
-    variable: !!ouv.variable || !!d.variable,
-    remarque: !!ouv.remarque || !!(d.precision || "").trim(),
-  };
-  const matL = ["l", "ml"].includes(d.poidsColisUnite) || (base === "litre" && !d.poidsColisUnite);
+  const aSous = nbDetail(d.nbSous) > 0;
+  const aPieces = nbDetail(d.nbPieces) > 0;
+  const aPoids = nbDetail(d.poidsColis) > 0;
+  const unitePoidsTotal = d.poidsColisUnite || (base === "litre" ? "l" : "g");
+  const matTotalL = ["l", "ml"].includes(unitePoidsTotal);
   // Le type d'achat (vente) se déduit : kilo / litre selon le prix, sinon colis (avec des pièces dedans) ou unité simple.
   const deduireVente = (nd) => nd.prixPour === "kg" || nd.prixPour === "kgnet" ? "poids" : nd.prixPour === "l" ? "volume" : (nbDetail(nd.nbPieces) > 0 || nbDetail(nd.nbSous) > 0 ? "colis" : "piece");
   const changer = (patch, recalVente) => setV((x) => {
@@ -6419,29 +6412,36 @@ function GuideAchatProduit({ v, setV, prerempli }) {
     if (rr.ok) { y.unite = rr.derive.unite; y.prix_achat = String(rr.derive.prix_achat).replace(".", ","); y.prix_unite = rr.derive.prix_unite; y.conditionnement = rr.derive.conditionnement; y.poids_par_piece = rr.derive.poids_par_piece || ""; }
     return y;
   });
-  const ouvrir = (cles) => setOuv((o) => ({ ...o, ...Object.fromEntries(cles.map((k) => [k, true])) }));
-  const fermer = (cles) => setOuv((o) => ({ ...o, ...Object.fromEntries(cles.map((k) => [k, false])) }));
-
   const choisirBase = (mot) => {
     if (mot === "kilo") changer({ nomColis: "", prixPour: "kg", comptage: d.comptage || "kg" }, true);
     else if (mot === "litre") changer({ nomColis: "", prixPour: "l", comptage: d.comptage || "l", poidsColisUnite: d.poidsColisUnite || "l" }, true);
-    else changer({ nomColis: mot, prixPour: ["kg", "kgnet", "l"].includes(d.prixPour) && base !== "kilo" && base !== "litre" ? d.prixPour : "colis", comptage: d.comptage || "piece" }, true);
+    else changer({ nomColis: mot, prixPour: ["kg", "kgnet", "l"].includes(d.prixPour) && !kiloLitre ? d.prixPour : "colis", comptage: d.comptage || "piece" }, true);
   };
 
   const NOIR = "#1D2321", GRIS = "#4A524E";
   const champ = "w-full h-11 border-2 border-[#9CA3AF] rounded-lg px-3 text-base bg-white";
   const lib = "block text-sm font-semibold mb-1";
   const sty = { color: NOIR };
-  const Carte = (titre, aide, contenu, retirer) => (
+  const Carte = (titre, aide, contenu) => (
     <div className="rounded-xl border-2 p-3 space-y-2.5 bg-white" style={{ borderColor: "#9CA3AF", color: NOIR }}>
-      <div className="flex items-start justify-between gap-2">
-        <div className="text-base font-bold">{titre}</div>
-        {retirer && <button type="button" onClick={retirer} className="shrink-0 px-3 h-8 rounded-lg border-2 text-sm font-semibold" style={{ borderColor: "#B4233A", color: "#B4233A", background: "#fff" }}>Retirer</button>}
-      </div>
+      <div className="text-base font-bold">{titre}</div>
       {aide && <p className="text-sm" style={{ color: GRIS }}>{aide}</p>}
       {contenu}
     </div>
   );
+  // Cadre repliable (flèche) : fermé tant qu'il n'est pas utile ; ouvert d'office si une information est déjà saisie.
+  const Repli = (cle, titre, rempli, contenu) => {
+    const ouvert = ouvD[cle] === undefined ? rempli : ouvD[cle];
+    return (
+      <div className="rounded-xl border-2 bg-white" style={{ borderColor: rempli ? "#1E7B4B" : "#9CA3AF", color: NOIR }}>
+        <button type="button" onClick={() => setOuvD((o) => ({ ...o, [cle]: !ouvert }))} className="w-full flex items-center justify-between gap-2 px-3 py-3 text-left">
+          <span className="text-base font-bold">{titre}{rempli && <span className="ml-2 text-sm font-semibold" style={{ color: "#136B33" }}>✓ renseigné</span>}</span>
+          <span className="text-lg font-bold" aria-hidden="true">{ouvert ? "▲" : "▼"}</span>
+        </button>
+        {ouvert && <div className="px-3 pb-3 space-y-2.5">{contenu}</div>}
+      </div>
+    );
+  };
   const puces = (liste, valeur, onPick) => (
     <div className="flex flex-wrap gap-1.5">
       {liste.map((val) => { const actif = String(valeur || "").trim().toLowerCase() === val.toLowerCase(); return <button key={val} type="button" onClick={() => onPick(val)} className="px-3 h-10 rounded-lg border-2 text-sm font-semibold" style={actif ? { borderColor: "#1E7B4B", background: "#E4F4EA", color: "#0F4F2C" } : { borderColor: "#9CA3AF", background: "#fff", color: NOIR }}>{actif ? "● " : ""}{val}</button>; })}
@@ -6458,113 +6458,96 @@ function GuideAchatProduit({ v, setV, prerempli }) {
   );
   const UT = [["g", "g"], ["kg", "kg"], ["ml", "ml"], ["l", "L"]];
   const UTpiece = [["g", "g"], ["kg", "kg"], ["ml", "ml"], ["cl", "cl"], ["L", "L"]];
-  const unitePoidsTotal = d.poidsColisUnite || (base === "litre" ? "l" : "g");
-  const matTotalL = ["l", "ml"].includes(unitePoidsTotal);
-
-  const libPrix = d.prixPour === "kg" ? "Prix HT du kilo (€)" : d.prixPour === "kgnet" ? "Prix HT du kilo net (€)" : d.prixPour === "l" ? "Prix HT du litre (€)" : d.prixPour === "sous" ? `Prix HT d'1 ${nomSous} (€)` : d.prixPour === "piece" ? `Prix HT d'1 ${nomPiece} (€)` : `Prix HT d'1 ${nomUnite} (€)`;
-  const libCompte = [["piece", act.pieces ? `à la pièce (${pluriel(nomPiece)})` : `à l'unité (${nomUnite})`], ["kg", "au kilo"], ["l", "au litre"]];
-  const boutons = [
-    !act.sous && ["sous", "+ Contient des sachets / paquets", () => ouvrir(["sous", "pieces"])],
-    !act.pieces && ["pieces", "+ Contient des pièces / portions", () => ouvrir(["pieces"])],
-    !act.total && ["total", "+ Poids ou volume total", () => { ouvrir(["total"]); changer({ poidsColisUnite: d.poidsColisUnite || (base === "litre" ? "l" : "g") }); }],
-    !act.net && base !== "litre" && ["net", "+ Liquide dedans (poids égoutté, net)", () => { ouvrir(["total", "net"]); changer({ poidsColisUnite: d.poidsColisUnite || "g", netUnite: d.netUnite || d.poidsColisUnite || "g" }); }],
-    !act.eq && ["eq", "+ Poids du litre / volume du poids (glace, huile…)", () => { ouvrir(["total", "eq"]); changer({ poidsColisUnite: d.poidsColisUnite || (base === "litre" ? "l" : "g") }); }],
-    !act.prix && ["prix", "+ Le prix n'est pas au " + nomUnite, () => ouvrir(["prix"])],
-    !act.variable && ["variable", "+ Le poids varie d'une pièce à l'autre", () => changer({ variable: true })],
-    !act.remarque && ["remarque", "+ Une remarque", () => ouvrir(["remarque"])],
-  ].filter(Boolean);
+  const libCompte = [["piece", aPieces ? `à la pièce (${pluriel(nomPiece)})` : `à l'unité (${nomUnite})`], ["kg", "au kilo"], ["l", "au litre"]];
+  const avertPoids = <p className="text-sm font-semibold" style={{ color: "#8A5A00" }}>Indiquez d'abord le poids ou le volume total (question 3).</p>;
 
   return (
     <div className="sm:col-span-2 space-y-3" style={{ color: NOIR }}>
       <div>
         <div className="font-bold text-lg">Comment ce produit est acheté et compté</div>
-        <p className="text-sm" style={{ color: GRIS }}>Remplissez les trois questions de base, puis ajoutez seulement les informations qui existent pour ce produit.</p>
+        <p className="text-sm" style={{ color: GRIS }}>Répondez dans l'ordre. Ce qui n'existe pas pour ce produit, laissez-le vide.</p>
       </div>
       {prerempli && <div className="rounded-lg border-2 px-3 py-2 text-sm font-semibold" style={{ borderColor: "#0E7490", background: "#E6F6F8", color: "#0B4F5E" }}>Pré-rempli avec ce qui était déjà saisi pour ce produit. Vérifiez, corrigez si besoin, puis enregistrez.</div>}
 
-      {Carte("1. Ce que j'achète chez le fournisseur", "Ce qui est écrit sur la facture : un carton, une barquette, un kilo, un litre…", <>
+      {Carte("1. Ce que j'achète chez le fournisseur", "Son conditionnement : ce qui est écrit sur la facture.", <>
         {puces(["kilo", "litre"], base, choisirBase)}
         {puces(["carton", "colis", "caisse", "barquette", "sachet", "boîte", "pot", "pack", "brique", "bouteille", "bidon", "sac", "plateau", "seau", "filet", "pièce"], base, choisirBase)}
-        <input className={champ} style={sty} placeholder="ou écrivez-le" value={base === "kilo" || base === "litre" ? "" : (d.nomColis ?? "")} onChange={(e) => changer({ nomColis: e.target.value, prixPour: d.prixPour || "colis", comptage: d.comptage || "piece" }, true)} />
+        <input className={champ} style={sty} placeholder="ou écrivez-le" value={kiloLitre ? "" : (d.nomColis ?? "")} onChange={(e) => changer({ nomColis: e.target.value, prixPour: d.prixPour || "colis", comptage: d.comptage || "piece" }, true)} />
       </>)}
 
-      {d.vente && Carte("2. Le prix de la facture", null, <>
+      {d.vente && Carte(`2. Que contient 1 ${nomUnite} ?`, "Laissez vide ce qui n'existe pas.", <>
         <div>
-          <label className={lib}>{libPrix}</label>
-          <input inputMode="decimal" className={champ} style={sty} placeholder="ex. 7,93" value={d.prix ?? ""} onChange={(e) => changer({ prix: e.target.value })} />
+          <label className={lib}>Nombre de sachets, boîtes ou barquettes dans 1 {nomUnite}</label>
+          <input inputMode="numeric" className={champ} style={sty} placeholder="ex. 3 (vide s'il n'y en a pas)" value={d.nbSous ?? ""} onChange={(e) => changer({ nbSous: e.target.value, expr: "" }, true)} />
         </div>
-        {act.prix && (
+        {aSous && (
           <div>
-            <label className={lib}>Ce prix est donné pour…</label>
-            <select className={champ} style={sty} value={d.prixPour || defPour} onChange={(e) => changer({ prixPour: e.target.value }, true)}>
-              {base !== "kilo" && base !== "litre" && <option value="colis">1 {nomUnite}</option>}
-              {act.sous && <option value="sous">1 {nomSous}</option>}
-              {act.pieces && <option value="piece">1 {nomPiece}</option>}
-              <option value="kg">1 kilo</option>
-              {act.net && <option value="kgnet">1 kilo net (égoutté)</option>}
-              <option value="l">1 litre</option>
-            </select>
+            <label className={lib}>Ce sont des…</label>
+            {puces(["sachet", "barquette", "boîte", "paquet", "pack", "brique"], d.nomSous, (x) => changer({ nomSous: x }))}
           </div>
         )}
-        {act.prix && <button type="button" onClick={() => { fermer(["prix"]); changer({ prixPour: defPour }, true); }} className="text-sm font-semibold underline" style={{ color: "#0B4F5E" }}>Revenir au prix d'1 {nomUnite}</button>}
+        <div>
+          <label className={lib}>Nombre de pièces ou de portions dans {aSous ? "1 " + nomSous : "1 " + nomUnite}</label>
+          <input inputMode="numeric" className={champ} style={sty} placeholder="ex. 15 (vide s'il n'y en a pas)" value={d.nbPieces ?? ""} onChange={(e) => changer({ nbPieces: e.target.value, expr: "" }, true)} />
+        </div>
       </>)}
 
-      {d.vente && Carte("3. À l'inventaire, je le compte…", "Le bouton « Compter » additionne ensuite les unités, les restes et les pièces.", (
+      {d.vente && Carte("3. Poids ou volume", "Le poids ou le volume écrit sur l'emballage, liquide compris (le « brut »). Laissez vide si inconnu.", <>
+        {champPoids(kiloLitre ? "Poids ou volume d'un conditionnement (si toujours pareil)" : `Poids ou volume total d'1 ${nomUnite}`, d.poidsColis ?? "", unitePoidsTotal, (x) => changer({ poidsColis: x }), (u) => changer({ poidsColisUnite: u }), UT, "ex. 2,5")}
+        {aPieces && champPoids(`Poids ou volume d'1 pièce (facultatif)`, uPoidsVal, uPoids, (x) => changer({ contenuVal: x }), (u) => changer({ contenuU: u, contenuVal: uPoidsVal }), UTpiece, "ex. 20 (sinon : total ÷ nombre)")}
+      </>)}
+
+      {d.vente && Carte("4. Le prix de la facture", null, <>
+        <div>
+          <label className={lib}>Prix HT (€)</label>
+          <input inputMode="decimal" className={champ} style={sty} placeholder="ex. 7,93" value={d.prix ?? ""} onChange={(e) => changer({ prix: e.target.value })} />
+        </div>
+        <div>
+          <label className={lib}>Ce prix est donné pour…</label>
+          <select className={champ} style={sty} value={d.prixPour || defPour} onChange={(e) => changer({ prixPour: e.target.value }, true)}>
+            {!kiloLitre && <option value="colis">1 {nomUnite}</option>}
+            {aSous && <option value="sous">1 {nomSous}</option>}
+            {aPieces && <option value="piece">1 {nomPiece}</option>}
+            <option value="kg">1 kilo</option>
+            {nbDetail(d.netVal) > 0 && <option value="kgnet">1 kilo net (égoutté)</option>}
+            <option value="l">1 litre</option>
+          </select>
+        </div>
+      </>)}
+
+      {d.vente && Carte("5. À l'inventaire, je le compte…", "Le bouton « Compter » additionne ensuite les unités, les restes et les pièces.", (
         <div className="flex flex-wrap gap-1.5">
           {libCompte.map(([val, txt]) => { const actif = d.comptage === val; return <button key={val} type="button" onClick={() => changer({ comptage: val })} className="px-3 h-10 rounded-lg border-2 text-sm font-semibold" style={actif ? { borderColor: "#1E7B4B", background: "#E4F4EA", color: "#0F4F2C" } : { borderColor: "#9CA3AF", background: "#fff", color: NOIR }}>{actif ? "● " : "○ "}{txt}</button>; })}
         </div>
       ))}
 
-      {d.vente && act.sous && Carte(`Sachets ou paquets dans 1 ${nomUnite}`, null, <>
-        <div>
-          <label className={lib}>Combien de sachets dans 1 {nomUnite} ?</label>
-          <input inputMode="numeric" className={champ} style={sty} placeholder="ex. 3" value={d.nbSous ?? ""} onChange={(e) => changer({ nbSous: e.target.value, expr: "" }, true)} />
-        </div>
-        <div>
-          <label className={lib}>Comment s'appellent-ils ?</label>
-          {puces(["sachet", "barquette", "boîte", "paquet", "pack", "brique"], d.nomSous, (x) => changer({ nomSous: x }))}
-        </div>
-      </>, () => { fermer(["sous"]); changer({ nbSous: "", nomSous: "", expr: "" }, true); })}
-
-      {d.vente && act.pieces && Carte(`Pièces ou portions ${act.sous ? "dans 1 " + nomSous : "dans 1 " + nomUnite}`, null, <>
-        <div>
-          <label className={lib}>Combien de pièces {act.sous ? "dans 1 " + nomSous : "dans 1 " + nomUnite} ?</label>
-          <input inputMode="numeric" className={champ} style={sty} placeholder="ex. 15" value={d.nbPieces ?? ""} onChange={(e) => changer({ nbPieces: e.target.value, expr: "" }, true)} />
-        </div>
-        <div>
-          <label className={lib}>Comment s'appelle une pièce ?</label>
-          <input className={champ} style={sty} list="noms-pieces" placeholder="ex. tranche, pain, steak, verrine" value={d.nomPiece ?? ""} onChange={(e) => changer({ nomPiece: e.target.value })} />
-          <datalist id="noms-pieces">{["pièce", "tranche", "portion", "pain", "œuf", "steak", "verrine", "brique", "bouteille", "gaufre", "moelleux", "pot"].map((x) => <option key={x} value={x} />)}</datalist>
-        </div>
-        {poidsUnePiece()}
-      </>, () => { fermer(["pieces", "sous"]); changer({ nbPieces: "", nbSous: "", nomPiece: "", nomSous: "", contenuVal: "", contenu: "", expr: "" }, true); })}
-
-      {d.vente && act.total && Carte(`Poids ou volume total d'1 ${nomUnite}`, "Le poids total de ce que vous commandez, liquide compris (le « brut »).", <>
-        {champPoids("Poids (ou volume) total", d.poidsColis ?? "", unitePoidsTotal, (x) => changer({ poidsColis: x }), (u) => changer({ poidsColisUnite: u }), UT, "ex. 2,5")}
-      </>, () => { fermer(["total", "net", "eq"]); changer({ poidsColis: "", netVal: "", equivVal: "", ...(d.prixPour === "kgnet" ? { prixPour: "kg" } : {}) }, true); })}
-
-      {d.vente && act.net && act.total && Carte("Poids égoutté ou net", "Cornichons, olives, thon, tomates… : le poids sans le liquide. Les fiches techniques sont calculées sur ce poids ; le stock et les commandes restent sur le poids total.", <>
-        {nbDetail(d.poidsColis) > 0
-          ? champPoids("Poids égoutté (ou net) utilisable en recette", d.netVal ?? "", d.netUnite || unitePoidsTotal, (x) => changer({ netVal: x }), (u) => changer({ netUnite: u }), (matTotalL ? [["ml", "ml"], ["l", "L"]] : [["g", "g"], ["kg", "kg"]]), "ex. 2,12")
-          : <p className="text-sm font-semibold" style={{ color: "#8A5A00" }}>Indiquez d'abord le poids total ci-dessus.</p>}
-      </>, () => { fermer(["net"]); changer({ netVal: "", ...(d.prixPour === "kgnet" ? { prixPour: "kg" } : {}) }, true); })}
-
-      {d.vente && act.eq && act.total && Carte(matTotalL ? "Poids de ce volume" : "Volume de ce poids", "Pour la glace, l'huile… : sert à passer des grammes des fiches aux litres du stock, sans erreur.", <>
-        {nbDetail(d.poidsColis) > 0
-          ? champPoids(matTotalL ? "Ce volume pèse" : "Ce poids fait en volume", d.equivVal ?? "", d.equivUnite || (matTotalL ? "kg" : "l"), (x) => changer({ equivVal: x }), (u) => changer({ equivUnite: u }), (matTotalL ? [["g", "g"], ["kg", "kg"]] : [["ml", "ml"], ["l", "L"]]), matTotalL ? "ex. 1,63" : "ex. 2,5")
-          : <p className="text-sm font-semibold" style={{ color: "#8A5A00" }}>Indiquez d'abord le poids (ou le volume) total ci-dessus.</p>}
-      </>, () => { fermer(["eq"]); changer({ equivVal: "" }); })}
-
-      {d.vente && act.variable && Carte("Poids variable", "Le poids d'une pièce change d'une pièce à l'autre : le poids saisi est une moyenne.", null, () => changer({ variable: false }))}
-
-      {d.vente && act.remarque && Carte("Remarque", null, <input className={champ} style={sty} placeholder="ex. environ 24 portions de 2 boules" value={d.precision ?? ""} onChange={(e) => changer({ precision: e.target.value })} />, () => { fermer(["remarque"]); changer({ precision: "" }); })}
-
-      {d.vente && boutons.length > 0 && (
-        <div className="rounded-xl border-2 border-dashed p-3 space-y-2" style={{ borderColor: "#9CA3AF", background: "#F7F8F7" }}>
-          <div className="text-sm font-bold">Ajouter une information (facultatif)</div>
-          <div className="flex flex-wrap gap-2">
-            {boutons.map(([k, txt, f]) => <button key={k} type="button" onClick={f} className="px-3 min-h-[40px] py-1.5 rounded-lg border-2 text-sm font-semibold text-left" style={{ borderColor: "#1E7B4B", color: "#0F4F2C", background: "#fff" }}>{txt}</button>)}
-          </div>
+      {d.vente && (
+        <div className="space-y-2">
+          <div className="text-base font-bold">Détails (facultatif) : touchez la flèche pour ouvrir</div>
+          {Repli("liquide", "Il y a du liquide dedans (poids égoutté ou net)", nbDetail(d.netVal) > 0, <>
+            <p className="text-sm" style={{ color: GRIS }}>Cornichons, olives, thon, tomates… Les fiches techniques sont calculées sur le poids égoutté ; le stock et les commandes restent sur le poids total.</p>
+            {aPoids
+              ? champPoids("Poids égoutté (ou net) utilisable en recette", d.netVal ?? "", d.netUnite || unitePoidsTotal, (x) => changer({ netVal: x }), (u) => changer({ netUnite: u }), (matTotalL ? [["ml", "ml"], ["l", "L"]] : [["g", "g"], ["kg", "kg"]]), "ex. 2,12")
+              : avertPoids}
+          </>)}
+          {Repli("densite", matTotalL ? "Poids de ce volume (glace, huile…)" : "Volume de ce poids", nbDetail(d.equivVal) > 0, <>
+            <p className="text-sm" style={{ color: GRIS }}>Sert à passer des grammes des fiches techniques aux litres du stock, sans erreur.</p>
+            {aPoids
+              ? champPoids(matTotalL ? "Ce volume pèse" : "Ce poids fait en volume", d.equivVal ?? "", d.equivUnite || (matTotalL ? "kg" : "l"), (x) => changer({ equivVal: x }), (u) => changer({ equivUnite: u }), (matTotalL ? [["g", "g"], ["kg", "kg"]] : [["ml", "ml"], ["l", "L"]]), matTotalL ? "ex. 1,63" : "ex. 2,4")
+              : avertPoids}
+          </>)}
+          {Repli("variable", "Le poids varie d'une pièce à l'autre", !!d.variable, <>
+            <div className="flex gap-2">
+              {[[true, "Oui, il varie"], [false, "Non"]].map(([val, txt]) => <button key={txt} type="button" onClick={() => changer({ variable: val })} className="px-4 h-10 rounded-lg border-2 text-sm font-bold" style={!!d.variable === val ? { borderColor: "#1E7B4B", background: "#1E7B4B", color: "#fff" } : { borderColor: "#9CA3AF", background: "#fff", color: NOIR }}>{txt}</button>)}
+            </div>
+          </>)}
+          {Repli("nompiece", "Nom d'une pièce (tranche, pain, steak…)", !!(d.nomPiece || "").trim(), <>
+            <input className={champ} style={sty} list="noms-pieces" placeholder="ex. tranche" value={d.nomPiece ?? ""} onChange={(e) => changer({ nomPiece: e.target.value })} />
+            <datalist id="noms-pieces">{["pièce", "tranche", "portion", "pain", "œuf", "steak", "verrine", "brique", "bouteille", "gaufre", "moelleux", "pot"].map((x) => <option key={x} value={x} />)}</datalist>
+          </>)}
+          {Repli("remarque", "Une remarque", !!(d.precision || "").trim(), (
+            <input className={champ} style={sty} placeholder="ex. environ 24 portions de 2 boules" value={d.precision ?? ""} onChange={(e) => changer({ precision: e.target.value })} />
+          ))}
         </div>
       )}
 
@@ -6579,10 +6562,6 @@ function GuideAchatProduit({ v, setV, prerempli }) {
       )}
     </div>
   );
-
-  function poidsUnePiece() {
-    return champPoids(`Poids (ou volume) d'1 ${nomPiece} (facultatif)`, uPoidsVal, uPoids, (x) => changer({ contenuVal: x }), (u) => changer({ contenuU: u, contenuVal: uPoidsVal }), UTpiece, "ex. 20 (sinon : total ÷ nombre)");
-  }
 }
 
 // Remplir la fiche d'un produit à partir d'une photo / image (lue par l'IA) ou d'un fichier Excel / CSV (première ligne). Rien n'est enregistré :
