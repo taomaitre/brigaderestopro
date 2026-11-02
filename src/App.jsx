@@ -6399,6 +6399,8 @@ function GuideAchatProduit({ v, setV, prerempli }) {
   const deduireVente = (nd) => nd.prixPour === "kg" || nd.prixPour === "kgnet" ? "poids" : nd.prixPour === "l" ? "volume" : (nbDetail(nd.nbPieces) > 0 || nbDetail(nd.nbSous) > 0 ? "colis" : "piece");
   const changer = (patch, recalVente) => setV((x) => {
     const nd = { ...(x.detail_achat || {}), ...patch };
+    // Emballage choisi dans le tableau 1 : s'il y en a plusieurs (3 sachets x 15), c'est le contenant ; sinon c'est le colis lui-même.
+    if (nd.emb) { if (nbDetail(nd.nbSous) > 1) { nd.nomSous = nd.emb; nd.nomColis = "colis"; } else nd.nomColis = nd.emb; }
     if (recalVente) nd.vente = deduireVente(nd);
     if ("contenuVal" in patch || "contenuU" in patch) {
       const u = nd.contenuU || "g"; const f = { g: 1, kg: 1000, ml: 1, cl: 10, L: 1000 }[u] || 1;
@@ -6413,9 +6415,9 @@ function GuideAchatProduit({ v, setV, prerempli }) {
     return y;
   });
   const choisirBase = (mot) => {
-    if (mot === "kilo") changer({ nomColis: "", prixPour: "kg", comptage: d.comptage || "kg" }, true);
-    else if (mot === "litre") changer({ nomColis: "", prixPour: "l", comptage: d.comptage || "l", poidsColisUnite: d.poidsColisUnite || "l" }, true);
-    else changer({ nomColis: mot, prixPour: ["kg", "kgnet", "l"].includes(d.prixPour) && !kiloLitre ? d.prixPour : "colis", comptage: d.comptage || "piece" }, true);
+    if (mot === "kilo") changer({ emb: "", nomColis: "", prixPour: "kg", comptage: d.comptage || "kg" }, true);
+    else if (mot === "litre") changer({ emb: "", nomColis: "", prixPour: "l", comptage: d.comptage || "l", poidsColisUnite: d.poidsColisUnite || "l" }, true);
+    else changer({ emb: mot, nomColis: mot, prixPour: ["kg", "kgnet", "l"].includes(d.prixPour) && !kiloLitre ? d.prixPour : "colis", comptage: d.comptage || "piece" }, true);
   };
 
   const NOIR = "#1D2321", GRIS = "#4A524E";
@@ -6507,9 +6509,9 @@ function GuideAchatProduit({ v, setV, prerempli }) {
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-2 gap-y-3 items-start">
           <div>
             {Entete("Emballage ▼")}
-            <select className={champ} style={sty} value={base === "kilo" ? "kilo (vrac)" : base === "litre" ? "litre (vrac)" : (base || "")} onChange={(e) => choisirEmb(e.target.value)}>
+            <select className={champ} style={sty} value={base === "kilo" ? "kilo (vrac)" : base === "litre" ? "litre (vrac)" : (d.emb || base || "")} onChange={(e) => choisirEmb(e.target.value)}>
               <option value="">— choisir —</option>
-              {base && !EMB.includes(base) && base !== "kilo" && base !== "litre" && <option value={base}>{base}</option>}
+              {(d.emb || base) && !EMB.includes(d.emb || base) && base !== "kilo" && base !== "litre" && <option value={d.emb || base}>{d.emb || base}</option>}
               {EMB.map((x) => <option key={x} value={x}>{x}</option>)}
               <option value="__conserve">conserve (boîte)</option>
               <option value="kilo (vrac)">kilo (vrac)</option>
@@ -6519,11 +6521,18 @@ function GuideAchatProduit({ v, setV, prerempli }) {
           </div>
           <div>
             {Entete("Quantité conditionnement")}
-            <div className="flex items-center gap-1.5">
-              <span className="text-base font-bold whitespace-nowrap">1 ×</span>
-              <input inputMode="numeric" className={champ} style={sty} placeholder="ex. 6" value={d.nbSous ?? ""} onChange={(e) => chg({ nbSous: e.target.value, expr: "" }, true)} />
+            <div className="grid grid-cols-[1fr_auto_1fr] items-end gap-1.5">
+              <div>
+                <div className="text-xs font-semibold mb-0.5" style={{ color: GRIS }}>Nombre d'emballages</div>
+                <input inputMode="numeric" className={champ} style={sty} placeholder="ex. 1" value={d.nbSous ?? ""} onChange={(e) => chg({ nbSous: e.target.value, expr: "" }, true)} />
+              </div>
+              <span className="pb-2 text-lg font-bold">×</span>
+              <div>
+                <div className="text-xs font-semibold mb-0.5" style={{ color: GRIS }}>Quantité dans chaque emballage</div>
+                <input inputMode="numeric" className={champ} style={sty} placeholder="ex. 15" value={d.nbPieces ?? ""} onChange={(e) => chg({ nbPieces: e.target.value, expr: "" }, true)} />
+              </div>
             </div>
-            {nbDetail(d.nbSous) > 0 && <div className="mt-1 text-sm font-bold" style={{ color: "#0F3D22" }}>= {fmtDetail(nbDetail(d.nbSous))} {pluriel(nomSous)}</div>}
+            {total > 0 && <div className="mt-1 text-sm font-bold" style={{ color: "#0F3D22" }}>= {aSous ? `${fmtDetail(nbDetail(d.nbSous))} × ${fmtDetail(nbDetail(d.nbPieces))} = ` : ""}{fmtDetail(total)} en tout</div>}
           </div>
           <div>
             {Entete("Unité de mesure ▼")}
@@ -6537,15 +6546,13 @@ function GuideAchatProduit({ v, setV, prerempli }) {
           </div>
           <div>
             {Entete(conserve ? "Poids brut total" : "Poids total")}
-            {mesure !== "piece"
-              ? <input inputMode="decimal" className={champ} style={sty} placeholder="ex. 2,5" value={d.poidsColis ?? ""} onChange={(e) => chg({ poidsColis: e.target.value })} />
-              : <div className="h-11 flex items-center text-sm" style={{ color: GRIS }}>(sans objet)</div>}
+            <input inputMode="decimal" className={champ} style={sty} placeholder={mesure === "piece" ? "ex. 2,5 (poids du colis)" : "ex. 2,5"} value={d.poidsColis ?? ""} onChange={(e) => chg({ poidsColis: e.target.value, ...(d.poidsColisUnite ? {} : { poidsColisUnite: "kg", netUnite: "kg" }) })} />
           </div>
           <div className="col-span-2 sm:col-span-1">
             {Entete("Prix total HT ▼")}
             <input inputMode="decimal" className={champ} style={sty} placeholder="ex. 45,06" value={d.prix ?? ""} onChange={(e) => chg({ prix: e.target.value })} />
             <select className={`${champ} mt-1.5`} style={sty} value={d.prixPour || defPour} onChange={(e) => chg({ prixPour: e.target.value }, true)}>
-              {!kiloLitre && <option value="colis">pour 1 {nomUnite}</option>}
+              {!kiloLitre && <option value="colis">{d.emb && aSous ? "pour le total" : `pour 1 ${nomUnite}`}</option>}
               {aSous && <option value="sous">pour 1 {nomSous}</option>}
               {aPieces && <option value="piece">pour 1 produit</option>}
               <option value="kg">pour 1 kilo</option>
@@ -6570,7 +6577,7 @@ function GuideAchatProduit({ v, setV, prerempli }) {
         <div className="grid grid-cols-2 sm:grid-cols-5 gap-x-2 gap-y-3 items-start">
           <div>
             {Entete("Emballage ▼")}
-            <select className={champ} style={sty} value={d.nomSous || ""} onChange={(e) => chg({ nomSous: e.target.value })}>
+            <select className={champ} style={sty} value={d.nomSous || ""} onChange={(e) => chg({ nomSous: e.target.value, ...(d.emb && nbDetail(d.nbSous) > 1 ? { emb: e.target.value } : {}) })}>
               <option value="">— aucun —</option>
               {["sachet", "barquette", "boîte", "bouteille", "pot", "brique", "paquet", "pack", "plaque", "filet"].map((x) => <option key={x} value={x}>{x}</option>)}
               {d.nomSous && !["sachet", "barquette", "boîte", "bouteille", "pot", "brique", "paquet", "pack", "plaque", "filet"].includes(d.nomSous) && <option value={d.nomSous}>{d.nomSous}</option>}
