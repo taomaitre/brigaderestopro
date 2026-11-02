@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useLayoutEffect, useCallback, useRef } from 'react';
-import { UNITES_PRODUIT_DETAIL, UNITES_PRIX_DETAIL, nbDetail, pluriel, capitale, fmtDetail, eurDetail, eurPrecis, poidsTexte, lireContenu, calculerDetailAchat, detailDepuisProduit } from "./detailAchat.js";
+import { UNITES_PRODUIT_DETAIL, UNITES_PRIX_DETAIL, nbDetail, pluriel, capitale, fmtDetail, eurDetail, eurPrecis, poidsTexte, lireContenu, calculerDetailAchat, detailDepuisProduit, texteCommande } from "./detailAchat.js";
 import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
@@ -5816,7 +5816,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
   const listeMasques = Array.isArray(masques) ? masques : masquesLocaux;
   const changerMasques = (l) => { if (setMasques) setMasques(l); else setMasquesLocaux(l); };
   const produitsParGroupe = {};
-  stock.forEach((x) => { const g = groupeDuProduit(x, groupesBase); if (g === GROUPE_PAUSE.id) return; (produitsParGroupe[g] = produitsParGroupe[g] || []).push(x); });
+  stock.forEach((x) => { if (estPrepMaison(x)) return; const g = groupeDuProduit(x, groupesBase); if (g === GROUPE_PAUSE.id) return; (produitsParGroupe[g] = produitsParGroupe[g] || []).push(x); });
   const groupesPresents = [...groupesBase, GROUPE_NON_CLASSE].filter((g) => (produitsParGroupe[g.id] || []).length > 0);
   const parCategorie = Object.fromEntries(groupesPresents.filter((g) => !listeMasques.includes(g.id)).map((g) => [g.nom, produitsParGroupe[g.id].slice().sort(ordreStockCmp)]));
   const produitsAffiches = Object.values(parCategorie).flat();
@@ -5968,6 +5968,8 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
   );
 }
 
+// Préparation faite en cuisine (sauce, navette garnie, verrine…) : elle a une fiche technique et une DLC, mais ne s'achète pas : jamais dans le stock, l'inventaire ni la commande.
+const estPrepMaison = (s) => normaliserGroupe(s && s.categorie) === "Préparations maison";
 // Préparations maison : pas de référence fournisseur — leur DLC (une fois faites en cuisine) est
 // déjà saisie ailleurs dans Ma Cuisine (fiches techniques, catalogue DLC). Ici, purement informatif.
 const PREPARATIONS_MAISON_REF = [
@@ -16743,9 +16745,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const removeItem = (id) => setStock(stock.filter((s) => s.id !== id));
 
   const produitASupprimer = nomASupprimer.trim() ? stock.find((s) => s.nom.trim().toLowerCase() === nomASupprimer.trim().toLowerCase()) : null;
-  const pasDe = (s) => quantiteParConditionnement(s) || 1;
+  const pasDe = (s) => (s.commande && s.commande.taille > 0 ? s.commande.taille : (quantiteParConditionnement(s) || 1));
+  const libelleLigne = (s, qte) => (s.commande && s.commande.taille > 0 ? texteCommande(s.commande, Number(qte) / s.commande.taille) : `${qte} ${s.unite}`);
   const enAlerte = (s) => Number(s.cible) > 0 && Number(s.quantite) < Number(s.cible);
-  const alertes = stock.filter((s) => s.groupeStock !== GROUPE_PAUSE.id && enAlerte(s));
+  const alertes = stock.filter((s) => !estPrepMaison(s) && s.groupeStock !== GROUPE_PAUSE.id && enAlerte(s));
   const dansPanier = (s) => panier[s.id] != null;
   const qteSuggeree = (s) => { const pas = pasDe(s); const manque = Math.max(0, Number(s.cible) - Number(s.quantite)); return arrondiQte(Math.max(pas, Math.ceil(manque / pas - 1e-9) * pas)); };
   const basculerPanier = (s) => setPanier((p) => { const n = { ...p }; if (n[s.id] != null) delete n[s.id]; else n[s.id] = qteSuggeree(s); return n; });
@@ -16756,9 +16759,9 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const validerCommande = () => {
     const lignes = lignesPanier.filter((s) => Number(panier[s.id]) > 0);
     if (lignes.length === 0) return;
-    const parFournisseur = lignes.reduce((acc, s) => { const f = s.fournisseur || "Fournisseur non renseigné"; (acc[f] = acc[f] || []).push(`${s.nom} — ${panier[s.id]} ${s.unite}`); return acc; }, {});
+    const parFournisseur = lignes.reduce((acc, s) => { const f = s.fournisseur || "Fournisseur non renseigné"; (acc[f] = acc[f] || []).push(`${s.nom} — ${libelleLigne(s, panier[s.id])}`); return acc; }, {});
     const texte = Object.entries(parFournisseur).map(([f, items]) => `${f} :\n${items.map((i) => `  - ${i}`).join("\n")}`).join("\n\n");
-    const bon = { id: uid(), date: todayISO(), employeeId: currentUserId, texte, lignes: lignes.map((s) => ({ nom: s.nom, quantite: panier[s.id], unite: s.unite, fournisseur: s.fournisseur })) };
+    const bon = { id: uid(), date: todayISO(), employeeId: currentUserId, texte, lignes: lignes.map((s) => ({ nom: s.nom, quantite: panier[s.id], unite: s.unite, fournisseur: s.fournisseur, colis: s.commande ? libelleLigne(s, panier[s.id]) : undefined })) };
     setCommandesHistorique([bon, ...commandesHistorique]);
     setDernierBon(bon);
     setPanier({});
@@ -16796,8 +16799,12 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                     </div>
                     <div className="text-xs text-[var(--ink)]"><span className="lg:hidden font-semibold">En stock : </span>{s.quantite} {s.unite}</div>
                     <div className="text-xs text-[var(--ink)]"><span className="lg:hidden font-semibold">À avoir : </span>{s.cible || 0} {s.unite}</div>
-                    <div className="lg:text-center"><CelluleQuantite valeur={panier[s.id]} pas={pasDe(s)} onSet={(n) => setPanier({ ...panier, [s.id]: n })} label={`quantité à commander de ${s.nom}`} /></div>
-                    <div className="text-xs text-[var(--steel)] leading-tight"><b className="text-sm text-[var(--ink)]">{s.unite}</b>{s.conditionnement ? <div>{s.conditionnement}</div> : null}</div>
+                    <div className="lg:text-center">{s.commande && s.commande.taille > 0
+                      ? <CelluleQuantite valeur={arrondiQte(Number(panier[s.id]) / s.commande.taille)} pas={1} onSet={(n) => setPanier({ ...panier, [s.id]: arrondiQte(n * s.commande.taille) })} label={`nombre de ${s.commande.nom} à commander de ${s.nom}`} />
+                      : <CelluleQuantite valeur={panier[s.id]} pas={pasDe(s)} onSet={(n) => setPanier({ ...panier, [s.id]: n })} label={`quantité à commander de ${s.nom}`} />}</div>
+                    <div className="text-xs text-[var(--steel)] leading-tight">{s.commande && s.commande.taille > 0
+                      ? <><b className="text-sm text-[var(--ink)]">{pluriel(s.commande.nom)}</b><div>1 {s.commande.nom} = {fmtDetail(s.commande.taille)} {s.unite} ≈ {eurDetail(s.commande.prixColis)}</div><div className="font-semibold text-[var(--ink)]">Total : {libelleLigne(s, panier[s.id])} ≈ {eurDetail(Number(panier[s.id]) / s.commande.taille * s.commande.prixColis)}</div></>
+                      : <><b className="text-sm text-[var(--ink)]">{s.unite}</b>{s.conditionnement ? <div>{s.conditionnement}</div> : null}</>}</div>
                     <button type="button" onClick={() => basculerPanier(s)} className="text-[var(--steel)] hover:text-[var(--warn)] justify-self-end" title="Retirer du panier"><X size={18} /></button>
                   </div>
                 ))}
@@ -16833,7 +16840,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             {Object.entries(groupesPanier).map(([fournisseur, items]) => {
               const lignesF = items.filter((s) => Number(panier[s.id]) > 0);
               if (lignesF.length === 0) return null;
-              const corps = [`Bonjour,`, ``, `Merci de nous confirmer la commande suivante :`, ``, ...lignesF.map((s) => `- ${s.nom} — ${panier[s.id]} ${s.unite}`), ``, `Cordialement,`].join("\n");
+              const corps = [`Bonjour,`, ``, `Merci de nous confirmer la commande suivante :`, ``, ...lignesF.map((s) => `- ${s.nom}${s.reference ? ` (réf. ${s.reference})` : ""} — ${libelleLigne(s, panier[s.id])}`), ``, `Cordialement,`].join("\n");
               const mailtoHref = `mailto:?subject=${encodeURIComponent(`Commande — ${fournisseur} — ${todayISO()}`)}&body=${encodeURIComponent(corps)}`;
               return (
                 <Card key={fournisseur}>
@@ -16852,7 +16859,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   // ----- écran principal -----
   const q = recherche.trim().toLowerCase();
   const groupesBase = Array.isArray(groupesStock) && groupesStock.length > 0 ? groupesStock : groupesStockParDefaut();
-  const avecCat = stock.map((s) => ({ s, cat: groupeDuProduit(s, groupesBase) }));
+  const avecCat = stock.filter((s) => !estPrepMaison(s)).map((s) => ({ s, cat: groupeDuProduit(s, groupesBase) }));
   const nbParCat = (id) => avecCat.filter((x) => x.cat === id).length;
   const groupesAff = [...groupesBase, ...(nbParCat(GROUPE_NON_CLASSE.id) > 0 ? [GROUPE_NON_CLASSE] : []), GROUPE_PAUSE];
   const catActive = categorieChoisie === "__tous__" || groupesAff.some((g) => g.id === categorieChoisie) ? categorieChoisie : "__tous__";
@@ -16986,7 +16993,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             )}
             <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
-              <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Tous les produits <span className="font-normal opacity-80">({stock.length - nbParCat(GROUPE_PAUSE.id)})</span></span>
+              <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Tous les produits <span className="font-normal opacity-80">({avecCat.length - nbParCat(GROUPE_PAUSE.id)})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
             {groupesAff.map((c) => {
