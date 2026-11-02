@@ -147,3 +147,24 @@ export function detailDepuisProduit(p) {
   }
   return null;
 }
+
+// Ce qu'on commande réellement chez le fournisseur : « 1 carton » = 5 kg / 30 pièces / 6 L. Rend null si le détail ne permet pas de le dire.
+// taille = quantité contenue dans 1 unité commandée, exprimée dans l'unité de comptage du stock (kg, L ou pièces).
+export function infosCommande(d) {
+  const r = calculerDetailAchat(d);
+  if (!r.ok) return null;
+  const nom = String(d.nomColis || "").trim() || (d.vente === "piece" ? "pièce" : "colis");
+  const u = r.derive.unite;
+  let taille = null;
+  if (d.comptage === "piece") taille = r.piecesParColis;
+  else if (d.comptage === "kg" && r.totalPiece && r.totalPiece.unite === "g") taille = r.totalPiece.val / 1000;
+  else if (d.comptage === "l" && r.totalPiece && r.totalPiece.unite === "ml") taille = r.totalPiece.val / 1000;
+  if (!(taille > 0)) return null;
+  taille = Math.round(taille * 1000) / 1000;
+  return { nom, taille, unite: u, prixColis: Math.round(taille * r.derive.prix_achat * 100) / 100 };
+}
+// « 2 cartons = 10 kg » (pour la commande, l'e-mail et le bon).
+export function texteCommande(info, nbColis) {
+  const n = Math.round(nbColis * 1000) / 1000;
+  return `${fmtDetail(n)} ${n > 1 ? pluriel(info.nom) : info.nom} (${fmtDetail(Math.round(n * info.taille * 1000) / 1000)} ${n * info.taille > 1 && !/^(kg|g|l|cl|ml)$/i.test(info.unite) ? pluriel(info.unite) : info.unite})`;
+}
