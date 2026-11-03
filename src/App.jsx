@@ -6178,7 +6178,7 @@ function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrir
     <div>
       <BandeauNormes label="Fournisseurs et produits — traçabilité : Règlement (CE) n° 178/2002, art. 18 · allergènes : Règlement (UE) n° 1169/2011, art. 44" />
       <BoutonRetour onClick={onBack} className="mb-4">Retour</BoutonRetour>
-      <SectionHeader title={vue === "fournisseurs" ? "Fournisseurs" : vue === "produits" ? "Produits" : "Fournisseurs et produits"} subtitle={vue === "fournisseurs" ? "Coordonnées, jours de commande et de livraison de chaque fournisseur" : "Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison."} />
+      <SectionHeader fonction={vue === "fournisseurs" ? "reception" : "stock"} icone={vue === "fournisseurs" ? Truck : Package} title={vue === "fournisseurs" ? "Fournisseurs" : vue === "produits" ? "Produits" : "Fournisseurs et produits"} subtitle={vue === "fournisseurs" ? "Coordonnées, jours de commande et de livraison de chaque fournisseur" : "Fournisseur, référence, conditionnement et prix — reconstitué depuis la fiche prix matières, à recouper avec les vrais bons de livraison."} />
 
       {aValider.length > 0 && !edition && (
         <div className="mb-4 rounded-xl border-2 p-4" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
@@ -18363,9 +18363,9 @@ function BoutonInfosNormes({ ficheKey, onClick, label, texte, permanent }) {
 function BandeauNormes({ label, permanent }) {
   if (!permanent && !rectanglesNormesActifs()) return null;
   return (
-    <div className="mb-4 w-full flex items-center gap-3 px-4 py-2.5 rounded-xl text-left shadow-sm text-white" style={{ backgroundColor: "#C1432D" }}>
-      <BookOpen size={20} className="shrink-0" />
-      <span className="block text-xs sm:text-sm font-bold leading-snug">⚠ {label}</span>
+    <div className="mb-2 w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left border-2 shadow-sm" style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
+      <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
+      <span className="min-w-0 flex-1 text-xs font-bold leading-snug">⚠ {label}</span>
     </div>
   );
 }
