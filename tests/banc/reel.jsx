@@ -35,4 +35,36 @@ if (q.get('cat') === '1') {
   identite.catalogue = bruts.map((p) => ({ id: p.id, nom: p.nom, categorie: p.conservation === 'surgele' ? 'Surgelés' : p.categorie, conservation: p.conservation, groupeStock: '', ordreStock: null, detailAchat: p.detail_achat, fournisseur: 'Fournisseur 1', reference: p.reference, conditionnement: p.conditionnement, prixUnitaire: `${String(p.prix_achat).replace('.', ',')} ${p.prix_unite}`, poidsParPiece: '', referenceVerifiee: true, note: p.note, allergenesNorme: '', origineNorme: '', quantite: p.quantite_stock, cible: p.quantite_cible, unite: p.unite, lot: '', dlc: '', typeDate: '', dlcJours: null, delaiOuverture: null, decongelMethode: '', decongelJours: null, decongelSource: '', brut: p }));
   identite.gestionCatalogue = { enregistrer: async () => {} };
 }
+// ?plein=1 : listes FICTIVES remplies (relevés, cuissons, refroidissements, huiles, traçabilité, réceptions) pour vérifier les écrans pleins.
+if (q.get('plein') === '1') {
+  const j = new Date(); const auj = `${j.getFullYear()}-${String(j.getMonth() + 1).padStart(2, '0')}-${String(j.getDate()).padStart(2, '0')}`;
+  const t = Date.now();
+  identite.listes = {
+    equipements: [
+      { id: 'f1', nom: 'Frigo test 1', type: 'frigo', min: 0, max: 4, sonde: null, sondeConnectee: false },
+      { id: 'f2', nom: 'Congélateur test', type: 'congelateur', min: null, max: -18, sonde: null, sondeConnectee: false },
+    ],
+    releves: [
+      { id: 'r1', equipementId: 'f1', valeur: 3, date: auj, heure: '08:05', employeeId: 'e-chef', conforme: true, manuel: true, note: '' },
+      { id: 'r2', equipementId: 'f2', valeur: -15, date: auj, heure: '08:06', employeeId: 'e-chef', conforme: false, manuel: true, note: 'porte mal fermée' },
+    ],
+    cuissons: [
+      { id: 'c1', produit: 'Poulet test', famille: 'volaille', date: auj, employeeId: 'e-chef', statut: 'termine', heureDebut: '10:00', heureFin: '10:40', debutTs: t - 7200000, dureeAttendueMin: 40, temperature: 82, conforme: true },
+      { id: 'c2', produit: 'Sauce test', famille: 'general', date: auj, employeeId: 'e-chef', statut: 'en-cours', heureDebut: '11:30', debutTs: t - 600000, dureeAttendueMin: 30, heureFin: null, temperature: null, conforme: null },
+    ],
+    refroidissements: [
+      { id: 'rf1', date: auj, employeeId: 'e-chef', produit: 'Bolognaise test', type: 'positif', statut: 'termine', heureDebut: '09:00', heureFin: '10:30', debutTs: t - 9000000, tempDebut: 70, tempFin: 8, conforme: true },
+    ],
+    huileTests: [
+      { id: 'h1', employeeId: 'e-chef', date: auj, heure: '09:10', valeur: 'Test bandelette', resultat: 'conforme', photo: null, bain: 'Friteuse 1' },
+    ],
+    preparations: [
+      { id: 'pr1', produitId: null, nomLibre: 'Pâte à pizza test', employeeId: 'e-chef', date: auj, heure: '09:30', quantite: 2, dlcDate: auj, jete: false, jeteDate: null, photo: null, lot: 'L-TEST-1' },
+    ],
+    receptions: [
+      { id: 'rc1', receptionId: 'R1', date: auj, heure: '07:45', employeeId: 'e-chef', fournisseur: 'Fournisseur 1', produit: 'Flan test', quantite: 8, lot: 'LOT1', dlc: auj, conforme: true, temperature: -19, valideChef: false },
+      { id: 'rc2', receptionId: 'R1', date: auj, heure: '07:45', employeeId: 'e-chef', fournisseur: 'Fournisseur 1', produit: 'Crème test', quantite: 2, lot: 'LOT2', dlc: auj, conforme: false, raison: 'Température trop haute', quantiteNC: 2, temperature: 9, valideChef: false },
+    ],
+  };
+}
 ReactDOM.createRoot(document.getElementById('root')).render(<App identiteExterne={identite} />);

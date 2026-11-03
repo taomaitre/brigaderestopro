@@ -528,6 +528,7 @@ const texteLisible = (fond, voulu) => {
   return contrasteHex(fond, "#ffffff") >= contrasteHex(fond, "#1D2321") ? "#ffffff" : "#1D2321";
 };
 // Fonce une couleur (mélange avec du noir) jusqu'à ce qu'elle se lise sur fond blanc teinté (titres de zone, petits textes).
+const texteSurDegrade = (fond) => { const m = String(fond || "").match(/#[0-9A-Fa-f]{6}/g); if (!m) return "#ffffff"; const pire = m.reduce((a, c) => (contrasteHex(c, "#ffffff") < contrasteHex(a, "#ffffff") ? c : a)); return texteLisible(pire, "#ffffff"); };
 const foncerPourTexte = (hex, fond = "#FFFFFF") => { let h = hex; for (let i = 0; i < 12 && contrasteHex(h, fond) < 4.5; i++) { const n = parseInt(h.slice(1), 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => Math.round(x * 0.88)); h = "#" + c.map((x) => x.toString(16).padStart(2, "0")).join(""); } return h; };
 // Couleurs de RÔLE (validées par Loïc le 25/10) : la même sur toutes les pages, quelle que soit la fonction de la page.
 // principal = couleur de la fonction (ZoneContext) ; contrôle = ambre ; historique = vert sapin ; information = bleu très pâle.
@@ -1611,8 +1612,10 @@ function Button({ children, onClick, variant = "primary", type = "button", class
     primary: "bg-[var(--accent)] text-white hover:bg-[#255a42]",
     ghost: "bg-transparent text-[var(--ink)] hover:bg-[var(--bg)] border border-[var(--line)]",
     danger: "bg-transparent text-[var(--warn)] hover:bg-[var(--warn-soft)]",
+    controle: "text-white hover:brightness-95",
   };
-  const styleAssure = variant === "primary" ? { backgroundColor: "#2F6B4F", color: "#ffffff", ...style } : style;
+  // « controle » : couleur de rôle « contrôle » (ambre, la même sur toutes les pages — règle du 25/10).
+  const styleAssure = variant === "primary" ? { backgroundColor: "#2F6B4F", color: "#ffffff", ...style } : variant === "controle" ? { background: "linear-gradient(160deg, #C2620A 0%, #92400E 100%)", color: "#ffffff", ...style } : style;
   return (
     <button
       type={type}
@@ -4946,6 +4949,33 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   const surveillancesDuJour = surveillancesFroid.filter((s) => s.date === today);
 
   const menuParamSombre = modeParametrage && slotMenuParam ? createPortal(construireMenuParam(true), slotMenuParam) : null;
+  // Sommaire à gauche (ordinateur et tablette) de Suivi et contrôle et de l'Historique, comme celui du Stock (demande de Loïc, 03/11) :
+  // un bouton par module, à sa couleur et avec son logo, toujours visible pour passer d'un module à l'autre.
+  const idsSommaire = modeParametrage ? null : (modeHistorique ? HISTORIQUE_IDS : SUIVI_IDS);
+  const actifSommaire = tracabiliteCompleteActif ? "tracabilite" : (sousEcran || (!sectionActive ? "__accueil__" : null));
+  const allerSommaire = (id) => {
+    setTracabiliteCompleteActif(false); setVerifReceptionsActif(false); setReferentielActif(false); setImpressionDossier(null);
+    if (id === "__accueil__") { setSousEcran(null); setSectionActive(null); return; }
+    const t = paramTuile(id); if (t) setSectionActive(t.section); setSousEcran(null); ouvrirSousTuile(id);
+  };
+  const sommaireCG = idsSommaire ? (
+    <nav aria-label={modeHistorique ? "Sommaire de l'historique" : "Sommaire de Suivi et contrôle"} className="hidden md:block md:w-64 md:shrink-0 md:sticky md:top-2 md:self-start mb-4">
+      <CarteZone icone={ListChecks} titre="Sommaire" sous={modeHistorique ? "Choisissez un historique" : "Choisissez un module"}>
+        <div className="flex flex-col gap-2">
+          {[["__accueil__", modeHistorique ? "Tous les historiques" : "Alertes à vérifier", modeHistorique ? Clock : AlertTriangle, COULEURS_FONCTION[modeHistorique ? "historique" : "controle"] || COULEURS_FONCTION.stock],
+            ...idsSommaire.map((id) => { const t = paramTuile(id); if (!t || !tuileVisible(t)) return null; const sec = SECTIONS_CG.find((x) => x.id === t.section); return [id, (modeHistorique ? HISTORIQUE_LIBELLES : SUIVI_LIBELLES)[id] || t.label, t.icon, couleurSousTuile(id, sec && sec.couleur)]; }).filter(Boolean)]
+            .map(([id, libelle, Ic, c]) => (
+              <button key={id} type="button" onClick={() => allerSommaire(id)} className="flex items-center gap-2.5 rounded-lg px-3 min-h-[48px] py-1.5 text-left" style={{ background: (c && c.fond) || "#475569", color: texteSurDegrade(c && c.fond), outline: actifSommaire === id ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+                <Ic size={20} className="shrink-0" />
+                <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{libelle}</span>
+                <ChevronRight size={16} className="shrink-0" />
+              </button>
+            ))}
+        </div>
+      </CarteZone>
+    </nav>
+  ) : null;
+  const encadrerSommaire = (contenu) => (sommaireCG ? <div className="md:flex md:gap-6 md:items-start">{sommaireCG}<div className="flex-1 min-w-0">{contenu}</div></div> : contenu);
   if (pmsImpression) {
     return <PmsDossierImprimable reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onBack={() => setPmsImpression(false)} />;
   }
@@ -4964,21 +4994,22 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   }
 
   if (tracabiliteCompleteActif) {
-    return <>{menuParamSombre}<TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => { setTracabiliteCompleteActif(false); finOverlay(); }} /></>;
+    return encadrerSommaire(<>{menuParamSombre}<TracabiliteChef preparations={preparations} produits={produits} employees={employees} onBack={() => { setTracabiliteCompleteActif(false); finOverlay(); }} /></>);
   }
 
   const fonctionZoneControle = ({ planning: "taches", temperatures: "temperatures", huile: "huile", cuisson: "cuisson", cellule: "cellule", maintien: "maintien", tracabilite: "tracabilite", creationFiche: "creationFiche", carte: "carte", fournisseur: "fournisseur", commandes: "commandes", pms: "pms", pmsDossier: "pmsDossier", pmsPrestataires: "pmsPrestataires", allergenes: "allergenes", origine: "origine", tiac: "tiac", historiqueJour: "historiqueJour", dossierControle: "dossierControle", comptes: "comptes", rappelconso: "rappelconso", alertes: "alertes", notifications: "notifications", appareilsFroid: "temperatures" })[sousEcran] || ({ equipe: "planningEmploye", controle: "controle", reception: "reception", cuisine: "carte", hygiene: "pms", urgence: "tiac", reglages: "comptes" })[sectionActive] || "controle";
   return (
     <ZoneContext.Provider value={zoneDepuisFonction(fonctionZoneControle)}>
-    <div className={modeParametrage ? "md:flex md:gap-6 md:items-start" : undefined}>
+    <div className={modeParametrage || sommaireCG ? "md:flex md:gap-6 md:items-start" : undefined}>
       {menuParamSombre}
+      {sommaireCG}
       {modeParametrage && (
         <nav aria-label="Paramétrage" className={`${slotMenuParam ? "md:hidden" : "md:w-72 md:shrink-0"} ${sousEcran || ecranPlanningParam ? "hidden md:block" : ""} mb-4`} style={slotMenuParam && (sousEcran || ecranPlanningParam) ? { display: "none" } : undefined}>
           <SectionHeader title="Paramétrage" subtitle="Tous les réglages au même endroit" permanent icone={Settings} />
           {construireMenuParam(false)}
         </nav>
       )}
-      <div className={modeParametrage ? "flex-1 min-w-0" : undefined}>
+      <div className={modeParametrage || sommaireCG ? "flex-1 min-w-0" : undefined}>
       {modeParametrage && sousEcran && (
         <>
           <BoutonRetour onClick={() => setSousEcran(null)} className="mb-3 md:hidden">Retour au Paramétrage</BoutonRetour>
@@ -10175,8 +10206,8 @@ function BlocPasDeDroit({ sujet, onDebloque, onFermer }) {
     setEnvoye(true);
   };
   return (
-    <div className="rounded-xl border-2 px-3 py-3 mt-2" style={{ borderColor: "#E0A100", backgroundColor: "#FFF4CC" }}>
-      <p className="text-sm font-bold" style={{ color: "#6B4A00" }}>Vous n'êtes pas en mesure de le faire : demandez à vos supérieurs.</p>
+    <div className="rounded-xl border-2 px-3 py-3 mt-2" style={{ borderColor: ROLES_COULEUR.information.bord, backgroundColor: ROLES_COULEUR.information.fond }}>
+      <p className="text-sm font-bold" style={{ color: ROLES_COULEUR.information.texte }}>Vous n'êtes pas en mesure de le faire : demandez à vos supérieurs.</p>
       {envoye ? (
         <p className="text-sm font-semibold mt-2" style={{ color: "#146B45" }}>✓ Demande envoyée au chef.</p>
       ) : (
@@ -12933,8 +12964,7 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
 
   return (
     <div>
-      <div className="flex flex-wrap items-center gap-3 mb-4">
-        <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ backgroundColor: "#E0A31C" }}><AlertTriangle size={26} /></span>
+      <div className="mb-4">
         <div className="min-w-0">
           <h3 className="text-lg font-bold text-[var(--ink)]">Tableau complet des plats et allergènes</h3>
           <p className="text-xs text-[var(--steel)]">Tous les plats (ou produits) avec leurs 14 allergènes dans un seul tableau, sans pages. Cliquez sur le nom d'un plat pour voir d'où vient chaque allergène.</p>
@@ -14326,7 +14356,7 @@ function HaccpTemperatures({
                             <Button variant="ghost" onClick={() => setCorrectionOuverte(null)}>Annuler</Button>
                           </div>
                         ) : (
-                          <button type="button" onClick={() => setCorrectionOuverte(eq.id)} className="min-h-[40px] px-3 rounded-lg text-sm font-bold text-white" style={{ background: "linear-gradient(160deg, #D64545 0%, #A62828 100%)" }}>Correction apportée</button>
+                          <button type="button" onClick={() => setCorrectionOuverte(eq.id)} className="min-h-[40px] px-3 rounded-lg text-sm font-bold text-white" style={{ background: "linear-gradient(160deg, #C2620A 0%, #92400E 100%)" }}>Correction apportée</button>
                         )
                       ) : <span className="text-xs text-[var(--steel)]">—</span>}
                     </td>
@@ -14355,7 +14385,7 @@ function HaccpTemperatures({
                   {!form ? (
                     <div className="flex items-center gap-2">
                       <input className={`${inputCls} w-28`} type="number" step="0.1" placeholder="Nouvelle température (°C)" value={recontrole[s.id] ?? ""} onChange={(e) => setRecontrole({ ...recontrole, [s.id]: e.target.value })} />
-                      <Button onClick={() => recontroler(s)}>Recontrôler</Button>
+                      <Button variant="controle" onClick={() => recontroler(s)}>Recontrôler</Button>
                     </div>
                   ) : (
                     <div>
@@ -17380,10 +17410,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
               <div data-depot={"ligne:" + s.id} {...(peutGlisser ? glisse.props(s.id, s.nom) : {})} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_11rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center"
                 style={{ opacity: glisse.etat && glisse.etat.id === s.id ? 0.35 : 1, boxShadow: glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "ligne" && glisse.etat.cible.id === s.id && glisse.etat.id !== s.id ? (glisse.etat.cible.apres ? "inset 0 -4px 0 #F5B301" : "inset 0 4px 0 #F5B301") : "none", WebkitTouchCallout: "none" }}>
                 <div className="col-span-2 lg:col-span-1 min-w-0">
-                  {estChefStock ? <button type="button" data-poignee={peutGlisser ? "nom" : undefined} onClick={() => setProduitDetail(s.id)} className="text-left text-sm font-semibold text-[var(--accent)] break-words leading-tight hover:underline">{peutGlisser && <span data-poignee="grip" style={{ touchAction: "none" }} className="inline-block mr-1.5 text-[var(--steel)] cursor-grab select-none" title="Maintenir pour déplacer" aria-hidden="true">⠿</span>}{s.nom}</button> : <div className="text-sm font-semibold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
-                  <input className="text-sm font-bold text-[#1D2321] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
+                  {estChefStock ? <button type="button" data-poignee={peutGlisser ? "nom" : undefined} onClick={() => setProduitDetail(s.id)} className="text-left text-base font-bold text-[#1D2321] break-words leading-tight hover:underline">{peutGlisser && <span data-poignee="grip" style={{ touchAction: "none" }} className="inline-block mr-1.5 text-[var(--steel)] cursor-grab select-none" title="Maintenir pour déplacer" aria-hidden="true">⠿</span>}{s.nom}</button> : <div className="text-base font-bold text-[var(--ink)] break-words leading-tight">{s.nom}</div>}
+                  <input className="text-xs font-semibold text-[var(--steel)] bg-transparent border-0 border-b border-transparent hover:border-[var(--line)] focus:border-[var(--accent)] focus:outline-none w-full" placeholder="Fournisseur non renseigné" value={s.fournisseur} onChange={(e) => updateFournisseur(s.id, e.target.value)} />
                   {s.reference ? <div className="mt-0.5"><span className="inline-block px-2 py-0.5 rounded-md text-xs font-bold" style={{ background: "#E8ECEA", color: "#1D2321" }}>Code : {s.reference}</span></div> : null}
-                  {s.conditionnement ? <div className="mt-1 rounded-md px-2 py-1 text-sm font-semibold leading-snug" style={{ background: "#E6F6F8", color: "#0B4F5E" }}>{s.conditionnement}</div> : null}
+                  {s.conditionnement ? <div className="mt-1 inline-block rounded-md px-2 py-0.5 text-xs font-medium leading-snug" style={{ background: "#EEF1EF", color: "#3A433E" }}>{s.conditionnement}</div> : null}
                   {estAValider(s.note) && (
                     <div className="mt-1">
                       <button type="button" onClick={() => { if (acces.estResponsable && rapideStock && rapideStock.ouvrirProduitAcompleter) rapideStock.ouvrirProduitAcompleter(s.id, "reference"); else setProduitSansDroit(s.id); }}
@@ -20698,7 +20728,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
           </div>
           {produitsF.length === 0 && <p className="px-4 py-6 text-sm text-[var(--steel)]">Aucun produit saisi.</p>}
           {produitsF.some((p) => p.tempManquante && !p.manquant) && (
-            <div className="px-4 py-3 text-sm border-b border-[var(--line)]" style={{ backgroundColor: "#FDF0D5", color: "#8A5A00" }}>
+            <div className="px-4 py-3 text-sm border-b border-[var(--line)]" style={{ backgroundColor: "#FEF2F2", color: "#7F1D1D" }}>
               ⚠ Température non relevée pour : {produitsF.filter((p) => p.tempManquante && !p.manquant).map((p) => p.nom).join(", ")}. Ces produits ne sont pas contrôlés. <button type="button" className="underline font-semibold" onClick={() => setEtape(2)}>Retourner aux températures</button>
             </div>
           )}
@@ -22111,7 +22141,7 @@ Une entrée par réservation visible. Si une information est illisible ou absent
             📥 Importer mes réservations (Excel, PDF, photo…) {importOuvert ? "▲" : "▼"}
           </button>
           {importOuvert && (
-            <div className="rounded-xl mt-2 p-3 border-2" style={{ background: "#F3FBFC", borderColor: "#0E7490" }}>
+            <div className="rounded-xl mt-2 p-3 border-2" style={{ background: ROLES_COULEUR.information.fond, borderColor: ROLES_COULEUR.information.bord }}>
               <p className="text-xs text-[var(--ink)] mb-3">Importez un fichier Excel ou CSV (un modèle est fourni), le texte d'un PDF ou un tableau copié-collé, ou prenez une photo / capture d'écran lue par l'IA. Une ligne = une réservation (même date, heure et nom : la réservation est mise à jour). Rien n'est enregistré avant que vous ayez relu l'aperçu et validé.</p>
               <CarteImportExcelReservations
                 compact
