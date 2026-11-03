@@ -32,7 +32,7 @@ export function calculerDetailAchat(d) {
   if (d.vente === "piece" && nbSous > 0 && !(nbPieces > 0)) out.erreurs.push("Indiquez le nombre de pièces dans chaque " + (d.nomSous || "sachet") + ".");
   const piecesParSous = avecPieces ? (nbPieces > 0 ? nbPieces : 1) : 1;
   const piecesParColis = avecPieces ? (nbSous > 0 ? nbSous * piecesParSous : piecesParSous) : 1;
-  out.piecesParColis = piecesParColis; out.piecesParSous = piecesParSous;
+  out.piecesParColis = piecesParColis; out.piecesParSous = piecesParSous; out.nbSous = nbSous;
   // Poids / volume total de ce qu'on commande, et d'une pièce : l'un se déduit de l'autre.
   const ptBrut = nbDetail(d.poidsColis);
   const ptU = ["kg", "l", "ml"].includes(d.poidsColisUnite) ? d.poidsColisUnite : "g";
@@ -97,6 +97,11 @@ export function calculerDetailAchat(d) {
   if (prix > 0 && ptBase > 0 && (prixPour === "colis" || (prixPour === "sous" && nbSous > 0))) {
     const base = (prixPour === "sous" ? ptBase / nbSous : ptBase) / 1000;
     if (ptMat === "g") prixKg = prix / base; else prixL = prix / base;
+  }
+  // Kilo <-> litre : avec l'équivalence poids / volume (glace, sauce…), l'un se déduit de l'autre (densité en kg par litre).
+  if (out.densite) {
+    if (prixKg != null && prixL == null) prixL = prixKg * out.densite;
+    else if (prixL != null && prixKg == null) prixKg = prixL / out.densite;
   }
   Object.assign(out, { prixPiece, prixKg, prixL });
   const nomPiece = String(d.nomPiece || "").trim() || "pièce";
