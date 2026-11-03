@@ -6560,7 +6560,7 @@ function GuideAchatProduit({ v, setV, prerempli, Zone }) {
               <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1.2fr)] gap-1.5">
                 <input inputMode="decimal" aria-label="Prix HT" className={champ} style={sty} placeholder="ex. 64,24" value={d.prix ?? ""} onChange={(e) => chg({ prix: e.target.value, ...(d.prixPour ? {} : { prixPour: base === "kilo" ? "kg" : base === "litre" ? "l" : "colis" }) }, !d.prixPour)} />
                 <select aria-label="Le prix est pour" className={champ} style={sty} value={d.prixPour || (base === "kilo" ? "kg" : base === "litre" ? "l" : "colis")} onChange={(e) => chg({ prixPour: e.target.value }, true)}>
-                  {!kiloLitre && <option value="colis">pour {nomUnite === "lot" ? "le lot" : `le ${nomColisSaisi}`}</option>}
+                  {!kiloLitre && <option value="colis">pour {nomUnite === "lot" ? "le lot" : `${/^(boîte|boite|barquette|bouteille|brique|caisse|plaque|poche|botte|pièce)$/i.test(nomColisSaisi) ? "la" : "le"} ${nomColisSaisi}`}</option>}
                   {d.prixPour === "sous" && <option value="sous">pour 1 {d.nomSous || "sachet"}</option>}
                   {d.prixPour === "piece" && <option value="piece">pour 1 {nomPiece}</option>}
                   <option value="kg">pour 1 kilo</option>
@@ -24934,7 +24934,7 @@ function ShiftEditor({ initial, onSave, onCancel, onDelete }) {
 function DeviceTypeGate({ onChoisir }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-6" style={{
-      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#4F5853", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA",
       backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
     }}>
@@ -24981,7 +24981,7 @@ function PersonalCodeGate({ employees, onValide }) {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-6" style={{
-      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#4F5853", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA",
       backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
     }}>
@@ -25016,7 +25016,7 @@ function PersonalCodeGate({ employees, onValide }) {
 function LoginGate({ employees, lastUserId, onSelect }) {
   return (
     <div className="min-h-screen flex items-center justify-center p-6" style={{
-      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#4F5853", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--gold": "#B98A2E", "--gold-soft": "#F5ECD8",
       backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
     }}>
@@ -26520,7 +26520,7 @@ function KitchenApp({ identiteExterne } = {}) {
     <RapideContext.Provider value={valeurRapide}>
     <BarreChefSlotContext.Provider value={reclamerSlotBarreChef}>
     <div className={`min-h-screen flex flex-col ${modeExterne ? "md:grid md:grid-cols-[15rem_minmax(0,1fr)] md:grid-rows-[auto_1fr]" : "md:flex-row"}`} style={{
-      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#657069", "--line": "#DEE2DE",
+      "--bg": "#F5F6F4", "--ink": "#1D2321", "--steel": "#4F5853", "--line": "#DEE2DE",
       "--accent": "#2F6B4F", "--accent-soft": "#E6F0EA", "--warn": "#C1432D", "--warn-soft": "#FBE8E3",
       "--gold": "#B98A2E", "--gold-soft": "#F5ECD8",
       backgroundColor: "var(--bg)", fontFamily: "'Inter', ui-sans-serif, system-ui, -apple-system, sans-serif",
