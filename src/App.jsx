@@ -516,8 +516,19 @@ ACCUEIL_TUILES.forEach((t) => { const c = COULEURS_FONCTION[({ haccpTemp: "tempe
 const zoneDepuisFonction = (id) => {
   const c = COULEURS_FONCTION[id]; if (!c) return null;
   const m = /(#[0-9A-Fa-f]{6}) 0%, (#[0-9A-Fa-f]{6})/.exec(c.fond); if (!m) return null;
-  return { bord: m[1], fond: `${m[1]}22`, texte: m[2] };
+  return { bord: m[1], fond: `${m[1]}22`, texte: foncerPourTexte(m[2], "#F2F2F2") };
 };
+// Lisibilité (règle du 02/11 : texte clair sur fond foncé, texte foncé sur fond clair) : on garde la couleur de texte voulue
+// si elle se lit bien sur le fond, sinon on prend le blanc ou le noir, celui qui se lit le mieux.
+const lumHex = (hex) => { const h = String(hex || "").replace("#", ""); if (!/^[0-9a-f]{6}$/i.test(h)) return null; const f = (i) => { const x = parseInt(h.slice(i, i + 2), 16) / 255; return x <= 0.03928 ? x / 12.92 : ((x + 0.055) / 1.055) ** 2.4; }; return 0.2126 * f(0) + 0.7152 * f(2) + 0.0722 * f(4); };
+const contrasteHex = (a, b) => { const la = lumHex(a), lb = lumHex(b); if (la == null || lb == null) return 21; return (Math.max(la, lb) + 0.05) / (Math.min(la, lb) + 0.05); };
+const texteLisible = (fond, voulu) => {
+  const v = voulu === "#fff" ? "#ffffff" : voulu;
+  if (contrasteHex(fond, v) >= 4.5) return voulu;
+  return contrasteHex(fond, "#ffffff") >= contrasteHex(fond, "#1D2321") ? "#ffffff" : "#1D2321";
+};
+// Fonce une couleur (mélange avec du noir) jusqu'à ce qu'elle se lise sur fond blanc teinté (titres de zone, petits textes).
+const foncerPourTexte = (hex, fond = "#FFFFFF") => { let h = hex; for (let i = 0; i < 12 && contrasteHex(h, fond) < 4.5; i++) { const n = parseInt(h.slice(1), 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => Math.round(x * 0.88)); h = "#" + c.map((x) => x.toString(16).padStart(2, "0")).join(""); } return h; };
 // Couleurs de RÔLE (validées par Loïc le 25/10) : la même sur toutes les pages, quelle que soit la fonction de la page.
 // principal = couleur de la fonction (ZoneContext) ; contrôle = ambre ; historique = vert sapin ; information = bleu très pâle.
 const ROLES_COULEUR = {
@@ -5667,13 +5678,8 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
 
       {sousEcran === "creationFiche" && !(stockCatalogue && choixFiche) && (
         <div className="mb-6">
-          {!!stockCatalogue && (
-            <div className="flex flex-wrap gap-2 mb-4">
-              <Button onClick={() => setChoixFiche("dupliquer")}>Dupliquer une fiche existante</Button>
-              <Button variant="ghost" onClick={() => setChoixFiche("modifier")}>Modifier une fiche existante</Button>
-            </div>
-          )}
           <CreationFicheTechniqueComplete
+            actionsChef={stockCatalogue ? <><Button onClick={() => setChoixFiche("dupliquer")}>Dupliquer une fiche existante</Button><Button variant="ghost" onClick={() => setChoixFiche("modifier")}>Modifier une fiche existante</Button></> : null}
             fiches={fiches}
             fichesCustom={fichesCustom}
             setFichesCustom={setFichesCustom}
@@ -5909,7 +5915,7 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
                 const actif = !listeMasques.includes(g.id);
                 return (
                   <button key={g.id} type="button" onClick={() => changerMasques(actif ? [...listeMasques, g.id] : listeMasques.filter((i) => i !== g.id))}
-                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border-2" style={actif ? { background: g.fond, color: g.texte, borderColor: g.fond } : { background: "#fff", color: "#6B7280", borderColor: "#D1D5DB", textDecoration: "line-through" }}>
+                    className="px-3 py-1.5 rounded-lg text-xs font-semibold border-2" style={actif ? { background: g.fond, color: texteLisible(g.fond, g.texte), borderColor: g.fond } : { background: "#fff", color: "#6B7280", borderColor: "#D1D5DB", textDecoration: "line-through" }}>
                     <span className="inline-flex items-center gap-1.5">{React.createElement(logoGroupe(g), { size: 14, className: "shrink-0" })}{actif ? "✓ " : ""}{g.nom} ({produitsParGroupe[g.id].length})</span>
                   </button>
                 );
@@ -6285,7 +6291,7 @@ function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrir
                 <ul className="divide-y divide-[var(--line)]">
                   {(groupement === "fournisseur" ? sousGroupesDe(parGroupe[cat]) : [{ g: null, items: parGroupe[cat] }]).map(({ g, items }) => (
                     <React.Fragment key={g ? g.id : "tous"}>
-                      {g && <li className="px-4 py-1.5 flex items-center justify-between text-xs font-bold" style={{ backgroundColor: g.fond, color: g.texte }}><span className="inline-flex items-center gap-1.5">{React.createElement(logoGroupe(g), { size: 15, className: "shrink-0" })}{g.nom}</span><span className="font-semibold opacity-90">{items.length} produit(s)</span></li>}
+                      {g && <li className="px-4 py-1.5 flex items-center justify-between text-xs font-bold" style={{ backgroundColor: g.fond, color: texteLisible(g.fond, g.texte) }}><span className="inline-flex items-center gap-1.5">{React.createElement(logoGroupe(g), { size: 15, className: "shrink-0" })}{g.nom}</span><span className="font-semibold opacity-90">{items.length} produit(s)</span></li>}
                       {items.map((s) => ligneProduit(s))}
                     </React.Fragment>
                   ))}
@@ -11485,7 +11491,7 @@ function ChipsMulti({ label, baseOptions, customOptions, setCustomOptions, selec
   );
 }
 
-function CreationFicheTechniqueComplete({ fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard, avecModes, ficheInitiale, modeEdition, onTermine, reglagesEtablissement, demandesAjout, signalerAjout, gestionCatalogue, fournisseursCatalogue }) {
+function CreationFicheTechniqueComplete({ actionsChef, fiches, fichesCustom, setFichesCustom, stock, employees, currentUserId, logActivity, estChef, allergenesProduits, allergenesStandard, avecModes, ficheInitiale, modeEdition, onTermine, reglagesEtablissement, demandesAjout, signalerAjout, gestionCatalogue, fournisseursCatalogue }) {
   const [S, setS] = useState(() => (ficheInitiale ? ficheVersFormulaire(ficheInitiale, modeEdition) : ficheVideInit()));
   const modifier = !!ficheInitiale && modeEdition === "modifier";
   // Nouvelle version : les postes sont ceux de l'équipe (src/listesEquipe.js), pour que le poste d'une fiche
@@ -11800,6 +11806,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
   return (
     <div>
       <SectionHeader permanent title={modifier ? "Modification de la fiche technique" : ficheInitiale ? "Copie de la fiche technique" : "Création de fiche technique"} subtitle={`Questionnaire en 7 étapes — la fiche se construit en direct ${avecModes ? "à droite" : "ci-dessous"}, puis crée automatiquement ses liens stock, HACCP, étiquette et traçabilité`} />
+      {actionsChef ? <div className="flex flex-wrap justify-center gap-2 mb-4">{actionsChef}</div> : null}
 
       {confirmation && (
         <Card className="mb-6 bg-[var(--accent-soft)] border-[var(--accent)]/30">
@@ -13266,13 +13273,13 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
       {apercuOuvert && carte && <ApercuCarte carte={carte} plats={plats} categories={categories} onClose={() => setApercuOuvert(false)} />}
       {carte && (
         <div className="flex flex-wrap gap-2 mb-4">
-          {[...(estChef ? [["creer", "Créer la carte", "#2E86D6"]] : []), ["semaine", "Carte de la semaine", "#D9691A"], ["apercu", "Aperçu", "#6E36AE"], ...(estChef && periodique ? [["periodes", "Périodes", "#16A085"]] : []), ...(estChef ? [["gerer", "Changer un plat · quantités · préparations", "#5D6D7E"]] : [])].map(([k, lib, col]) => (
+          {[...(estChef ? [["creer", "Créer la carte", "#1F6FB8"]] : []), ["semaine", "Carte de la semaine", "#B35410"], ["apercu", "Aperçu", "#6E36AE"], ...(estChef && periodique ? [["periodes", "Périodes", "#117864"]] : []), ...(estChef ? [["gerer", "Changer un plat · quantités · préparations", "#5D6D7E"]] : [])].map(([k, lib, col]) => (
             <button key={k} type="button" onClick={() => setVueCarte(k)} className="px-4 py-2.5 rounded-full text-sm font-semibold border-2" style={vue === k ? { background: col, color: "#fff", borderColor: col } : { background: "#fff", color: col, borderColor: col }}>{lib}</button>
           ))}
         </div>
       )}
       {periodique && vue === "periodes" && (
-        <PanneauStyle titre="Période de la carte" aide="Choisissez la carte à afficher ou créez la période suivante" couleur="#2E86D6" teinte="#E6F0FB">
+        <PanneauStyle titre="Période de la carte" aide="Choisissez la carte à afficher ou créez la période suivante" couleur="#1F6FB8" teinte="#E6F0FB">
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
             {triees.map((c) => {
               const active = carte && c.id === carte.id; const courante = c.debut <= aujourdhui && aujourdhui <= c.fin;
@@ -13289,11 +13296,11 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
       )}
       {carte && estChef && vue === "gerer" && <ChangerCarte carte={carte} majCarte={majCarte} plats={plats} categories={categories} nomDe={nomDe} aujourdhui={aujourdhui} />}
       {carte && (
-        <PanneauStyle titre={vue === "creer" ? "Créer la carte" : vue === "semaine" ? "Carte de la semaine" : vue === "apercu" ? "Aperçu de la carte" : "Plats de la carte"} aide={vue === "creer" ? "Cochez plusieurs plats, choisissez plusieurs jours, validez" : "Ajoutez des plats depuis les fiches techniques, choisissez leurs jours de service"} couleur="#D9691A" teinte="#FDF3E7">
+        <PanneauStyle titre={vue === "creer" ? "Créer la carte" : vue === "semaine" ? "Carte de la semaine" : vue === "apercu" ? "Aperçu de la carte" : "Plats de la carte"} aide={vue === "creer" ? "Cochez plusieurs plats, choisissez plusieurs jours, validez" : "Ajoutez des plats depuis les fiches techniques, choisissez leurs jours de service"} couleur="#B35410" teinte="#FDF3E7">
           {!estChef && <h3 className="font-semibold text-[var(--ink)] mb-3">{carte.nom}</h3>}
 
           {estChef && vue === "creer" && (() => {
-            const COUL_CAT = ["#2874A6", "#D35400", "#8E44AD", "#16A085", "#B7950B", "#117A65", "#5D6D7E", "#C0629A"];
+            const COUL_CAT = ["#2874A6", "#B34700", "#8E44AD", "#117864", "#8A6F06", "#117A65", "#5D6D7E", "#A3487C"];
             const typeJour = type === "jour";
             const joursChoisis = typeJour ? [JOURS[(dateDepuisIso(carte.debut || aujourdhui).getDay() + 6) % 7]] : type === "fixe" ? [...JOURS] : joursAjout;
             const avecJours = !typeJour && type !== "fixe";
@@ -13360,7 +13367,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             return (
               <div className="mb-5">
                 <div className="flex flex-wrap items-center gap-3 mb-3">
-                  <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#2E86D6" }}><ClipboardList size={26} /></span>
+                  <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#1F6FB8" }}><ClipboardList size={26} /></span>
                   <div className="min-w-0">
                     <h3 className="text-lg font-bold text-[var(--ink)]">Créer la carte</h3>
                     <p className="text-xs text-[var(--steel)]">Cochez vos plats dans une ou plusieurs catégories, choisissez les jours, puis validez. Recommencez pour les autres jours.</p>
@@ -13369,7 +13376,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                 {categories.length === 0 ? <p className="text-sm text-[var(--steel)] mb-3">Aucune fiche technique de plat pour l'instant : créez d'abord vos plats dans « Créer une fiche technique ».</p> : (
                   <div>
                     <div className="flex flex-wrap items-end gap-2 mb-3">
-                      {[["fixe", "Carte fixe", "#2E86D6", type === "fixe"], ["semaine", "Carte à la semaine", "#D9691A", type !== "fixe"]].map(([k, lib, col, actif]) => (
+                      {[["fixe", "Carte fixe", "#1F6FB8", type === "fixe"], ["semaine", "Carte à la semaine", "#B35410", type !== "fixe"]].map(([k, lib, col, actif]) => (
                         <button key={k} type="button" onClick={() => { if (k === "semaine" && type !== "fixe") return; changerType(k); }} className="px-5 py-2.5 rounded-xl text-sm font-bold border-2" style={actif ? { background: col, color: "#fff", borderColor: col } : { background: "#fff", color: col, borderColor: col }}>{lib}</button>
                       ))}
                       {periodique && triees.length > 1 && <div className="min-w-[10rem]"><label className={libNet}>Carte à construire</label><select className={champNet} value={carte.id} onChange={(e) => { setChoisieId(e.target.value); setSelAjout([]); setSelSugg([]); }}>{triees.map((x) => <option key={x.id} value={x.id}>{x.nom}</option>)}</select></div>}
@@ -13378,12 +13385,12 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                     </div>
                     {categoriesFiches.length === 0 && <p className="text-xs text-[var(--steel)] mb-2">Aucune fiche technique de plat trouvée pour l'instant : ajoutez vos plats à la main dans les colonnes, ou créez-les dans « Créer une fiche technique ».</p>}
                     <div className="grid gap-2 items-start" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(10.5rem, 1fr))" }}>
-                      {avecJours && colonne("1. ", "Jours", "#16A085", (
+                      {avecJours && colonne("1. ", "Jours", "#117864", (
                         <div className="p-3">
                           <p className="text-xs text-[var(--steel)] mb-2">Choisissez un jour : ses plats se cochent. Modifiez, puis validez. Plusieurs jours = même sélection pour chacun.</p>
                           <div className="grid gap-1.5">
                             {JOURS.map((j) => { const on = joursAjout.includes(j); return (
-                              <button key={j} type="button" onClick={() => choisirJours(on ? joursAjout.filter((x) => x !== j) : [...joursAjout, j])} className="flex items-center gap-2 text-left rounded-lg px-3 py-2 text-sm font-semibold border-2" style={on ? { background: "#16A085", color: "#fff", borderColor: "#16A085" } : { background: "#fff", color: "var(--ink)", borderColor: "var(--cadre)" }}>
+                              <button key={j} type="button" onClick={() => choisirJours(on ? joursAjout.filter((x) => x !== j) : [...joursAjout, j])} className="flex items-center gap-2 text-left rounded-lg px-3 py-2 text-sm font-semibold border-2" style={on ? { background: "#117864", color: "#fff", borderColor: "#117864" } : { background: "#fff", color: "var(--ink)", borderColor: "var(--cadre)" }}>
                                 <span className="w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center text-[10px]" style={{ borderColor: on ? "#fff" : "var(--cadre)" }}>{on ? "✓" : ""}</span>{j}<span className="ml-auto text-[10px] opacity-80">{nbJour(j) ? `${nbJour(j)} plat${nbJour(j) > 1 ? "s" : ""}` : "—"}</span>
                               </button>
                             ); })}
@@ -13396,8 +13403,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                         const estDessert = (c) => /^(Dessert|Fromage)/i.test(c);
                         const ordPlat = (c) => { const k = ["Plat", "Pizza", "Burger"].indexOf(c); return k < 0 ? 9 : k; };
                         const groupes = [
-                          { titre: "Entrées", couleur: "#16A085", cats: categories.filter(estEntree) },
-                          { titre: "Plats", couleur: "#D35400", cats: categories.filter((c) => !estEntree(c) && !estDessert(c)).sort((a, b) => ordPlat(a) - ordPlat(b)) },
+                          { titre: "Entrées", couleur: "#117864", cats: categories.filter(estEntree) },
+                          { titre: "Plats", couleur: "#B34700", cats: categories.filter((c) => !estEntree(c) && !estDessert(c)).sort((a, b) => ordPlat(a) - ordPlat(b)) },
                           { titre: "Desserts", couleur: "#8E44AD", cats: categories.filter(estDessert) },
                         ];
                         const infosCat = (c) => {
@@ -13486,10 +13493,10 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                         });
                       })()}
                     </div>
-                    <div className="sticky bottom-2 z-30 mt-3 rounded-xl border-2 shadow-lg px-4 py-3 flex flex-wrap items-center gap-3" style={{ background: "#FFF7ED", borderColor: "#D9691A" }}>
+                    <div className="sticky bottom-2 z-30 mt-3 rounded-xl border-2 shadow-lg px-4 py-3 flex flex-wrap items-center gap-3" style={{ background: "#FFF7ED", borderColor: "#B35410" }}>
                       <span className="text-sm font-semibold text-[var(--ink)]">{nbCoches} plat{nbCoches > 1 ? "s" : ""} coché{nbCoches > 1 ? "s" : ""}{avecJours ? ` · ${joursChoisis.length} jour${joursChoisis.length > 1 ? "s" : ""}` : typeJour ? " · ce jour" : " · tous les jours"}</span>
                       {messageCarte && <span className="text-sm font-semibold" style={{ color: "#136B33" }}>{messageCarte}</span>}
-                      <button type="button" disabled={!nbCoches || !joursChoisis.length} onClick={valider} className="ml-auto px-6 py-3 rounded-xl text-white text-base font-bold disabled:opacity-40" style={{ background: "#D9691A" }}>✓ Valider</button>
+                      <button type="button" disabled={!nbCoches || !joursChoisis.length} onClick={valider} className="ml-auto px-6 py-3 rounded-xl text-white text-base font-bold disabled:opacity-40" style={{ background: "#B35410" }}>✓ Valider</button>
                     </div>
                   </div>
                 )}
@@ -13498,8 +13505,8 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
           })()}
 
           {vue === "semaine" && (() => {
-            const COUL_JOURS = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"];
-            const COUL_CAT = ["#2874A6", "#D35400", "#8E44AD", "#16A085", "#B7950B", "#117A65", "#5D6D7E", "#C0629A"];
+            const COUL_JOURS = ["#0E7490", "#8E44AD", "#117864", "#B34700", "#2874A6", "#8A6F06", "#5D6D7E"];
+            const COUL_CAT = ["#2874A6", "#B34700", "#8E44AD", "#117864", "#8A6F06", "#117A65", "#5D6D7E", "#A3487C"];
             const couleurCat = (c) => COUL_CAT[Math.max(0, categories.indexOf(c)) % COUL_CAT.length];
             const parCat = categories.map((c) => ({ c, ids: idsCarte.filter((id) => (plats.find((f) => f.id === id) || {}).categorie === c) })).filter((x) => x.ids.length);
             if (!parCat.length && !libres.length && !estChef) return null;
@@ -13515,7 +13522,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
             return (
               <div className="mb-4">
                 <div className="flex flex-wrap items-center gap-3 mb-3">
-                  <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#D9691A" }}><UtensilsCrossed size={26} /></span>
+                  <span className="w-12 h-12 rounded-xl flex items-center justify-center text-white shrink-0" style={{ background: "#B35410" }}><UtensilsCrossed size={26} /></span>
                   <div className="min-w-0">
                     <h3 className="text-lg font-bold text-[var(--ink)]">Carte de la semaine</h3>
                     <p className="text-xs text-[var(--steel)]">{estChef ? "Une colonne par jour. Ajoutez un plat avec le menu en bas de la colonne, retirez-le d'un jour avec ×. Un plat peut être sur plusieurs jours." : "Les plats proposés chaque jour de la semaine."}</p>
@@ -16565,7 +16572,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
             {listeCats.map((cat) => { const [fond, texte] = infoCat(cat); return (
-              <button key={cat} type="button" onClick={() => setCatChoisie(cat)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: fond, color: texte, outline: catChoisie === cat ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
+              <button key={cat} type="button" onClick={() => setCatChoisie(cat)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: fond, color: texteLisible(fond, texte), outline: catChoisie === cat ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
                 {React.createElement(logoGroupe({ id: "base:" + cat, nom: cat }), { size: 20, className: "shrink-0" })}
                 <span className="flex-1 min-w-0 text-sm font-semibold">{cat} <span className="font-normal opacity-80">({nbCat(cat)})</span></span>
                 <ChevronRight size={16} className="shrink-0 hidden lg:block" />
@@ -17336,7 +17343,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             {groupesAff.map((c) => {
               const actif = !q && c.id === catActive;
               return (
-                <button key={c.id} type="button" data-depot={"groupe:" + c.id} {...(peutGlisser && c.id !== GROUPE_NON_CLASSE.id && c.id !== GROUPE_PAUSE.id ? { "data-poignee": "groupe", ...glisse.props("g:" + c.id, c.nom) } : {})} onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ opacity: glisse.etat && glisse.etat.id === "g:" + c.id ? 0.35 : 1, WebkitTouchCallout: "none", backgroundColor: c.fond, color: c.texte, outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === c.id) ? "4px solid #F5B301" : (actif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
+                <button key={c.id} type="button" data-depot={"groupe:" + c.id} {...(peutGlisser && c.id !== GROUPE_NON_CLASSE.id && c.id !== GROUPE_PAUSE.id ? { "data-poignee": "groupe", ...glisse.props("g:" + c.id, c.nom) } : {})} onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ opacity: glisse.etat && glisse.etat.id === "g:" + c.id ? 0.35 : 1, WebkitTouchCallout: "none", backgroundColor: c.fond, color: texteLisible(c.fond, c.texte), outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === c.id) ? "4px solid #F5B301" : (actif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
                   {React.createElement(logoGroupe(c), { size: 20, className: "shrink-0" })}
                   <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.id)})</span></span>
                   <ChevronRight size={16} className="shrink-0 hidden lg:block" />
@@ -17369,7 +17376,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             const infoGroupe = debutGroupe ? (groupesAff.find((g) => g.id === catS) || GROUPE_NON_CLASSE) : null;
             return (
               <React.Fragment key={s.id}>
-              {infoGroupe && <div data-depot={"groupe:" + catS} className="px-4 py-2 text-sm font-bold border-t border-[var(--line)]" style={{ backgroundColor: infoGroupe.fond, color: infoGroupe.texte, outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === catS) ? "4px solid #F5B301" : "none", outlineOffset: -4 }}><span className="inline-flex items-center gap-2">{React.createElement(logoGroupe(infoGroupe), { size: 18, className: "shrink-0" })}{infoGroupe.nom} ({nbDansGroupe(catS)})</span></div>}
+              {infoGroupe && <div data-depot={"groupe:" + catS} className="px-4 py-2 text-sm font-bold border-t border-[var(--line)]" style={{ backgroundColor: infoGroupe.fond, color: texteLisible(infoGroupe.fond, infoGroupe.texte), outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === catS) ? "4px solid #F5B301" : "none", outlineOffset: -4 }}><span className="inline-flex items-center gap-2">{React.createElement(logoGroupe(infoGroupe), { size: 18, className: "shrink-0" })}{infoGroupe.nom} ({nbDansGroupe(catS)})</span></div>}
               <div data-depot={"ligne:" + s.id} {...(peutGlisser ? glisse.props(s.id, s.nom) : {})} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.6fr)_7rem_9.5rem_11rem_3.5rem] gap-x-3 gap-y-1 px-4 py-1.5 border-t border-[var(--line)] items-center"
                 style={{ opacity: glisse.etat && glisse.etat.id === s.id ? 0.35 : 1, boxShadow: glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "ligne" && glisse.etat.cible.id === s.id && glisse.etat.id !== s.id ? (glisse.etat.cible.apres ? "inset 0 -4px 0 #F5B301" : "inset 0 4px 0 #F5B301") : "none", WebkitTouchCallout: "none" }}>
                 <div className="col-span-2 lg:col-span-1 min-w-0">
@@ -23818,7 +23825,7 @@ const SEUIL_GROUPE_RESA = 8;
 const IcSoleil = makeIcon([C(12, 12, 4), L(12, 2, 12, 4), L(12, 20, 12, 22), L(4.9, 4.9, 6.3, 6.3), L(17.7, 17.7, 19.1, 19.1), L(2, 12, 4, 12), L(20, 12, 22, 12), L(4.9, 19.1, 6.3, 17.7), L(17.7, 6.3, 19.1, 4.9)]);
 const IcLune = makeIcon([P("M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z")]);
 const IcInfo = makeIcon([C(12, 12, 10), L(12, 16, 12, 12), L(12, 8, 12, 8)]);
-const ROUGE_PLANNING = "#E5243B";
+const ROUGE_PLANNING = "#1D2321"; // ligne « maintenant » : noire (le rouge est réservé aux alertes)
 const ACTION_PLANNING = "#146B45"; // couleur des boutons et onglets du planning (le rouge est réservé aux alertes)
 
 function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOuvrirFenetre, horaires, blocsNettoyage }) {
@@ -24715,7 +24722,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
     logActivity("Planning", "Semaine remplie avec les heures de service", emp.nom);
   };
   const viderSemaine = (emp) => { setShifts(shifts.filter((x) => x.employeeId !== emp.id)); logActivity("Planning", "Horaires effacés", emp.nom); };
-  const COULEURS_JOURS = ["#0E7490", "#8E44AD", "#16A085", "#D35400", "#2874A6", "#B7950B", "#5D6D7E"];
+  const COULEURS_JOURS = ["#0E7490", "#8E44AD", "#117864", "#B34700", "#2874A6", "#8A6F06", "#5D6D7E"];
   const dureeH = (sh) => { if (!sh.debut || !sh.fin) return 0; const [h1, m1] = sh.debut.split(":").map(Number); const [h2, m2] = sh.fin.split(":").map(Number); return Math.max(0, (h2 * 60 + m2 - (h1 * 60 + m1)) / 60); };
   const sectionSemaine = (
     <div className="mb-6">
@@ -24745,7 +24752,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
                   return (
                     <div key={service} className="p-2 border-t border-[var(--cadre)] flex-1" style={{ background: service === "Midi" ? "#FFFBEA" : "#F1F0FA" }}>
                       <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: col }}>{service === "Midi" ? "☀️ Midi" : "🌙 Soir"}</span>
+                        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: foncerPourTexte(col) }}>{service === "Midi" ? "☀️ Midi" : "🌙 Soir"}</span>
                         <span className="text-[10px] text-[var(--steel)]">{ht.ferme ? "fermé" : `${ht.debut}–${ht.fin}`}</span>
                       </div>
                       {ht.ferme && liste.length === 0 ? <div className="text-[11px] italic text-[var(--steel)]">Service fermé</div> : liste.length === 0 ? (
