@@ -5833,7 +5833,81 @@ function DetailComptage({ x, onValider, onFermer }) {
     </div>
   );
 }
-function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesStock, masques, setMasques }) {
+function HistoriqueInventaires({ gestionInventaires, onBack }) {
+  const [liste, setListe] = useState(null);
+  const [erreur, setErreur] = useState(false);
+  const [ouvert, setOuvert] = useState(null);
+  const [lignes, setLignes] = useState(null);
+  useEffect(() => { let vivant = true; gestionInventaires.lister().then((l) => { if (vivant) setListe(l); }).catch(() => { if (vivant) setErreur(true); }); return () => { vivant = false; }; }, []);
+  const euro = (n) => (n == null ? "—" : `${n.toLocaleString("fr-FR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })} €`);
+  const ouvrir = (inv) => { setOuvert(inv); setLignes(null); gestionInventaires.detail(inv.id).then(setLignes).catch(() => setLignes([])); };
+  const exporter = async () => {
+    try {
+      const XLSX = await import("xlsx");
+      const rows = [["Catégorie", "Nom", "Conditionnement", "Unité", "Qté système", "Qté comptée", "Écart", "Prix unitaire", "Valeur (€)"]];
+      (lignes || []).forEach((l) => rows.push([l.groupe, l.nom, l.conditionnement, l.unite, l.quantiteSysteme ?? "", l.quantiteComptee ?? "", l.ecart ?? "", l.prixUnitaire ?? "", l.valeur ?? ""]));
+      const wb = XLSX.utils.book_new(); XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet(rows), "Inventaire");
+      XLSX.writeFile(wb, `inventaire-${ouvert.date}.xlsx`);
+    } catch (e) { /* export impossible : rien à faire */ }
+  };
+  if (ouvert) {
+    const parGroupe = {};
+    (lignes || []).forEach((l) => { (parGroupe[l.groupe || "Sans catégorie"] = parGroupe[l.groupe || "Sans catégorie"] || []).push(l); });
+    return (
+      <div>
+        <div className="mb-3"><BoutonRetour onClick={() => setOuvert(null)}>Retour à l'historique</BoutonRetour></div>
+        <SectionHeader permanent title={`Inventaire du ${fmtLong(ouvert.date)}`} subtitle={`${ouvert.nbProduits ?? (lignes || []).length} produits — valeur du stock ${euro(ouvert.valeurTotale)}`} />
+        {lignes === null ? <p className="text-sm text-[var(--steel)]">Chargement…</p> : (
+          <>
+            <div className="mb-3"><Button variant="ghost" onClick={exporter}><Download size={16} /> Télécharger en Excel</Button></div>
+            {Object.entries(parGroupe).map(([g, items]) => (
+              <Card key={g} className="mb-3">
+                <div className="flex justify-between items-baseline mb-2">
+                  <h3 className="font-semibold text-[var(--ink)]">{g}</h3>
+                  <span className="text-sm text-[var(--steel)]">{euro(items.reduce((t, l) => t + (l.valeur || 0), 0))}</span>
+                </div>
+                <ul className="divide-y divide-[var(--line,#E5E7EB)]">
+                  {items.map((l, i) => (
+                    <li key={i} className="py-1.5 flex justify-between gap-3 text-sm">
+                      <span className="min-w-0 truncate">{l.nom}{l.conditionnement ? <span className="text-[var(--steel)]"> · {l.conditionnement}</span> : null}</span>
+                      <span className="shrink-0 text-[var(--steel)]">{l.quantiteComptee ?? "—"} {l.unite}{l.ecart ? <b className="ml-1" style={{ color: l.ecart < 0 ? "#B42318" : "#1F8F5F" }}>({l.ecart > 0 ? "+" : ""}{l.ecart})</b> : null} · {euro(l.valeur)}</span>
+                    </li>
+                  ))}
+                </ul>
+              </Card>
+            ))}
+          </>
+        )}
+      </div>
+    );
+  }
+  return (
+    <div>
+      <div className="mb-3"><BoutonRetour onClick={onBack}>Retour au stock</BoutonRetour></div>
+      <SectionHeader permanent title="Historique des inventaires" subtitle="Chaque inventaire validé est conservé : date, valeur du stock, détail par produit." />
+      {erreur && <Card><p className="text-sm">L'historique n'a pas pu être chargé.</p></Card>}
+      {!erreur && liste === null && <p className="text-sm text-[var(--steel)]">Chargement…</p>}
+      {liste && liste.length === 0 && <Card><p className="text-sm text-[var(--steel)]">Aucun inventaire enregistré pour le moment.</p></Card>}
+      {liste && liste.map((inv, i) => {
+        const prec = liste[i + 1];
+        const delta = prec && inv.valeurTotale != null && prec.valeurTotale != null ? inv.valeurTotale - prec.valeurTotale : null;
+        return (
+          <button key={inv.id} type="button" onClick={() => ouvrir(inv)} className="w-full text-left mb-2">
+            <Card>
+              <div className="flex justify-between items-center gap-3">
+                <div><p className="font-semibold text-[var(--ink)]">{fmtLong(inv.date)}</p><p className="text-xs text-[var(--steel)]">{inv.nbProduits ?? "?"} produits</p></div>
+                <div className="text-right"><p className="font-bold text-[var(--ink)]">{euro(inv.valeurTotale)}</p>{delta !== null && <p className="text-xs" style={{ color: delta < 0 ? "#B42318" : "#1F8F5F" }}>{delta > 0 ? "+" : ""}{euro(delta)} vs précédent</p>}</div>
+              </div>
+            </Card>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesStock, masques, setMasques, gestionInventaires }) {
+  const [etatHistorique, setEtatHistorique] = useState(null); // null | "enregistre" | "erreur"
   const [comptage, setComptage] = useState({});
   const [pieces, setPieces] = useState({});
   const [restes, setRestes] = useState({});
@@ -5896,6 +5970,15 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
     setStock(next);
     logActivity("Stock", "Inventaire mensuel réalisé", `${ecarts} écart(s) corrigé(s) — valeur du stock ${fmtEuro(valeurTotale(produitsAffiches))} — ${today}`);
     setValide(true);
+    if (gestionInventaires && gestionInventaires.enregistrer) {
+      const lignes = [];
+      Object.entries(parCategorie).forEach(([groupe, items]) => items.forEach((x) => {
+        const c = compteDe(x); const q = qteFinale(x);
+        lignes.push({ produitId: x.id, nom: x.nom, groupe, conditionnement: x.conditionnement || "", unite: x.unite || "", quantiteSysteme: Number(x.quantite), quantiteComptee: c === null ? Number(x.quantite) : c, prixUnitaire: (parserPrixUnitaire(x.prixUnitaire) || {}).val ?? null, valeur: valeurDe(x, q) });
+      }));
+      gestionInventaires.enregistrer({ date: today, libelle: `Inventaire du ${fmtLong(today)}`, lignes, valeurTotale: valeurTotale(produitsAffiches) })
+        .then(() => setEtatHistorique("enregistre")).catch(() => setEtatHistorique("erreur"));
+    }
   };
 
   const nbComptes = produitsAffiches.filter((x) => compteDe(x) !== null).length;
@@ -5929,6 +6012,8 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
       {valide ? (
         <Card className="bg-[var(--accent-soft)] border-[var(--accent)]/30 mb-4">
           <p className="text-sm text-[var(--ink)]">Inventaire validé — le stock a été corrigé selon les quantités comptées. Valeur de la marchandise : <b>{fmtEuro(valeurTotale(produitsAffiches))}</b>.</p>
+          {etatHistorique === "enregistre" && <p className="text-xs text-[var(--steel)] mt-1">Cet inventaire est enregistré dans l'historique des inventaires.</p>}
+          {etatHistorique === "erreur" && <p className="text-xs text-[var(--danger,#B42318)] mt-1">Le stock est corrigé, mais l'inventaire n'a pas pu être enregistré dans l'historique.</p>}
         </Card>
       ) : (
         <>
@@ -17095,7 +17180,7 @@ function GlisseFlottant({ etat }) {
 }
 const ordreStockCmp = (a, b) => ((a.ordreStock == null ? 1e9 : a.ordreStock) - (b.ordreStock == null ? 1e9 : b.ordreStock)) || String(a.nom || "").localeCompare(String(b.nom || ""), "fr");
 
-function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle, groupesStock, setGroupesStock, groupesInventaireMasques, setGroupesInventaireMasques }) {
+function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, currentUserId, employees, logActivity, saisieManuelle, groupesStock, setGroupesStock, groupesInventaireMasques, setGroupesInventaireMasques, gestionInventaires }) {
   const acces = useAcces();
   const rapideStock = React.useContext(RapideContext);
   const [suppOuverte, setSuppOuverte] = useState(false);
@@ -17117,6 +17202,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   const [vueListeCommande, setVueListeCommande] = useState(false);
   const [vueEnvoyerCommande, setVueEnvoyerCommande] = useState(false);
   const [inventaireActif, setInventaireActif] = useState(false);
+  const [vueHistoriqueInv, setVueHistoriqueInv] = useState(false);
   const [produitDetail, setProduitDetail] = useState(null); // chef : id du produit dont on ouvre la page
   const estChefStock = !!acces.estResponsable;
   const [modifCibles, setModifCibles] = useState(false); // le chef seul peut modifier le stock cible ; les + et − n'apparaissent qu'à sa demande
@@ -17169,7 +17255,10 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   };
 
   if (inventaireActif) {
-    return <FicheInventaire stock={stock} setStock={setStock} logActivity={logActivity} today={today} onBack={() => setInventaireActif(false)} groupesStock={groupesStock} masques={groupesInventaireMasques} setMasques={setGroupesInventaireMasques} />;
+    return <FicheInventaire stock={stock} setStock={setStock} logActivity={logActivity} today={today} onBack={() => setInventaireActif(false)} groupesStock={groupesStock} masques={groupesInventaireMasques} setMasques={setGroupesInventaireMasques} gestionInventaires={gestionInventaires} />;
+  }
+  if (vueHistoriqueInv && gestionInventaires) {
+    return <HistoriqueInventaires gestionInventaires={gestionInventaires} onBack={() => setVueHistoriqueInv(false)} />;
   }
 
   if (vueListeCommande) {
@@ -17550,7 +17639,13 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
             <span className="text-xs font-normal text-white/85">{lignesPanier.length ? `${lignesPanier.length} produit${lignesPanier.length > 1 ? "s" : ""} au panier` : "Panier vide"}</span>
           </button>
         </div>
-      ) : (
+      ) : null}
+      {estChefStock && gestionInventaires && (
+        <button type="button" onClick={() => setVueHistoriqueInv(true)} className="mt-3 w-full h-11 rounded-xl border border-[var(--line,#D1D5DB)] text-sm font-semibold text-[var(--ink)] flex items-center justify-center gap-2">
+          <ClipboardList size={16} /> Historique des inventaires
+        </button>
+      )}
+      {estChefStock ? null : (
       <Card className={`text-center mt-6 ${estDernierJourDuMois(today) ? "border-[var(--accent)] bg-[var(--accent-soft)]" : ""}`}>
         <div className="flex items-center justify-center gap-2 mb-2">
           <ClipboardList size={20} className="text-[var(--accent)]" />
@@ -26919,7 +27014,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "stock" && (
           consentementAccorde()
-            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} saisieManuelle={modeExterne} groupesStock={groupesStockApp} setGroupesStock={modeExterne && !(reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesStock) ? undefined : setGroupesStockApp} groupesInventaireMasques={masquesInventaireApp} setGroupesInventaireMasques={setMasquesInventaireApp} />
+            ? <Stock stock={stock} setStock={setStock} commandesHistorique={commandesHistorique} setCommandesHistorique={setCommandesHistorique} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} saisieManuelle={modeExterne} groupesStock={groupesStockApp} setGroupesStock={modeExterne && !(reglagesEtablissementApp && reglagesEtablissementApp.enregistrerGroupesStock) ? undefined : setGroupesStockApp} groupesInventaireMasques={masquesInventaireApp} setGroupesInventaireMasques={setMasquesInventaireApp} gestionInventaires={modeExterne && identiteExterne ? identiteExterne.gestionInventaires : undefined} />
             : <AccesRestreint titre="Stock réel et commandes fournisseurs automatiques" />
         )}
         {tab === "reception" && (
