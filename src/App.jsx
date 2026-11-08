@@ -4,6 +4,7 @@ import { createPortal } from 'react-dom';
 import { createClient } from '@supabase/supabase-js';
 import { POSTES as POSTES_EQUIPE, STATUTS_EQUIPE } from './listesEquipe.js';
 import { normaliserGroupe, comparerGroupes } from './groupesStock.js';
+import { NOMS_CLASSEUR } from "./classeurNoms.js";
 import { familleProposee, ecartFamille, TEMP_MAX_FAMILLE } from './familleTemperature.js';
 import { analyserCommandeLocale, analyserPhraseMultiple, rapprocher as rapprocherVocal, reponseOuiNon, pluriel as pluralVocal } from './analyseVocale.js';
 import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE, TYPES_PRESTATAIRE_ATTENDUS, FREQUENCES_RAPPEL, CATEGORIES_DOCUMENT, TYPES_FORMATION, libelleDe, etatEcheance } from './ficheEtablissement.js';
@@ -10772,6 +10773,19 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
   const [edition, setEdition] = useState(null);
   const [recherche, setRecherche] = useState("");
   const [categorieFiltre, setCategorieFiltre] = useState(null);
+  // Compléter les fiches avec le classeur Games Factory : seules les fiches du classeur sans étapes de préparation sont concernées.
+  const peutCompleter = !!(acces.estResponsable && setFichesCustom && !modeDirect);
+  const fichesAComplete = peutCompleter ? fiches.filter((f) => NOMS_CLASSEUR.has(f.nom) && !f.classeurApplique && !(Array.isArray(f.preparation) && f.preparation.length > 0)) : [];
+  const [classeurEtat, setClasseurEtat] = useState(null); // null | "confirmer" | "encours" | { nb } | { erreur }
+  const completerAvecClasseur = async () => {
+    setClasseurEtat("encours");
+    try {
+      const [{ appliquerClasseur }, detail] = await Promise.all([import("./classeurFiches.js"), import("./fichesDetaillees.json").then((m) => m.default || m)]);
+      const r = appliquerClasseur(fichesCustom || [], detail, todayISO());
+      if (r.nb > 0) setFichesCustom(r.fiches);
+      setClasseurEtat({ nb: r.nb });
+    } catch (e) { console.error(e); setClasseurEtat({ erreur: true }); }
+  };
 
   // Permet d'ouvrir directement la fiche d'un produit depuis l'extérieur (commande vocale notamment) :
   // on force la sélection, puis on prévient l'appelant pour qu'il efface la demande (sinon on resterait
@@ -10887,6 +10901,29 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
   return (
     <div>
       <SectionHeader title="Préparation culinaire" subtitle={`${fiches.length} fiches techniques — recettes et préparations de référence`} />
+
+      {peutCompleter && (fichesAComplete.length > 0 || (classeurEtat && classeurEtat.nb != null) || (classeurEtat && classeurEtat.erreur)) && (
+        <Card className="mb-5 border-2 border-[#D97706]">
+          {classeurEtat && classeurEtat.nb != null ? (
+            <p className="text-sm text-[var(--ink)]"><b>{classeurEtat.nb} fiche{classeurEtat.nb > 1 ? "s" : ""} complétée{classeurEtat.nb > 1 ? "s" : ""}</b> : ingrédients, matériel, étapes, points de contrôle, refroidissement, rendement, conservation, non-conformité.</p>
+          ) : classeurEtat && classeurEtat.erreur ? (
+            <p className="text-sm text-[var(--ink)]">Les fiches n'ont pas pu être complétées. Réessayez dans un instant.</p>
+          ) : (
+            <>
+              <p className="text-sm font-semibold text-[var(--ink)] mb-1">{fichesAComplete.length} fiche{fichesAComplete.length > 1 ? "s" : ""} à compléter avec votre classeur « Fiches techniques Games Factory »</p>
+              <p className="text-xs text-[var(--steel)] mb-3">Ajoute les ingrédients, le matériel, les étapes, les points de contrôle HACCP, le refroidissement, le rendement, la conservation et la conduite en cas de non-conformité. Les allergènes, les groupes, l'ordre et les liens avec le stock sont conservés. Seules les fiches encore vides d'étapes sont touchées.</p>
+              {classeurEtat === "confirmer" ? (
+                <div className="flex flex-wrap gap-2">
+                  <Button onClick={completerAvecClasseur}>Oui, compléter {fichesAComplete.length} fiche{fichesAComplete.length > 1 ? "s" : ""}</Button>
+                  <Button variant="ghost" onClick={() => setClasseurEtat(null)}>Annuler</Button>
+                </div>
+              ) : (
+                <Button disabled={classeurEtat === "encours"} onClick={() => setClasseurEtat("confirmer")}>{classeurEtat === "encours" ? "Mise à jour en cours…" : "Compléter mes fiches"}</Button>
+              )}
+            </>
+          )}
+        </Card>
+      )}
 
       {(carteDuJourActive || fichesFavorites.length > 0) && (
         <Card className="mb-5">

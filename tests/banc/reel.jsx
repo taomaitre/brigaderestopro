@@ -35,6 +35,12 @@ if (q.get('cat') === '1') {
   identite.catalogue = bruts.map((p) => ({ id: p.id, nom: p.nom, categorie: p.conservation === 'surgele' ? 'Surgelés' : p.categorie, conservation: p.conservation, groupeStock: '', ordreStock: null, detailAchat: p.detail_achat, fournisseur: 'Fournisseur 1', reference: p.reference, conditionnement: p.conditionnement, prixUnitaire: `${String(p.prix_achat).replace('.', ',')} ${p.prix_unite}`, poidsParPiece: '', referenceVerifiee: true, note: p.note, allergenesNorme: '', origineNorme: '', quantite: p.quantite_stock, cible: p.quantite_cible, unite: p.unite, lot: '', dlc: '', typeDate: '', dlcJours: null, delaiOuverture: null, decongelMethode: '', decongelJours: null, decongelSource: '', brut: p }));
   identite.gestionCatalogue = { enregistrer: async () => {} };
 }
+// ?ft=1 : trois fiches techniques FICTIVES vides d'étapes (noms du classeur Games Factory) pour tester « Compléter mes fiches ».
+if (q.get('ft') === '1') {
+  const base = (id, nom, cat) => ({ id, nom, code: 'FT-' + id, categorie: cat, type: 'recette', poste: '', sousTitre: 'Allergènes seulement (recette à saisir)', allergenes: ['Lait'], ingredients: id === 'g3' ? [{ nom: 'Mozzarella', quantite: '1', unite: 'kg', lienId: 'L1', lienType: 'stock' }] : [], preparation: [], haccp: [], materiel: [], aRetenir: [], dressage: [], rendement: [], etiquetage: [], tracabilite: [], nonConformite: [], nonCategorise: [], autresSections: [], groupesPortions: [], titresSections: {}, dureeConservation: [], consignesImportantes: [], refroidissementStockage: [], cout: { prixVente: '', coutPortion: '', coutRecette: '' }, rendementCourt: '', rendementAttendu: '', dlcJours: 0 });
+  identite.listes = { ...(identite.listes || {}), fiches: [base('g1', 'Lasagne – Montage & Envoi', 'Plat'), base('g2', 'Burger Le Bacon', 'Burger'), base('g3', 'Margherita', 'Pizza')] };
+  identite.gestionListes = { ...(identite.gestionListes || {}), fiches: { persister: async (avant, apres) => { window.__persist = apres; return null; } } };
+}
 // ?plein=1 : listes FICTIVES remplies (relevés, cuissons, refroidissements, huiles, traçabilité, réceptions) pour vérifier les écrans pleins.
 if (q.get('plein') === '1') {
   const j = new Date(); const auj = `${j.getFullYear()}-${String(j.getMonth() + 1).padStart(2, '0')}-${String(j.getDate()).padStart(2, '0')}`;
