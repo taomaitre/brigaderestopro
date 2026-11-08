@@ -21,6 +21,26 @@ function fusionnerIngredients(anciens, nouveaux) {
   });
 }
 
+// Déduit les procédés (cuisson, refroidissement, maintien, remise en température) d'après les points HACCP du classeur,
+// pour que les boutons correspondants apparaissent sur la fiche. On n'écrase jamais un procédé déjà activé.
+export function deduireProcedes(d, existant) {
+  const p = { ...(existant || {}) };
+  const active = (cle, base) => { if (!(p[cle] && p[cle].on)) p[cle] = { ...(p[cle] || {}), ...base, on: true }; };
+  const haccp = Array.isArray(d.haccp) ? d.haccp : [];
+  const nom = (re) => haccp.find((h) => re.test(String(h.etape || "")));
+  const cuis = nom(/^cuisson/i);
+  if (cuis) {
+    const m = /(\d{2,3})\s*°\s*C\s*à\s*c(?:œ|oe)ur/i.exec(String(cuis.aControler || ""));
+    active("cuisson", m ? { coeur: m[1] } : {});
+  }
+  const refr = nom(/refroidissement/i);
+  const textRefr = (Array.isArray(d.refroidissementStockage) ? d.refroidissementStockage : []).join(" ");
+  if (refr || /REFROIDISSEMENT RAPIDE/.test(textRefr)) active("refroid", { mode: /cellule/i.test(`${textRefr} ${refr ? refr.aControler : ""}`) ? "cellule" : "sans" });
+  if (nom(/maintien/i)) active("maintien", {});
+  if (nom(/remise en t/i)) active("remise", {});
+  return p;
+}
+
 export function fusionnerFiche(f, d, aujourdhui) {
   const out = { ...f };
   const garnir = (cle) => { if (Array.isArray(d[cle]) && d[cle].length > 0) out[cle] = d[cle]; };
@@ -31,6 +51,7 @@ export function fusionnerFiche(f, d, aujourdhui) {
   ["materiel", "haccp", "preparation", "consignesImportantes", "refroidissementStockage", "rendement", "dureeConservation", "nonConformite", "tracabilite", "etiquetage", "autresSections", "aRetenir"].forEach(garnir);
   if (d.titresSections && Object.keys(d.titresSections).length > 0) out.titresSections = { ...(f.titresSections || {}), ...d.titresSections };
   if (Number.isFinite(d.dlcJours) && d.dlcJours > 0) out.dlcJours = d.dlcJours;
+  out.procedes = deduireProcedes(d, f.procedes);
   out.classeurApplique = aujourdhui || true;
   return out;
 }
