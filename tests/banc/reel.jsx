@@ -41,6 +41,15 @@ if (q.get('ft') === '1') {
   identite.listes = { ...(identite.listes || {}), fiches: [base('g1', 'Lasagne – Montage & Envoi', 'Plat'), base('g2', 'Burger Le Bacon', 'Burger'), base('g3', 'Margherita', 'Pizza')] };
   identite.gestionListes = { ...(identite.gestionListes || {}), fiches: { persister: async (avant, apres) => { window.__persist = apres; return null; } } };
 }
+// ?inv=1 : historique des inventaires FICTIF (deux inventaires) ; l'enregistrement est gardé dans window.__inv.
+if (q.get('inv') === '1') {
+  const fake = [{ id: 'i2', date: '2026-10-31', libelle: '', nbProduits: 196, valeurTotale: 4398.74 }, { id: 'i1', date: '2026-09-30', libelle: '', nbProduits: 190, valeurTotale: 4100 }];
+  identite.gestionInventaires = {
+    lister: async () => fake,
+    detail: async () => [{ nom: 'Beurre', groupe: 'Crèmerie', conditionnement: '1 kg', unite: 'kg', quantiteSysteme: 5, quantiteComptee: 4, ecart: -1, prixUnitaire: 9, valeur: 36 }, { nom: 'Farine', groupe: 'Épicerie', conditionnement: '25 kg', unite: 'kg', quantiteSysteme: 20, quantiteComptee: 20, ecart: 0, prixUnitaire: 1, valeur: 20 }],
+    enregistrer: async (x) => { window.__inv = x; },
+  };
+}
 // ?plein=1 : listes FICTIVES remplies (relevés, cuissons, refroidissements, huiles, traçabilité, réceptions) pour vérifier les écrans pleins.
 if (q.get('plein') === '1') {
   const j = new Date(); const auj = `${j.getFullYear()}-${String(j.getMonth() + 1).padStart(2, '0')}-${String(j.getDate()).padStart(2, '0')}`;

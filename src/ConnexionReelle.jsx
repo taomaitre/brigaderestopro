@@ -1157,6 +1157,39 @@ export default function ConnexionReelle() {
   }
 
   // Enregistre une réception validée : stock (quantités), lots (n° de lot, DLC…), en-tête, lignes et photos du bon.
+  // Historique des inventaires : chaque inventaire validé est gardé (date, valeur du stock, une ligne par produit) pour le retrouver et faire des statistiques.
+  const gestionInventairesObj = {
+    lister: async () => {
+      const { data, error } = await supabasePublic.from("inventaires_mensuels").select("id, date, libelle, nb_produits, valeur_totale").order("date", { ascending: false }).limit(240);
+      if (error) throw error;
+      return (data || []).map((x) => ({ id: x.id, date: x.date, libelle: x.libelle || "", nbProduits: x.nb_produits, valeurTotale: x.valeur_totale == null ? null : Number(x.valeur_totale) }));
+    },
+    detail: async (id) => {
+      const { data, error } = await supabasePublic.from("inventaires_lignes").select("nom, groupe, conditionnement, unite, quantite_systeme, quantite_comptee, ecart, prix_unitaire, valeur").eq("inventaire_id", id).order("groupe").order("nom").limit(1000);
+      if (error) throw error;
+      const n = (v) => (v == null ? null : Number(v));
+      return (data || []).map((l) => ({ nom: l.nom || "", groupe: l.groupe || "", conditionnement: l.conditionnement || "", unite: l.unite || "", quantiteSysteme: n(l.quantite_systeme), quantiteComptee: n(l.quantite_comptee), ecart: n(l.ecart), prixUnitaire: n(l.prix_unitaire), valeur: n(l.valeur) }));
+    },
+    enregistrer: async ({ date, libelle, lignes, valeurTotale }) => {
+      const etab = session.etablissement.id;
+      const { data: inv, error } = await supabasePublic.from("inventaires_mensuels").insert({
+        etablissement_id: etab, date, statut: "valide", libelle: libelle || null, nb_produits: lignes.length, valeur_totale: valeurTotale == null ? null : Math.round(valeurTotale * 100) / 100,
+      }).select("id").single();
+      if (error) throw error;
+      const num = (v) => (v == null || Number.isNaN(Number(v)) ? null : Number(v));
+      const rows = lignes.map((l) => ({
+        inventaire_id: inv.id, produit_id: EST_UUID.test(l.produitId || "") ? l.produitId : null, nom: l.nom || null, groupe: l.groupe || null, conditionnement: l.conditionnement || null, unite: l.unite || null,
+        quantite_systeme: num(l.quantiteSysteme), quantite_comptee: num(l.quantiteComptee), ecart: num(l.quantiteComptee) != null && num(l.quantiteSysteme) != null ? Math.round((l.quantiteComptee - l.quantiteSysteme) * 1000) / 1000 : null,
+        prix_unitaire: num(l.prixUnitaire), valeur: num(l.valeur),
+      }));
+      for (let i = 0; i < rows.length; i += 200) {
+        const { error: e2 } = await supabasePublic.from("inventaires_lignes").insert(rows.slice(i, i + 200));
+        if (e2) throw e2;
+      }
+      return inv.id;
+    },
+  };
+
   async function enregistrerReception(entrees, photosBon, meta) {
     const etab = session.etablissement.id;
     const norm = (t) => String(t || "").trim().toLowerCase();
@@ -1622,6 +1655,7 @@ export default function ConnexionReelle() {
       gestionCatalogue: catalogue ? { enregistrer: enregistrerCatalogue } : undefined,
       gestionStock: catalogue ? { persister: persisterStock } : undefined,
       gestionReceptions: catalogue ? { enregistrer: enregistrerReception } : undefined,
+      gestionInventaires: gestionInventairesObj,
       signalerAjout,
       ia: {
         statut: async () => { const r = await appelerIA(session.token, { type: "statut" }); return r.ia_disponible === true; },
