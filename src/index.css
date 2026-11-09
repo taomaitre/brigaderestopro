@@ -16,6 +16,13 @@
   body.impression-fiche #fiche-imprimable { position: absolute; left: 0; top: 0; width: 100%; }
 }
 
+/* Impression d'étiquettes DLC depuis une fiche : on n'imprime que les étiquettes */
+@media print {
+  body.impression-etiquettes * { visibility: hidden; }
+  body.impression-etiquettes #etiquettes-imprimables, body.impression-etiquettes #etiquettes-imprimables * { visibility: visible; }
+  body.impression-etiquettes #etiquettes-imprimables { position: absolute; left: 0; top: 0; width: 100%; }
+}
+
 /* Pages de contrôles de cuisine : champs et marges resserrés pour tenir dans une fenêtre. */
 .hc-compact label.flex-col { gap: 2px; }
 .hc-compact label.flex-col > span:first-child { font-size: 12px; line-height: 1.15; }
