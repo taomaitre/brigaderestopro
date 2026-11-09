@@ -5015,7 +5015,26 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
       )}
       {modeParametrage && ecranPlanningParam}
       {modeParametrage && !sousEcran && !ecranPlanningParam && (
-        <p className="hidden md:block text-sm text-[var(--steel)] pt-2">Choisissez un réglage dans la liste à gauche.</p>
+        <div className="hidden md:block">
+          <SectionHeader title="Paramétrage" subtitle="Tous les réglages au même endroit : choisissez une tuile" permanent icone={Settings} />
+          {PARAM_GROUPES.map((g) => {
+            const items = g.ids.map((id) => (id.startsWith("@") ? (ouvrirPlanning ? { extra: PARAM_EXTRAS[id] } : null) : (() => { const t = paramTuile(id); return t && tuileVisible(t) ? { t } : null; })())).filter(Boolean);
+            if (!items.length) return null;
+            return (
+              <div key={g.titre} className="mb-6">
+                <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--steel)" }}>{g.titre}</div>
+                <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
+                  {items.map((it) => {
+                    const id = it.extra ? it.extra[0] : it.t.id;
+                    const c = it.extra ? { fond: `linear-gradient(160deg, ${it.extra[3]} 0%, ${it.extra[4]} 100%)`, ombre: undefined } : couleurSousTuile(it.t.id, paramCouleurDefaut);
+                    return <TuilePetite key={id} fond={c.fond} ombre={c.ombre} icone={it.extra ? it.extra[2] : it.t.icon} titre={it.extra ? it.extra[1] : (PARAM_LIBELLES[it.t.id] || it.t.label)}
+                      onClick={() => { setReferentielActif(false); if (it.extra) { setSousEcran(null); ouvrirPlanning(id); } else { fermerPlanningParam && fermerPlanningParam(); ouvrirSousTuile(it.t.id); } }} />;
+                  })}
+                </div>
+              </div>
+            );
+          })}
+        </div>
       )}
       {modeParametrage ? null : modeHistorique && !sectionActive ? (
       <>
