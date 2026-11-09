@@ -12,6 +12,7 @@ import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { PMS_POINTS, ETATS_POINT_PMS, pointsDeCategorie, bilanPointsPms } from './pmsPoints.js';
 import { GRILLE_CHAPITRES, GRILLE_LIEN } from './grilleInspection.js';
 import LexiqueReglementaire from './LexiqueReglementaire.jsx';
+import { PRODUITS_ENTRETIEN_KEYSTONE } from './produitsEntretienKeystone.js';
 import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
 import { ESPECES_ORIGINE, detecterEspece, composerOrigine, lireOrigine } from './origineViandes.js';
 import { MOIS_ANNEE, MOMENTS as MOMENTS_NETTOYAGE, joursDeLaTache, momentsDeLaTache, libelleFrequence as libelleFrequenceNet, libelleMoments as libelleMomentsNet, occurrencesDuJour, personnesConcernees, cleOccurrence, tacheDueLe, ajouterJours, nomJour } from './nettoyageFinService.js';
@@ -9237,13 +9238,22 @@ function ProduitsNettoyageNet({ cleaning, setCleaning, zonesNettoyage, setZonesN
     setForm(null);
   };
   const supprimer = (p) => { setCleaning(cleaning.filter((t) => t.id !== p.id)); logActivity("Nettoyage", "Produit de nettoyage supprimé", p.tache); };
+  const manquantsKeystone = PRODUITS_ENTRETIEN_KEYSTONE.filter((k) => !produits.some((p) => normaliserNomNet(p.tache) === normaliserNomNet(k.tache)));
+  const ajouterKeystone = () => {
+    const nouveaux = manquantsKeystone.map((k) => ({ id: uid(), poste: "Tous", frequence: "À chaque utilisation", planifie: false, masque: true, produitNettoyage: true, creeLe: todayISO(), fait: false, date: null, employeeId: null, zonesUsage: [], ...k }));
+    setCleaning([...cleaning, ...nouveaux]);
+    logActivity("Nettoyage", "Produits Keystone recommandés ajoutés", `${nouveaux.length} fiches`);
+    setMessage(`${nouveaux.length} fiches produits ajoutées.`);
+  };
   const champ = `${inputCls} w-full min-w-0`;
   return (
     <div>
       <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 mb-3 flex flex-wrap items-center gap-3">
         <p className="flex-1 basis-72 min-w-0 text-sm text-[var(--ink)]">Enregistrez ici chaque produit de nettoyage utilisé dans la cuisine avec les informations de sa <strong>fiche technique</strong> (dosage, température, temps de contact, rinçage). Dans « Par zone », dès que vous choisissez un de ces produits, <strong>le protocole se remplit automatiquement</strong> (vous pouvez toujours le modifier).</p>
+        {manquantsKeystone.length > 0 && <Button variant="ghost" onClick={ajouterKeystone}><Plus size={16} /> Ajouter les {manquantsKeystone.length} produits Keystone recommandés</Button>}
         <Button onClick={() => ouvrir(null)}><Plus size={16} /> Ajouter un produit</Button>
       </div>
+      {message && !form && <p className="text-sm mb-3" style={{ color: "#2F6B4F" }}>{message}</p>}
       {form && (
         <Card className="mb-4">
           <h3 className="font-semibold text-[var(--ink)] mb-3">{form.id ? "Modifier le produit" : "Nouveau produit de nettoyage"}</h3>
@@ -9306,6 +9316,18 @@ function ProduitsNettoyageNet({ cleaning, setCleaning, zonesNettoyage, setZonesN
             </div>
             <div className="p-3 space-y-1 text-sm flex-1">
               {[["Dosage", p.dosage], ["Eau", p.temperature], ["Contact", p.contact], ["Rinçage", p.rincage], ["Précautions", p.precautions], ["Fiche", p.fiche]].filter(([, v]) => v).map(([l, v]) => <p key={l} className="break-words"><span className="text-[var(--steel)]">{l} : </span><span className="text-[var(--ink)]">{v}</span></p>)}
+              {(p.usages || []).length > 0 && (
+                <div className="pt-1">
+                  <p className="text-[var(--steel)] text-xs font-semibold uppercase tracking-wide">Où et comment</p>
+                  <ul className="space-y-1 mt-0.5">
+                    {p.usages.map((u, i) => <li key={i} className="text-xs text-[var(--ink)] break-words"><strong>{u.surface}</strong>{u.dose ? ` : ${u.dose}` : ""}{u.contact ? ` · contact ${u.contact}` : ""}{u.rincage ? ` · rinçage : ${u.rincage}` : ""}</li>)}
+                  </ul>
+                </div>
+              )}
+              {p.aEviter && <p className="break-words"><span className="text-[var(--warn)] font-semibold">À éviter : </span><span className="text-[var(--ink)]">{p.aEviter}</span></p>}
+              {p.securite && <p className="break-words"><span className="text-[var(--steel)]">Sécurité : </span><span className="text-[var(--ink)]">{p.securite}</span></p>}
+              {p.stockage && <p className="break-words"><span className="text-[var(--steel)]">Stockage : </span><span className="text-[var(--ink)]">{p.stockage}</span></p>}
+              {(p.codeSysco || p.prixHT != null) && <p className="text-xs text-[var(--steel)]">{[p.codeSysco && `Sysco ${p.codeSysco}`, p.conditionnement, p.prixHT != null && `${String(p.prixHT.toFixed(2)).replace(".", ",")} € HT`].filter(Boolean).join(" · ")}</p>}
               <p className="text-[var(--steel)]">{(p.etapes || []).length} étape{(p.etapes || []).length > 1 ? "s" : ""} de protocole</p>
               {(p.zonesUsage || []).length > 0 && (
                 <div className="flex flex-wrap gap-1 pt-1">
