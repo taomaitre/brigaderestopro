@@ -1122,6 +1122,10 @@ function useListeExterne(identiteExterne, cle) {
       setEtat(donnees);
     }
   });
+  // Les enregistrements se font l'un après l'autre (file d'attente) : sinon, en cliquant vite, un rechargement plus ancien
+  // écrase les lignes plus récentes (la tâche « revient » et on la revalide, d'où des doublons en base).
+  const file = useRef(Promise.resolve());
+  const numero = useRef(0);
   const setListe = useCallback((maj) => {
     const avant = ref.current;
     const apres = typeof maj === "function" ? maj(avant) : maj;
@@ -1129,8 +1133,10 @@ function useListeExterne(identiteExterne, cle) {
     setEtat(apres);
     const gestion = identiteRef.current && identiteRef.current.gestionListes && identiteRef.current.gestionListes[cle];
     if (gestion) {
-      gestion.persister(avant, apres)
-        .then((recharge) => { if (recharge) { ref.current = recharge; setEtat(recharge); } })
+      const mien = ++numero.current;
+      file.current = file.current
+        .then(() => gestion.persister(avant, apres))
+        .then((recharge) => { if (recharge && mien === numero.current) { ref.current = recharge; setEtat(recharge); } })
         .catch((e) => console.error("Enregistrement impossible (" + cle + ") :", e));
     }
   }, [cle]);

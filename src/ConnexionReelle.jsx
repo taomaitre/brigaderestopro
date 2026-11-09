@@ -817,7 +817,11 @@ export default function ConnexionReelle() {
         const ligne = conv.aDb(x);
         if (!o) {
           if ((cle === "releves" || cle === "surveillances") && !EST_UUID.test(x.equipementId || "")) throw new Error("Appareil pas encore enregistré, réessayez dans un instant.");
-          const { error } = await supabasePublic.from(conv.table).insert({ ...ligne, etablissement_id: session.etablissement.id });
+          // Une exécution de nettoyage = une par tâche, jour et moment : on la remplace au lieu d'en ajouter une de plus.
+          const requete = cle === "pmsExecutions"
+            ? supabasePublic.from(conv.table).upsert({ ...ligne, etablissement_id: session.etablissement.id }, { onConflict: "pms_tache_id,date,moment" })
+            : supabasePublic.from(conv.table).insert({ ...ligne, etablissement_id: session.etablissement.id });
+          const { error } = await requete;
           if (error) throw error;
           recharger = true;
         } else if (JSON.stringify(conv.aDb(o)) !== JSON.stringify(ligne)) {
