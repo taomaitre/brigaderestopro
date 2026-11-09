@@ -10354,7 +10354,9 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
   const [quantiteDlc, setQuantiteDlc] = useState("");
   const [dlcEnregistree, setDlcEnregistree] = useState(null);
   const [etiquetteCreee, setEtiquetteCreee] = useState(null);
-  const [noteIngredients, setNoteIngredients] = useState("");
+  const [noteIngredients, setNoteIngredients] = useState(() => lotFabrication(fiche));
+  const [nbEtiquettes, setNbEtiquettes] = useState("1");
+  const [etiqImpression, setEtiqImpression] = useState(null);
   const [ingredientsEnregistres, setIngredientsEnregistres] = useState(false);
   // Sélection des ingrédients à décompter du stock au moment de la traçabilité (destockage).
   // Pré-rempli avec les quantités de la fiche (pour le rendement complet), l'employé les ajuste
@@ -10421,7 +10423,23 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
     if (!onTracabiliteIngredients) return;
     onTracabiliteIngredients(fiche, { note: noteIngredients });
     setIngredientsEnregistres(true);
-    setNoteIngredients("");
+    setNoteIngredients(lotFabrication(fiche));
+  };
+
+  // Imprime une ou plusieurs étiquettes DLC pour cette fiche (sans enregistrer de production).
+  const imprimerEtiquettesDlc = () => {
+    const n = Math.min(200, parseInt(nbEtiquettes, 10) || 0);
+    if (n < 1) return;
+    const maintenant = new Date();
+    const base = etiquetteCreee || {};
+    const entry = { nomLibre: fiche.nom, lot: lotFabrication(fiche, maintenant), date: todayISO(), heure: maintenant.toTimeString().slice(0, 5), dlcDate: addDays(todayISO(), fiche.dlcJours ?? 0), employeeId: base.employeeId, cuissonInfo: base.cuissonInfo || null, refroidissementInfo: base.refroidissementInfo || null, maintienInfo: base.maintienInfo || null };
+    setEtiqImpression({ n, entry });
+    setTimeout(() => {
+      document.body.classList.add("impression-etiquettes");
+      const fin = () => { document.body.classList.remove("impression-etiquettes"); window.removeEventListener("afterprint", fin); };
+      window.addEventListener("afterprint", fin);
+      window.print();
+    }, 120);
   };
 
   const [indicePdfFiche, setIndicePdfFiche] = useState(false);
@@ -10671,26 +10689,26 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
               {!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree && (
                 <p className="text-xs text-[var(--warn)] mb-2">Validez d'abord la quantité produite et le destockage ci-dessus, puis démarrez l'étape suivante.</p>
               )}
-              <div className="flex flex-wrap gap-2">
+              <div className="flex flex-col gap-2">
                 {onDemarrerRefroidissement && fiche.procedes?.refroid?.on !== false && (
-                  <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "positif")}>
-                    <Snowflake size={15} /> {fiche.procedes?.refroid?.mode === "cellule" ? "Mettre en cellule (démarrer le refroidissement)" : "Démarrer le refroidissement"}
-                  </Button>
+                  <BoutonTuileAction fond={COULEURS_FONCTION.cellule.fond} icone={Snowflake} disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "positif")}>
+                    {fiche.procedes?.refroid?.mode === "cellule" ? "Mettre en cellule (démarrer le refroidissement)" : "Démarrer le refroidissement"}
+                  </BoutonTuileAction>
                 )}
                 {onDemarrerRefroidissement && fiche.procedes?.congel?.on && (
-                  <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "negatif")}>
-                    <Snowflake size={15} /> Démarrer la congélation
-                  </Button>
+                  <BoutonTuileAction fond={COULEURS_FONCTION.cellule.fond} icone={Snowflake} disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerRefroidissement(fiche.nom, "negatif")}>
+                    Démarrer la congélation
+                  </BoutonTuileAction>
                 )}
                 {onDemarrerCuisson && (
-                  <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerCuisson(fiche.nom, fiche.cuissonDureeMin, fiche.familleCuisson)}>
-                    <Flame size={15} /> Démarrer une cuisson
-                  </Button>
+                  <BoutonTuileAction fond={COULEURS_FONCTION.cuisson.fond} icone={Flame} disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerCuisson(fiche.nom, fiche.cuissonDureeMin, fiche.familleCuisson)}>
+                    Démarrer une cuisson
+                  </BoutonTuileAction>
                 )}
                 {onDemarrerMaintienChaud && (
-                  <Button variant="ghost" disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerMaintienChaud(fiche.nom)}>
-                    <Soup size={15} /> Démarrer un maintien au chaud
-                  </Button>
+                  <BoutonTuileAction fond={COULEURS_FONCTION.maintien.fond} icone={Soup} disabled={!avecModes && ingredientsDestockage.length > 0 && !dlcEnregistree} onClick={() => onDemarrerMaintienChaud(fiche.nom)}>
+                    Démarrer un maintien au chaud
+                  </BoutonTuileAction>
                 )}
               </div>
             </div>
@@ -10698,11 +10716,33 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
 
           {onTracabiliteIngredients && (
             <div className="flex flex-wrap items-end gap-2">
-              <Field label="Traçabilité des ingrédients utilisés (note libre)">
+              <Field label="Lot / traçabilité des ingrédients (rempli automatiquement, modifiable)">
                 <input className={`${inputCls} w-64`} placeholder="ex. lot / observation" value={noteIngredients} onChange={(e) => setNoteIngredients(e.target.value)} />
               </Field>
               <Button variant="ghost" onClick={validerIngredients}>Enregistrer la traçabilité</Button>
               {ingredientsEnregistres && <span className="text-xs text-[var(--accent)] font-medium">Enregistré</span>}
+            </div>
+          )}
+
+          {(onEditerDlc || onTracabiliteIngredients) && (
+            <div className="mt-3 pt-3 border-t border-[var(--line)] print:border-0 print:mt-0 print:pt-0">
+              <div className="print:hidden">
+                <div className="flex items-end gap-2 mb-2">
+                  <Field label="Nombre d'étiquettes">
+                    <input className={`${inputCls} w-24`} inputMode="numeric" value={nbEtiquettes} onChange={(e) => setNbEtiquettes(e.target.value.replace(/[^0-9]/g, ""))} />
+                  </Field>
+                </div>
+                <BoutonTuileAction fond={COULEURS_FONCTION.etiquettes.fond} icone={Printer} disabled={!(parseInt(nbEtiquettes, 10) > 0)} onClick={imprimerEtiquettesDlc}>
+                  Imprimer {parseInt(nbEtiquettes, 10) > 1 ? `${parseInt(nbEtiquettes, 10)} étiquettes DLC` : "l'étiquette DLC"}
+                </BoutonTuileAction>
+              </div>
+              {etiqImpression && (
+                <div id="etiquettes-imprimables" className="mt-3 flex flex-wrap gap-3">
+                  {Array.from({ length: etiqImpression.n }).map((_, i) => (
+                    <EtiquetteDlcImprimable key={i} produitNom={etiqImpression.entry.nomLibre} lot={etiqImpression.entry.lot} dlcDate={etiqImpression.entry.dlcDate} date={etiqImpression.entry.date} heure={etiqImpression.entry.heure} who={who} employeeId={etiqImpression.entry.employeeId} cuissonInfo={etiqImpression.entry.cuissonInfo} refroidissementInfo={etiqImpression.entry.refroidissementInfo} maintienInfo={etiqImpression.entry.maintienInfo} />
+                  ))}
+                </div>
+              )}
             </div>
           )}
         </Card>
@@ -16448,6 +16488,22 @@ function abreviationLot(nom) {
 function dateLotDuJour() {
   const d = new Date();
   return `${String(d.getDate()).padStart(2, "0")}${String(d.getMonth() + 1).padStart(2, "0")}${d.getFullYear()}`;
+}
+// Lot d'une fabrication : code de la fiche + initiales du produit + date et heure de fabrication (ex. SAU-02-BOL-091125-1155).
+function lotFabrication(fiche, d = new Date()) {
+  const p = (n) => String(n).padStart(2, "0");
+  const code = String((fiche && fiche.code) || "").trim().replace(/\s+/g, "");
+  const init = abreviationLot((fiche && fiche.nom) || "") || "";
+  return [code, init, `${p(d.getDate())}${p(d.getMonth() + 1)}${String(d.getFullYear()).slice(2)}`, `${p(d.getHours())}${p(d.getMinutes())}`].filter(Boolean).join("-");
+}
+// Bouton d'action en forme de petite tuile colorée avec son icône (comme l'accueil), pour que l'on voie bien que c'est un bouton.
+function BoutonTuileAction({ fond, icone: Ic, onClick, disabled, children }) {
+  return (
+    <button type="button" onClick={onClick} disabled={disabled} className="w-full flex items-center gap-3 rounded-xl px-3 py-3 min-h-[52px] text-left text-white font-semibold text-sm shadow-md transition active:scale-[0.99] disabled:opacity-45 disabled:cursor-not-allowed print:hidden" style={{ background: fond }}>
+      <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,255,255,0.22)" }}><Ic size={20} /></span>
+      <span className="flex-1 leading-tight">{children}</span>
+    </button>
+  );
 }
 function genererLot(nom) {
   return `${abreviationLot(nom)}${dateLotDuJour()}`;
@@ -26164,7 +26220,7 @@ function KitchenApp({ identiteExterne } = {}) {
     const dernierRefroidissement = refroidissementsLus.filter((r) => (r.produit || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || "")).localeCompare(a.date + (a.heureFin || "")))[0] || null;
     const dernierMaintien = maintiensLus.filter((e) => (e.nom || "").trim().toLowerCase() === nomPropre).sort((a, b) => (b.date + (b.heureFin || b.heureDebut || "")).localeCompare(a.date + (a.heureFin || a.heureDebut || "")))[0] || null;
     const entry = {
-      id: uid(), produitId: null, nomLibre: fiche.nom, employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), quantite, dlcDate, jete: false, jeteDate: null,
+      id: uid(), produitId: null, nomLibre: fiche.nom, lot: lotFabrication(fiche), employeeId: currentUserId, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), quantite, dlcDate, jete: false, jeteDate: null,
       heureRefroidissement: dernierRefroidissement?.heureFin || null, photo: photo || null,
       cuissonInfo: derniereCuisson ? { heureDebut: derniereCuisson.heureDebut, heureFin: derniereCuisson.heureFin, temperature: derniereCuisson.temperature, conforme: derniereCuisson.conforme } : null,
       refroidissementInfo: dernierRefroidissement ? { heureDebut: dernierRefroidissement.heureDebut, heureFin: dernierRefroidissement.heureFin, tempDebut: dernierRefroidissement.tempDebut, tempFin: dernierRefroidissement.tempFin, conforme: dernierRefroidissement.conforme } : null,
