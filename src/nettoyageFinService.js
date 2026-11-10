@@ -8,7 +8,7 @@
 export const JOURS_SEMAINE = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 export const MOMENTS = [["midi", "Fin du service du midi"], ["soir", "Fin du service du soir"]];
 export const MOIS_ANNEE = ["Janvier", "Février", "Mars", "Avril", "Mai", "Juin", "Juillet", "Août", "Septembre", "Octobre", "Novembre", "Décembre"];
-export const FENETRE_RETARD_JOURS = 14; // au-delà, une tâche jamais faite n'est plus reportée
+export const FENETRE_RETARD_JOURS = 7; // décision de Loïc (10/11) : au-delà de 7 jours, une tâche jamais faite n'est plus reportée
 
 const NOMS_JOURS_JS = ["Dimanche", "Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
 const MS_JOUR = 86400000;

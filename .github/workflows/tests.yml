@@ -1,0 +1,34 @@
+# Garde-fou : à chaque proposition de changement vers `main`, les contrôles de contenu et tous les parcours de test
+# doivent réussir. Sinon la fusion est bloquée (protection de la branche `main`, règle « tests »).
+# Les tests n'utilisent AUCUNE vraie base : Supabase est remplacé par un faux client (tests/banc/sb.js).
+name: tests
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch: {}
+
+jobs:
+  tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm install --no-save playwright@1.47.2
+      - run: npx playwright install --with-deps chromium
+      - name: Contrôles de contenu (décisions validées)
+        run: node tests/contrats.mjs
+      - name: Construction du banc d'essai
+        run: bash tests/banc/build.sh
+      - name: Parcours à l'écran
+        env:
+          PW_PATH: ${{ github.workspace }}/node_modules/
+        run: |
+          (cd tests/banc/sortie && python3 -m http.server 5199 --bind 127.0.0.1 >/dev/null 2>&1 &)
+          sleep 2
+          node tests/parcours.mjs
