@@ -241,6 +241,26 @@ await parcours('Fiches techniques : les fiches de l’établissement s’affiche
   verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
   await ctx.close();
 });
+await parcours('Nettoyage (Tâches du jour) : trois lignes seulement (journalières, hebdomadaires et mensuelles, en retard sur 7 jours), le fait est barré', async () => {
+  const ctx = await b.newContext({ viewport: { width: 1366, height: 900 } });
+  const p = await ctx.newPage(); const erreurs = []; p.on('pageerror', (e) => erreurs.push(e.message));
+  await p.goto('http://127.0.0.1:5199/reel.html?role=chef&net=1');
+  await attendre(p, /Bonjour/, 30000); await p.waitForTimeout(1500);
+  await cliquer(p, 'Tâches du jour'); await p.waitForTimeout(800);
+  const lignes = await p.locator('[data-bloc-nettoyage]').allInnerTexts();
+  const ids = await p.locator('[data-bloc-nettoyage]').evaluateAll((els) => els.map((e) => e.getAttribute('data-bloc-nettoyage')));
+  verifier(JSON.stringify(ids) === JSON.stringify(['journalieres', 'periodiques', 'retard']), 'blocs ou ordre inattendus : ' + ids.join(', '));
+  verifier(/Tâches journalières/.test(lignes[0]) && /Tâches hebdomadaires et mensuelles/.test(lignes[1]) && /Tâches en retard/.test(lignes[2]), 'libellés inattendus : ' + lignes.join(' | '));
+  verifier(/\b7\b/.test(lignes[2]), 'le retard doit être limité à 7 jours (7 occurrences attendues) : ' + lignes[2]);
+  verifier(!/Plan de travail test/.test(await p.innerText('body')), 'les tâches ne doivent apparaître qu’après un clic sur la ligne');
+  await p.locator('[data-bloc-nettoyage="journalieres"]').click(); await p.waitForTimeout(400);
+  verifier(/Plan de travail test/.test(await p.innerText('body')), 'la liste des journalières ne s’ouvre pas');
+  await p.locator('button[aria-label="Fait"]').first().click(); await p.waitForTimeout(500);
+  const barre = await p.locator('p:has-text("Plan de travail test")').first().evaluate((e) => getComputedStyle(e).textDecorationLine);
+  verifier(/line-through/.test(barre), 'la tâche faite n’est pas barrée');
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
 await parcours('Vrai mode, directeur : seulement Suivi et contrôle, Historique, Planning, Réservations ; engrenage dans la bande noire', async () => {
   const { p, ctx, erreurs } = await ouvrirReel('directeur');
   const t = await p.innerText('body');

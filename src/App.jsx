@@ -24204,8 +24204,15 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
     setOuvert(null); setMotif(""); setPhoto(null);
   };
   const annuler = (o) => { if (o.exec) ctx.setExecutions((l) => l.filter((x) => x.id !== o.exec.id)); };
-  const enRetard = miennes.filter((o) => o.enRetard);
-  const duJour = (m) => miennes.filter((o) => !o.enRetard && o.date === today && o.moment === m);
+  // Trois blocs seulement, dans cet ordre (décision de Loïc, 10/11) : journalières, hebdomadaires et mensuelles, en retard.
+  // Chaque bloc est une ligne ; un clic ouvre la liste, où l'on coche ce qui est fait. Le fait est barré.
+  const [blocsOuverts, setBlocsOuverts] = useState([]);
+  const basculerBloc = (id) => setBlocsOuverts((l) => (l.includes(id) ? l.filter((x) => x !== id) : [...l, id]));
+  const rangMoment = (o) => (o.moment === "midi" ? 0 : 1);
+  const enRetard = miennes.filter((o) => o.enRetard).sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : rangMoment(a) - rangMoment(b)));
+  const duJourTous = miennes.filter((o) => !o.enRetard && o.date === today).sort((a, b) => rangMoment(a) - rangMoment(b));
+  const journalieres = duJourTous.filter((o) => o.t.frequence === "Quotidienne");
+  const periodiques = duJourTous.filter((o) => o.t.frequence !== "Quotidienne");
   const ligne = (o) => {
     const ex = o.exec; const pas = ouvert === o.cle;
     const fait = o.statut === "fait" || o.statut === "valide";
@@ -24223,8 +24230,8 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
               style={rate ? { backgroundColor: "#E5243B", borderColor: "#E5243B", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#E5243B", color: "#E5243B" }}><X size={18} /></button>
           </div>
           <div className="flex-1 min-w-0">
-            <p className={`text-sm leading-snug ${fait ? "text-[var(--steel)]" : "text-[var(--ink)]"} ${o.statut === "valide" ? "line-through" : ""}`}>{o.tache}</p>
-            {o.poste && o.poste !== "Tous" && <p className="text-[10px] uppercase tracking-wide text-[var(--steel)]">{o.poste}</p>}
+            <p className={`text-sm leading-snug ${fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{o.tache}</p>
+            <p className="text-[10px] uppercase tracking-wide text-[var(--steel)]">{o.poste && o.poste !== "Tous" ? `${o.poste} · ` : ""}{o.moment === "midi" ? "midi" : "soir"}</p>
             {o.enRetard && <p className="text-xs font-semibold text-[var(--warn)]">En retard — prévue le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"})</p>}
             {o.note && o.statut === "a_faire" && <p className="text-xs text-[var(--steel)] mt-0.5 whitespace-pre-line">{o.note}</p>}
             {o.statut === "impossible" && ex?.motif && <p className="text-xs font-medium text-[var(--warn)] mt-0.5">Pas fait : {ex.motif}</p>}
@@ -24247,12 +24254,31 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
       </div>
     );
   };
-  const titre = (t, rouge) => <p className={`px-3 pt-2 pb-1 text-[11px] font-semibold uppercase tracking-wide ${rouge ? "text-[var(--warn)]" : "text-[var(--steel)]"}`}>{t}</p>;
+  const enTete = (id, libelle, liste, rouge) => {
+    const ouvertB = blocsOuverts.includes(id);
+    const faites = liste.filter((o) => o.statut === "fait" || o.statut === "valide").length;
+    return (
+      <button type="button" data-bloc-nettoyage={id} onClick={() => basculerBloc(id)} aria-expanded={ouvertB}
+        className="w-full flex items-center justify-between gap-2 px-3 py-3 min-h-[48px] text-left border-b border-[var(--line)]">
+        <span className={`text-sm font-bold ${rouge ? "text-[var(--warn)]" : "text-[var(--ink)]"}`}>{libelle}</span>
+        <span className="flex items-center gap-2 shrink-0">
+          <span className={`text-xs font-semibold ${rouge ? "text-[var(--warn)]" : "text-[var(--steel)]"}`}>{rouge ? liste.length : `${faites}/${liste.length}`}</span>
+          <ChevronRight size={16} className={`transition-transform ${ouvertB ? "rotate-90" : ""}`} />
+        </span>
+      </button>
+    );
+  };
+  const bloc = (id, libelle, liste, rouge) => liste.length > 0 && (
+    <div key={id}>
+      {enTete(id, libelle, liste, rouge)}
+      {blocsOuverts.includes(id) && <div className="divide-y divide-[var(--line)]">{liste.map(ligne)}</div>}
+    </div>
+  );
   return (
     <div>
-      {enRetard.length > 0 && <>{titre("En retard — à faire en priorité", true)}{enRetard.map(ligne)}</>}
-      {duJour("midi").length > 0 && <>{titre("Fin du service du midi")}{duJour("midi").map(ligne)}</>}
-      {duJour("soir").length > 0 && <>{titre("Fin du service du soir")}{duJour("soir").map(ligne)}</>}
+      {bloc("journalieres", "Tâches journalières", journalieres, false)}
+      {bloc("periodiques", "Tâches hebdomadaires et mensuelles", periodiques, false)}
+      {bloc("retard", "Tâches en retard", enRetard, true)}
     </div>
   );
 }

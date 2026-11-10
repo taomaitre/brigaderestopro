@@ -35,6 +35,15 @@ if (q.get('cat') === '1') {
   identite.catalogue = bruts.map((p) => ({ id: p.id, nom: p.nom, categorie: p.conservation === 'surgele' ? 'Surgelés' : p.categorie, conservation: p.conservation, groupeStock: '', ordreStock: null, detailAchat: p.detail_achat, fournisseur: 'Fournisseur 1', reference: p.reference, conditionnement: p.conditionnement, prixUnitaire: `${String(p.prix_achat).replace('.', ',')} ${p.prix_unite}`, poidsParPiece: '', referenceVerifiee: true, note: p.note, allergenesNorme: '', origineNorme: '', quantite: p.quantite_stock, cible: p.quantite_cible, unite: p.unite, lot: '', dlc: '', typeDate: '', dlcJours: null, delaiOuverture: null, decongelMethode: '', decongelJours: null, decongelSource: '', brut: p }));
   identite.gestionCatalogue = { enregistrer: async () => {} };
 }
+// ?net=1 : plan de nettoyage FICTIF (une tâche journalière créée il y a 12 jours et jamais faite, une tâche « chaque jour de la semaine » créée aujourd'hui) pour vérifier les trois blocs.
+if (q.get('net') === '1') {
+  const iso = (n) => { const d = new Date(); d.setDate(d.getDate() + n); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
+  identite.listes = { ...(identite.listes || {}), cleaning: [
+    { id: 'n1', tache: 'Plan de travail test', poste: 'Tous', frequence: 'Quotidienne', moments: ['soir'], creeLe: iso(-12), fait: false, date: null, employeeId: null },
+    { id: 'n2', tache: 'Hotte test', poste: 'Tous', frequence: 'Hebdomadaire', jours: ['Lundi', 'Mardi', 'Mercredi', 'Jeudi', 'Vendredi', 'Samedi', 'Dimanche'], moments: ['soir'], creeLe: iso(0), fait: false, date: null, employeeId: null },
+  ], pmsExecutions: [] };
+  identite.gestionListes = { ...(identite.gestionListes || {}), cleaning: { persister: async () => null }, pmsExecutions: { persister: async () => null } };
+}
 // ?grp=1 (avec ?cat=1) : groupes du stock choisis par l'établissement (ordre différent du départ) et ordre choisi des produits.
 if (q.get('grp') === '1' && identite.catalogue) {
   identite.reglagesEtablissement = { ...(identite.reglagesEtablissement || { nom: 'Banc', fiche: {} }),
