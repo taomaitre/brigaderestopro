@@ -17,8 +17,8 @@ async function attendre(p, re, ms = 20000) {
   while (Date.now() - t0 < ms) { if (re.test(await p.innerText('body'))) return true; await p.waitForTimeout(400); }
   return false;
 }
-async function ouvrir({ qui = 'Loïc', graines = {}, mobile = false, attente = null }) {
-  const ctx = await b.newContext({ viewport: mobile ? { width: 412, height: 915 } : { width: 1366, height: 800 }, isMobile: mobile, hasTouch: mobile });
+async function ouvrir({ qui = 'Loïc', graines = {}, mobile = false, attente = null, hauteur = 800 }) {
+  const ctx = await b.newContext({ viewport: mobile ? { width: 412, height: 915 } : { width: 1366, height: hauteur }, isMobile: mobile, hasTouch: mobile });
   const p = await ctx.newPage(); const erreurs = []; p.on('pageerror', (e) => erreurs.push(e.message));
   await p.addInitScript((g) => { if (!localStorage.getItem('__graine')) { for (const [k, v] of Object.entries(g)) localStorage.setItem('macuisine_preview:' + k, JSON.stringify(v)); localStorage.setItem('__graine', '1'); } }, graines);
   await p.goto(URL); await p.waitForTimeout(500);
@@ -30,6 +30,7 @@ async function ouvrir({ qui = 'Loïc', graines = {}, mobile = false, attente = n
 }
 const cliquer = async (p, texte) => { await p.locator(`text="${texte}"`).locator('visible=true').first().click(); await p.waitForTimeout(500); };
 async function parcours(nom, fn) {
+  if (process.env.FILTRE && !nom.includes(process.env.FILTRE)) return; // FILTRE=texte : ne lance que les parcours dont le nom contient ce texte
   const t0 = Date.now();
   try { await fn(); resultats.push({ nom, ok: true, ms: Date.now() - t0 }); console.log(`✓ ${nom}`); }
   catch (e) { resultats.push({ nom, ok: false, ms: Date.now() - t0, err: e.message }); console.log(`✗ ${nom} — ${e.message}`); }
@@ -105,7 +106,7 @@ await parcours('Stock : « Tous les produits » regroupé par catégorie, dans l
 });
 
 await parcours('Stock : le chef crée son groupe « Serpent », le met dans l’ordre voulu et y range un produit', async () => {
-  const { p, ctx, erreurs } = await ouvrir({});
+  const { p, ctx, erreurs } = await ouvrir({ hauteur: 1500 });
   await cliquer(p, 'Stock');
   await cliquer(p, 'Gérer mes groupes');
   await p.waitForTimeout(300);
@@ -124,9 +125,14 @@ await parcours('Stock : le chef crée son groupe « Serpent », le met dans l’
   // ranger le premier produit dans Serpent
   await cliquer(p, 'Tous les produits');
   await p.waitForTimeout(500);
-  const sel = p.locator('select[aria-label^="Groupe de"]').first();
-  await sel.selectOption({ label: 'Groupe : Serpent' });
-  await p.waitForTimeout(500);
+  // Depuis le 02/11 la ligne « Groupe » n'existe plus : on range un produit en le glissant (poignée = son nom) sur le groupe du menu.
+  const poignee = p.locator('[data-poignee="nom"]').first();
+  const cible = p.locator('[data-depot^="groupe:g_"]').first();
+  const bp = await poignee.boundingBox(); const bc = await cible.boundingBox();
+  await p.mouse.move(bp.x + bp.width / 2, bp.y + bp.height / 2); await p.mouse.down(); await p.waitForTimeout(250);
+  await p.mouse.move(bp.x + bp.width / 2 + 20, bp.y + bp.height / 2 + 10, { steps: 4 });
+  await p.mouse.move(bc.x + bc.width / 2, bc.y + bc.height / 2, { steps: 12 }); await p.waitForTimeout(150);
+  await p.mouse.up(); await p.waitForTimeout(600);
   const t = await p.locator('#stock-tableau').innerText();
   verifier(/Serpent \(1\)/.test(t), 'le produit n’est pas dans le groupe Serpent : ' + t.slice(0, 200));
   verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
@@ -205,6 +211,36 @@ async function ouvrirReel(role, mobile = false) {
   await attendre(p, /Bonjour/, 30000); await p.waitForTimeout(1500);
   return { p, ctx, erreurs };
 }
+await parcours('Étiquettes (DLC) : mêmes groupes, même ordre et même rangement des produits que le Stock', async () => {
+  const ctx = await b.newContext({ viewport: { width: 1366, height: 900 } });
+  const p = await ctx.newPage(); const erreurs = []; p.on('pageerror', (e) => erreurs.push(e.message));
+  await p.goto('http://127.0.0.1:5199/reel.html?role=chef&cat=1&grp=1');
+  await attendre(p, /Bonjour/, 30000); await p.waitForTimeout(1500);
+  await cliquer(p, 'Étiquettes (DLC)');
+  await attendre(p, /Tous les produits/, 15000); await p.waitForTimeout(600);
+  const menu = await p.locator('main').innerText();
+  const iS = menu.indexOf('Surgelés ('); const iE = menu.indexOf('Épicerie sèche ('); const iL = menu.indexOf('Produits laitiers et œufs (');
+  verifier(iS > 0 && iE > 0 && iL > 0, 'groupes du stock absents du menu des Étiquettes');
+  verifier(iS < iE && iE < iL, 'menu des Étiquettes dans le désordre (attendu : Surgelés, Épicerie sèche, Produits laitiers)');
+  const noms = (await p.locator('[id^="dlc-prod-"]').allInnerTexts()).map((t) => t.split('\n')[0].trim());
+  const attendu = ['Pains test', 'Glace test', 'Flan test', 'Cornichons test', 'Fromage test au kilo'];
+  verifier(JSON.stringify(noms) === JSON.stringify(attendu), 'ordre des produits : ' + noms.join(' | ') + ' (attendu : ' + attendu.join(' | ') + ')');
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
+await parcours('Fiches techniques : les fiches de l’établissement s’affichent toutes dans la liste (jamais « disparues »)', async () => {
+  const ctx = await b.newContext({ viewport: { width: 1366, height: 900 } });
+  const p = await ctx.newPage(); const erreurs = []; p.on('pageerror', (e) => erreurs.push(e.message));
+  await p.goto('http://127.0.0.1:5199/reel.html?role=chef&ft=1');
+  await attendre(p, /Bonjour/, 30000); await p.waitForTimeout(1500);
+  await cliquer(p, 'Fiches techniques');
+  await attendre(p, /fiches techniques —/, 15000); await p.waitForTimeout(500);
+  const t = await p.locator('main').innerText();
+  for (const n of ['Lasagne', 'Burger Le Bacon', 'Margherita']) verifier(t.includes(n), `la fiche « ${n} » n’est pas affichée`);
+  verifier(/3 fiches techniques/.test(t), 'le compteur « 3 fiches techniques » est absent');
+  verifier(erreurs.length === 0, 'erreurs JavaScript : ' + erreurs[0]);
+  await ctx.close();
+});
 await parcours('Vrai mode, directeur : seulement Suivi et contrôle, Historique, Planning, Réservations ; engrenage dans la bande noire', async () => {
   const { p, ctx, erreurs } = await ouvrirReel('directeur');
   const t = await p.innerText('body');
@@ -286,7 +322,7 @@ await parcours('Paramétrage : engrenage visible pour la Direction, liste à gau
   verifier(await bouton.count() === 1, 'bouton Paramétrage absent (ou en double) pour la Direction');
   await bouton.first().click(); await p.waitForTimeout(600);
   const t = await p.innerText('body');
-  for (const x of ['Comptes de l’équipe'.replace('’', "'"), 'Fournisseurs', 'Produits', 'Appareils de froid', 'Créer une fiche technique', 'Plan de nettoyage', 'Nettoyages à valider', 'Carte du restaurant']) verifier(t.includes(x), `« ${x} » absent de la liste du Paramétrage`);
+  for (const x of ['Comptes de l’équipe'.replace('’', "'"), 'Fournisseurs', 'Produits', 'Appareils de froid', 'Créer une fiche technique', 'Plan de nettoyage', 'Contrôle de la journée', 'Carte du restaurant']) verifier(t.includes(x), `« ${x} » absent de la liste du Paramétrage`);
   for (const x of ['Appareils de froid', 'Comptes de l\'équipe', 'Plan de nettoyage', 'Carte du restaurant']) {
     await cliquer(p, x);
     verifier(!/Something went wrong|Erreur inattendue/.test(await p.innerText('body')), `écran d'erreur sur « ${x} »`);

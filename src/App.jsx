@@ -16676,7 +16676,7 @@ function reglesDecongelation(p) {
   return { methode, jours, source: (p && p.decongelSource) || "" };
 }
 
-function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits, modeMigre }) {
+function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, currentUserId, logActivity, creerEtiquetteDlc, employees, produits, setProduits, modeMigre, groupesStock }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
 
   // Ce que porte l'étiquette (nouvelle base) : jamais la DLC du produit enregistrée au stock. Soit la DDM du lot
@@ -16776,18 +16776,36 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
   }
 
   // Nouvelle base : mêmes catégories que l'écran Stock (toutes affichées, même vides).
-  const catDe = (p) => (modeMigre ? categorieStock({ conservation: p.conservation || "", categorie: p.categorieCatalogue || "", nom: p.nom }) : categorieDeProduitDlc(p));
-  const listeCats = modeMigre ? CATEGORIES_STOCK.map((c) => c.nom) : categoriesPresentes;
+  // Nouvelle base : les MÊMES groupes et le MÊME ordre que l'écran Stock (groupes de l'établissement, rangement des produits, ordre choisi).
+  const groupesBase = Array.isArray(groupesStock) && groupesStock.length > 0 ? groupesStock : groupesStockParDefaut();
+  const groupesAff = modeMigre
+    ? [...groupesBase, ...(produitsUniques.some((p) => groupeDuProduit(p, groupesBase) === GROUPE_NON_CLASSE.id) ? [GROUPE_NON_CLASSE] : []),
+       ...(produitsUniques.some((p) => groupeDuProduit(p, groupesBase) === GROUPE_PAUSE.id) ? [GROUPE_PAUSE] : [])]
+    : [];
+  const groupeObj = (nom) => groupesAff.find((g) => g.nom === nom) || { id: "base:" + nom, nom };
+  const catDe = (p) => {
+    if (!modeMigre) return categorieDeProduitDlc(p);
+    const id = groupeDuProduit(p, groupesBase);
+    const g = groupesAff.find((x) => x.id === id);
+    return g ? g.nom : GROUPE_NON_CLASSE.nom;
+  };
+  const listeCats = modeMigre ? groupesAff.map((g) => g.nom) : categoriesPresentes;
   const nbCat = (c) => produitsUniques.filter((p) => catDe(p) === c).length;
-  const visibles = produitsTries.filter((p) => {
+  const rangCat = (p) => groupesAff.findIndex((g) => g.nom === catDe(p));
+  const nbTous = modeMigre ? produitsUniques.filter((p) => catDe(p) !== GROUPE_PAUSE.nom).length : produitsUniques.length;
+  const visibles = (modeMigre
+    ? [...produitsUniques].sort((a, b) => (rangCat(a) - rangCat(b)) || ordreStockCmp(a, b))
+    : produitsTries
+  ).filter((p) => {
     const q = recherche.trim().toLowerCase();
-    return (catChoisie === "__tous__" || catDe(p) === catChoisie) && (!q || p.nom.toLowerCase().includes(q));
+    const enPause = modeMigre && catDe(p) === GROUPE_PAUSE.nom;
+    return (catChoisie === "__tous__" ? !enPause : catDe(p) === catChoisie) && (!q || p.nom.toLowerCase().includes(q));
   });
   const produitsSel = produitsUniques.filter((p) => selection.includes(p.id));
   const nbDe = (id) => Math.max(1, Number(nbParProduit[id]) || 1);
   const changerNb = (id, delta) => setNbParProduit((m) => ({ ...m, [id]: Math.max(1, (Number(m[id]) || 1) + delta) }));
   const totalEtiq = produitsSel.reduce((t, p) => t + nbDe(p.id), 0);
-  const infoCat = (c) => { if (modeMigre) { const x = CATEGORIES_STOCK.find((k) => k.nom === c); return x ? [x.fond, x.texte] : ["#7C8794", "#fff"]; } return COULEURS_CAT_DLC[c] || ["#7C8794", "#fff"]; };
+  const infoCat = (c) => { if (modeMigre) { const x = groupesAff.find((k) => k.nom === c); return x ? [x.fond, x.texte] : ["#7C8794", "#fff"]; } return COULEURS_CAT_DLC[c] || ["#7C8794", "#fff"]; };
   const boutonPm = "w-9 h-9 rounded-lg border border-[var(--cadre)] bg-white text-[var(--ink)] text-lg font-bold leading-none active:scale-95";
   const decongDe = (id) => ({ oui: false, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), ...(decongParProduit[id] || {}) });
   const majDecong = (id, patch) => setDecongParProduit((m) => ({ ...m, [id]: { ...decongDe(id), ...patch } }));
@@ -16818,12 +16836,12 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
             <button type="button" onClick={() => setCatChoisie("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: catChoisie === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
               <Package size={20} className="shrink-0" />
-              <span className="flex-1 min-w-0 text-sm font-semibold">Tous les produits <span className="font-normal opacity-80">({produitsUniques.length})</span></span>
+              <span className="flex-1 min-w-0 text-sm font-semibold">Tous les produits <span className="font-normal opacity-80">({nbTous})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
             {listeCats.map((cat) => { const [fond, texte] = infoCat(cat); return (
               <button key={cat} type="button" onClick={() => setCatChoisie(cat)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: fond, color: texteLisible(fond, texte), outline: catChoisie === cat ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
-                {React.createElement(logoGroupe({ id: "base:" + cat, nom: cat }), { size: 20, className: "shrink-0" })}
+                {React.createElement(logoGroupe(modeMigre ? groupeObj(cat) : { id: "base:" + cat, nom: cat }), { size: 20, className: "shrink-0" })}
                 <span className="flex-1 min-w-0 text-sm font-semibold">{cat} <span className="font-normal opacity-80">({nbCat(cat)})</span></span>
                 <ChevronRight size={16} className="shrink-0 hidden lg:block" />
               </button>
@@ -25695,7 +25713,7 @@ function KitchenApp({ identiteExterne } = {}) {
     return cat.filter((c) => !["entretien", "emballage", "autre"].includes(c.conservation)).map((c) => {
       const jours = c.delaiOuverture != null ? Number(c.delaiOuverture) : (c.dlcJours == null ? null : Number(c.dlcJours));
       return {
-        id: c.id, nom: c.nom, poste: "", reference: c.reference || "", conservation: c.conservation || "", categorieCatalogue: c.categorie || "", categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
+        id: c.id, nom: c.nom, poste: "", reference: c.reference || "", conservation: c.conservation || "", categorieCatalogue: c.categorie || "", categorie: c.categorie || "", groupeStock: c.groupeStock || "", ordreStock: c.ordreStock == null ? null : c.ordreStock, categorieManuelle: CAT_PAR_TYPE[c.conservation] || (ORDRE_CATEGORIES_DLC.includes(c.categorie) ? c.categorie : null),
         typeDate: c.typeDate || (jours != null ? "DLC" : "DDM"), ddmExplicite: c.typeDate === "DDM", dlcJours: jours,
         decongelMethode: c.decongelMethode || "", decongelJours: c.decongelJours, decongelSource: c.decongelSource || "",
         ddmLotActuel: c.lot || null, ddmDateActuelle: c.dlc || null,
@@ -27127,7 +27145,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {tab === "etiquettes" && (
           consentementAccorde()
-            ? <EtiquettesDlc stock={stock} jeterStock={jeterStock} preparations={preparations} jeterPreparation={jeterPreparation} currentUserId={currentUserId} logActivity={logActivitySafe} creerEtiquetteDlc={creerEtiquetteDlc} employees={employees} produits={produits} setProduits={setProduits} modeMigre={modeExterne} />
+            ? <EtiquettesDlc stock={stock} jeterStock={jeterStock} preparations={preparations} jeterPreparation={jeterPreparation} currentUserId={currentUserId} logActivity={logActivitySafe} creerEtiquetteDlc={creerEtiquetteDlc} employees={employees} produits={produits} setProduits={setProduits} modeMigre={modeExterne} groupesStock={groupesStockApp} />
             : <AccesRestreint titre="Lecture automatique des étiquettes par IA" />
         )}
         {tab === "tracabilite" && (
