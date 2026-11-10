@@ -4,7 +4,8 @@
 import fs from 'fs';
 const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const reel = fs.readFileSync(new URL('../src/ConnexionReelle.jsx', import.meta.url), 'utf8');
-const tout = app + '\n' + reel;
+const service = fs.readFileSync(new URL('../src/nettoyageFinService.js', import.meta.url), 'utf8');
+const tout = app + '\n' + reel + '\n' + service;
 // [libellé, motif, doit exister (true) ou être absent (false), fichier(s) : 'app' | 'reel' | 'tout']
 const R = [
   // Accueil, navigation, libellés (decision-accueil-12-tuiles-24-10, liste-modifications-a-faire-24-10)
@@ -46,6 +47,12 @@ const R = [
   ["Nettoyage : produits Keystone recommandés", /produits Keystone recommandés/, true],
   ["PMS : historique des passages des prestataires", /Historique des passages/, true],
   ["PMS : historique des modifications", /Historique des modifications/, true],
+  // Nettoyage : trois lignes seulement (décision du 10/11)
+  ["Nettoyage : ligne « Tâches journalières »", /Tâches journalières/, true],
+  ["Nettoyage : ligne « Tâches hebdomadaires et mensuelles »", /Tâches hebdomadaires et mensuelles/, true],
+  ["Nettoyage : ligne « Tâches en retard »", /Tâches en retard/, true],
+  ["Nettoyage : retard limité à 7 jours", /FENETRE_RETARD_JOURS = 7;/, true, 'service'],
+  ["Nettoyage : le fait est barré", /fait \? "text-\[var\(--steel\)\] line-through"/, true],
   // Fiches techniques
   ["Fiches techniques : bouton « Compléter mes fiches »", /Compléter mes fiches/, true],
   // Couleurs : table unique, aucune couleur « à la main » pour les fonctions (valeurs de départ validées le 25/10)
