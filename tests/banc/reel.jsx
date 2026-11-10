@@ -35,6 +35,17 @@ if (q.get('cat') === '1') {
   identite.catalogue = bruts.map((p) => ({ id: p.id, nom: p.nom, categorie: p.conservation === 'surgele' ? 'Surgelés' : p.categorie, conservation: p.conservation, groupeStock: '', ordreStock: null, detailAchat: p.detail_achat, fournisseur: 'Fournisseur 1', reference: p.reference, conditionnement: p.conditionnement, prixUnitaire: `${String(p.prix_achat).replace('.', ',')} ${p.prix_unite}`, poidsParPiece: '', referenceVerifiee: true, note: p.note, allergenesNorme: '', origineNorme: '', quantite: p.quantite_stock, cible: p.quantite_cible, unite: p.unite, lot: '', dlc: '', typeDate: '', dlcJours: null, delaiOuverture: null, decongelMethode: '', decongelJours: null, decongelSource: '', brut: p }));
   identite.gestionCatalogue = { enregistrer: async () => {} };
 }
+// ?grp=1 (avec ?cat=1) : groupes du stock choisis par l'établissement (ordre différent du départ) et ordre choisi des produits.
+if (q.get('grp') === '1' && identite.catalogue) {
+  identite.reglagesEtablissement = { ...(identite.reglagesEtablissement || { nom: 'Banc', fiche: {} }),
+    groupesStock: [
+      { id: 'base:Surgelés', nom: 'Surgelés', fond: '#7A4DE0', texte: '#fff' },
+      { id: 'base:Épicerie sèche', nom: 'Épicerie sèche', fond: '#F28C28', texte: '#fff' },
+      { id: 'base:Produits laitiers et œufs', nom: 'Produits laitiers et œufs', fond: '#F2B01E', texte: '#3B2A00' },
+    ] };
+  const ordre = { p5: 1, p2: 2, p1: 3 }; // Pains, Glace, Flan (l'inverse de l'ordre alphabétique)
+  identite.catalogue = identite.catalogue.map((c) => ({ ...c, ordreStock: ordre[c.id] == null ? null : ordre[c.id] }));
+}
 // ?ft=1 : trois fiches techniques FICTIVES vides d'étapes (noms du classeur Games Factory) pour tester « Compléter mes fiches ».
 if (q.get('ft') === '1') {
   const base = (id, nom, cat) => ({ id, nom, code: 'FT-' + id, categorie: cat, type: 'recette', poste: '', sousTitre: 'Allergènes seulement (recette à saisir)', allergenes: ['Lait'], ingredients: id === 'g3' ? [{ nom: 'Mozzarella', quantite: '1', unite: 'kg', lienId: 'L1', lienType: 'stock' }] : [], preparation: [], haccp: [], materiel: [], aRetenir: [], dressage: [], rendement: [], etiquetage: [], tracabilite: [], nonConformite: [], nonCategorise: [], autresSections: [], groupesPortions: [], titresSections: {}, dureeConservation: [], consignesImportantes: [], refroidissementStockage: [], cout: { prixVente: '', coutPortion: '', coutRecette: '' }, rendementCourt: '', rendementAttendu: '', dlcJours: 0 });

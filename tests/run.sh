@@ -1,6 +1,7 @@
 #!/bin/bash
 # Lance tous les parcours de test. À exécuter avant chaque publication (voir tests/README.md).
 cd "$(dirname "$0")/.."
+node tests/contrats.mjs || { echo 'Contrôles de contenu en échec : rien n'\''est lancé.'; exit 1; }
 bash tests/banc/build.sh || exit 1
 (cd tests/banc/sortie && python3 -m http.server 5199 --bind 127.0.0.1 >/dev/null 2>&1 & echo $! > /tmp/banc_srv.pid)
 sleep 1
