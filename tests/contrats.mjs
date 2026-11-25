@@ -5,7 +5,10 @@ import fs from 'fs';
 const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const reel = fs.readFileSync(new URL('../src/ConnexionReelle.jsx', import.meta.url), 'utf8');
 const service = fs.readFileSync(new URL('../src/nettoyageFinService.js', import.meta.url), 'utf8');
-const tout = app + '\n' + reel + '\n' + service;
+const lexiqueUi = fs.readFileSync(new URL('../src/LexiqueReglementaire.jsx', import.meta.url), 'utf8');
+const lexiqueMd = fs.readFileSync(new URL('../docs/lexique-haccp.md', import.meta.url), 'utf8');
+const lexiqueJs = fs.readFileSync(new URL('../src/lexiqueDonnees.js', import.meta.url), 'utf8');
+const tout = app + '\n' + reel + '\n' + service + '\n' + lexiqueUi + '\n' + lexiqueMd + '\n' + lexiqueJs;
 // [libellé, motif, doit exister (true) ou être absent (false), fichier(s) : 'app' | 'reel' | 'tout']
 const R = [
   // Accueil, navigation, libellés (decision-accueil-12-tuiles-24-10, liste-modifications-a-faire-24-10)
@@ -63,6 +66,19 @@ const R = [
   ["Couleur Températures #2563EB", /#2563EB/, true],
   ["Couleur Historique #0F766E", /#0F766E/, true],
   ["Couleur Contrôle (ambre) #F59E0B", /#F59E0B/, true],
+  // Normes et lexique (relecture du 25/11 : chaque fiche dit si c'est une norme ou non, valeurs alignées sur les textes)
+  ["Lexique : étiquette « Norme : obligatoire »", /Norme : obligatoire/, true],
+  ["Lexique : filtre « Afficher seulement les normes obligatoires »", /Afficher seulement les normes obligatoires/, true],
+  ["Lexique : œufs remis au consommateur sous 28 jours (règlement 2022/2258)", /28 jours après la ponte/, true],
+  ["Lexique et logiciel : plus d'œufs « environ 21 jours »", /environ 21 jours/, false],
+  ["Huile de friture : limite légale 25 % / 14 % (décret 2008-184)", /décret n° 2008-184/, true],
+  ["Huile de friture : plus de « TPM + 24 »", /TPM \+ 24/, false],
+  ["Maintien au chaud : +63 °C cité comme norme de l'annexe I", /Température minimale en liaison chaude/, true],
+  ["Fiche technique : une DLC au-delà de J+3 ne bloque plus l'enregistrement", /out\.push\(\["r", `DLC J\+/, false],
+  ["Températures : surveillance dès 2 °C d'écart (décision du 03/10)", /const MARGE_ANOMALIE_FROID = 2;/, true],
+  ["Températures : motif « Ouvertures de porte trop fréquentes »", /Ouvertures de porte trop fréquentes/, true],
+  ["Températures : préréglage Saladette 0 à +4 °C", /label: "Saladette", min: 0, max: 4/, true],
+  ["Fiches HACCP : plus de matériel ni de sauces d'un établissement dans les fiches communes", /Méthode — Cuisson au four \(Rational|Sauces concernées au poste chaud/, false],
 ];
 let ko = 0;
 for (const [lib, re, doit] of R) {
