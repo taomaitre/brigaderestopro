@@ -40,6 +40,32 @@ const ARRIVEE_LIEN_EXPIRE = /error_code=|error=access_denied/.test(HASH_ARRIVEE)
 
 const supabasePublic = createClient(URL_PROJET, CLE_PUBLIQUE);
 
+// Stockage des réglages de l'écran (useStored dans App.jsx) pour UN établissement : table donnees_cles, isolée par la règle
+// d'accès (chaque établissement ne lit et n'écrit que ses propres clés). Même interface que window.storage.
+function fabriquerStockageEtablissement(etablissementId) {
+  return {
+    etablissementId,
+    async get(cle) {
+      const { data, error } = await supabasePublic.from("donnees_cles").select("valeur").eq("cle", cle).maybeSingle();
+      if (error) throw error;
+      if (!data) return null;
+      return { key: cle, value: JSON.stringify(data.valeur) };
+    },
+    async set(cle, valeurTexte) {
+      const valeur = JSON.parse(valeurTexte);
+      const { error } = await supabasePublic.from("donnees_cles")
+        .upsert({ etablissement_id: etablissementId, cle, valeur, maj_le: new Date().toISOString() }, { onConflict: "etablissement_id,cle" });
+      if (error) throw error;
+      return { key: cle, value: valeurTexte };
+    },
+    async delete(cle) {
+      const { error } = await supabasePublic.from("donnees_cles").delete().eq("cle", cle);
+      if (error) throw error;
+      return { key: cle, deleted: true };
+    },
+  };
+}
+
 // Une seule adresse pour tous les clients : app.brigaderestopro.fr (décision du 29/10). Le logiciel n'associe plus
 // une adresse à un établissement : c'est le compte qui décide, et la base de données cloisonne les établissements
 // (un compte n'ouvre jamais les données d'un autre). Les anciennes adresses macuisine. et demo. sont redirigées vers app.
@@ -629,6 +655,13 @@ export default function ConnexionReelle() {
         heure_debut: x.debut || null, heure_fin: x.fin || null,
       }),
     },
+    controlesSoir: {
+      table: "controles_soir",
+      aDb: (x) => ({
+        date: x.date, cle: x.cle, code_grille: x.code || null, libelle: x.libelle || null, statut: x.statut || null, note: x.note || null,
+        par_id: EST_UUID.test(x.parId || "") ? x.parId : null, par_nom: x.parNom || null, heure: x.heure || null,
+      }),
+    },
     huileTests: {
       table: "huile_friture_tests",
       aDb: (x) => ({
@@ -717,7 +750,7 @@ export default function ConnexionReelle() {
 
   async function chargerListesFroid() {
     try {
-      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm, rex, rca, rhs] = await Promise.all([
+      const [ra, rr, rs, rp, rh, receptionsLues, notificationsLues, re, rcu, rrf, rmc, rfi, rpm, rex, rca, rhs, rcs] = await Promise.all([
         supabasePublic.from("appareils").select("*").order("nom"),
         supabasePublic.from("releves_temperature").select("*").order("date_heure", { ascending: false }).limit(1000),
         supabasePublic.from("surveillances_temperature").select("*").order("detecte_le", { ascending: false }).limit(200),
@@ -734,6 +767,7 @@ export default function ConnexionReelle() {
         supabasePublic.from("pms_executions").select("*").gte("date", new Date(Date.now() - 45 * 86400000).toISOString().slice(0, 10)).order("date", { ascending: false }).limit(3000),
         supabasePublic.from("cartes").select("*").order("debut", { ascending: true, nullsFirst: true }).limit(500),
         supabasePublic.from("horaires_service").select("*").limit(500),
+        supabasePublic.from("controles_soir").select("*").gte("date", new Date(Date.now() - 60 * 86400000).toISOString().slice(0, 10)).order("date", { ascending: false }).limit(5000),
       ]);
       if (rca.error) throw rca.error;
       if (rhs.error) throw rhs.error;
@@ -778,6 +812,10 @@ export default function ConnexionReelle() {
           employeeId: r.employe_id, photo: r.photo_employe || null, valideChef: r.valide_chef || null, noteChef: r.note_chef || "", photoChef: r.photo_chef || null,
           valideParId: r.valide_par || null, valideLe: r.valide_le || null,
         })),
+        controlesSoir: (rcs && !rcs.error ? rcs.data || [] : []).map((r) => ({
+          id: r.id, date: r.date, cle: r.cle, code: r.code_grille || "", libelle: r.libelle || "", statut: r.statut || undefined,
+          note: r.note || "", parId: r.par_id || null, parNom: r.par_nom || "", heure: r.heure || "",
+        })),
         huileTests: (rh.data || []).map((r) => ({
           id: r.id, employeeId: r.employe_id, date: r.date, heure: (r.heure || "").slice(0, 5),
           valeur: /matin/i.test(r.resultat || "") ? "Décision matin" : "Test bandelette", resultat: r.resultat || "", photo: r.photo_bandelette_url || null,
@@ -820,6 +858,8 @@ export default function ConnexionReelle() {
           // Une exécution de nettoyage = une par tâche, jour et moment : on la remplace au lieu d'en ajouter une de plus.
           const requete = cle === "pmsExecutions"
             ? supabasePublic.from(conv.table).upsert({ ...ligne, etablissement_id: session.etablissement.id }, { onConflict: "pms_tache_id,date,moment" })
+            : cle === "controlesSoir"
+            ? supabasePublic.from(conv.table).upsert({ ...ligne, etablissement_id: session.etablissement.id }, { onConflict: "etablissement_id,date,cle" })
             : supabasePublic.from(conv.table).insert({ ...ligne, etablissement_id: session.etablissement.id });
           const { error } = await requete;
           if (error) throw error;
@@ -1612,6 +1652,7 @@ export default function ConnexionReelle() {
   }, [etape]);
 
   async function seDeconnecter() {
+    try { delete window.stockageEtablissement; } catch (e) { window.stockageEtablissement = undefined; }
     try { await supabasePublic.auth.signOut(); } catch (e) { /* pas grave */ }
     effacerSessionEmploye(); setDebloqueParCode(false); setCodeDemande(null);
     setSession(null); setEmployeIdentifie(null); setCode(""); setErreur(""); setChoixNoms(false);
@@ -1627,6 +1668,9 @@ export default function ConnexionReelle() {
   }
 
   if (etape === "connecte" && voirAppliReelle) {
+    if (!window.stockageEtablissement || window.stockageEtablissement.etablissementId !== session.etablissement.id) {
+      window.stockageEtablissement = fabriquerStockageEtablissement(session.etablissement.id);
+    }
     const identiteExterne = {
       employeId: employeIdentifie.id,
       employeNom: employeIdentifie.nom,
@@ -1689,6 +1733,7 @@ export default function ConnexionReelle() {
         releves: { persister: fabriquerPersisterFroid("releves") },
         surveillances: { persister: fabriquerPersisterFroid("surveillances") },
         huileTests: { persister: fabriquerPersisterFroid("huileTests") },
+        controlesSoir: { persister: fabriquerPersisterFroid("controlesSoir") },
         receptions: { persister: persisterReceptions },
         notifications: { persister: persisterNotifications },
         preparations: { persister: fabriquerPersisterFroid("preparations") },

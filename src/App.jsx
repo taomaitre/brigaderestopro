@@ -11,6 +11,7 @@ import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { PMS_POINTS, ETATS_POINT_PMS, pointsDeCategorie, bilanPointsPms } from './pmsPoints.js';
 import { GRILLE_CHAPITRES, GRILLE_LIEN } from './grilleInspection.js';
+import { LIGNES_CHEF_GENERALES, CONTROLE_EMPLOYE_DEFAUT, listesControle, listePoste, sectionsObligatoires, risquesDuJour, ecartAuMaximum, niveauEcart } from './controleFinService.js';
 import LexiqueReglementaire from './LexiqueReglementaire.jsx';
 import { PRODUITS_ENTRETIEN_KEYSTONE } from './produitsEntretienKeystone.js';
 import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
@@ -1167,6 +1168,12 @@ function useModelesCuisson() {
   return [modeles, ajouter];
 }
 
+// Vrai mode : ConnexionReelle installe `window.stockageEtablissement` à la connexion. Chaque réglage est alors rangé dans la
+// base, PAR ÉTABLISSEMENT (table donnees_cles, protégée par la règle d'isolation) : plus jamais dans l'ancien stockage
+// commun, où deux établissements pouvaient partager la même clé (correction du 25/11). Les clés propres à l'appareil restent locales.
+const CLES_APPAREIL = new Set(["current-user-id"]);
+const stockagePour = (key) => (window.stockageEtablissement && !CLES_APPAREIL.has(key) ? window.stockageEtablissement : window.storage);
+
 function useStored(key, initial) {
   const [value, setValue] = useState(initial);
   const [loaded, setLoaded] = useState(false);
@@ -1175,7 +1182,7 @@ function useStored(key, initial) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await window.storage.get(key, false);
+        const res = await stockagePour(key).get(key, false);
         if (!cancelled && res) setValue(JSON.parse(res.value));
       } catch (e) {
         /* rien en stock encore, on garde la valeur initiale */
@@ -1189,7 +1196,7 @@ function useStored(key, initial) {
   const persist = useCallback(async (next) => {
     setValue(next);
     try {
-      await window.storage.set(key, JSON.stringify(next), false);
+      await stockagePour(key).set(key, JSON.stringify(next), false);
     } catch (e) {
       console.error("Échec sauvegarde", key, e);
     }
@@ -3481,6 +3488,8 @@ function CarteHuileDuJour({ huileTests, who }) {
 // ---- Nettoyage de fin de service (nouvelle version) : écrans employé et chef ----
 // Les données (plan, exécutions, horaires) arrivent par ce contexte, fourni par KitchenApp en mode « nouvelle base ».
 const NettoyageContext = React.createContext(null);
+// Contrôle du soir du chef : enregistrements en base, listes de l'établissement, données utiles au calcul des risques.
+const ControleSoirContext = React.createContext(null);
 // Règle d'accès : un employé voit et fait les tâches ; ajouter, modifier, supprimer et consulter les historiques
 // se fait uniquement dans Contrôle & Gestion (chef, directeur).
 const AccesContext = React.createContext({ estResponsable: true });
@@ -3692,16 +3701,103 @@ function NettoyageFinServiceChef({ ctx, employees, currentUserId, logActivity, t
   );
 }
 
-function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, huileTests, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning }) {
+// Paramétrage des listes de fin de service (chef / direction) : rien n'est écrit en dur dans le logiciel, chaque établissement
+// écrit ses propres lignes (une par ligne). Vide = les listes générales tirées de la grille officielle.
+function EditeurListesFinService() {
+  const ctx = React.useContext(ControleSoirContext) || {};
+  const [ouvert, setOuvert] = useState(false);
+  const listes = listesControle(ctx.reglageControle);
+  const brut = ctx.reglageControle && typeof ctx.reglageControle === "object" ? ctx.reglageControle : {};
+  const [nouveauPoste, setNouveauPoste] = useState("");
+  if (!ctx.setReglageControle) return null;
+  const versTexte = (a) => (a || []).join("\n");
+  const versListe = (s) => String(s || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const maj = (modif) => ctx.setReglageControle({ ...brut, ...modif });
+  const champ = (titre, valeur, onChange, aide) => (
+    <label className="block text-sm text-[var(--ink)] mb-3">
+      <span className="font-semibold">{titre}</span>{aide && <span className="block text-xs text-[var(--steel)]">{aide}</span>}
+      <textarea rows={4} className={`${inputCls} w-full text-sm mt-1`} defaultValue={valeur} onBlur={(e) => onChange(versListe(e.target.value))} />
+    </label>
+  );
+  return (
+    <Card className="mt-4">
+      <button type="button" onClick={() => setOuvert((v) => !v)} className="w-full text-left font-semibold text-[var(--ink)]">
+        {ouvert ? "▴" : "▾"} Personnaliser les listes de fin de service (vos appareils, vos postes)
+      </button>
+      {ouvert && (
+        <div className="mt-3">
+          <p className="text-xs text-[var(--steel)] mb-3">Une ligne par point. Le logiciel ne contient aucun nom d'appareil : écrivez ici les vôtres. Si une liste est vide, la liste générale (tirée de la grille officielle d'inspection) s'applique. Enregistré quand vous quittez le champ.</p>
+          {champ("Points ajoutés au contrôle du chef", versTexte(listes.chefPerso), (v) => maj({ chefPerso: v }), "Exemple : « Four du poste chaud : éteint et nettoyé ».")}
+          {champ("Contrôle des employés — fin de service midi (tous postes)", versTexte(brut.employe && brut.employe.midi), (v) => maj({ employe: { ...(brut.employe || {}), midi: v } }), `Vide = ${CONTROLE_EMPLOYE_DEFAUT.midi.length} lignes générales.`)}
+          {champ("Contrôle des employés — fin de service soir (tous postes)", versTexte(brut.employe && brut.employe.soir), (v) => maj({ employe: { ...(brut.employe || {}), soir: v } }), `Vide = ${CONTROLE_EMPLOYE_DEFAUT.soir.length} lignes générales.`)}
+          {champ("Contrôle des employés — à vérifier à chaque service", versTexte(brut.employe && brut.employe.general), (v) => maj({ employe: { ...(brut.employe || {}), general: v } }))}
+          {champ("Contrôle des employés — clôture (communs, plonge)", versTexte(brut.employe && brut.employe.fin), (v) => maj({ employe: { ...(brut.employe || {}), fin: v } }))}
+          {Object.keys(listes.postes).map((poste) => (
+            <div key={poste} className="border-t border-[var(--cadre)] pt-3 mt-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-semibold text-sm text-[var(--ink)] flex-1">Poste : {poste}</span>
+                <button type="button" className="text-xs text-[var(--warn)]" onClick={() => { const p = { ...listes.postes }; delete p[poste]; maj({ postes: p }); }}>Retirer ce poste</button>
+              </div>
+              {champ("Midi", versTexte(listes.postes[poste].midi), (v) => maj({ postes: { ...listes.postes, [poste]: { ...listes.postes[poste], midi: v } } }))}
+              {champ("Soir", versTexte(listes.postes[poste].soir), (v) => maj({ postes: { ...listes.postes, [poste]: { ...listes.postes[poste], soir: v } } }))}
+              {champ("À chaque service", versTexte(listes.postes[poste].general), (v) => maj({ postes: { ...listes.postes, [poste]: { ...listes.postes[poste], general: v } } }))}
+            </div>
+          ))}
+          <div className="flex gap-2 mt-3">
+            <input className={`${inputCls} flex-1 text-sm`} placeholder="Nom d'un poste (doit être le poste écrit dans le compte de l'employé)" value={nouveauPoste} onChange={(e) => setNouveauPoste(e.target.value)} />
+            <Button disabled={!nouveauPoste.trim()} onClick={() => { maj({ postes: { ...listes.postes, [nouveauPoste.trim()]: { midi: [], soir: [], general: [] } } }); setNouveauPoste(""); }}>Ajouter un poste</Button>
+          </div>
+          {listes.obligatoire && (
+            <p className="text-xs text-[var(--steel)] mt-3">Votre « Contrôle obligatoire » des employés a une liste propre à votre établissement.{" "}
+              <button type="button" className="underline" onClick={() => { const { obligatoire, ...reste } = brut; ctx.setReglageControle(reste); }}>La remplacer par la liste construite à partir des listes ci-dessus</button>.</p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, huileTests, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning,
+  controlesSoir, setControlesSoir, reglageControle, refroidissements = [], cuissons = [], entriesMaintienChaud = [], alertesRappel = [], notificationsFournisseur = [], onAller }) {
   const today = todayISO();
   const ctxFin = React.useContext(NettoyageContext);
+  const ctxSoir = React.useContext(ControleSoirContext) || {};
+  if (controlesSoir === undefined) controlesSoir = ctxSoir.controlesSoir;
+  if (setControlesSoir === undefined) setControlesSoir = ctxSoir.setControlesSoir;
+  if (reglageControle === undefined) reglageControle = ctxSoir.reglageControle;
+  if (!alertesRappel.length && ctxSoir.alertesRappel) alertesRappel = ctxSoir.alertesRappel;
+  if (!notificationsFournisseur.length && ctxSoir.notificationsFournisseur) notificationsFournisseur = ctxSoir.notificationsFournisseur;
+  if (!onAller) onAller = ctxSoir.onAller;
+  if (!refroidissements.length && ctxSoir.refroidissements) refroidissements = ctxSoir.refroidissements;
+  if (!cuissons.length && ctxSoir.cuissons) cuissons = ctxSoir.cuissons;
+  if (!entriesMaintienChaud.length && ctxSoir.entriesMaintienChaud) entriesMaintienChaud = ctxSoir.entriesMaintienChaud;
+  // Vrai mode : chaque point vérifié est ENREGISTRÉ en base (table controles_soir : statut, note, qui, heure) — c'est la preuve
+  // de la surveillance demandée à l'inspection. Prévisualisation : ancien stockage, comme avant.
+  const enBase = typeof setControlesSoir === "function";
   const [statutsParJour, setStatutsParJour] = useStored("controle-planning-statuts", {});
   const [notesParJour, setNotesParJour] = useStored("controle-planning-notes", {});
   const [noteEnCours, setNoteEnCours] = useState(null); // { key, label, assignedTo, note }
-
-  const statuts = statutsParJour[today] || {};
-  const notesEnvoyees = notesParJour[today] || {};
-  const setStatut = (key, val) => setStatutsParJour({ ...statutsParJour, [today]: { ...statuts, [key]: val } });
+  const lignesJour = enBase ? (controlesSoir || []).filter((c) => c.date === today) : [];
+  const moiNom = employees.find((e) => e.id === currentUserId)?.nom || "";
+  const statuts = enBase ? Object.fromEntries(lignesJour.filter((c) => c.statut === "ok" || c.statut === "ko").map((c) => [c.cle, c.statut])) : (statutsParJour[today] || {});
+  const notesEnvoyees = enBase ? Object.fromEntries(lignesJour.filter((c) => c.note).map((c) => [c.cle, c.note])) : (notesParJour[today] || {});
+  const enregistrerLigne = (key, champs) => {
+    const it = tousItemsRef.current.find((x) => x.key === key) || {};
+    setControlesSoir((liste) => {
+      const l = liste || [];
+      const existante = l.find((c) => c.date === today && c.cle === key);
+      if (champs === null) return l.filter((c) => c !== existante);
+      const heure = new Date().toTimeString().slice(0, 5);
+      const ligne = { ...(existante || { id: uid(), date: today, cle: key }), code: it.code || null, libelle: it.label || null, parId: currentUserId, parNom: moiNom, heure, ...champs };
+      return existante ? l.map((c) => (c === existante ? ligne : c)) : [...l, ligne];
+    });
+  };
+  const setStatut = (key, val) => {
+    if (enBase) { enregistrerLigne(key, val === undefined ? null : { statut: val }); return; }
+    setStatutsParJour({ ...statutsParJour, [today]: { ...statuts, [key]: val } });
+  };
+  const tousItemsRef = useRef([]);
+  const listesCtrl = listesControle(reglageControle);
 
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const groupeLabel = (assignedTo) => {
@@ -3750,22 +3846,42 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
       };
     });
 
-  // 4. Matériel propre et éteint — appareils par poste + chambres froides/cellule.
+  // 4. Points vérifiés des yeux par le chef : lignes GÉNÉRALES tirées de la grille officielle (aucun nom d'appareil écrit dans
+  // le code), appareils de froid de l'établissement, puis les lignes que l'établissement a ajoutées dans Paramétrage.
   const itemsMateriel = [
-    ...Object.entries(APPAREILS_A_VERIFIER).flatMap(([poste, liste]) =>
-      liste.map((nom) => ({ key: `mat-${poste}-${nom}`, groupe: poste, label: `${nom} — propre et éteint`, assignedTo: clePoste(poste) }))
-    ),
-    ...equipementsFroid.map((eq) => ({ key: `mat-froid-${eq.id}`, groupe: "Chambres froides & cellule", label: `${eq.nom} — porte fermée, propre`, assignedTo: "tous" })),
+    ...LIGNES_CHEF_GENERALES.map((l, i) => ({ key: `gen-${i}`, code: l.code, groupe: "Points vérifiés par l'inspecteur", label: l.texte, assignedTo: "tous" })),
+    ...equipementsFroid.map((eq) => ({ key: `mat-froid-${eq.id}`, code: "C401", groupe: "Frigos, chambres froides et cellule", label: `${eq.nom} — porte fermée, propre`, assignedTo: "tous" })),
+    ...listesCtrl.chefPerso.map((txt, i) => ({ key: `perso-${i}-${txt.slice(0, 40)}`, code: "", groupe: "Ajouté par l'établissement", label: txt, assignedTo: "tous" })),
   ];
 
   const CATEGORIES = [
-    { titre: "DLC à jeter par poste", items: itemsDlc },
-    ...(ctxFin ? [] : [{ titre: "Nettoyage en fin de service — cuisine et plonge", items: itemsNettoyage }]),
+    { titre: "DLC à jeter par poste", code: "C401", items: itemsDlc.map((x) => ({ ...x, code: "C401" })) },
+    ...(ctxFin ? [] : [{ titre: "Nettoyage en fin de service — cuisine et plonge", code: "B5", items: itemsNettoyage.map((x) => ({ ...x, code: "B5" })) }]),
     { titre: "Autres tâches du jour", items: itemsAutres },
-    { titre: "Matériel propre et éteint", items: itemsMateriel },
+    { titre: "Locaux, personnel et matériel (vérifié des yeux)", items: itemsMateriel },
   ];
 
   const tousItems = CATEGORIES.flatMap((c) => c.items);
+  tousItemsRef.current = tousItems;
+
+  // Risques pour l'inspection aujourd'hui : calculés sur les vraies données du jour (jamais une note).
+  const huileAttendue = (huileTests || []).some((h) => h.date >= addDays(today, -7));
+  const risques = risquesDuJour({
+    aujourdhui: today,
+    appareils: equipementsFroid,
+    releves: relevesFroid || [],
+    dlcDepassees: itemsDlc.length,
+    suivisEnCours: [
+      ...refroidissements.filter((r) => r.statut !== "termine").map((r) => `refroidissement ${r.produit || r.nom || ""}`.trim()),
+      ...cuissons.filter((c) => !(c.statut === "termine" || c.finie)).map((c) => `cuisson ${c.produit || c.nom || ""}`.trim()),
+      ...entriesMaintienChaud.filter((m) => m.statut !== "termine" && m.date === today).map((m) => `maintien au chaud ${m.nom || m.produit || ""}`.trim()),
+    ],
+    huileAttendue,
+    huileFaiteAujourdhui: (huileTests || []).some((h) => h.date === today),
+    rappelsNonTraites: (alertesRappel || []).filter((a) => !a.traite).length,
+    receptionsNonConformesNonTraitees: (notificationsFournisseur || []).filter((n) => !n.envoyee).length,
+    controlesSoir: enBase ? lignesJour : [],
+  });
   const valides = tousItems.filter((it) => statuts[it.key] === "ok").length;
   const nonValides = tousItems.filter((it) => statuts[it.key] === "ko").length;
   const restants = tousItems.length - valides - nonValides;
@@ -3787,7 +3903,8 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
       }));
       setRemarquesChef([...nouvelles, ...(remarquesChef || [])]);
     }
-    setNotesParJour({ ...notesParJour, [today]: { ...notesEnvoyees, [noteEnCours.key]: noteEnCours.note } });
+    if (enBase) enregistrerLigne(noteEnCours.key, { statut: "ko", note: noteEnCours.note });
+    else setNotesParJour({ ...notesParJour, [today]: { ...notesEnvoyees, [noteEnCours.key]: noteEnCours.note } });
     if (logActivity) logActivity("Contrôle", "Remarque envoyée depuis le contrôle planning", noteEnCours.label);
     setNoteEnCours(null);
   };
@@ -3795,6 +3912,24 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
   return (
     <div className="space-y-6">
       <p className="text-xs text-[var(--steel)]">{valides} ✓ validé(s) · {nonValides} ✗ non validé(s) · {restants} restant(s) — un point non validé peut recevoir une note ; l'employé concerné la retrouvera demain matin.</p>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)]">Risques pour l'inspection aujourd'hui</h3>
+        <p className="text-xs text-[var(--steel)] mb-2">Calculé sur les enregistrements du jour, d'après la grille officielle de l'inspecteur (D = écart majeur, C = écart moyen). Ce n'est pas une note : seule l'inspection en donne une.</p>
+        {risques.length === 0 ? (
+          <p className="text-sm font-semibold" style={{ color: "#1E7B4B" }}>Aucun risque repéré dans les enregistrements du jour.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {risques.map((r, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-[var(--ink)]">
+                <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: r.niveau === "D" ? "#C1432D" : "#B7791F" }}>{r.niveau}</span>
+                <span className="flex-1">{r.texte} <span className="text-xs text-[var(--steel)]">({r.code})</span></span>
+                {r.ecran && onAller && <button type="button" onClick={() => onAller(r.ecran)} className="shrink-0 text-xs font-semibold text-[var(--accent)]">Corriger →</button>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       {relevesFroid && <TableauTemperaturesDuJour equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} who={who} repliable />}
 
@@ -3819,7 +3954,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
                       const noteEnvoyee = notesEnvoyees[it.key];
                       return (
                         <li key={it.key} className={`rounded-lg p-2.5 border ${statut === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : statut === "ko" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
-                          <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{it.label}</p>
+                          <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{it.code ? <span className="text-[11px] font-bold mr-1.5 px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--steel)] no-underline">{it.code}</span> : null}{it.label}</p>
                           {it.detail && <p className="text-xs text-[var(--steel)] mb-2 leading-snug">{it.detail}</p>}
                           {!statut && !enNote && (
                             <div className="flex gap-2">
@@ -5758,6 +5893,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         <div className="mb-6">
           <HistoriqueJournee integre receptions={receptions} employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
           <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
+          <EditeurListesFinService />
         </div>
       )}
 
@@ -15253,7 +15389,7 @@ function modeCuissonDepuisAppareil(app) {
   if (/plaque|feu|induction|gaz|marmite|sauteuse|casserole|bain/.test(n)) return "Plaque / casserole";
   return "";
 }
-const APPAREILS_CUISSON = ["Four à pizza", "Four Rational", "Four Atoll Speed / Mery Chef", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
+const APPAREILS_CUISSON = ["Four à pizza", "Four mixte (vapeur / convection)", "Four à cuisson accélérée", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
 
 function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
   const nomsFichesListe = React.useContext(FichesNomsContext);
@@ -21301,6 +21437,9 @@ function BarreAvancement({ faits, total, titre, sous, neutreEnCours = false, man
 }
 
 function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, tableauDeBord, employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
+  // Même contenu partout (Suivi et contrôle ET fenêtre du planning du chef) : les réceptions viennent du contexte si l'appelant ne les passe pas.
+  const ctxSoirHist = React.useContext(ControleSoirContext) || {};
+  if (!receptions.length && ctxSoirHist.receptions) receptions = ctxSoirHist.receptions;
   const aujourdhui = todayISO();
   const [jour, setJour] = useState(aujourdhui);
   const [etendus, setEtendus] = useState({});
@@ -21847,95 +21986,9 @@ function AgendaGrille({ reservations, isToday, who, onRemove, plage, onUpdateNot
 
 const TACHES_OUVRE_FENETRE = ["Préparation culinaire", "Vérification des préparations culinaires", "Nettoyage", "Contrôle", "Nettoyage friteuse", "Contrôle obligatoire", "Contrôle et vérification"];
 
-const CONTROLE_POSTE = {
-  "Poste Chaud": {
-    midi: [
-      "Bain-marie éteint — sauces mises en refroidissement rapide (cellule ou bac de glace)",
-      "Saladette éteinte — marchandises filmées et rangées au frigo, couvercle posé",
-      "Ivario éteint et propre à l'intérieur",
-      "Friteuse éteinte — couvercle posé",
-      "Four Rational éteint",
-      "Four Atoll Speed éteint",
-      "Hotte éteinte",
-      "Plans de travail et plaque à induction désinfectés et nettoyés",
-      "Frigo viande — portes nettoyées",
-      "Frigo poste chaud — portes nettoyées",
-    ],
-    soir: [
-      "Bain-marie vidé, eau usagée jetée, intérieur et extérieur nettoyés — couvercle posé",
-      "Ivario éteint — intérieur nettoyé, couvercles fermés et nettoyés, côtés nettoyés",
-      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
-      "Frigo viande — intérieur filmé, portes et poignées nettoyés",
-      "Frigo poste chaud — intérieur et portes nettoyés",
-      "Friteuse éteinte — test huile fait, huile filtrée, couvercle posé",
-      "Four Rational en auto-lavage — dessus nettoyé, plaques au sale si besoin",
-      "Four Atoll Speed éteint — dessus nettoyé, plaques au sale si besoin",
-      "Plaque à induction et plan de travail nettoyés",
-      "Hotte éteinte",
-      "Crédence nettoyée si sale",
-      "Congélateur cuisine — produits filmés, étiquettes DLC correctes, miettes enlevées",
-    ],
-    general: [
-      "Températures du frigo viande et frigo poste chaud relevées et conformes",
-      "DLC des produits du poste vérifiées — aucun produit périmé",
-    ],
-  },
-  "Poste Pizza": {
-    midi: [
-      "Four à pizza éteint — devanture dépoussiérée",
-      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
-      "Frigo pâtons — intérieur et portes nettoyés",
-      "Frigo poste pizza — portes nettoyées",
-      "Plans de travail nettoyés et désinfectés",
-      "Pétrin nettoyé si utilisé ce matin",
-    ],
-    soir: [
-      "Four à pizza éteint — devanture dépoussiérée",
-      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
-      "Frigo pâtons — intérieur, portes et poignées nettoyés",
-      "Frigo poste pizza — intérieur, portes et poignées nettoyés",
-      "Passe-plat nettoyé et désinfecté",
-      "Pelle à pizza nettoyée",
-      "Plans de travail nettoyés — pizza, pâtons et sous le passe-plat",
-      "Pétrin nettoyé si utilisé",
-    ],
-    general: [
-      "Températures du frigo pâtons et frigo poste pizza relevées et conformes",
-      "DLC des produits du poste vérifiées — pâtons, sauces, garnitures",
-    ],
-  },
-  "Poste Froid": {
-    midi: [
-      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
-      "Frigo poste froid — portes et poignées nettoyées",
-      "Frigo réserve desserts — intérieur, portes et poignées nettoyés",
-      "Cellule de refroidissement — intérieur et porte nettoyés si utilisée",
-      "Robot batteur couvert",
-      "Plans de travail poste froid, desserts et gastro nettoyés",
-      "Chauffe-pot à Nutella — pots remplis",
-    ],
-    soir: [
-      "Saladette éteinte — nettoyage intérieur et extérieur — marchandises filmées au frigo",
-      "Frigo poste froid — intérieur, portes et poignées nettoyés",
-      "Frigo réserve desserts — portes et poignées nettoyées",
-      "Micro-ondes nettoyé intérieur et extérieur",
-      "Chauffe-pot à Nutella éteint — bouchons des pots à la plonge, pots filmés",
-      "Bol et boulier à glace lavés",
-      "Vitre congélateur à glace nettoyée — couvercles bien refermés",
-      "Plans de travail poste froid, desserts et gastro nettoyés",
-    ],
-    general: [
-      "Températures du frigo poste froid et frigo desserts relevées et conformes",
-      "DLC des desserts et produits du poste vérifiées",
-    ],
-  },
-};
 
-const CONTROLE_GENERAL_FIN = [
-  "Sol nettoyé — cuisine, réserve et plonge",
-  "Poubelles vidées et sacs changés",
-  "Plonge terminée, filtres nettoyés, éteinte",
-];
+
+
 
 // Nettoyage hebdomadaire / mensuel par poste et pour la plonge/communs — pour le Contrôle planning
 // (chef) : on ne réutilise PAS de liste inventée à part. On lit directement la vraie liste
@@ -21944,94 +21997,7 @@ const CONTROLE_GENERAL_FIN = [
 // `tacheDueAujourdhuiOuEnRetard` dit qu'elle tombe le jour du contrôle — jamais la liste complète
 // d'un coup. Voir ControlePlanningJour / itemsNettoyage plus haut dans le fichier.
 
-const CONTROLE_OBLIGATOIRE = {
-  midi: [
-    { section: "🔴 Poste Chaud", items: [
-      "Bain-marie éteint — sauces mises en refroidissement rapide",
-      "Saladette éteinte — marchandises filmées et rangées au frigo",
-      "Ivario éteint et propre",
-      "Friteuse éteinte — couvercle posé",
-      "Four Rational éteint",
-      "Four Atoll Speed éteint",
-      "Hotte éteinte",
-      "Plans de travail désinfectés et nettoyés",
-    ]},
-    { section: "🍕 Poste Pizza", items: [
-      "Four à pizza éteint — devanture dépoussiérée",
-      "Saladette éteinte — marchandises filmées au frigo",
-      "Frigo pâtons propre intérieur et porte",
-      "Plans de travail nettoyés",
-      "Pétrin nettoyé si utilisé ce matin",
-    ]},
-    { section: "🥗 Poste Froid", items: [
-      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
-      "Frigo poste froid propre — portes nettoyées",
-      "Cellule de refroidissement nettoyée si utilisée",
-      "Plans de travail nettoyés",
-      "Batteur couvert si non utilisé",
-    ]},
-    { section: "🌡 Températures & DLC", items: [
-      "Températures de tous les frigos et congélateurs relevées et conformes",
-      "DLC des produits utilisés ce matin vérifiées — aucun produit périmé",
-      "Aucun produit sans étiquette en chambre froide",
-    ]},
-    { section: "👁 Général", items: [
-      "Sol, poubelles et plonge — nettoyage terminé",
-      "Cuisine rangée et propre avant le service du soir",
-      "Aucune anomalie visible",
-    ]},
-  ],
-  soir: [
-    { section: "🔴 Poste Chaud", items: [
-      "Bain-marie vidé, eau usagée jetée, intérieur et extérieur nettoyés — couvercle posé",
-      "Ivario éteint — intérieur nettoyé, couvercles fermés et nettoyés, côtés nettoyés",
-      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
-      "Frigo viande — intérieur et portes nettoyés",
-      "Frigo poste chaud — intérieur et portes nettoyés",
-      "Friteuse éteinte — test huile fait, huile filtrée, couvercle posé",
-      "Four Rational éteint — auto-lavage lancé, dessus nettoyé, plaques au sale",
-      "Four Atoll Speed éteint — dessus nettoyé, plaques au sale",
-      "Plaque à induction et plan de travail nettoyés",
-      "Hotte éteinte",
-      "Crédence nettoyée si sale",
-      "Congélateur cuisine : produits filmés, étiquettes DLC correctes, miettes enlevées",
-    ]},
-    { section: "🍕 Poste Pizza", items: [
-      "Four à pizza éteint — devanture dépoussiérée",
-      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
-      "Frigo pâtons — intérieur, portes et poignées nettoyés",
-      "Frigo poste pizza — intérieur, portes et poignées nettoyés",
-      "Passe-plat nettoyé",
-      "Pelle à pizza nettoyée",
-      "Plans de travail nettoyés",
-      "Pétrin nettoyé si utilisé",
-    ]},
-    { section: "🥗 Poste Froid", items: [
-      "Saladette éteinte — nettoyage intérieur et extérieur — marchandises filmées au frigo",
-      "Frigo poste froid — intérieur, portes et poignées nettoyés",
-      "Frigo réserve desserts — portes et poignées nettoyées",
-      "Micro-ondes nettoyé intérieur et extérieur",
-      "Chauffe-pot à Nutella éteint — bouchons à la plonge, pots filmés",
-      "Bol et boulier à glace lavés",
-      "Vitre congélateur à glace nettoyée — couvercles refermés",
-    ]},
-    { section: "🌡 Températures & DLC", items: [
-      "Températures de tous les frigos et congélateurs relevées et conformes",
-      "Produits à DLC atteinte ce soir retirés et éliminés ou signalés",
-      "Chambre froide : visuel — rien à terre, tout couvert, pas de carton",
-      "Aucun produit sans étiquette DLC",
-    ]},
-    { section: "📋 Clôture et sécurité", items: [
-      "Sol cuisine, réserve et plonge nettoyés",
-      "Poubelles vidées et sacs changés",
-      "Plonge terminée, filtres nettoyés, éteinte",
-      "Torchons et lavettes au lave-linge",
-      "Bouche d'évacuation des eaux usées nettoyée",
-      "Alertes HACCP vérifiées — aucune en suspens",
-      "Contrôle de fin de service signé dans l'onglet Contrôle",
-    ]},
-  ],
-};
+
 
 
 function PlanningGrille({ tasks, employeeId, date, actorId, onToggle, protocolesNettoyage, plage, onOuvrirFenetre }) {
@@ -23327,7 +23293,7 @@ function labelFreqCleaning(c) {
 // différentes qui pourraient diverger.
 function construireItemsNettoyageDuJour(cleaning, today) {
   return [
-    ...Object.entries(CONTROLE_POSTE).flatMap(([poste, data]) => {
+    ...[...new Set((cleaning || []).map((c) => c.poste).filter((p) => p && p !== "Tous"))].map((poste) => [poste, CONTROLE_EMPLOYE_DEFAUT]).flatMap(([poste, data]) => {
       const cleaningPoste = (cleaning || []).filter((c) => c.poste === poste);
       const quotidienPoste = cleaningPoste.filter((c) => c.frequence === "Quotidienne");
       const hebdoPoste = cleaningPoste.filter((c) => c.frequence === "Hebdomadaire" && tacheDueAujourdhuiOuEnRetard(c, today));
@@ -23341,7 +23307,7 @@ function construireItemsNettoyageDuJour(cleaning, today) {
         ...mensuelPoste.map((c) => ({ key: `nett-clean-${c.id}`, groupe: poste, label: labelFreqCleaning(c), detail: c.note, assignedTo: clePoste(poste), cleaningId: c.id })),
       ];
     }),
-    ...CONTROLE_GENERAL_FIN.map((label, i) => ({ key: `nett-gen-${i}`, groupe: "Plonge & communs", label: `${label} (quotidien)`, assignedTo: "tous" })),
+    ...CONTROLE_EMPLOYE_DEFAUT.fin.map((label, i) => ({ key: `nett-gen-${i}`, groupe: "Plonge & communs", label: `${label} (quotidien)`, assignedTo: "tous" })),
     ...(cleaning || [])
       .filter((c) => c.poste === "Tous" && c.frequence === "Quotidienne")
       .map((c) => ({ key: `nett-clean-${c.id}`, groupe: "Plonge & communs", label: labelFreqCleaning(c), detail: c.note, assignedTo: "tous", cleaningId: c.id })),
@@ -23610,16 +23576,14 @@ function labelJourNettoyage(item) {
   return item.frequence;
 }
 
-const APPAREILS_A_VERIFIER = {
-  "Poste Chaud": ["Ivario Pro", "Bain-marie", "Friteuse", "Four Rational", "Four Atoll Speed / Mery Chef", "Hotte"],
-  "Poste Pizza": ["Four à pizza", "Pétrin"],
-  "Poste Froid": ["Micro-ondes", "Chauffe-pot à Nutella", "Robot batteur"],
-};
+
 
 function ModalControlePoste({ moi, moment, onClose }) {
-  const poste = moi?.poste || "Poste Chaud";
-  const data = CONTROLE_POSTE[poste] || CONTROLE_POSTE["Poste Chaud"];
-  const items = [...(moment === "midi" ? data.midi : data.soir), ...data.general, ...CONTROLE_GENERAL_FIN];
+  // Listes de l'établissement (Paramétrage > Contrôles de fin de service), sinon les listes générales : aucun appareil écrit dans le code.
+  const ctxSoirPoste = React.useContext(ControleSoirContext) || {};
+  const listesPoste = listesControle(ctxSoirPoste.reglageControle);
+  const poste = moi?.poste || "";
+  const items = listePoste(listesPoste, poste, moment).items;
   const [statuts, setStatuts] = useState({});
   const [noteEnCours, setNoteEnCours] = useState(null);
   const [notes, setNotes] = useState({});
@@ -23698,7 +23662,8 @@ function ModalControlePoste({ moi, moment, onClose }) {
 }
 
 function ModalControleObligatoire({ moment, onClose }) {
-  const sections = CONTROLE_OBLIGATOIRE[moment] || CONTROLE_OBLIGATOIRE.soir;
+  const ctxSoirOblig = React.useContext(ControleSoirContext) || {};
+  const sections = sectionsObligatoires(listesControle(ctxSoirOblig.reglageControle), moment);
   const [statuts, setStatuts] = useState({}); // { key: "ok"|"ko" }
   const [noteEnCours, setNoteEnCours] = useState(null); // { key, note, photo }
 
@@ -23795,6 +23760,7 @@ function ModalControleObligatoire({ moment, onClose }) {
 
 function ModalControleChef({ refroidissements, cuissons, entriesMaintienChaud, tasks, employees, preparations, produits, stock, equipementsFroid, relevesFroid, huileTests, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
   const today = todayISO();
+  const ctxSoirModal = React.useContext(ControleSoirContext) || {};
   // Même checklist, mêmes données, que "Gestion et contrôle" → tuile Planning côté chef — voir
   // ControlePlanningJour. Ici on ne fait qu'ajouter l'habillage modal (fermer / PDF / signer).
   return (
@@ -23815,7 +23781,15 @@ function ModalControleChef({ refroidissements, cuissons, entriesMaintienChaud, t
 
         <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
 
-        <button onClick={() => { onSigner(); onClose(); }} className="mt-4 w-full py-3 rounded-xl font-bold text-sm print:hidden" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
+        <button onClick={() => {
+          // La signature est aussi enregistrée avec le contrôle du jour (qui, à quelle heure) : c'est la preuve de la vérification du soir.
+          if (ctxSoirModal.setControlesSoir) {
+            const moi = employees.find((e) => e.id === currentUserId);
+            ctxSoirModal.setControlesSoir((l) => [...(l || []).filter((c) => !(c.date === today && c.cle === "__signature__")),
+              { id: uid(), date: today, cle: "__signature__", code: "", libelle: "Contrôle de fin de service signé", statut: "signe", parId: currentUserId, parNom: moi ? moi.nom : "", heure: new Date().toTimeString().slice(0, 5) }]);
+          }
+          onSigner(); onClose();
+        }} className="mt-4 w-full py-3 rounded-xl font-bold text-sm print:hidden" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
           Terminer le contrôle
         </button>
       </div>
@@ -25635,6 +25609,10 @@ function KitchenApp({ identiteExterne } = {}) {
   const [notificationsMemoire, setNotificationsMemoire] = useStoredOuMemoire("notifications-fournisseur", [], modeExterne);
   const [notificationsExternes, setNotificationsExternes] = useListeExterne(identiteExterne, "notifications");
   const notificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? notificationsExternes : notificationsMemoire;
+  // Contrôle du soir : en vrai mode, enregistré en base (table controles_soir) ; listes de l'établissement (Paramétrage).
+  const [controlesSoirExternes, setControlesSoirExternes] = useListeExterne(identiteExterne, "controlesSoir");
+  const controleSoirEnBase = !!(modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.controlesSoir);
+  const [reglageControle, setReglageControle] = useStored("controles-fin-service", null);
   const setNotificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? setNotificationsExternes : setNotificationsMemoire;
   // Carnet d'adresses e-mail fournisseur — { [nomFournisseur]: "email@..." } — permet de pré-remplir
   // le destinataire du mailto: de notification de non-conformité. Enregistré/modifié directement
@@ -26826,6 +26804,14 @@ function KitchenApp({ identiteExterne } = {}) {
   return (
     <FichesNomsContext.Provider value={(fiches || []).map((f) => f.nom).filter(Boolean)}>
     <NettoyageContext.Provider value={valeurNettoyageFin}>
+    <ControleSoirContext.Provider value={{
+      controlesSoir: controleSoirEnBase ? controlesSoirExternes : undefined,
+      setControlesSoir: controleSoirEnBase ? setControlesSoirExternes : undefined,
+      reglageControle, setReglageControle,
+      alertesRappel: alertesRappelConso, notificationsFournisseur, receptions,
+      refroidissements, cuissons, entriesMaintienChaud,
+      onAller: (ecran) => { const cible = { temperatures: "haccpTemp", huile: "haccpHuile", etiquettes: "etiquettes", reception: "reception", controles: "haccp", rappels: "controle" }[ecran]; if (cible) setTab(cible); },
+    }}>
     <AccesContext.Provider value={{ estResponsable: chefComplet || currentUserId === "direction", estSecond: moiSecond }}>
     <RapideContext.Provider value={valeurRapide}>
     <BarreChefSlotContext.Provider value={reclamerSlotBarreChef}>
@@ -27257,6 +27243,7 @@ function KitchenApp({ identiteExterne } = {}) {
     </BarreChefSlotContext.Provider>
     </RapideContext.Provider>
     </AccesContext.Provider>
+    </ControleSoirContext.Provider>
     </NettoyageContext.Provider>
     </FichesNomsContext.Provider>
   );

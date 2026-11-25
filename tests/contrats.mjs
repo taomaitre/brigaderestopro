@@ -8,7 +8,8 @@ const service = fs.readFileSync(new URL('../src/nettoyageFinService.js', import.
 const lexiqueUi = fs.readFileSync(new URL('../src/LexiqueReglementaire.jsx', import.meta.url), 'utf8');
 const lexiqueMd = fs.readFileSync(new URL('../docs/lexique-haccp.md', import.meta.url), 'utf8');
 const lexiqueJs = fs.readFileSync(new URL('../src/lexiqueDonnees.js', import.meta.url), 'utf8');
-const tout = app + '\n' + reel + '\n' + service + '\n' + lexiqueUi + '\n' + lexiqueMd + '\n' + lexiqueJs;
+const controleFin = fs.readFileSync(new URL('../src/controleFinService.js', import.meta.url), 'utf8');
+const tout = app + '\n' + reel + '\n' + service + '\n' + lexiqueUi + '\n' + lexiqueMd + '\n' + lexiqueJs + '\n' + controleFin;
 // [libellé, motif, doit exister (true) ou être absent (false), fichier(s) : 'app' | 'reel' | 'tout']
 const R = [
   // Accueil, navigation, libellés (decision-accueil-12-tuiles-24-10, liste-modifications-a-faire-24-10)
@@ -79,6 +80,14 @@ const R = [
   ["Températures : motif « Ouvertures de porte trop fréquentes »", /Ouvertures de porte trop fréquentes/, true],
   ["Températures : préréglage Saladette 0 à +4 °C", /label: "Saladette", min: 0, max: 4/, true],
   ["Fiches HACCP : plus de matériel ni de sauces d'un établissement dans les fiches communes", /Méthode — Cuisson au four \(Rational|Sauces concernées au poste chaud/, false],
+  // Contrôle du soir (25/11) : enregistré en base, général, relié à la grille officielle
+  ["Contrôle du soir : enregistré en base (table controles_soir)", /from\("controles_soir"\)/, true],
+  ["Contrôle du soir : bloc « Risques pour l'inspection aujourd'hui »", /Risques pour l'inspection aujourd'hui/, true],
+  ["Contrôle du soir : signature enregistrée avec le contrôle", /cle: "__signature__"/, true],
+  ["Contrôle du soir : plus de listes d'appareils écrites dans le code", /const (APPAREILS_A_VERIFIER|CONTROLE_POSTE|CONTROLE_OBLIGATOIRE|CONTROLE_GENERAL_FIN) =/, false],
+  ["Contrôle du soir : lignes générales avec code de la grille (lave-mains F1)", /code: "F1", texte: "Lave-mains/, true],
+  ["Réglages de l'écran rangés par établissement (donnees_cles), plus dans le stockage commun", /from\("donnees_cles"\)/, true],
+  ["Cuisson : aucun nom de marque dans la liste des appareils", /const APPAREILS_CUISSON = \[[^\]]*(Rational|Atoll)/, false],
 ];
 // Nom de l'ancien exploitant : remplacé par « macuisine » partout (demande de Loïc, 25/11). Écrit en morceaux pour ne pas figurer ici.
 {
