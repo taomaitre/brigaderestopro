@@ -11,6 +11,7 @@ import { FICHE_ETAB_CHAMPS, FICHE_ETAB_GROUPES, remarqueChamp, TYPES_PRESTATAIRE
 import { PLAN_NETTOYAGE_DEPART } from './planNettoyageDepart.js';
 import { PMS_POINTS, ETATS_POINT_PMS, pointsDeCategorie, bilanPointsPms } from './pmsPoints.js';
 import { GRILLE_CHAPITRES, GRILLE_LIEN } from './grilleInspection.js';
+import { LIGNES_CHEF_GENERALES, CONTROLE_EMPLOYE_DEFAUT, listesControle, listePoste, sectionsObligatoires, risquesDuJour, ecartAuMaximum, niveauEcart } from './controleFinService.js';
 import LexiqueReglementaire from './LexiqueReglementaire.jsx';
 import { PRODUITS_ENTRETIEN_KEYSTONE } from './produitsEntretienKeystone.js';
 import { ZONES_CUISINE, SURFACES_NETTOYAGE, MATERIELS_NETTOYAGE, PROTOCOLES_PAR_PRODUIT, CATEGORIES_PRODUITS_NET, tacheCorrespondAppareilNet, trouverArticleNet, COULEURS_ZONES_EXTRA, PRODUITS_NETTOYAGE_SUGGERES, normaliserNomNet, baseTacheNet } from './nettoyageZonesCatalogue.js';
@@ -645,44 +646,91 @@ const DEFAULT_EQUIPEMENTS_FROID = [
   { id: uid(), nom: "Congélateur frites", type: "congelateur", min: null, max: -18 },
   { id: uid(), nom: "Congélateur personnel", type: "congelateur", min: null, max: -18 },
 ];
-const MARGE_ANOMALIE_FROID = 3;
-const MOTIFS_ANOMALIE_FROID = ["Porte restée ouverte", "Panne de matériel", "Autre"];
+// Écart qui déclenche la surveillance (recontrôle sous 30 min) : 2 °C, décision de Loïc (03/10) jamais codée jusqu'au 25/11.
+// Le vade-mecum « Remise directe » (item C401) note un écart de +2 à +3 °C en C, au-delà de +3 °C en D.
+const MARGE_ANOMALIE_FROID = 2;
+const MOTIFS_ANOMALIE_FROID = ["Ouvertures de porte trop fréquentes (service)", "Porte restée ouverte", "Panne de matériel", "Autre"];
 
 // Présélections proposées à l'ajout d'un appareil : on choisit d'abord Réfrigéré / Congelé,
 // puis le type précis d'appareil, ce qui pré-remplit la norme de température à respecter —
 // toujours modifiable ensuite si l'appareil réel du restaurant a un réglage différent.
 const PRESETS_EQUIPEMENT_FROID = {
+  // Le type ne fait que proposer un contenu habituel ; le maximum vient TOUJOURS du contenu coché (annexe I), aucune limite basse imposée.
   positif: [
-    { label: "Frigo viande", min: 0, max: 2 },
-    { label: "Frigo poisson", min: 0, max: 2 },
-    { label: "Frigo produits laitiers / œufs", min: 0, max: 4 },
-    { label: "Frigo légumes", min: 4, max: 8 },
-    { label: "Saladette", min: 3, max: 5 },
-    { label: "Chambre froide positive", min: 0, max: 4 },
-    { label: "Frigo pâtisserie / desserts", min: 0, max: 4 },
-    { label: "Autre (froid positif)", min: 0, max: 4 },
+    { label: "Frigo viande", min: null, max: 4, contenus: ["viande"] },
+    { label: "Frigo viande hachée", min: null, max: 2, contenus: ["hache"] },
+    { label: "Frigo poisson", min: null, max: 2, contenus: ["poisson"] },
+    { label: "Frigo produits laitiers / œufs", min: null, max: 4, contenus: ["laitier"] },
+    { label: "Frigo fruits et légumes", min: null, max: null, contenus: ["legumes"] },
+    { label: "Saladette", min: null, max: 4, contenus: ["tresperissable"] },
+    { label: "Chambre froide positive", min: null, max: null, contenus: [] },
+    { label: "Frigo pâtisserie / desserts", min: null, max: 4, contenus: ["tresperissable"] },
+    { label: "Autre (froid positif)", min: null, max: null, contenus: [] },
   ],
   negatif: [
-    { label: "Congélateur", min: null, max: -18 },
-    { label: "Chambre froide négative", min: null, max: -18 },
-    { label: "Armoire de surgélation", min: null, max: -18 },
-    { label: "Autre (froid négatif)", min: null, max: -18 },
+    { label: "Congélateur", min: null, max: -18, contenus: ["congeleSensible"] },
+    { label: "Chambre froide négative", min: null, max: -18, contenus: ["congeleSensible"] },
+    { label: "Armoire de congélation", min: null, max: -18, contenus: ["congeleSensible"] },
+    { label: "Autre (froid négatif)", min: null, max: null, contenus: [] },
   ],
 };
 
 function equipementConforme(eq, valeur) {
   const v = parseFloat(valeur);
-  if (Number.isNaN(v)) return null;
-  if (eq.type === "congelateur") return v <= eq.max;
-  return v >= eq.min && v <= eq.max;
+  if (Number.isNaN(v) || eq.max == null || eq.max === "") return null;
+  if (eq.type === "congelateur") return v <= Number(eq.max);
+  return (eq.min == null || eq.min === "" || v >= Number(eq.min)) && v <= Number(eq.max);
 }
 
+// Ce que contient un appareil de froid → sa température maximale (arrêté du 21/12/2009, annexe I). Règle de Loïc (25/11) : chaque produit
+// a sa norme, l'appareil se règle sur le produit le plus fragile qu'il contient.
+const CONTENUS_FROID = {
+  positif: [
+    { cle: "hache", label: "Viande hachée", max: 2 },
+    { cle: "poisson", label: "Poisson, crustacés et mollusques frais", max: 2 },
+    { cle: "abats", label: "Abats", max: 3 },
+    { cle: "plat", label: "Plats cuisinés à l'avance", max: 3 },
+    { cle: "viande", label: "Viande en morceaux, volaille, préparations de viande", max: 4 },
+    { cle: "laitier", label: "Produits laitiers, œufs, ovoproduits (sauf température du fabricant)", max: 4 },
+    { cle: "tresperissable", label: "Autres denrées très périssables (desserts, garnitures…)", max: 4 },
+    { cle: "perissable", label: "Autres denrées périssables", max: 8 },
+    { cle: "legumes", label: "Fruits et légumes frais entiers (aucune température fixée)", max: null },
+  ],
+  negatif: [
+    { cle: "congeleSensible", label: "Glaces, viande hachée, préparations de viande, poisson congelés", max: -18 },
+    { cle: "congeleAutre", label: "Autres denrées congelées", max: -12 },
+  ],
+};
+function libNormeEquipement(eq) {
+  if (!eq || eq.max == null || eq.max === "") return "Maximum non fixé";
+  const f = (v) => `${Number(v) > 0 ? "+" : ""}${v} °C`;
+  return eq.type !== "congelateur" && eq.min != null && eq.min !== "" ? `${f(eq.min)} à ${f(eq.max)}` : `≤ ${f(eq.max)}`;
+}
+function maxDepuisContenus(famille, contenus) {
+  const liste = CONTENUS_FROID[famille === "negatif" ? "negatif" : "positif"].filter((c) => (contenus || []).includes(c.cle) && c.max != null);
+  if (!liste.length) return null;
+  const c = liste.reduce((a, b) => (b.max < a.max ? b : a));
+  return { max: c.max, produit: c.label };
+}
+
+// Seuils alignés sur la grille officielle (vade-mecum C401, décision du 25/11) : écart de plus de +2 °C au-dessus du maximum = alerte
+// (risque C) ; plus de +3 °C = contrôle et vérification impératifs, alerte urgente au chef et au directeur (risque D). L'établissement peut
+// fixer un seuil d'alerte plus strict (`seuilAlerte`) et une limite basse (`min`, facultative : aucun texte ne donne de chiffre).
 function equipementEcartAnomalie(eq, valeur) {
   const v = parseFloat(valeur);
   if (Number.isNaN(v)) return false;
-  if (eq.type === "congelateur") return v > eq.max + MARGE_ANOMALIE_FROID;
-  return v > eq.max + MARGE_ANOMALIE_FROID || v < eq.min - MARGE_ANOMALIE_FROID;
+  const seuilPerso = eq.seuilAlerte != null && eq.seuilAlerte !== "" && Number.isFinite(Number(eq.seuilAlerte)) ? Number(eq.seuilAlerte) : null;
+  if (seuilPerso != null && v > seuilPerso) return true;
+  if (eq.max != null && v > Number(eq.max) + MARGE_ANOMALIE_FROID) return true;
+  return eq.type !== "congelateur" && eq.min != null && eq.min !== "" && v < Number(eq.min);
 }
+function equipementEcartMajeur(eq, valeur) {
+  const v = parseFloat(valeur);
+  return !Number.isNaN(v) && eq.max != null && v > Number(eq.max) + 3;
+}
+// Délai avant le recontrôle : fixé par la personne qui fait le PMS, appareil par appareil (dégivrage, ouvertures de porte).
+// Non fixé : recontrôle demandé tout de suite (aucune durée n'est imposée par le logiciel).
+const delaiRecontroleMin = (eq) => (eq && Number(eq.delaiAlerteMin) > 0 ? Number(eq.delaiAlerteMin) : 0);
 
 const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const addDays = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + n); return toISO(d); };
@@ -1165,6 +1213,12 @@ function useModelesCuisson() {
   return [modeles, ajouter];
 }
 
+// Vrai mode : ConnexionReelle installe `window.stockageEtablissement` à la connexion. Chaque réglage est alors rangé dans la
+// base, PAR ÉTABLISSEMENT (table donnees_cles, protégée par la règle d'isolation) : plus jamais dans l'ancien stockage
+// commun, où deux établissements pouvaient partager la même clé (correction du 25/11). Les clés propres à l'appareil restent locales.
+const CLES_APPAREIL = new Set(["current-user-id"]);
+const stockagePour = (key) => (window.stockageEtablissement && !CLES_APPAREIL.has(key) ? window.stockageEtablissement : window.storage);
+
 function useStored(key, initial) {
   const [value, setValue] = useState(initial);
   const [loaded, setLoaded] = useState(false);
@@ -1173,7 +1227,7 @@ function useStored(key, initial) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await window.storage.get(key, false);
+        const res = await stockagePour(key).get(key, false);
         if (!cancelled && res) setValue(JSON.parse(res.value));
       } catch (e) {
         /* rien en stock encore, on garde la valeur initiale */
@@ -1187,7 +1241,7 @@ function useStored(key, initial) {
   const persist = useCallback(async (next) => {
     setValue(next);
     try {
-      await window.storage.set(key, JSON.stringify(next), false);
+      await stockagePour(key).set(key, JSON.stringify(next), false);
     } catch (e) {
       console.error("Échec sauvegarde", key, e);
     }
@@ -1312,6 +1366,108 @@ function AlerteBanniere({ label, children, warn = true, onClick, onArreterAlarme
 // quel écran, n'importe quel onglet) et y reste, avec bip + vibration répétés, tant que chaque
 // élément listé n'a pas été validé et corrigé. `porteeGlobale` = visible par tout le monde
 // (RappelConso) ; sinon elle n'est affichée qu'à la personne concernée (alerte d'action).
+// Alerte rappel (décision du 25/11, vade-mecum « Retraits/rappels en remise directe » V2, lignes D201 à D204, lu le 26/10/2026) :
+// chaque étape est datée avec son auteur. Retrait au plus tard dans la demi-journée ouvrée (D201) ; produit retiré mis à part avec
+// une étiquette « non conforme, non destiné à la consommation humaine » (D203) ; affichage aux clients si le produit a été servi
+// (15 jours d'ouverture pour un produit frais, 2 mois pour un surgelé, une conserve ou un produit sec, D202) ; cessions prévenues (D204).
+const DUREES_AFFICHAGE_RAPPEL = { frais: { libelle: "Produit frais : 15 jours d'ouverture", jours: 15 }, long: { libelle: "Surgelé, conserve ou produit sec : 2 mois", jours: 61 } };
+function alerteRappelComplete(a) {
+  const e = (a && a.etapes) || {};
+  if (e.concerne === "non") return true;
+  if (e.concerne !== "oui" || !e.retire) return false;
+  if (e.servi === "oui" && !e.affichageDebut) return false;
+  if (e.cede === "oui" && !e.cessionsPrevenues) return false;
+  return e.servi === "oui" || e.servi === "non" ? (e.cede === "oui" || e.cede === "non") : false;
+}
+function imprimerAffichetteRappel(a, etablissementNom) {
+  const fen = window.open("", "_blank");
+  if (!fen) return;
+  const esc = (t) => String(t || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  fen.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rappel de produit</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{font-size:30px;border-bottom:4px solid #C1432D;padding-bottom:8px}p{font-size:18px;line-height:1.5}.l{font-weight:bold}</style></head><body>
+<h1>⚠ RAPPEL DE PRODUIT</h1>
+<p><span class="l">Produit :</span> ${esc(a.produit)}${a.titre ? " — " + esc(a.titre) : ""}</p>
+<p><span class="l">Lot(s) :</span> ${esc((a.etapes && a.etapes.lots) || "voir la fiche officielle")}</p>
+<p><span class="l">Date :</span> ${esc(a.date || "")}</p>
+<p><span class="l">Danger :</span> ${esc(a.motif || "")}</p>
+<p><span class="l">Que faire si vous avez consommé ce produit :</span> suivez les consignes de la fiche officielle ${a.lien ? esc(a.lien) : "rappel.conso.gouv.fr"} et, en cas de symptômes, consultez un médecin en signalant cette consommation.</p>
+<p style="margin-top:28px;font-size:14px">${esc(etablissementNom || "")} — affiché le ${new Date().toLocaleDateString("fr-FR")}</p>
+</body></html>`);
+  fen.document.close();
+  fen.focus();
+  fen.print();
+}
+// Alerte reçue directement du fournisseur ou par un communiqué (pas encore sur RappelConso) : saisie à la main, l'heure de réception compte.
+function AjoutAlerteRappelManuelle({ onAjouter }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [f, setF] = useState({ produit: "", titre: "", motif: "" });
+  if (!ouvert) return <div className="mb-3"><Button variant="ghost" onClick={() => setOuvert(true)}>+ Alerte reçue du fournisseur ou d'un communiqué</Button></div>;
+  return (
+    <div className="mb-3 rounded-lg border border-[var(--cadre)] p-3 space-y-2">
+      <Field label="Produit"><input className={`${inputCls} w-full`} value={f.produit} onChange={(e) => setF({ ...f, produit: e.target.value })} /></Field>
+      <Field label="Marque, référence, lot(s)"><input className={`${inputCls} w-full`} value={f.titre} onChange={(e) => setF({ ...f, titre: e.target.value })} /></Field>
+      <Field label="Danger (motif du rappel)"><input className={`${inputCls} w-full`} value={f.motif} onChange={(e) => setF({ ...f, motif: e.target.value })} /></Field>
+      <div className="flex gap-2">
+        <Button disabled={!f.produit.trim()} onClick={() => { onAjouter({ produit: f.produit.trim(), titre: f.titre.trim(), motif: f.motif.trim() }); setF({ produit: "", titre: "", motif: "" }); setOuvert(false); }}>Enregistrer l'alerte (heure de réception notée)</Button>
+        <Button variant="ghost" onClick={() => setOuvert(false)}>Annuler</Button>
+      </div>
+    </div>
+  );
+}
+function ProcedureAlerteRappel({ alerte, onMaj, currentUserId, nomDe, etablissementNom }) {
+  const e = alerte.etapes || {};
+  const maintenant = () => ({ le: new Date().toISOString(), par: currentUserId || null });
+  const fixer = (patch) => {
+    const etapes = { ...e, ...patch };
+    const suivante = { ...alerte, etapes };
+    const complete = alerteRappelComplete(suivante);
+    onMaj({ etapes, ...(complete && !alerte.traite ? { traite: true, traiteParId: currentUserId, traiteDate: todayISO() } : {}) });
+  };
+  const trace = (x) => (x && x.le ? `${new Date(x.le).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}${x.par && nomDe ? ` · ${nomDe(x.par) || ""}` : ""}` : "");
+  const recu = alerte.recuLe ? new Date(alerte.recuLe) : null;
+  const heures = recu ? Math.floor((Date.now() - recu.getTime()) / 3600000) : null;
+  const choix = (cle, oui, non) => (
+    <span className="inline-flex gap-2 ml-2">
+      {[["oui", oui], ["non", non]].map(([v, l]) => (
+        <button key={v} type="button" className="px-3 py-1 rounded-lg text-xs font-semibold border-2" onClick={() => fixer({ [cle]: v, [cle + "Trace"]: maintenant() })}
+          style={e[cle] === v ? { background: "#475569", color: "#fff", borderColor: "#475569" } : { background: "#fff", color: "#475569", borderColor: "#475569" }}>{l}</button>
+      ))}
+    </span>
+  );
+  const finAffichage = e.affichageDebut ? addDays(e.affichageDebut, (DUREES_AFFICHAGE_RAPPEL[e.dureeAffichage || "frais"] || DUREES_AFFICHAGE_RAPPEL.frais).jours) : null;
+  return (
+    <div className="rounded-lg border border-[var(--cadre)] p-3 mt-2 text-sm text-[var(--ink)] space-y-2 bg-white">
+      <div className="text-xs text-[var(--steel)]">Alerte reçue {recu ? `le ${recu.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}` : "(date inconnue)"}{heures != null && !alerte.traite ? ` · il y a ${heures} h` : ""}. Le retrait doit être fait au plus tard dans la demi-journée ouvrée.</div>
+      <div><span className="font-semibold">1. Ce produit est-il chez nous (même lot) ?</span>{choix("concerne", "Oui", "Non, pas ce produit ni ce lot")}{e.concerneTrace && <span className="block text-xs text-[var(--steel)]">{trace(e.concerneTrace)}</span>}</div>
+      {e.concerne === "oui" && (<>
+        <div><span className="font-semibold">2. Lots concernés</span> (voir Traçabilité et Réception)
+          <input className={`${inputCls} w-full mt-1`} placeholder="ex. lot 24187, DLC 30/11" value={e.lots || ""} onChange={(ev) => fixer({ lots: ev.target.value })} /></div>
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!e.retire} onChange={(ev) => fixer({ retire: ev.target.checked ? maintenant() : null })} />
+          <span><span className="font-semibold">3. Produit retiré et mis à part</span> avec une étiquette « Non conforme, non destiné à la consommation humaine » (ou « Exclusivement pour élimination »). Ni donné, ni vendu, ni cuisiné.{e.retire && <span className="block text-xs text-[var(--steel)]">{trace(e.retire)}</span>}</span></label>
+        <div><span className="font-semibold">4. Le produit a-t-il été servi à des clients ?</span>{choix("servi", "Oui", "Non")}</div>
+        {e.servi === "oui" && (
+          <div className="pl-3 border-l-4 border-[var(--cadre)] space-y-1">
+            <p>Affichez un message lisible près de la carte ou de la caisse (produit, lot, date, danger, quoi faire).</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <select className={inputCls} value={e.dureeAffichage || "frais"} onChange={(ev) => fixer({ dureeAffichage: ev.target.value })}>
+                {Object.entries(DUREES_AFFICHAGE_RAPPEL).map(([k, d]) => <option key={k} value={k}>{d.libelle}</option>)}
+              </select>
+              <Button variant="ghost" onClick={() => imprimerAffichetteRappel(alerte, etablissementNom)}>Imprimer l'affichette</Button>
+              {!e.affichageDebut && <Button onClick={() => fixer({ affichageDebut: todayISO(), affichageTrace: maintenant() })}>Affichette posée aujourd'hui</Button>}
+            </div>
+            {e.affichageDebut && <p className="text-xs text-[var(--steel)]">Affichée depuis le {fmtShort(e.affichageDebut)} · à laisser au moins jusqu'au {fmtShort(finAffichage)} (jours d'ouverture).{e.affichageTrace ? ` ${trace(e.affichageTrace)}` : ""}</p>}
+          </div>
+        )}
+        <div><span className="font-semibold">5. Avez-vous donné ou revendu ce produit</span> (association, autre point de vente) ?{choix("cede", "Oui", "Non, jamais")}</div>
+        {e.cede === "oui" && (
+          <label className="flex items-start gap-2 pl-3"><input type="checkbox" className="mt-1" checked={!!e.cessionsPrevenues} onChange={(ev) => fixer({ cessionsPrevenues: ev.target.checked ? maintenant() : null })} />
+            <span>Alerte transmise à ceux qui ont reçu le produit, avec un message clair.{e.cessionsPrevenues && <span className="block text-xs text-[var(--steel)]">{trace(e.cessionsPrevenues)}</span>}</span></label>
+        )}
+      </>)}
+      <p className="text-xs text-[var(--steel)]">Source : vade-mecum « Retraits/rappels en remise directe » V2 (DGAL), lignes D201 à D204. L'alerte se ferme toute seule quand toutes les étapes sont faites.</p>
+    </div>
+  );
+}
+
 function AlerteBloquante({ titre, sousTitre, items, renderItem, zIndex = 9999 }) {
   useEffect(() => {
     const alerter = () => {
@@ -2703,10 +2859,21 @@ function PmsPreparationInspection({ pms, locales }) {
   const reponses = pmsReponsesPoints(pms, locales);
   const couleur = (e) => (ETATS_POINT_PMS.find((x) => x.value === e) || { couleur: "#C1432D" }).couleur;
   const libelleEtat = { fait: "Fait", incomplet: "Incomplet", pas_fait: "Pas fait" };
+  // Résultat des contrôles du soir des 30 derniers jours pour chaque ligne de la grille (codes des lignes du contrôle).
+  const ctxSoirPrep = React.useContext(ControleSoirContext) || {};
+  const debut30 = addDays(todayISO(), -29);
+  const controles30 = (ctxSoirPrep.controlesSoir || []).filter((x) => x.date >= debut30 && x.cle !== "__signature__");
+  const joursSignes30 = new Set((ctxSoirPrep.controlesSoir || []).filter((x) => x.date >= debut30 && x.cle === "__signature__").map((x) => x.date)).size;
+  const codesLigne = (item) => String(item.code).split(/\s*·\s*/);
+  const bilanControles = (item) => {
+    const lignes = controles30.filter((x) => x.code && codesLigne(item).includes(x.code));
+    return { ok: lignes.filter((x) => x.statut === "ok").length, ko: lignes.filter((x) => x.statut === "ko").length, jours: new Set(lignes.map((x) => x.date)).size };
+  };
   const etatItem = (item) => {
     const etats = item.points.map((id) => (reponses[id] && reponses[id].etat) || "pas_fait");
     if (etats.some((e) => e === "pas_fait")) return "pas_fait";
-    if (etats.some((e) => e === "incomplet")) return "incomplet";
+    // Un point « Pas fait » au contrôle du soir dans les 30 derniers jours : la ligne n'est pas prête.
+    if (etats.some((e) => e === "incomplet") || bilanControles(item).ko > 0) return "incomplet";
     return "fait";
   };
   const tous = GRILLE_CHAPITRES.flatMap((c) => c.items.map((it) => ({ ...it, lettre: c.lettre, etat: etatItem(it) })));
@@ -2717,6 +2884,7 @@ function PmsPreparationInspection({ pms, locales }) {
     <Card className="mb-4">
       <h3 className="font-semibold text-[var(--ink)]">Préparation à l'inspection : la grille de l'inspecteur, point par point</h3>
       <p className="text-sm text-[var(--steel)] mb-2">L'inspecteur suit une grille officielle publique : 6 chapitres (A à F). Ici, chaque ligne de la grille est reliée à vos points du Dossier PMS. Un « D » à l'inspection (écart majeur) fait tomber tout le chapitre : traitez d'abord les lignes en rouge. La note n'est donnée que par l'inspecteur.</p>
+      {ctxSoirPrep.controlesSoir && <p className="text-sm text-[var(--ink)] mb-1">Contrôle du soir signé <span className="font-bold">{joursSignes30}</span> jour{joursSignes30 > 1 ? "s" : ""} sur les 30 derniers jours.</p>}
       <p className="text-sm text-[var(--ink)] mb-3"><span className="font-bold">{tous.length - aTraiter.length}</span> ligne{tous.length - aTraiter.length > 1 ? "s" : ""} prête{tous.length - aTraiter.length > 1 ? "s" : ""} sur {tous.length}{prioritaires.length ? <> · <span className="font-bold" style={{ color: "#C1432D" }}>{prioritaires.length} à traiter en priorité</span></> : null}</p>
       <div className="space-y-2">
         {GRILLE_CHAPITRES.map((c) => (
@@ -2743,6 +2911,9 @@ function PmsPreparationInspection({ pms, locales }) {
                         <li key={id} className="flex items-start gap-2 py-0.5"><span className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style={{ background: couleur(et) }} /><span className="flex-1">{titrePoint(id)}</span><span className="text-xs text-[var(--steel)] shrink-0">{libelleEtat[et]}</span></li>
                       ); })}</ul>
                     </div>
+                    {(() => { const b = bilanControles(it); return b.jours > 0 ? (
+                      <p className="text-xs"><span className="font-semibold text-[var(--steel)] uppercase">Contrôles du soir (30 derniers jours)</span><br />{b.ok} « Oui » · <span style={{ color: b.ko ? "#C1432D" : undefined, fontWeight: b.ko ? 700 : undefined }}>{b.ko} « Pas fait »</span> · {b.jours} jour{b.jours > 1 ? "s" : ""} contrôlé{b.jours > 1 ? "s" : ""}</p>
+                    ) : null; })()}
                     <p className="text-xs text-[var(--steel)]">Où le faire : {it.ou}</p>
                   </div>
                 </details>
@@ -3390,7 +3561,7 @@ function TableauTemperaturesDuJour({ equipementsFroid, relevesFroid, who, replia
   const releves = lignes.filter((l) => l.dernier).length;
   const horsNorme = lignes.filter((l) => l.dernier && l.conforme === false).length;
   const manquants = lignes.length - releves;
-  const norme = (eq) => (eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`);
+  const norme = (eq) => libNormeEquipement(eq);
 
   if (equipementsFroid.length === 0) return <p className="text-sm text-[var(--steel)]">Aucun appareil de froid enregistré.</p>;
 
@@ -3479,6 +3650,8 @@ function CarteHuileDuJour({ huileTests, who }) {
 // ---- Nettoyage de fin de service (nouvelle version) : écrans employé et chef ----
 // Les données (plan, exécutions, horaires) arrivent par ce contexte, fourni par KitchenApp en mode « nouvelle base ».
 const NettoyageContext = React.createContext(null);
+// Contrôle du soir du chef : enregistrements en base, listes de l'établissement, données utiles au calcul des risques.
+const ControleSoirContext = React.createContext(null);
 // Règle d'accès : un employé voit et fait les tâches ; ajouter, modifier, supprimer et consulter les historiques
 // se fait uniquement dans Contrôle & Gestion (chef, directeur).
 const AccesContext = React.createContext({ estResponsable: true });
@@ -3690,16 +3863,133 @@ function NettoyageFinServiceChef({ ctx, employees, currentUserId, logActivity, t
   );
 }
 
-function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, huileTests, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning }) {
+// Paramétrage des listes de fin de service (chef / direction) : rien n'est écrit en dur dans le logiciel, chaque établissement
+// écrit ses propres lignes (une par ligne). Vide = les listes générales tirées de la grille officielle.
+function EditeurListesFinService() {
+  const ctx = React.useContext(ControleSoirContext) || {};
+  const [ouvert, setOuvert] = useState(false);
+  const listes = listesControle(ctx.reglageControle);
+  const brut = ctx.reglageControle && typeof ctx.reglageControle === "object" ? ctx.reglageControle : {};
+  const [nouveauPoste, setNouveauPoste] = useState("");
+  if (!ctx.setReglageControle) return null;
+  const versTexte = (a) => (a || []).join("\n");
+  const versListe = (s) => String(s || "").split("\n").map((x) => x.trim()).filter(Boolean);
+  const maj = (modif) => ctx.setReglageControle({ ...brut, ...modif });
+  const champ = (titre, valeur, onChange, aide) => (
+    <label className="block text-sm text-[var(--ink)] mb-3">
+      <span className="font-semibold">{titre}</span>{aide && <span className="block text-xs text-[var(--steel)]">{aide}</span>}
+      <textarea rows={4} className={`${inputCls} w-full text-sm mt-1`} defaultValue={valeur} onBlur={(e) => onChange(versListe(e.target.value))} />
+    </label>
+  );
+  return (
+    <Card className="mt-4">
+      <button type="button" onClick={() => setOuvert((v) => !v)} className="w-full text-left font-semibold text-[var(--ink)]">
+        {ouvert ? "▴" : "▾"} Personnaliser les listes de fin de service (vos appareils, vos postes)
+      </button>
+      {ouvert && (
+        <div className="mt-3">
+          <p className="text-xs text-[var(--steel)] mb-3">Une ligne par point. Le logiciel ne contient aucun nom d'appareil : écrivez ici les vôtres. Si une liste est vide, la liste générale (tirée de la grille officielle d'inspection) s'applique. Enregistré quand vous quittez le champ.</p>
+          {champ("Points ajoutés au contrôle du chef", versTexte(listes.chefPerso), (v) => maj({ chefPerso: v }), "Exemple : « Four du poste chaud : éteint et nettoyé ».")}
+          {champ("Contrôle des employés — fin de service midi (tous postes)", versTexte(brut.employe && brut.employe.midi), (v) => maj({ employe: { ...(brut.employe || {}), midi: v } }), `Vide = ${CONTROLE_EMPLOYE_DEFAUT.midi.length} lignes générales.`)}
+          {champ("Contrôle des employés — fin de service soir (tous postes)", versTexte(brut.employe && brut.employe.soir), (v) => maj({ employe: { ...(brut.employe || {}), soir: v } }), `Vide = ${CONTROLE_EMPLOYE_DEFAUT.soir.length} lignes générales.`)}
+          {champ("Contrôle des employés — à vérifier à chaque service", versTexte(brut.employe && brut.employe.general), (v) => maj({ employe: { ...(brut.employe || {}), general: v } }))}
+          {champ("Contrôle des employés — clôture (communs, plonge)", versTexte(brut.employe && brut.employe.fin), (v) => maj({ employe: { ...(brut.employe || {}), fin: v } }))}
+          {Object.keys(listes.postes).map((poste) => (
+            <div key={poste} className="border-t border-[var(--cadre)] pt-3 mt-3">
+              <div className="flex items-center gap-2 mb-2">
+                <span className="font-semibold text-sm text-[var(--ink)] flex-1">Poste : {poste}</span>
+                <button type="button" className="text-xs text-[var(--warn)]" onClick={() => { const p = { ...listes.postes }; delete p[poste]; maj({ postes: p }); }}>Retirer ce poste</button>
+              </div>
+              {champ("Midi", versTexte(listes.postes[poste].midi), (v) => maj({ postes: { ...listes.postes, [poste]: { ...listes.postes[poste], midi: v } } }))}
+              {champ("Soir", versTexte(listes.postes[poste].soir), (v) => maj({ postes: { ...listes.postes, [poste]: { ...listes.postes[poste], soir: v } } }))}
+              {champ("À chaque service", versTexte(listes.postes[poste].general), (v) => maj({ postes: { ...listes.postes, [poste]: { ...listes.postes[poste], general: v } } }))}
+            </div>
+          ))}
+          <div className="flex gap-2 mt-3">
+            <input className={`${inputCls} flex-1 text-sm`} placeholder="Nom d'un poste (doit être le poste écrit dans le compte de l'employé)" value={nouveauPoste} onChange={(e) => setNouveauPoste(e.target.value)} />
+            <Button disabled={!nouveauPoste.trim()} onClick={() => { maj({ postes: { ...listes.postes, [nouveauPoste.trim()]: { midi: [], soir: [], general: [] } } }); setNouveauPoste(""); }}>Ajouter un poste</Button>
+          </div>
+          {listes.obligatoire && (
+            <p className="text-xs text-[var(--steel)] mt-3">Votre « Contrôle obligatoire » des employés a une liste propre à votre établissement.{" "}
+              <button type="button" className="underline" onClick={() => { const { obligatoire, ...reste } = brut; ctx.setReglageControle(reste); }}>La remplacer par la liste construite à partir des listes ci-dessus</button>.</p>
+          )}
+        </div>
+      )}
+    </Card>
+  );
+}
+
+// Alarmes de durée (refroidissement, congélation) : réglées par la personne qui fait le PMS. Le logiciel n'en impose aucune quand aucun
+// texte ne fixe de durée ; en restauration collective, +63 → +10 °C en moins de 2 h est obligatoire et appliqué automatiquement.
+function EditeurAlarmesDuree() {
+  const ctx = React.useContext(AlarmesContext) || {};
+  if (!ctx.setAlarmes) return null;
+  const a = ctx.alarmes || {};
+  const maj = (type, champ, valeur) => ctx.setAlarmes({ ...a, [type]: { ...(a[type] || {}), [champ]: valeur } });
+  const ligne = (type, titre, aide) => (
+    <div className="border-t border-[var(--cadre)] pt-3 mt-3 first:border-t-0 first:pt-0 first:mt-0">
+      <p className="font-semibold text-sm text-[var(--ink)]">{titre}</p>
+      <p className="text-xs text-[var(--steel)] mb-2">{aide}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <Field label="Durée maximale (minutes)"><input className={inputCls} type="number" inputMode="numeric" min="1" defaultValue={(a[type] && a[type].minutes) || ""} onBlur={(e) => maj(type, "minutes", e.target.value ? Number(e.target.value) : null)} placeholder="Aucune alarme" /></Field>
+        <div className="sm:col-span-2"><Field label="Justification (notice du fabricant, procédure du PMS, étude…)"><input className={inputCls} defaultValue={(a[type] && a[type].justification) || ""} onBlur={(e) => maj(type, "justification", e.target.value)} /></Field></div>
+      </div>
+    </div>
+  );
+  return (
+    <Card className="mt-4">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Alarmes de durée</h3>
+      <p className="text-xs text-[var(--steel)] mb-3">Aucun texte ne fixe de durée de refroidissement pour un restaurant, ni de durée de congélation : le logiciel n'impose donc aucune alarme. C'est la personne qui fait le PMS qui la fixe et la justifie. Sans réglage, la durée est seulement mesurée et enregistrée. Le chef peut aussi saisir une durée au démarrage.</p>
+      {ctx.collective
+        ? <p className="text-sm font-semibold text-[var(--ink)] mb-3">Restauration collective : le refroidissement de +63 °C à +10 °C en moins de 2 h est obligatoire (arrêté du 21/12/2009, annexe IV). Il est appliqué automatiquement.</p>
+        : <div className="mb-3"><Button variant="ghost" onClick={() => ctx.setAlarmes({ ...a, refroidissement: { minutes: 120, justification: "Repère du guide officiel, reconnu par les inspecteurs : +63 → +10 °C en moins de 2 h (obligatoire en restauration collective, arrêté du 21/12/2009, annexe IV)" } })}>Appliquer le repère officiel (+63 → +10 °C en 2 h)</Button></div>}
+      {!ctx.collective && ligne("refroidissement", "Refroidissement (de +63 °C à +10 °C)", "Exemple : la durée annoncée par le fabricant de votre cellule, ou le repère officiel.")}
+      {ligne("congelation", "Congélation (jusqu'à −18 °C à cœur)", "Exemple : la durée annoncée par le fabricant de votre cellule. Aucun texte ne fixe de durée (directive 89/108/CEE : le plus rapidement possible).")}
+    </Card>
+  );
+}
+
+function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, huileTests, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning,
+  controlesSoir, setControlesSoir, reglageControle, refroidissements = [], cuissons = [], entriesMaintienChaud = [], alertesRappel = [], notificationsFournisseur = [], onAller }) {
   const today = todayISO();
   const ctxFin = React.useContext(NettoyageContext);
+  const ctxSoir = React.useContext(ControleSoirContext) || {};
+  if (controlesSoir === undefined) controlesSoir = ctxSoir.controlesSoir;
+  if (setControlesSoir === undefined) setControlesSoir = ctxSoir.setControlesSoir;
+  if (reglageControle === undefined) reglageControle = ctxSoir.reglageControle;
+  if (!alertesRappel.length && ctxSoir.alertesRappel) alertesRappel = ctxSoir.alertesRappel;
+  if (!notificationsFournisseur.length && ctxSoir.notificationsFournisseur) notificationsFournisseur = ctxSoir.notificationsFournisseur;
+  if (!onAller) onAller = ctxSoir.onAller;
+  if (!refroidissements.length && ctxSoir.refroidissements) refroidissements = ctxSoir.refroidissements;
+  if (!cuissons.length && ctxSoir.cuissons) cuissons = ctxSoir.cuissons;
+  if (!entriesMaintienChaud.length && ctxSoir.entriesMaintienChaud) entriesMaintienChaud = ctxSoir.entriesMaintienChaud;
+  // Vrai mode : chaque point vérifié est ENREGISTRÉ en base (table controles_soir : statut, note, qui, heure) — c'est la preuve
+  // de la surveillance demandée à l'inspection. Prévisualisation : ancien stockage, comme avant.
+  const enBase = typeof setControlesSoir === "function";
   const [statutsParJour, setStatutsParJour] = useStored("controle-planning-statuts", {});
   const [notesParJour, setNotesParJour] = useStored("controle-planning-notes", {});
   const [noteEnCours, setNoteEnCours] = useState(null); // { key, label, assignedTo, note }
-
-  const statuts = statutsParJour[today] || {};
-  const notesEnvoyees = notesParJour[today] || {};
-  const setStatut = (key, val) => setStatutsParJour({ ...statutsParJour, [today]: { ...statuts, [key]: val } });
+  const lignesJour = enBase ? (controlesSoir || []).filter((c) => c.date === today) : [];
+  const moiNom = employees.find((e) => e.id === currentUserId)?.nom || "";
+  const statuts = enBase ? Object.fromEntries(lignesJour.filter((c) => c.statut === "ok" || c.statut === "ko").map((c) => [c.cle, c.statut])) : (statutsParJour[today] || {});
+  const notesEnvoyees = enBase ? Object.fromEntries(lignesJour.filter((c) => c.note).map((c) => [c.cle, c.note])) : (notesParJour[today] || {});
+  const enregistrerLigne = (key, champs) => {
+    const it = tousItemsRef.current.find((x) => x.key === key) || {};
+    setControlesSoir((liste) => {
+      const l = liste || [];
+      const existante = l.find((c) => c.date === today && c.cle === key);
+      if (champs === null) return l.filter((c) => c !== existante);
+      const heure = new Date().toTimeString().slice(0, 5);
+      const ligne = { ...(existante || { id: uid(), date: today, cle: key }), code: it.code || null, libelle: it.label || null, parId: currentUserId, parNom: moiNom, heure, ...champs };
+      return existante ? l.map((c) => (c === existante ? ligne : c)) : [...l, ligne];
+    });
+  };
+  const setStatut = (key, val) => {
+    if (enBase) { enregistrerLigne(key, val === undefined ? null : { statut: val }); return; }
+    setStatutsParJour({ ...statutsParJour, [today]: { ...statuts, [key]: val } });
+  };
+  const tousItemsRef = useRef([]);
+  const listesCtrl = listesControle(reglageControle);
 
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const groupeLabel = (assignedTo) => {
@@ -3748,22 +4038,42 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
       };
     });
 
-  // 4. Matériel propre et éteint — appareils par poste + chambres froides/cellule.
+  // 4. Points vérifiés des yeux par le chef : lignes GÉNÉRALES tirées de la grille officielle (aucun nom d'appareil écrit dans
+  // le code), appareils de froid de l'établissement, puis les lignes que l'établissement a ajoutées dans Paramétrage.
   const itemsMateriel = [
-    ...Object.entries(APPAREILS_A_VERIFIER).flatMap(([poste, liste]) =>
-      liste.map((nom) => ({ key: `mat-${poste}-${nom}`, groupe: poste, label: `${nom} — propre et éteint`, assignedTo: clePoste(poste) }))
-    ),
-    ...equipementsFroid.map((eq) => ({ key: `mat-froid-${eq.id}`, groupe: "Chambres froides & cellule", label: `${eq.nom} — porte fermée, propre`, assignedTo: "tous" })),
+    ...LIGNES_CHEF_GENERALES.map((l, i) => ({ key: `gen-${i}`, code: l.code, groupe: "Points vérifiés par l'inspecteur", label: l.texte, assignedTo: "tous" })),
+    ...equipementsFroid.map((eq) => ({ key: `mat-froid-${eq.id}`, code: "C401", groupe: "Frigos, chambres froides et cellule", label: `${eq.nom} — porte fermée, propre`, assignedTo: "tous" })),
+    ...listesCtrl.chefPerso.map((txt, i) => ({ key: `perso-${i}-${txt.slice(0, 40)}`, code: "", groupe: "Ajouté par l'établissement", label: txt, assignedTo: "tous" })),
   ];
 
   const CATEGORIES = [
-    { titre: "DLC à jeter par poste", items: itemsDlc },
-    ...(ctxFin ? [] : [{ titre: "Nettoyage en fin de service — cuisine et plonge", items: itemsNettoyage }]),
+    { titre: "DLC à jeter par poste", code: "C401", items: itemsDlc.map((x) => ({ ...x, code: "C401" })) },
+    ...(ctxFin ? [] : [{ titre: "Nettoyage en fin de service — cuisine et plonge", code: "B5", items: itemsNettoyage.map((x) => ({ ...x, code: "B5" })) }]),
     { titre: "Autres tâches du jour", items: itemsAutres },
-    { titre: "Matériel propre et éteint", items: itemsMateriel },
+    { titre: "Locaux, personnel et matériel (vérifié des yeux)", items: itemsMateriel },
   ];
 
   const tousItems = CATEGORIES.flatMap((c) => c.items);
+  tousItemsRef.current = tousItems;
+
+  // Risques pour l'inspection aujourd'hui : calculés sur les vraies données du jour (jamais une note).
+  const huileAttendue = (huileTests || []).some((h) => h.date >= addDays(today, -7));
+  const risques = risquesDuJour({
+    aujourdhui: today,
+    appareils: equipementsFroid,
+    releves: relevesFroid || [],
+    dlcDepassees: itemsDlc.length,
+    suivisEnCours: [
+      ...refroidissements.filter((r) => r.statut !== "termine").map((r) => `refroidissement ${r.produit || r.nom || ""}`.trim()),
+      ...cuissons.filter((c) => !(c.statut === "termine" || c.finie)).map((c) => `cuisson ${c.produit || c.nom || ""}`.trim()),
+      ...entriesMaintienChaud.filter((m) => m.statut !== "termine" && m.date === today).map((m) => `maintien au chaud ${m.nom || m.produit || ""}`.trim()),
+    ],
+    huileAttendue,
+    huileFaiteAujourdhui: (huileTests || []).some((h) => h.date === today),
+    rappelsNonTraites: (alertesRappel || []).filter((a) => !a.traite).length,
+    receptionsNonConformesNonTraitees: (notificationsFournisseur || []).filter((n) => !n.envoyee).length,
+    controlesSoir: enBase ? lignesJour : [],
+  });
   const valides = tousItems.filter((it) => statuts[it.key] === "ok").length;
   const nonValides = tousItems.filter((it) => statuts[it.key] === "ko").length;
   const restants = tousItems.length - valides - nonValides;
@@ -3785,7 +4095,8 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
       }));
       setRemarquesChef([...nouvelles, ...(remarquesChef || [])]);
     }
-    setNotesParJour({ ...notesParJour, [today]: { ...notesEnvoyees, [noteEnCours.key]: noteEnCours.note } });
+    if (enBase) enregistrerLigne(noteEnCours.key, { statut: "ko", note: noteEnCours.note });
+    else setNotesParJour({ ...notesParJour, [today]: { ...notesEnvoyees, [noteEnCours.key]: noteEnCours.note } });
     if (logActivity) logActivity("Contrôle", "Remarque envoyée depuis le contrôle planning", noteEnCours.label);
     setNoteEnCours(null);
   };
@@ -3793,6 +4104,24 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
   return (
     <div className="space-y-6">
       <p className="text-xs text-[var(--steel)]">{valides} ✓ validé(s) · {nonValides} ✗ non validé(s) · {restants} restant(s) — un point non validé peut recevoir une note ; l'employé concerné la retrouvera demain matin.</p>
+
+      <Card>
+        <h3 className="font-semibold text-[var(--ink)]">Risques pour l'inspection aujourd'hui</h3>
+        <p className="text-xs text-[var(--steel)] mb-2">Calculé sur les enregistrements du jour, d'après la grille officielle de l'inspecteur (D = écart majeur, C = écart moyen). Ce n'est pas une note : seule l'inspection en donne une.</p>
+        {risques.length === 0 ? (
+          <p className="text-sm font-semibold" style={{ color: "#1E7B4B" }}>Aucun risque repéré dans les enregistrements du jour.</p>
+        ) : (
+          <ul className="space-y-1.5">
+            {risques.map((r, i) => (
+              <li key={i} className="flex items-start gap-2 text-sm text-[var(--ink)]">
+                <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: r.niveau === "D" ? "#C1432D" : "#B7791F" }}>{r.niveau}</span>
+                <span className="flex-1">{r.texte} <span className="text-xs text-[var(--steel)]">({r.code})</span></span>
+                {r.ecran && onAller && <button type="button" onClick={() => onAller(r.ecran)} className="shrink-0 text-xs font-semibold text-[var(--accent)]">Corriger →</button>}
+              </li>
+            ))}
+          </ul>
+        )}
+      </Card>
 
       {relevesFroid && <TableauTemperaturesDuJour equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} who={who} repliable />}
 
@@ -3817,7 +4146,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
                       const noteEnvoyee = notesEnvoyees[it.key];
                       return (
                         <li key={it.key} className={`rounded-lg p-2.5 border ${statut === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : statut === "ko" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
-                          <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{it.label}</p>
+                          <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{it.code ? <span className="text-[11px] font-bold mr-1.5 px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--steel)] no-underline">{it.code}</span> : null}{it.label}</p>
                           {it.detail && <p className="text-xs text-[var(--steel)] mb-2 leading-snug">{it.detail}</p>}
                           {!statut && !enNote && (
                             <div className="flex gap-2">
@@ -3865,7 +4194,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
 
 // Déclaration TIAC (Toxi-Infection Alimentaire Collective) — pré-remplit automatiquement ce qui peut
 // l'être à partir des données déjà enregistrées dans l'application (personnel actif, réservations,
-// produits réceptionnés/tracés sur les 5 jours précédant les premiers symptômes, comme demandé par
+// produits réceptionnés/tracés sur la période proposée (5 jours par défaut, modifiable ; la période exacte est fixée par l'ARS ou la DDPP), comme demandé par
 // la procédure officielle), pour ne laisser à compléter à la main que ce que le logiciel ne peut pas
 // savoir : la liste des malades et le suivi de l'alerte aux autorités.
 function DeclarationTiac({ employees, activityLog, receptions, preparations, produits, reservations, currentUserId, logActivity, declarationsTiac, setDeclarationsTiac }) {
@@ -3878,6 +4207,8 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
   const [ddTel, setDdTel] = useStored("tiac-dd-tel", "");
   const [joursEnquete, setJoursEnquete] = useStored("tiac-jours-enquete", 5);
   const [mesures, setMesures] = useState({ isoler: false, temoins: false, suspendre: false, nettoyer: false });
+  // Décision Q5 (25/11) : plats témoins obligatoires seulement en restauration collective (arrêté du 21/12/2009, annexe IV, 5 jours).
+  const collectiveTiac = !!(React.useContext(AlarmesContext) || {}).collective;
   const [documents, setDocuments] = useState({ menus: false, tracabilite: false, autocontroles: false, malades: false, personnel: false });
   const [dateDebut, setDateDebut] = useState(todayISO());
   const [malades, setMalades] = useState([{ id: uid(), nom: "", age: "", symptomes: "", dateHeure: "" }]);
@@ -3923,7 +4254,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
 
   const genererTexte = (source) => {
     const s = source || {
-      etablissementNom, etablissementAdresse, dateDebut, dateDebutPlage, joursEnquete, responsableNoms,
+      etablissementNom, etablissementAdresse, dateDebut, dateDebutPlage, joursEnquete, responsableNoms, collective: collectiveTiac,
       personnelNoms, convivesParJour, produitsReceptionnes, produitsPrepares,
       malades, arsFait, arsDateHeure, ddcspFait, ddcspDateHeure, conserve, notes,
       arsNom, arsTel, ddNom, ddTel, mesures, documents,
@@ -3943,7 +4274,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
     lignes.push("");
     lignes.push("MESURES IMMÉDIATES");
     lignes.push(`  [${s.mesures.isoler ? "x" : " "}] Produits suspects écartés (non jetés)`);
-    lignes.push(`  [${s.mesures.temoins ? "x" : " "}] Plats témoins et restes de matières premières et de plats des 3 derniers jours conservés (réservés aux services de contrôle)`);
+    lignes.push(`  [${s.mesures.temoins ? "x" : " "}] ${s.collective ? "Plats témoins (5 jours) et restes" : "Restes"} et emballages des repas suspects conservés (réservés aux services de contrôle)`);
     lignes.push(`  [${s.mesures.suspendre ? "x" : " "}] Service des plats concernés suspendu`);
     lignes.push(`  [${s.mesures.nettoyer ? "x" : " "}] Nettoyage et désinfection après prélèvement des échantillons`);
     lignes.push("");
@@ -3957,7 +4288,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
     lignes.push("3. ÉLÉMENTS CONSERVÉS");
     lignes.push(s.conserve || "à compléter");
     lignes.push("");
-    lignes.push(`4. ÉLÉMENTS D'INFORMATION — période du ${fmtShort(s.dateDebutPlage)} au ${fmtShort(s.dateDebut)} (${s.joursEnquete || 5} jours précédant les premiers symptômes)`);
+    lignes.push(`4. ÉLÉMENTS D'INFORMATION — période du ${fmtShort(s.dateDebutPlage)} au ${fmtShort(s.dateDebut)} (${s.joursEnquete || 5} jours précédant les premiers symptômes ; période exacte indiquée par l'ARS ou la DDPP)`);
     lignes.push("");
     lignes.push("Convives par jour (d'après les réservations enregistrées — ne compte pas les clients sans réservation) :");
     if (s.convivesParJour.length) s.convivesParJour.forEach(([d, n]) => lignes.push(`  - ${fmtShort(d)} : ${n} personne(s)`));
@@ -4038,7 +4369,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
 
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-2">1. Date des premiers symptômes signalés</h3>
-        <p className="text-xs text-[var(--steel)] mb-2">Les informations sont reprises automatiquement sur la période qui précède cette date (modifiable ci-dessous).</p>
+        <p className="text-xs text-[var(--steel)] mb-2">Les informations sont reprises automatiquement sur la période qui précède cette date. Aucun texte ne fixe cette durée pour un restaurant : la période proposée est modifiable. <strong>La période exacte vous sera indiquée par l'ARS ou la DDPP.</strong></p>
         <div className="flex flex-wrap items-center gap-3">
           <input className={inputCls} type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
           <label className="text-xs text-[var(--steel)] flex items-center gap-1.5">Jours étudiés avant
@@ -4106,7 +4437,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
         <h3 className="font-semibold text-[var(--ink)] mb-1">Mesures immédiates</h3>
         <p className="text-xs text-[var(--steel)] mb-2">À cocher au fur et à mesure (aide, rien n'est bloquant).</p>
         <div className="space-y-1.5 text-sm text-[var(--ink)]">
-          {[["isoler", "Écarter les produits suspects (ne pas les jeter)"], ["temoins", "Conserver les plats témoins et les restes de matières premières et de plats des 3 derniers jours (réservés aux services de contrôle)"], ["suspendre", "Suspendre le service des plats concernés"], ["nettoyer", "Nettoyer et désinfecter après prélèvement des échantillons"]].map(([k, t]) => (
+          {[["isoler", "Écarter les produits suspects (ne pas les jeter)"], ["temoins", collectiveTiac ? "Conserver les plats témoins (obligatoires en restauration collective : 5 jours, arrêté du 21/12/2009, annexe IV) et tous les restes et emballages des repas suspects" : "Conserver tous les restes et emballages des repas suspects. Plats témoins : pas obligatoires pour un restaurant ; si vous en gardez, conservez-les"], ["suspendre", "Suspendre le service des plats concernés"], ["nettoyer", "Nettoyer et désinfecter après prélèvement des échantillons"]].map(([k, t]) => (
             <label key={k} className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={mesures[k]} onChange={(e) => setMesures({ ...mesures, [k]: e.target.checked })} /> {t}</label>
           ))}
         </div>
@@ -4688,7 +5019,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity, 
   );
 }
 
-function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam, ecranPlanningParam, fermerPlanningParam, modeParametrage, modeHistorique, cibleInit, onCibleOuverte, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam, ecranPlanningParam, fermerPlanningParam, modeParametrage, modeHistorique, cibleInit, onCibleOuverte, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, majAlerteRappelConso, ajouterAlerteRappelManuelle, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -5297,6 +5628,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         </div>
         <p className="text-xs text-[var(--steel)] mb-3">Croise automatiquement vos produits (stock + catalogue) avec la liste officielle des rappels sanitaires — automatique tous les jeudis et dimanches après les livraisons. Dernière vérification : {dernierControleRappelConso ? fmtLong(dernierControleRappelConso) : "jamais"}.</p>
         <div className="mb-3"><Button onClick={onVerifierRappelConso} disabled={rappelConsoEnCours}>{rappelConsoEnCours ? "Vérification en cours..." : "Vérifier maintenant"}</Button></div>
+        {ajouterAlerteRappelManuelle && <AjoutAlerteRappelManuelle onAjouter={ajouterAlerteRappelManuelle} />}
         {alertesRappelConso.length === 0 ? (
           <p className="text-sm text-[var(--accent)]">Aucune correspondance avec un rappel officiel récent.</p>
         ) : (
@@ -5306,9 +5638,10 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
                 <div className={`font-medium ${a.traite ? "text-[var(--steel)]" : "text-[var(--warn)]"}`}>{a.produit} — {a.titre}</div>
                 <div className="text-xs text-[var(--steel)]">{a.motif}{a.date ? ` — publié le ${a.date}` : ""}</div>
                 <a href={a.lien} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] font-medium">Voir la fiche officielle →</a>
-                {a.traite ? (
-                  <div className="text-xs text-[var(--accent)] font-medium mt-1">✓ Traité{a.traiteDate ? ` le ${a.traiteDate}` : ""}</div>
-                ) : (
+                {a.traite && <div className="text-xs text-[var(--accent)] font-medium mt-1">✓ Traité{a.traiteDate ? ` le ${a.traiteDate}` : ""}</div>}
+                {majAlerteRappelConso ? (
+                  (!a.traite || (a.etapes && a.etapes.affichageDebut)) && <ProcedureAlerteRappel alerte={a} onMaj={(patch) => majAlerteRappelConso(a.id, patch)} currentUserId={currentUserId} nomDe={(id) => (employees.find((x) => x.id === id) || {}).nom} etablissementNom={(reglagesEtablissement && reglagesEtablissement.fiche && reglagesEtablissement.fiche.nom) || ""} />
+                ) : !a.traite && (
                   <div className="mt-1.5">
                     <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Rappel traité (produit retiré / vérifié)</Button>
                   </div>
@@ -5492,7 +5825,10 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
       )}
 
       {sousEcran === "appareilsFroid" && (
-        <GestionAppareilsFroid equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} logActivity={logActivity} />
+        <>
+          <GestionAppareilsFroid equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} logActivity={logActivity} />
+          <EditeurAlarmesDuree />
+        </>
       )}
 
       {sousEcran === "catalogueDlc" && (
@@ -5756,6 +6092,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         <div className="mb-6">
           <HistoriqueJournee integre receptions={receptions} employees={employees} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} refroidissements={refroidissements} cuissons={cuissons} entriesMaintienChaud={entriesMaintienChaud} huileTests={huileTests} preparations={preparations} produits={produits} cleaning={cleaning} tasks={tasks} stock={stock} />
           <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
+          <EditeurListesFinService />
         </div>
       )}
 
@@ -6994,21 +7331,21 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                     <option value="DDM">DDM — « à consommer de préférence avant »</option>
                   </select>
                 </>)}
-                {lib({ texte: "DLC après ouverture (en jours) — reprise sur les étiquettes DLC", aide: <span className="block mt-1 text-xs leading-snug" style={{ color: "#4A524E" }}>Celle de l'emballage du fabricant, sinon celle du tableau des DLC.</span> }, <>
-                  <input inputMode="numeric" autoComplete="off" value={v.delai_apres_ouverture_jours == null ? "" : v.delai_apres_ouverture_jours} placeholder={rep ? `repère : ${rep.jours} j` : "ex. 3"} onChange={(e) => maj("delai_apres_ouverture_jours", e.target.value)} className={champ} />
+                {lib({ texte: "DLC après ouverture (en jours) — reprise sur les étiquettes DLC", aide: <span className="block mt-1 text-xs leading-snug" style={{ color: "#4A524E" }}>Celle de l'emballage du fabricant, sinon celle que vous fixez dans votre PMS. Le logiciel ne la remplit jamais à votre place.{rep ? ` Conseil (pas une norme) : ${rep.repere}.` : ""}</span> }, <>
+                  <input inputMode="numeric" autoComplete="off" value={v.delai_apres_ouverture_jours == null ? "" : v.delai_apres_ouverture_jours} placeholder="en jours" onChange={(e) => maj("delai_apres_ouverture_jours", e.target.value)} className={champ} />
                 </>)}
               </div>
               <div className="rounded-lg border-2 px-3 py-2 text-xs leading-relaxed" style={{ borderColor: "#DC2626", background: "#FEF2F2", color: "#7F1D1D" }}>
-                <p><b>À savoir avant de modifier une DLC.</b> Les durées proposées par le logiciel reprennent le tableau « Durées de conservation (DLC) — Règles et repères HACCP » : ce sont des repères issus de la formation HACCP et de sources professionnelles, pas un texte de loi. Aucun organisme officiel ne fixe une DLC pour chaque produit ; la réglementation demande à chaque établissement de fixer et de justifier lui-même ses durées (guides de bonnes pratiques d'hygiène).</p>
-                <p className="mt-1">⚠ Toute modification peut être dangereuse pour la santé des clients. Il est conseillé de la faire valider par un laboratoire agréé. Cela ne vous empêche pas de la modifier : vous en restez responsable.</p>
-                {rep && saisiDlc != null && saisiDlc !== rep.jours && <p className="mt-1 font-bold">Cette durée ({saisiDlc} j) diffère du repère du tableau pour ce produit : {rep.repere}.</p>}
+                <p><b>À savoir avant de fixer une DLC.</b> Aucun texte officiel ne fixe une DLC pour chaque produit : c'est la personne qui établit le PMS qui la fixe et la justifie. Le logiciel ne propose aucune durée.</p>
+                <p className="mt-1">Conseil, pas une norme HACCP. Ce tableau vient d'un document professionnel non officiel, utilisé en formation hygiène. La personne qui établit le PMS est responsable des durées qu'elle retient : elle doit s'assurer que son produit entre bien dans ce cadre (composition, fabrication, conditions de stockage). En cas de doute, la durée indiquée par le fabricant prime. Pour valider une durée, ou la prolonger, l'établissement peut faire analyser le produit par un laboratoire accrédité (COFRAC) : c'est le test de vieillissement, qui sert de justificatif dans le PMS.</p>
+                {rep && saisiDlc != null && saisiDlc !== rep.jours && <p className="mt-1 font-bold">Pour information, le conseil du tableau pour ce produit est : {rep.repere}. Vous restez libre de votre durée.</p>}
               </div>
               {v.conservation === "surgele" && (
                 <div className="rounded-lg border-2 px-3 py-3" style={{ borderColor: "#9CA3AF", background: "#fff" }}>
                   <p className="text-base font-bold" style={{ color: NOIR }}>Décongélation de ce produit</p>
                   <p className="text-sm mb-2" style={{ color: "#4A524E" }}>Ce produit surgelé est-il décongelé avant usage ?</p>
                   <div className="grid gap-2 sm:grid-cols-3">
-                    {[["cuisson", "Non : utilisé congelé", "Cuisson directe depuis le congelé, pas de décongélation"], ["", "Oui : décongelé en chambre froide", "0 à +3 °C — l'étiquette portera « Décongelé le … » et ne sera jamais recongelé"], ["fabricant", "Oui : décongelé selon le fabricant", "Durée et source de la notice ci-dessous"]].map(([val, titre, aide]) => {
+                    {[["cuisson", "Non : utilisé congelé", "Cuisson directe depuis le congelé, pas de décongélation"], ["", "Oui : décongelé en chambre froide", "Entre 0 °C et la température maximale du produit (à défaut 0 à +4 °C, annexe VI) — l'étiquette portera « Décongelé le … » et ne sera jamais recongelé"], ["fabricant", "Oui : décongelé selon le fabricant", "Durée et source de la notice ci-dessous"]].map(([val, titre, aide]) => {
                       const actif = (v.decongel_methode || "") === val;
                       return (
                         <button key={val || "froid"} type="button" onClick={() => maj("decongel_methode", val || null)} className="text-left rounded-lg border-2 px-3 py-2" style={actif ? { borderColor: Z.texte, background: Z.fond } : { borderColor: "#9CA3AF", background: "#fff" }}>
@@ -7020,7 +7357,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                   </div>
                   {v.decongel_methode !== "cuisson" && (
                     <div className="grid gap-3 sm:grid-cols-2 mt-3">
-                      {lib({ texte: "DLC après décongélation (en jours, jour de début compris)", aide: <span className="block mt-1 text-xs" style={{ color: "#4A524E" }}>Vide = 3 jours.</span> }, <>{saisie("decongel_jours", "3")}</>)}
+                      {lib({ texte: "DLC après décongélation (en jours, jour de début compris)", aide: <span className="block mt-1 text-xs" style={{ color: "#4A524E" }}>Durée du fabricant, sinon celle fixée dans votre PMS. Vide = aucune durée : l'étiquette sortira sans DLC et le chef sera prévenu.</span> }, <>{saisie("decongel_jours", "3")}</>)}
                       {lib({ texte: "Source de cette durée" }, <>{saisie("decongel_source", "ex. fiche Sysco du 04/08/2026")}</>)}
                     </div>
                   )}
@@ -7106,7 +7443,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 <option value="DDM">DDM — date de durabilité minimale (« à consommer de préférence avant »)</option>
               </select>
             </label>
-            {champTexte("delai_apres_ouverture_jours", "DLC après ouverture (en jours) — celle indiquée sur l'emballage du fabricant, sinon celle du tableau des DLC")}
+            {champTexte("delai_apres_ouverture_jours", "DLC après ouverture (en jours) — celle indiquée sur l'emballage du fabricant, sinon celle fixée dans votre PMS")}
             {(() => {
               const rep = repereDlcOuverture(v.nom, v.conservation === "surgele");
               const saisi = v.delai_apres_ouverture_jours == null || v.delai_apres_ouverture_jours === "" ? null : Number(v.delai_apres_ouverture_jours);
@@ -7123,7 +7460,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 <p className="text-xs font-semibold text-[var(--ink)] mb-1">Décongélation de ce produit</p>
                 <p className="text-xs text-[var(--steel)] mb-1">Ce produit surgelé est-il décongelé avant usage ?</p>
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {[["cuisson", "Non : utilisé congelé", "Cuisson directe depuis le congelé, pas de décongélation"], ["", "Oui : décongelé en chambre froide", "0 à +3 °C — l'étiquette portera « Décongelé le … » et ne sera jamais recongelé"], ["fabricant", "Oui : décongelé selon le fabricant", "Durée et source de la notice ci-dessous"]].map(([val, titre, aide]) => {
+                  {[["cuisson", "Non : utilisé congelé", "Cuisson directe depuis le congelé, pas de décongélation"], ["", "Oui : décongelé en chambre froide", "Entre 0 °C et la température maximale du produit (à défaut 0 à +4 °C, annexe VI) — l'étiquette portera « Décongelé le … » et ne sera jamais recongelé"], ["fabricant", "Oui : décongelé selon le fabricant", "Durée et source de la notice ci-dessous"]].map(([val, titre, aide]) => {
                     const actif = (v.decongel_methode || "") === val;
                     return (
                       <button key={val || "froid"} type="button" onClick={() => maj("decongel_methode", val || null)} className={`text-left rounded-lg border-2 px-3 py-2 ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
@@ -7135,7 +7472,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 </div>
                 {v.decongel_methode !== "cuisson" && (
                   <div className="grid gap-2 sm:grid-cols-2 mt-2">
-                    {champTexte("decongel_jours", "DLC après décongélation (en jours, jour de début compris). Vide = 3 jours")}
+                    {champTexte("decongel_jours", "DLC après décongélation (en jours, jour de début compris). Durée du fabricant, sinon celle de votre PMS ; vide = aucune durée proposée")}
                     {champTexte("decongel_source", "Source de cette durée (ex. fiche Sysco du 04/08/2026)")}
                   </div>
                 )}
@@ -7413,7 +7750,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
                   <td className="p-2 text-[var(--ink)]">{c.produit}</td>
                   <td className={`p-2 font-medium ${c.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{c.temperature ? `${c.temperature}°C` : "—"}</td>
                   <td className="p-2 text-[var(--steel)]">{c.heureFin || c.heureDebut}</td>
-                  <td className={`p-2 font-medium ${c.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{c.conforme ? "✓ ≥ 63°C" : "✗ Non conforme"}</td>
+                  <td className={`p-2 font-medium ${c.conforme && !c.avertissement ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{!c.conforme ? "✗ Non conforme" : c.avertissement ? "⚠ Sous le barème ANSES" : "✓ Conforme"}</td>
                   <td className="p-2 text-[var(--steel)]">{who(c.employeeId)}</td>
                 </tr>
               ))}
@@ -10513,7 +10850,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           nbPortions ? [Users, nbPortions, "portions", "#fdeaea", "#b4233a"] : null,
           gramPortion ? [Package, /\d\s*(g|kg|ml|cl|l)\b/i.test(gramPortion) ? gramPortion : `${gramPortion} g`, "par portion", "#e3f4e8", "#1b5e3a"] : null,
           dureeCuisson ? [Flame, /min|h/i.test(String(dureeCuisson)) ? dureeCuisson : `${dureeCuisson} min`, "cuisson", "#fdf0dc", "#8a5200"] : null,
-          refroidOn ? [Snowflake, `${REFROIDISSEMENT_NORME.dureeMaxMin / 60} h max`, "refroidissement", "#e0f5f8", "#14606e"] : null,
+          refroidOn ? [Snowflake, "+63 → +10 °C", "refroidissement", "#e0f5f8", "#14606e"] : null,
           fiche.dlcJours != null && fiche.dlcJours !== "" ? [CalendarDays, `${fiche.dlcJours} jour${Number(fiche.dlcJours) > 1 ? "s" : ""}`, "conservation", "#efe8fa", "#4d2d84"] : null,
           nAllg > 0 ? [AlertTriangle, nAllg, `allergène${nAllg > 1 ? "s" : ""} (${fiche.allergenes.join(", ").toLowerCase()})`, "#fff6cc", "#7a5f00"] : null,
         ].filter(Boolean);
@@ -11414,10 +11751,10 @@ function haccpRowsFiche(S) {
   const ingOk = ingredientsRenseignes(S);
   if (ingOk.length) rows.push({ etape: "Réception", pointCritique: "Matières premières", aControler: "T° conforme (≤ +4 °C frais, ≤ +2 °C viande hachée), emballage intact, DLC" });
   if (p.froid.on) rows.push({ etape: "Préparation froide", pointCritique: "Chaîne du froid", aControler: "≤ +3 °C, préparée au plus près du service" });
-  if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 à +4 °C · DLC J+3 après sortie" : "Cuisson directe depuis le congelé" });
-  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C${p.cuisson.coeurAutre ? ` — norme personnalisée sous la responsabilité de l'établissement${p.cuisson.coeurJustif ? ` (justification : ${p.cuisson.coeurJustif})` : ""}` : ""}${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
-  if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: (p.refroid.autre ? `${p.refroid.cibleTxt || "norme à préciser"}${MENTION_NORME_PERSO}${p.refroid.justif ? ` (justification : ${p.refroid.justif})` : ""}` : "+63 °C → +10 °C à cœur en moins de 2 h") + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
-  if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C en moins de 4 h 30, étiquette « congelé le … »" });
+  if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 °C à la T° de conservation du produit (à défaut 0 à +4 °C) · DLC : durée du fabricant ou celle fixée par l'établissement" : "Cuisson directe depuis le congelé" });
+  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `${seuilCuissonPerso(p.cuisson) != null ? `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C` : "T° à cœur enregistrée (pas de seuil imposé)"}${p.cuisson.coeurAutre ? ` — norme personnalisée sous la responsabilité de l'établissement${p.cuisson.coeurJustif ? ` (justification : ${p.cuisson.coeurJustif})` : ""}` : ""}${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
+  if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: (p.refroid.autre ? `${p.refroid.cibleTxt || "norme à préciser"}${MENTION_NORME_PERSO}${p.refroid.justif ? ` (justification : ${p.refroid.justif})` : ""}` : "+63 °C → +10 °C à cœur (2 h : règle des collectivités, repère pour un restaurant)") + (p.refroid.mode === "sans" ? " · relevé à la durée fixée par l'établissement" : "") });
+  if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C (aucune durée fixée par les textes), étiquette « congelé le … »" });
   if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
   rows.push({ etape: "Conservation", pointCritique: S.conservation.type, aControler: `Valable ${S.conservation.jours || "?"} jour(s) (jour de fabrication inclus)` });
   if (p.maintien.on) rows.push({ etape: "Maintien au chaud", pointCritique: "CCP – T°", aControler: `≥ +${p.maintien.autre ? (Number(p.maintien.temp) || "?") : Math.max(63, Number(p.maintien.temp) || 63)} °C à cœur${p.maintien.autre ? MENTION_NORME_PERSO + (p.maintien.justif ? ` (justification : ${p.maintien.justif})` : "") : ""}${p.maintien.duree ? " · " + p.maintien.duree : ""}` });
@@ -11427,7 +11764,7 @@ function haccpRowsFiche(S) {
 function nonConformitesFiche(S) {
   const p = S.procedes, a = [];
   if (p.cuisson.on) a.push("T° à cœur non atteinte : poursuivre la cuisson, ne pas envoyer.");
-  if (p.refroid.on) a.push("+10 °C non atteint en 2 h : ne pas stocker, jeter et enregistrer.");
+  if (p.refroid.on) a.push("+10 °C non atteint dans le délai fixé (2 h en restauration collective) : ne pas stocker, décider du sort du produit et enregistrer l'action corrective.");
   if (p.maintien.on) a.push("Maintien < +63 °C : remettre à température immédiatement ou jeter selon le PMS.");
   if (p.remise.on) a.push("+63 °C non atteint en 1 h : jeter, ne jamais refroidir à nouveau.");
   if (p.decongel.on) a.push("Produit décongelé : jamais recongelé.");
@@ -11454,7 +11791,7 @@ function etiquetageFiche(S) {
   if (S.allergenes.length) a.push(`Allergènes : ${S.allergenes.join(", ")}`);
   if (p.refroid.on) a.push(p.refroid.mode === "cellule" ? "Mention « Refroidi en cellule »" : "Mention « Refroidi en chambre froide »");
   if (p.congel.on) a.push("Mention « Congelé le … »");
-  if (p.decongel.on) a.push("Mention « Décongelé le … », DLC J+3 après sortie");
+  if (p.decongel.on) a.push("Mention « Décongelé le … » (traçabilité interne), DLC : durée du fabricant ou celle fixée par l'établissement");
   a.push("DLC/DDM calculée automatiquement, « à 23:59 » — pas de QR code");
   return a;
 }
@@ -11476,14 +11813,14 @@ function problemesFiche(S) {
   }
   if (p.cuisson.on && p.cuisson.appareil === "Friteuse") {
     const t = parseFloat(String((p.cuisson.parametres || {}).temperature || "").replace(",", "."));
-    if (Number.isFinite(t) && t > 180) out.push(["o", `Huile de friture à ${t} °C : ne pas dépasser 180 °C (l'huile se dégrade et devient nocive) — étape 3 · Cuisson, refroidissement, maintien au chaud.`]);
+    if (Number.isFinite(t) && t > 175) out.push(["o", `Huile de friture à ${t} °C : il est recommandé de rester sous 175 °C, l'huile se dégrade plus vite au-delà (vade-mecum « Remise directe », C403L08 : recommandation, pas une obligation) — étape 3 · Cuisson, refroidissement, maintien au chaud.`]);
   }
   if (/poisson/i.test(S.categorie || "") && p.froid.on && !p.cuisson.on) out.push(["o", "Poisson cru ou peu cuit (sushi, carpaccio, ceviche) : le poisson doit avoir été congelé à −20 °C à cœur pendant 24 h au moins (Anisakis) — vérifiez auprès du fournisseur (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.refroid.on && p.refroid.autre && !String(p.refroid.justif || "").trim()) out.push(["o", "Refroidissement : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.maintien.on && p.maintien.autre && !String(p.maintien.justif || "").trim()) out.push(["o", "Maintien au chaud : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.remise.on && p.remise.autre && !String(p.remise.justif || "").trim()) out.push(["o", "Remise en température : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.maintien.on && !p.maintien.autre && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
-  if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["r", `DLC J+${S.conservation.jours} supérieure au maximum J+${dlcMaxFiche(S)} sans étude de vieillissement validée (étape 6 · Conservation & rendement).`]);
+  if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["o", `DLC J+${S.conservation.jours} : au-delà de J+${dlcMaxFiche(S)}, vous devez pouvoir justifier cette durée (étude de durée de vie, données du fabricant). J+3 est la limite écrite pour la restauration collective ; pour un restaurant, aucun texte ne fixe de durée, mais une durée non justifiée vaut une note C au contrôle (étape 6 · Conservation & rendement).`]);
   if (!S.etapes.some((e) => e.titre.trim() || e.texte.trim())) out.push(["o", "Aucune étape de préparation (étape 5 · Préparation)."]);
   if (p.cuisson.on && !(p.cuisson.controles && p.cuisson.controles.temp === false) && !S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Aucune étape marquée « T° de cuisson à relever » (étape 5 · Préparation)."]);
   if (!p.refroid.on && S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Une étape de préparation est marquée « début de refroidissement » mais Refroidissement n'est pas coché (étape 3 · Cuisson, refroidissement, maintien au chaud) : le contrôle de refroidissement ne sera pas demandé."]);
@@ -11863,11 +12200,11 @@ function CreationFicheTechniqueComplete({ actionsChef, fiches, fichesCustom, set
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modeFiche]);
   // Nouvelle version : la T° à cœur visée suit automatiquement la norme de la famille choisie, ou la valeur
-  // plus stricte choisie par le chef (« Autre valeur »). Jamais en dessous de la norme.
+  // choisie par le chef (« Autre valeur »). Famille « Général » : aucune valeur imposée (décision Q7).
   useEffect(() => {
     const c = S.procedes.cuisson;
     if (!avecModes || !c.on) return;
-    const cible = `≥ +${seuilCuissonPerso(c)} °C`;
+    const cible = seuilCuissonPerso(c) != null ? `≥ +${seuilCuissonPerso(c)} °C` : "";
     if (c.coeur !== cible) majProcede("cuisson", { coeur: cible });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [avecModes, S.procedes.cuisson.on, S.procedes.cuisson.famille, S.procedes.cuisson.coeurAutre, S.procedes.cuisson.coeurPerso]);
@@ -11994,7 +12331,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     if (S.procedes.refroid.on) refroidissementStockage.push(S.procedes.refroid.mode === "cellule" ? `Refroidissement en cellule, bacs ouverts, sonde à cœur, puis stockage ${S.conservation.temp}.` : `Refroidissement sans cellule : bacs 5 cm max en chambre froide, relevé obligatoire à 2 h, puis stockage ${S.conservation.temp}.`);
     const consignesImportantes = lignesDepuisTexte(S.consignes);
     const dureeConservation = [`${S.conservation.type} : J+${S.conservation.jours} (jour de fabrication compris)`, `Température : ${S.conservation.temp}${S.conservation.contenant ? ", " + S.conservation.contenant : ""}`];
-    if (S.procedes.decongel.on) dureeConservation.push("Après décongélation : DLC J+3 à partir de la sortie du congélateur");
+    if (S.procedes.decongel.on) dureeConservation.push("Après décongélation : durée du fabricant, ou celle fixée par l'établissement dans son PMS");
     const rendement = [];
     const totalAvecUnite = /[a-zA-Zµ]/.test(String(S.rendement.total)) ? String(S.rendement.total).trim() : `${S.rendement.total} ${S.rendement.unite}`;
     if (S.rendement.total) rendement.push(`Total : ${totalAvecUnite}`);
@@ -12269,7 +12606,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Type de produit (température à atteindre à cœur)">
                   <select className={inputCls} value={S.procedes.cuisson.famille} onChange={(e) => majProcede("cuisson", { famille: e.target.value })}>
-                    {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+                    {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — {libSeuilFamille(f)}</option>)}
                   </select>
                 </Field>
                 <Field label="Appareil de cuisson">
@@ -12307,7 +12644,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && <Field label="Réglage / température appareil"><input className={inputCls} value={S.procedes.cuisson.reglage} onChange={(e) => majProcede("cuisson", { reglage: e.target.value })} placeholder="ex. 180 °C chaleur combinée" /></Field>}
                 {modeFiche === "expert" && <Field label="Durée (affichée sur la fiche)"><input className={inputCls} value={S.procedes.cuisson.duree} onChange={(e) => majProcede("cuisson", { duree: e.target.value })} placeholder="ex. 12 à 15 min" /></Field>}
                 {modeFiche === "expert" && <Field label="Durée en minutes (pour le chrono de cuisson)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value })} placeholder="ex. 14" /></Field>}
-                {!avecModes && <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={`ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C`} /></Field>}
+                {!avecModes && <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={cuissonSeuilMin(S.procedes.cuisson.famille) != null ? `ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C` : "ex. ≥ +65 °C (votre PMS)"} /></Field>}
                 {avecModes && (() => {
                   const c = S.procedes.cuisson;
                   const fam = cuissonFamille(c.famille);
@@ -12317,7 +12654,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">T° à cœur visée</div>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                         <input type="radio" className="mt-0.5" checked={!perso} onChange={() => majProcede("cuisson", { coeurAutre: false, coeurPerso: "", coeurJustif: "" })} />
-                        <span><strong>Référence retenue : ≥ +{fam.seuil} °C à cœur</strong><span className="block text-xs text-[var(--steel)]">{fam.note}</span></span>
+                        <span><strong>{fam.seuil != null ? `Référence retenue : ≥ +${fam.seuil} °C à cœur (barème ANSES, avertissement en dessous)` : "Aucun seuil imposé : la température est seulement enregistrée"}</strong><span className="block text-xs text-[var(--steel)]">{fam.note}</span></span>
                       </label>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                         <input type="radio" className="mt-0.5" checked={perso} onChange={() => majProcede("cuisson", { coeurAutre: true, coeurPerso: c.coeurPerso || "" })} />
@@ -12351,7 +12688,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               )}
             </ProcedeCard> )}
 
-            {(modeFiche === "expert" || S.procedes.refroid.on) && (<ProcedeCard titre="Refroidissement rapide" regle="+63 °C → +10 °C à cœur en moins de 2 h" actif={S.procedes.refroid.on} onToggle={() => majProcede("refroid", { on: !S.procedes.refroid.on })}>
+            {(modeFiche === "expert" || S.procedes.refroid.on) && (<ProcedeCard titre="Refroidissement rapide" regle="+63 °C → +10 °C à cœur (2 h : règle des collectivités, repère pour un restaurant)" actif={S.procedes.refroid.on} onToggle={() => majProcede("refroid", { on: !S.procedes.refroid.on })}>
               <div className="space-y-2">
                 <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 ${S.procedes.refroid.mode === "cellule" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"} ${!celluleDispo ? "opacity-50" : "cursor-pointer"}`}>
                   <input type="radio" disabled={!celluleDispo} checked={S.procedes.refroid.mode === "cellule"} onChange={() => majProcede("refroid", { mode: "cellule" })} className="mt-0.5" />
@@ -12359,9 +12696,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 </label>
                 <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.refroid.mode === "sans" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                   <input type="radio" checked={S.procedes.refroid.mode === "sans"} onChange={() => majProcede("refroid", { mode: "sans" })} className="mt-0.5" />
-                  <span><strong>Sans cellule</strong> — bacs peu épais (5 cm max) en chambre froide, relevé obligatoire à 2 h</span>
+                  <span><strong>Sans cellule</strong> — en chambre froide ; vous fixez la durée maximale au démarrage du refroidissement (aucun texte ne la fixe pour un restaurant)</span>
                 </label>
-                {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
+                {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique refroidit lentement : au relevé, si le plat est encore au-dessus de +10 °C à la fin de la durée que vous avez fixée, c'est une non-conformité à enregistrer avec son action corrective.</p>}
                 <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
               </div>
               {avecModes && <NormeAutreBloc titre="Norme de refroidissement" norme="+63 °C → +10 °C à cœur en moins de 2 h" note="Source : arrêté du 21/12/2009, annexe IV point 1 (écrit pour la restauration collective) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C. Pour un restaurant traditionnel (remise directe), aucune durée n'est fixée : le chef peut choisir « Autre » et justifier."
@@ -12388,7 +12725,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && !avecModes && <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>}
                 {modeFiche === "expert" && <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>}
               </div>
-              {avecModes && <NormeAutreBloc titre="Norme de maintien au chaud" norme="≥ +63 °C à cœur" note="Source : guide Restaurateur 2015, page imprimée 180 (« maintien à 63 °C ») ; arrêté du 21/12/2009 : 63 °C minimum."
+              {avecModes && <NormeAutreBloc titre="Norme de maintien au chaud" norme="≥ +63 °C à cœur" note="Norme (obligatoire pour tous) : arrêté du 21/12/2009, annexe I, « Plats cuisinés ou repas livrés chauds ou remis au consommateur : + 63 °C ». Une valeur plus basse n'est admise qu'avec une analyse des dangers validée."
                 autre={S.procedes.maintien.autre} valeur={S.procedes.maintien.autre ? S.procedes.maintien.temp : ""} justif={S.procedes.maintien.justif}
                 onNorme={() => majProcede("maintien", { autre: false, temp: 63, justif: "" })} onAutre={() => majProcede("maintien", { autre: true, temp: "" })}
                 onValeur={(v) => majProcede("maintien", { temp: v })} onJustif={(v) => majProcede("maintien", { justif: v })} />}
@@ -12403,7 +12740,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               )}
             </ProcedeCard> )}
 
-            {(modeFiche === "expert" || S.procedes.remise.on) && (<ProcedeCard titre="Remise en température" regle="+10 °C → ≥ cible à cœur en moins d'1 h" actif={S.procedes.remise.on} onToggle={() => majProcede("remise", { on: !S.procedes.remise.on })}>
+            {(modeFiche === "expert" || S.procedes.remise.on) && (<ProcedeCard titre="Remise en température" regle="≥ +63 °C à cœur (1 h : règle des collectivités ; 75 °C : repère du guide)" actif={S.procedes.remise.on} onToggle={() => majProcede("remise", { on: !S.procedes.remise.on })}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Appareil">
                   <select className={inputCls} value={S.procedes.remise.appareil} onChange={(e) => majProcede("remise", { appareil: e.target.value })}>
@@ -12418,7 +12755,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   </select>
                 </Field>)}
               </div>
-              {avecModes && <NormeAutreBloc titre="Norme de remise en température" norme="+10 °C → ≥ +75 °C à cœur en moins d'1 h" note="Source : guide Restaurateur 2015, page imprimée 180 (barèmes ANSES, indicatifs) : réchauffage des plats préparés à +75 °C minimum. Arrêté du 21/12/2009, annexe IV (restauration collective) : 63 °C minimum."
+              {avecModes && <NormeAutreBloc titre="Norme de remise en température" norme="+10 °C → ≥ +75 °C à cœur en moins d'1 h" note="Repères, pas des normes pour un restaurant : +75 °C vient du guide Restaurateur 2015, page imprimée 180 (barèmes ANSES, indicatifs) ; « 1 h maximum et 63 °C minimum » vient de l'arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective. Un bain-marie sert à maintenir au chaud, pas à réchauffer."
                 autre={S.procedes.remise.autre} valeur={S.procedes.remise.autre ? S.procedes.remise.cible : ""} justif={S.procedes.remise.justif}
                 onNorme={() => majProcede("remise", { autre: false, cible: 75, justif: "" })} onAutre={() => majProcede("remise", { autre: true, cible: "" })}
                 onValeur={(v) => majProcede("remise", { cible: v })} onJustif={(v) => majProcede("remise", { justif: v })} />}
@@ -12439,7 +12776,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               </div>
             </ProcedeCard> )}
 
-            {(modeFiche === "expert" || S.procedes.decongel.on) && (<ProcedeCard titre="Décongélation" regle="0 à +4 °C · DLC J+3 après sortie" actif={S.procedes.decongel.on} onToggle={() => majProcede("decongel", { on: !S.procedes.decongel.on })}>
+            {(modeFiche === "expert" || S.procedes.decongel.on) && (<ProcedeCard titre="Décongélation" regle="Au réfrigérateur (0 °C à la T° du produit, à défaut 0 à +4 °C) ou cuisson directe" actif={S.procedes.decongel.on} onToggle={() => majProcede("decongel", { on: !S.procedes.decongel.on })}>
               <div className="space-y-2">
                 <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.decongel.mode === "froid" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                   <input type="radio" checked={S.procedes.decongel.mode === "froid"} onChange={() => majProcede("decongel", { mode: "froid" })} className="mt-0.5" />
@@ -12521,7 +12858,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 <span>Une étude de vieillissement validée justifie une DLC plus longue</span>
               </label>
               {S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S) && (
-                <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — sans étude de vieillissement, une préparation maison est limitée à J+3 (jour de fabrication compris).</p>
+                <p className="text-xs text-[var(--warn)] mt-2"><strong>À justifier</strong> — J+3 est la limite écrite pour la restauration collective (arrêté du 21/12/2009, annexe IV). Pour un restaurant, aucun texte ne fixe de durée, mais vous devez pouvoir justifier la vôtre (étude de durée de vie, données du fabricant).</p>
               )}
             </div>
             </ZoneEtape>
@@ -14077,7 +14414,6 @@ function HistoriqueEtCourbesTemperature({ relevesFroid, equipementsFroid, who })
   const [periodeGraphique, setPeriodeGraphique] = useState("jour"); // "jour" | "semaine" | "mois"
 
   const eqById = (id) => equipementsFroid.find((e) => e.id === id);
-
   const relevesEquipementHistorique = relevesFroid.filter((r) => r.equipementId === equipementHistorique && r.date === todayISO());
 
   const joursPeriode = periodeGraphique === "jour" ? 0 : periodeGraphique === "semaine" ? 6 : 29;
@@ -14143,7 +14479,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
   const [editionId, setEditionId] = useState(null);
   const [editionForm, setEditionForm] = useState({});
   const [suppressionDemandee, setSuppressionDemandee] = useState(null);
-  const [formAjout, setFormAjout] = useState({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "" });
+  const [formAjout, setFormAjout] = useState({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "", contenus: [], seuilAlerte: "", delaiAlerteMin: "" });
   const choixMode = (form, setForm) => (
     <div className="w-full">
       <div className="text-xs font-semibold text-[var(--steel)] mb-1">Comment relever la température de cet appareil ?</div>
@@ -14156,6 +14492,42 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
       </div>
     </div>
   );
+  // Décision du 25/11 : le maximum vient du produit le plus fragile rangé dans l'appareil (arrêté du 21/12/2009, annexes I et II).
+  // L'établissement peut choisir plus strict (jamais plus haut), une limite basse facultative, un seuil d'alerte et un délai avant recontrôle.
+  const champsNorme = (form, setForm, famille) => {
+    const derive = maxDepuisContenus(famille, form.contenus);
+    const basculer = (cle) => {
+      const contenus = (form.contenus || []).includes(cle) ? form.contenus.filter((c) => c !== cle) : [...(form.contenus || []), cle];
+      const d = maxDepuisContenus(famille, contenus);
+      setForm({ ...form, contenus, max: d ? String(d.max) : form.max });
+    };
+    const maxSaisi = form.max === "" || form.max == null ? null : Number(form.max);
+    return (
+      <div className="w-full">
+        <div className="text-xs font-semibold text-[var(--steel)] mb-1">Que range-t-on dans cet appareil ? (le maximum vient du produit le plus fragile)</div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+          {CONTENUS_FROID[famille === "negatif" ? "negatif" : "positif"].map((c) => (
+            <label key={c.cle} className="text-xs flex items-center gap-1.5">
+              <input type="checkbox" checked={(form.contenus || []).includes(c.cle)} onChange={() => basculer(c.cle)} />
+              {c.label}{c.max != null ? ` (${c.max > 0 ? "+" : ""}${c.max} °C)` : ""}
+            </label>
+          ))}
+        </div>
+        {derive && <div className="text-xs text-[var(--ink)] mb-2">Maximum : <strong>{derive.max > 0 ? "+" : ""}{derive.max} °C</strong> à cause de « {derive.produit} » (arrêté du 21 décembre 2009).</div>}
+        {derive && maxSaisi != null && maxSaisi > derive.max && <div className="text-xs font-semibold text-[var(--warn)] mb-2">Le maximum saisi est plus haut que celui du produit le plus fragile : ce n'est pas conforme.</div>}
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Maximum (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={form.max} onChange={(e) => setForm({ ...form, max: e.target.value })} /></Field>
+          {famille !== "negatif" && (
+            <Field label="Limite basse (facultative, °C)"><input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="aucune" value={form.min} onChange={(e) => setForm({ ...form, min: e.target.value })} /></Field>
+          )}
+          <Field label="Seuil d'alerte plus strict (facultatif, °C)"><input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="aucun" value={form.seuilAlerte} onChange={(e) => setForm({ ...form, seuilAlerte: e.target.value })} /></Field>
+          <Field label="Délai avant recontrôle (facultatif, min)"><input className={`${inputCls} w-24`} type="number" min="0" step="1" placeholder="tout de suite" value={form.delaiAlerteMin} onChange={(e) => setForm({ ...form, delaiAlerteMin: e.target.value })} /></Field>
+        </div>
+        <p className="text-xs text-[var(--steel)] mt-1">Alerte au-delà de 2 °C au-dessus du maximum ; au-delà de 3 °C, contrôle et vérification obligatoires (grille officielle d'inspection). Limite basse, seuil plus strict et délai : à fixer par la personne qui établit le PMS.</p>
+      </div>
+    );
+  };
+  const nombreOuNull = (v) => (v === "" || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
   const eqById = (id) => equipementsFroid.find((e) => e.id === id);
   const updateEquipement = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val === "" ? null : Number(val) } : e)));
   const updateEquipementTexte = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val } : e)));
@@ -14167,8 +14539,8 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
     const preset = PRESETS_EQUIPEMENT_FROID[famille].find((p) => p.label === label);
     if (!preset) return;
     setFormAjout((prev) => ({
-      ...prev, sousType: label, nom: prev.nom || label,
-      min: preset.min === null ? "" : String(preset.min), max: String(preset.max),
+      ...prev, sousType: label, nom: prev.nom || label, contenus: preset.contenus || [],
+      min: preset.min == null ? "" : String(preset.min), max: preset.max == null ? "" : String(preset.max),
     }));
   };
 
@@ -14176,25 +14548,26 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
     if (!formAjout.nom.trim() || formAjout.max === "") return;
     const nouveau = {
       id: uid(), nom: formAjout.nom.trim(), type: formAjout.famille === "negatif" ? "congelateur" : "frigo",
-      min: formAjout.famille === "negatif" ? null : (formAjout.min === "" ? null : Number(formAjout.min)),
-      max: Number(formAjout.max), sonde: formAjout.mode === "sonde" ? (formAjout.sonde.trim() || null) : null, sondeConnectee: false,
+      min: formAjout.famille === "negatif" ? null : nombreOuNull(formAjout.min),
+      max: Number(formAjout.max), contenus: formAjout.contenus || [], seuilAlerte: nombreOuNull(formAjout.seuilAlerte), delaiAlerteMin: nombreOuNull(formAjout.delaiAlerteMin), sonde: formAjout.mode === "sonde" ? (formAjout.sonde.trim() || null) : null, sondeConnectee: false,
     };
     setEquipementsFroid((prev) => [...prev, nouveau]);
-    logActivity("HACCP", "Appareil de froid ajouté", `${nouveau.nom} — norme ${nouveau.type === "congelateur" ? `≤ ${nouveau.max}°C` : `${nouveau.min}°C à ${nouveau.max}°C`}`);
-    setFormAjout({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "" });
+    logActivity("HACCP", "Appareil de froid ajouté", `${nouveau.nom} — norme ${libNormeEquipement(nouveau)}`);
+    setFormAjout({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "", contenus: [], seuilAlerte: "", delaiAlerteMin: "" });
   };
 
   const commencerEdition = (eq) => {
     setEditionId(eq.id);
-    setEditionForm({ nom: eq.nom, sonde: eq.sonde || "", mode: eq.sonde ? "sonde" : "manuel", min: eq.min ?? "", max: eq.max ?? "" });
+    setEditionForm({ nom: eq.nom, sonde: eq.sonde || "", mode: eq.sonde ? "sonde" : "manuel", min: eq.min ?? "", max: eq.max ?? "", contenus: eq.contenus || [], seuilAlerte: eq.seuilAlerte ?? "", delaiAlerteMin: eq.delaiAlerteMin ?? "" });
   };
   const annulerEdition = () => { setEditionId(null); setEditionForm({}); };
   const validerEdition = (id) => {
-    updateEquipementTexte(id, "nom", editionForm.nom.trim());
-    updateEquipementTexte(id, "sonde", editionForm.mode === "sonde" ? (editionForm.sonde.trim() || null) : null);
     const eq = eqById(id);
-    if (eq.type !== "congelateur") updateEquipement(id, "min", editionForm.min);
-    updateEquipement(id, "max", editionForm.max);
+    setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? {
+      ...e, nom: editionForm.nom.trim(), sonde: editionForm.mode === "sonde" ? (String(editionForm.sonde || "").trim() || null) : null,
+      min: eq.type === "congelateur" ? null : nombreOuNull(editionForm.min), max: nombreOuNull(editionForm.max),
+      contenus: editionForm.contenus || [], seuilAlerte: nombreOuNull(editionForm.seuilAlerte), delaiAlerteMin: nombreOuNull(editionForm.delaiAlerteMin),
+    } : e)));
     logActivity("HACCP", "Appareil de froid modifié", editionForm.nom);
     annulerEdition();
   };
@@ -14235,12 +14608,9 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
                       <td colSpan={4} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-2">
                           <Field label="Nom de l'appareil"><input className={`${inputCls} w-48`} value={editionForm.nom} onChange={(e) => setEditionForm({ ...editionForm, nom: e.target.value })} /></Field>
-                          {eq.type !== "congelateur" && (
-                            <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.min} onChange={(e) => setEditionForm({ ...editionForm, min: e.target.value })} /></Field>
-                          )}
-                          <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.max} onChange={(e) => setEditionForm({ ...editionForm, max: e.target.value })} /></Field>
+                          {champsNorme(editionForm, setEditionForm, eq.type === "congelateur" ? "negatif" : "positif")}
                           {choixMode(editionForm, setEditionForm)}
-                          <Button onClick={() => validerEdition(eq.id)} disabled={editionForm.mode === "sonde" && !String(editionForm.sonde || "").trim()}>Enregistrer</Button>
+                          <Button onClick={() => validerEdition(eq.id)} disabled={editionForm.max === "" || (editionForm.mode === "sonde" && !String(editionForm.sonde || "").trim())}>Enregistrer</Button>
                           <Button variant="ghost" onClick={annulerEdition}>Annuler</Button>
                         </div>
                       </td>
@@ -14263,7 +14633,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
                       ) : <div className="text-xs font-semibold" style={{ color: "#B45309" }}>✋ Relevé à la main (matin et soir)</div>}
                     </td>
                     <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#136B33" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
-                    <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
+                    <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{libNormeEquipement(eq)}</td>
                     <td className="px-3 py-2 align-top whitespace-nowrap">
                       <button className="text-xs text-[var(--steel)] underline mr-2" onClick={() => commencerEdition(eq)}>Modifier</button>
                       <button className="text-[var(--warn)]" onClick={() => setSuppressionDemandee(eq)} title="Retirer cet appareil"><Trash2 size={15} /></button>
@@ -14278,12 +14648,12 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
 
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer les appareils</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — la norme de température est pré-remplie automatiquement, modifiable ensuite si besoin.</p>
+        <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — puis ce que vous y rangez : le maximum vient du produit le plus fragile.</p>
         <div className="flex flex-wrap items-end gap-2 mb-2">
           <Field label="Famille">
-            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ famille: e.target.value, sousType: "", nom: "", sonde: "", mode: formAjout.mode, min: "", max: "" })}>
-              <option value="positif">Réfrigéré (0 à +4 °C)</option>
-              <option value="negatif">Congelé (−18 °C)</option>
+            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ sousType: "", nom: "", sonde: "", min: "", max: "", contenus: [], seuilAlerte: "", delaiAlerteMin: "", famille: e.target.value, mode: formAjout.mode })}>
+              <option value="positif">Réfrigéré</option>
+              <option value="negatif">Congelé</option>
             </select>
           </Field>
           <Field label="Type d'appareil">
@@ -14295,11 +14665,8 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
           <Field label="Nom de cet appareil"><input className={`${inputCls} w-48`} placeholder="ex. Frigo viande 2" value={formAjout.nom} onChange={(e) => setFormAjout({ ...formAjout, nom: e.target.value })} /></Field>
         </div>
         <div className="mb-3">{choixMode(formAjout, setFormAjout)}</div>
+        <div className="mb-3">{champsNorme(formAjout, setFormAjout, formAjout.famille)}</div>
         <div className="flex flex-wrap items-end gap-2 mb-4">
-          {formAjout.famille === "positif" && (
-            <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.min} onChange={(e) => setFormAjout({ ...formAjout, min: e.target.value })} /></Field>
-          )}
-          <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.max} onChange={(e) => setFormAjout({ ...formAjout, max: e.target.value })} /></Field>
           <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === "" || (formAjout.mode === "sonde" && !formAjout.sonde.trim())}><Plus size={14} /> Ajouter cet appareil</Button>
         </div>
         <p className="text-xs text-[var(--steel)]">Chaque appareil a son propre mode : à la main (matin et soir, sans rien acheter) ou avec une sonde. On peut commencer avec une ou deux sondes et passer les autres appareils plus tard, un par un, avec « Modifier ».</p>
@@ -14326,6 +14693,19 @@ function HaccpTemperatures({
   const [anomalieForm, setAnomalieForm] = useState({}); // { [surveillanceId]: { motif, note } }
 
   const eqById = (id) => equipementsFroid.find((e) => e.id === id);
+  // Écart repéré sur un relevé : surveillance avec recontrôle (délai de l'appareil) ; plus de +3 °C = alerte urgente (risque D).
+  const signalerEcart = (eq, valeur, heure) => {
+    if (!equipementEcartAnomalie(eq, valeur)) return;
+    const delai = delaiRecontroleMin(eq);
+    setSurveillancesFroid((prev) => [{ id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: heure, valeurInitiale: valeur, rappelTs: Date.now() + delai * 60000, statut: "attente", alarmeAcquittee: false }, ...prev]);
+    logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${valeur}°C — ${delai ? `à recontrôler dans ${delai} min` : "à recontrôler tout de suite"}`);
+    if (equipementEcartMajeur(eq, valeur)) {
+      ajouterAlerteControle({ id: uid(), date: todayISO(), heure, type: "Température", employeeId: currentUserId, urgent: true,
+        titre: `🔴 ${eq.nom} : ${valeur} °C, plus de 3 °C au-dessus du maximum (${eq.max} °C)`,
+        detail: "Contrôle et vérification impératifs : vérifier la température des produits, puis transférer ou détruire, et noter l'action. À l'inspection, un écart de plus de +3 °C est un écart majeur (note D)." });
+    }
+  };
+
 
   const majSaisie = (eqId, champ, val) => setSaisieManuelle((prev) => ({ ...prev, [eqId]: { ...(prev[eqId] || {}), [champ]: val } }));
 
@@ -14337,11 +14717,7 @@ function HaccpTemperatures({
     setRelevesFroid((prev) => [entry, ...prev]);
     logActivity("HACCP", "Contrôle température — saisie manuelle (thermomètre laser)", `${eq.nom} : ${s.valeur}°C — ${conforme ? "conforme" : "hors seuil"}${s.note ? ` — ${s.note}` : ""}`);
 
-    if (equipementEcartAnomalie(eq, s.valeur)) {
-      const surveillance = { id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: entry.heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false };
-      setSurveillancesFroid((prev) => [surveillance, ...prev]);
-      logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${s.valeur}°C — à recontrôler dans 30 min`);
-    }
+    signalerEcart(eq, s.valeur, entry.heure);
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
   };
 
@@ -14355,9 +14731,7 @@ function HaccpTemperatures({
     setRelevesFroid((prev) => [{ id: uid(), equipementId: eq.id, valeur: s.valeur, date: todayISO(), heure, employeeId: currentUserId, conforme, manuel: true, note: `Correction apportée : ${s.note.trim()}` }, ...prev]);
     logActivity("HACCP", "Correction apportée (température)", `${eq.nom} : ${s.valeur}°C au thermomètre laser — ${s.note.trim()}`);
     ajouterAlerteControle({ id: uid(), date: todayISO(), heure, type: "Température", employeeId: currentUserId, titre: `${eq.nom} — correction apportée`, detail: `${s.note.trim()} — contrôle au thermomètre laser : ${s.valeur}°C (${conforme ? "conforme" : "toujours hors norme"}).`, conforme });
-    if (!conforme && equipementEcartAnomalie(eq, s.valeur)) {
-      setSurveillancesFroid((prev) => [{ id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false }, ...prev]);
-    }
+    if (!conforme) signalerEcart(eq, s.valeur, heure);
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
     setCorrectionOuverte(null);
   };
@@ -14372,11 +14746,7 @@ function HaccpTemperatures({
     const entry = { id: uid(), equipementId: eq.id, valeur: sv.valeur, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme, manuel: true, note: sv.note ? `${prefixe} — ${sv.note}` : prefixe };
     setRelevesFroid((prev) => [entry, ...prev]);
     logActivity("HACCP", `Contrôle température — relevé manuel du ${creneau}`, `${eq.nom} : ${sv.valeur}°C — ${conforme ? "conforme" : "hors seuil"}${sv.note ? ` — ${sv.note}` : ""}`);
-    if (equipementEcartAnomalie(eq, sv.valeur)) {
-      const surveillance = { id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: entry.heure, valeurInitiale: sv.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false };
-      setSurveillancesFroid((prev) => [surveillance, ...prev]);
-      logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${sv.valeur}°C — à recontrôler dans 30 min`);
-    }
+    signalerEcart(eq, sv.valeur, entry.heure);
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[cle]; return n; });
   };
   const creneauDe = (r) => (String(r.note || "").startsWith("Relevé du matin") ? "matin" : String(r.note || "").startsWith("Relevé du soir") ? "soir" : ((r.heure || "00:00") < "15:00" ? "matin" : "soir"));
@@ -14478,7 +14848,7 @@ function HaccpTemperatures({
                 <div key={eq.id} className="grid gap-2 items-stretch px-3 py-1 border-t border-[var(--cadre)] grid-cols-[minmax(6rem,1fr)_minmax(8rem,1.2fr)] md:grid-cols-[minmax(7rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)] md:min-w-[440px]">
                   <div className="min-w-0 self-center">
                     <div className="text-sm font-semibold text-[var(--ink)] break-words">{eq.nom}</div>
-                    <div className="text-xs text-[var(--steel)]">Norme : {eq.type === "congelateur" ? `≤ ${eq.max} °C` : `${eq.min} à ${eq.max} °C`}</div>
+                    <div className="text-xs text-[var(--steel)]">Norme : {libNormeEquipement(eq)}</div>
                   </div>
                   <div className={creneauMobile === "matin" ? "" : "hidden md:block"}>{cellule(eq, "matin", f.couleur)}</div>
                   <div className={creneauMobile === "soir" ? "" : "hidden md:block"}>{cellule(eq, "soir", f.couleur)}</div>
@@ -14509,7 +14879,7 @@ function HaccpTemperatures({
           <span className="ml-auto">Dernière mise à jour : {(() => { const t = relevesFroid.filter((r) => r.date <= jourReleve).sort((x, y) => `${y.date} ${y.heure || ""}`.localeCompare(`${x.date} ${x.heure || ""}`))[0]; return t ? `${t.date === todayISO() ? "aujourd'hui" : t.date} à ${t.heure || "—"}` : "aucun relevé"; })()}</span>
         </div>
         <p className="text-[11px] leading-snug text-[var(--steel)] mb-1">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
-        <p className="text-[11px] leading-snug text-[var(--steel)] mb-3">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
+        <p className="text-[11px] leading-snug text-[var(--steel)] mb-3">Tout relevé au-dessus du maximum de l'appareil est enregistré comme non conforme (le maximum est celui du produit le plus fragile qu'il contient, arrêté du 21/12/2009, annexe I). Les alertes suivent la grille de l'inspecteur (vade-mecum « Remise directe », item C401) : plus de {MARGE_ANOMALIE_FROID} °C au-dessus = surveillance et recontrôle (écart noté C à l'inspection) ; plus de 3 °C au-dessus = contrôle et vérification impératifs, alerte urgente au chef et au directeur (écart noté D). Le délai avant recontrôle (dégivrage, ouvertures de porte) et un éventuel seuil d'alerte plus strict se règlent sur chaque appareil.</p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -14540,7 +14910,7 @@ function HaccpTemperatures({
                       ) : <div className="text-xs text-[var(--steel)]">Sonde non renseignée</div>}
                     </td>
                     <td className="px-3 py-1.5 align-middle whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#136B33" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
-                    <td className="px-3 py-1.5 align-middle text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
+                    <td className="px-3 py-1.5 align-middle text-[var(--ink)] whitespace-nowrap">{libNormeEquipement(eq)}</td>
                     <td className="px-3 py-1.5 align-middle whitespace-nowrap">
                       {dr ? (
                         <>
@@ -14575,11 +14945,11 @@ function HaccpTemperatures({
 
       {enAttente.length > 0 && (
         <Card className="mb-6 border-[var(--warn)]/40">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">À re-mesurer dans les 30 min (température hors limite)</h3>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">À re-mesurer (température hors limite) : délai réglé sur chaque appareil</h3>
           <div className="space-y-3">
             {enAttente.map((s) => {
               const eq = eqById(s.equipementId);
-              const minutes = Math.floor((Date.now() - (s.rappelTs - 30 * 60000)) / 60000);
+              const minutes = Math.floor((Date.now() - (s.rappelTs - delaiRecontroleMin(eqById(s.equipementId)) * 60000)) / 60000);
               const pret = Date.now() >= s.rappelTs;
               const form = anomalieForm[s.id];
               return (
@@ -14852,20 +15222,29 @@ function HistoriqueMaintienChaud({ entries, who }) {
 
 const REFROIDISSEMENT_NORME = { debutMin: 63, finMax: 10, dureeMaxMin: 120, alerteAvantMin: 1 };
 // Surgélation (froid négatif) : normes différentes du refroidissement rapide positif — température
-// cible < -18°C, durée maximale 4h30 (270 min) au lieu de 2h. Même fiche HACCP officielle
+// cible < -18°C (aucune durée fixée par les textes). Même fiche HACCP officielle
 // ("Surgélation avec cellule de refroidissement"), jusque-là affichée mais jamais reliée à un
 // vrai suivi chronométré dans l'écran — corrigé ici avec un deuxième parcours dédié.
-const SURGELATION_NORME = { finMax: -18, dureeMaxMin: 270, alerteAvantMin: 1 };
+// Congélation : aucun texte ne fixe de durée (directive 89/108/CEE : passage rapide, −18 °C à cœur). Aucune alarme de durée par défaut
+// (décision du 25/11) : la durée vient des alarmes réglées par l'établissement (Paramétrage > Appareils de froid > Alarmes de durée).
+const SURGELATION_NORME = { finMax: -18, dureeMaxMin: Infinity, alerteAvantMin: 1 };
+// Restauration collective : +63 → +10 °C en moins de 2 h est obligatoire (arrêté du 21/12/2009, annexe IV), appliqué automatiquement.
+const estRestaurationCollective = (reglages) => /collective/i.test(String((reglages && reglages.fiche && reglages.fiche.typeEtablissement) || ""));
+// Alarmes de durée de l'établissement (refroidissement, congélation) : { refroidissement: { minutes, justification }, congelation: {...} }.
+const AlarmesContext = React.createContext(null);
 // Entrée sans `type` enregistré (créées avant cette version) = toujours refroidissement positif,
 // pour ne jamais rétroactivement changer la norme appliquée à un refroidissement déjà en cours.
 // Accepte un type ("negatif" ou autre) ou une entrée de refroidissement. Avec cellule : 2 h (repère retenu par la cuisine). Sans cellule :
 // aucune durée n'est fixée par les textes en remise directe ; l'entrée porte alors la durée choisie par l'établissement (`dureeMaxMin`).
 function normeRefroidissement(x) {
   const type = x && typeof x === "object" ? x.type : x;
-  if (type === "negatif") return SURGELATION_NORME;
   const d = x && typeof x === "object" ? Number(x.dureeMaxMin) : NaN;
-  return d > 0 && d !== REFROIDISSEMENT_NORME.dureeMaxMin ? { ...REFROIDISSEMENT_NORME, dureeMaxMin: d } : REFROIDISSEMENT_NORME;
+  // La durée de l'alarme est portée par chaque refroidissement (fixée au démarrage : règle des collectivités, alarme de l'établissement
+  // ou durée saisie). Sans durée : aucune alarme de durée, on mesure et on enregistre seulement.
+  if (type === "negatif") return d > 0 ? { ...SURGELATION_NORME, dureeMaxMin: d } : SURGELATION_NORME;
+  return { ...REFROIDISSEMENT_NORME, dureeMaxMin: d > 0 ? d : Infinity };
 }
+const libDuree = (min) => (Number.isFinite(min) ? (min % 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}` : `${min / 60} h`) : "");
 
 function EtiquetteRefroidissement({ r, who }) {
   return (
@@ -14933,13 +15312,19 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
     setCuissonChoisieId(c.id);
   };
 
-  const dureeSansCelluleOk = celluleDispo || modeDemarrage === "negatif" || Number(dureeChoisie) > 0;
+  const ctxAlarmes = React.useContext(AlarmesContext) || {};
+  const collective = !!ctxAlarmes.collective;
+  const alarmeEtab = ((ctxAlarmes.alarmes || {})[modeDemarrage === "negatif" ? "congelation" : "refroidissement"]) || {};
+  // Durée de l'alarme : collectivité = 120 min obligatoires ; sinon l'alarme réglée par l'établissement, sinon la durée saisie, sinon aucune.
+  const dureeAlarme = collective && modeDemarrage !== "negatif" ? REFROIDISSEMENT_NORME.dureeMaxMin
+    : Number(dureeChoisie) > 0 ? Number(dureeChoisie) : Number(alarmeEtab.minutes) > 0 ? Number(alarmeEtab.minutes) : null;
+  const dureeSansCelluleOk = true;
   const demarrer = () => {
     if (!produit || tempDebut === "" || !dureeSansCelluleOk) return;
     // Un produit venant d'une cuisson (choisi dans la liste, ou saisi avec le même nom) ne doit être refroidi qu'une fois :
     // on le relie à sa cuisson, qui disparaît alors de « à mettre en refroidissement ».
     const cuissonLiee = cuissonsPretes.find((c) => c.id === cuissonChoisieId) || cuissonsPretes.find((c) => (c.produit || "").trim().toLowerCase() === produit.trim().toLowerCase());
-    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : (cuissonRetourId || undefined), origineRetourCuisson: cuissonRetourId || undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, ...(!celluleDispo && modeDemarrage !== "negatif" ? { dureeMaxMin: Number(dureeChoisie) } : {}), quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
+    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : (cuissonRetourId || undefined), origineRetourCuisson: cuissonRetourId || undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, ...(dureeAlarme ? { dureeMaxMin: dureeAlarme } : {}), quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
     setRefroidissements([entry, ...refroidissements]);
     if (cuissonLiee && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === cuissonLiee.id ? { ...c, refroidissementLance: true } : c)));
     setCuissonChoisieId(null); setMaintienId(null); setCuissonRetourId(null);
@@ -15020,11 +15405,11 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
         <button onClick={() => setModeDemarrage("positif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${!neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
           <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Refroidissement</span>
-          <span className="block text-xs text-[var(--steel)] mt-1">{celluleDispo ? "Refroidir un plat cuit avec la cellule : de +63 °C à +10 °C en moins de 2 h (repère), puis conservation entre 0 et +3 °C." : "Refroidir un plat cuit sans cellule (en chambre froide, bacs peu épais) : de +63 °C à +10 °C, dans la durée que vous vous fixez."}</span>
+          <span className="block text-xs text-[var(--steel)] mt-1">{celluleDispo ? "Refroidir un plat cuit avec la cellule : de +63 °C à +10 °C (repère du guide officiel : moins de 2 h ; obligatoire en restauration collective), puis conservation à la température du produit." : "Refroidir un plat cuit sans cellule (en chambre froide, bacs peu épais) : de +63 °C à +10 °C, dans la durée que vous vous fixez."}</span>
         </button>
         <button onClick={() => setModeDemarrage("negatif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
           <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Congélation</span>
-          <span className="block text-xs text-[var(--steel)] mt-1">Congeler / surgeler : passer sous −18 °C en moins de 4 h 30. Jamais de produit déjà décongelé.</span>
+          <span className="block text-xs text-[var(--steel)] mt-1">Congeler : atteindre −18 °C à cœur le plus rapidement possible. Aucun texte ne fixe de durée : alarme seulement si votre établissement en a réglé une. Jamais de produit déjà décongelé.</span>
         </button>
       </div>
 
@@ -15074,9 +15459,15 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
             </Field>
             <Field label="Température de départ (°C)"><input className={inputCls} type="number" inputMode="decimal" value={tempDebut} onChange={(e) => setTempDebut(e.target.value)} placeholder={neg ? "Ex. : 4" : "Ex. : 85"} /></Field>
             <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDepart} onChange={(e) => setHeureDepart(e.target.value)} /></Field>
-            {!celluleDispo && !neg && (
-              <Field label="Durée maximale que vous vous fixez (minutes)">
-                <input className={inputCls} type="number" inputMode="numeric" min="1" value={dureeChoisie} onChange={(e) => setDureeChoisie(e.target.value)} placeholder="À définir dans votre PMS" />
+            {!(collective && !neg) && (
+              <Field label={`Alarme de durée (minutes, facultatif)${Number(alarmeEtab.minutes) > 0 ? ` — réglée : ${alarmeEtab.minutes} min` : ""}`}>
+                <input className={inputCls} type="number" inputMode="numeric" min="1" value={dureeChoisie} onChange={(e) => setDureeChoisie(e.target.value)} placeholder={Number(alarmeEtab.minutes) > 0 ? `${alarmeEtab.minutes} (votre réglage)` : "Aucune alarme"} />
+                <span className="block text-xs text-[var(--steel)] mt-1">{neg ? "Aucun texte ne fixe de durée de congélation : le produit doit atteindre −18 °C à cœur le plus rapidement possible (directive 89/108/CEE)." : "Aucune durée n'est imposée à un restaurant : c'est la personne qui fait le PMS qui la fixe et la justifie. Repère du guide officiel, reconnu par les inspecteurs : +63 → +10 °C en moins de 2 h (obligatoire en restauration collective)."} Vos alarmes se règlent dans Paramétrage &gt; Appareils de froid.</span>
+              </Field>
+            )}
+            {false && (
+              <Field label="">
+                <input className={inputCls} value={dureeChoisie} onChange={(e) => setDureeChoisie(e.target.value)} />
                 <span className="block text-xs text-[var(--steel)] mt-1">Aucune durée n'est imposée en remise directe : c'est vous qui la choisissez et qui la justifiez dans votre PMS. Le logiciel la mesure et l'enregistre. Pas de cellule déclarée : à modifier dans les réglages de l'établissement.</span>
               </Field>
             )}
@@ -15107,7 +15498,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
             const minutes = Math.floor((Date.now() - r.debutTs) / 60000);
             const depasse = minutes >= norme.dureeMaxMin;
             const saisie = finForm[r.id] || {};
-            const pct = Math.min(100, Math.round((minutes / norme.dureeMaxMin) * 100));
+            const pct = Number.isFinite(norme.dureeMaxMin) ? Math.min(100, Math.round((minutes / norme.dureeMaxMin) * 100)) : 0;
             return (
               <div key={r.id} className={`border rounded-xl p-3.5 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
                 <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -15123,7 +15514,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
                 </div>
                 {r.notes && <p className="text-xs text-[var(--steel)] mb-2">Notes : {r.notes}</p>}
                 <div className="mb-3">
-                  <div className={`text-xs mb-1 ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? ` — délai de ${norme.dureeMaxMin / 60} h dépassé !` : ` sur ${norme.dureeMaxMin} min maximum`}</div>
+                  <div className={`text-xs mb-1 ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? ` — délai de ${libDuree(norme.dureeMaxMin)} dépassé !` : Number.isFinite(norme.dureeMaxMin) ? ` sur ${norme.dureeMaxMin} min (alarme)` : " (pas d'alarme de durée)"}</div>
                   <div className="h-2 rounded-full bg-[var(--line)] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: depasse ? "#E5243B" : "#14653A" }} /></div>
                 </div>
 
@@ -15215,16 +15606,18 @@ function EtiquetteCuisson({ c, who }) {
   );
 }
 
-// Seuils de conformité par famille de produit (fiche HACCP "Cuisson" — ce sont les vrais chiffres
-// officiels, pas une simplification) : la règle générale est 63°C, mais viande hachée et volaille
-// ont des seuils officiels plus élevés. On ne compare donc plus toutes les cuissons au même chiffre.
+// Familles de cuisson (décision Q7, 25/11) : les barèmes ANSES repris par le guide officiel « Restaurateur » (page 180) sont des repères :
+// en dessous, AVERTISSEMENT (pas « non conforme »). Famille « Général » : aucun seuil imposé, la température est seulement enregistrée,
+// sauf si la personne qui établit le PMS fixe le sien (« Autre »). Le maintien au chaud (+63 °C, annexe I) reste une norme, à part.
 const CUISSON_FAMILLES = [
-  { id: "general", label: "Général (viande en morceau entier, légumes, plats, sauces...)", seuil: 63, note: "Barème du guide Restaurateur (page 180) : viandes coupées de bœuf, veau, agneau, jambon, 63 °C pendant 15 s. Pour les autres préparations, aucun barème : le chef choisit (« Autre valeur ») et justifie." },
-  { id: "viandeHachee", label: "Viande hachée (bœuf, veau, agneau, porc : steak haché, bolognaise, lasagne...)", seuil: 71, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +71 °C à cœur pendant 15 secondes." },
-  { id: "volaille", label: "Volaille hachée", seuil: 74, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +74 °C à cœur pendant 15 secondes. Il n'existe pas de valeur officielle chiffrée pour la volaille en morceau entier : utilise « Autre valeur »." },
-  { id: "poisson", label: "Poisson", seuil: 60, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : de 1 minute à +60 °C jusqu'à 15 minutes à +80 °C à cœur (plus la température est basse, plus le temps doit être long)." },
-  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +90 °C à cœur pendant 2 minutes." },
+  { id: "general", label: "Général (légumes, plats, sauces...)", seuil: null, note: "Aucun barème officiel : la température est seulement enregistrée. La personne qui établit le PMS peut fixer sa propre valeur (« Autre ») et la justifier." },
+  { id: "morceaux", label: "Viande en morceau entier (bœuf, veau, agneau, jambon)", seuil: 63, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : +63 °C à cœur pendant 15 secondes. Repère, pas une norme : en dessous, avertissement." },
+  { id: "viandeHachee", label: "Viande hachée (bœuf, veau, agneau, porc : steak haché, bolognaise, lasagne...)", seuil: 71, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : +71 °C à cœur pendant 15 secondes. Repère, pas une norme : en dessous, avertissement." },
+  { id: "volaille", label: "Volaille hachée", seuil: 74, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : +74 °C à cœur pendant 15 secondes. Il n'existe pas de valeur officielle chiffrée pour la volaille en morceau entier : utilisez « Général » ou « Autre »." },
+  { id: "poisson", label: "Poisson", seuil: 60, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : de 1 minute à +60 °C jusqu'à 15 minutes à +80 °C à cœur (plus la température est basse, plus le temps doit être long)." },
+  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : +90 °C à cœur pendant 2 minutes. Repère, pas une norme : en dessous, avertissement." },
 ];
+const libSeuilFamille = (f) => (f && f.seuil != null ? `≥ ${f.seuil} °C (ANSES)` : "pas de seuil imposé");
 const cuissonSeuilMin = (familleId) => (CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0]).seuil;
 const cuissonFamille = (familleId) => CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0];
 // Seuil appliqué : la norme officielle de la famille, ou la valeur choisie par l'établissement (« Autre »),
@@ -15234,6 +15627,16 @@ const seuilCuissonPerso = (c) => {
   return Number.isFinite(p) ? p : cuissonSeuilMin(c && c.famille);
 };
 const seuilCuissonEntree = (c) => (c && c.seuilPerso != null && Number.isFinite(Number(c.seuilPerso)) ? Number(c.seuilPerso) : cuissonSeuilMin(c && c.famille));
+// Verdict d'une température à cœur (décision Q7) : seuil du PMS dépassé vers le bas = non conforme ; sous un barème ANSES = avertissement ;
+// aucun seuil = température enregistrée seulement.
+function verdictCuisson(c, temp) {
+  const v = parseFloat(String(temp).replace(",", "."));
+  const pms = !!(c && c.seuilPerso != null && Number.isFinite(Number(c.seuilPerso)));
+  const seuil = seuilCuissonEntree(c);
+  if (seuil == null || !Number.isFinite(v) || v >= seuil) return { conforme: true, avertissement: false, seuil, pms };
+  return pms ? { conforme: false, avertissement: false, seuil, pms } : { conforme: true, avertissement: true, seuil, pms };
+}
+const texteVerdictCuisson = (vd) => (!vd.conforme ? "NON CONFORME au seuil de votre PMS, ne pas utiliser le produit" : vd.avertissement ? `avertissement : sous le barème ANSES (${vd.seuil} °C), prolongez la cuisson si besoin` : vd.seuil == null ? "température enregistrée" : "conforme");
 const CUISSON_ALERTE_AVANT_MIN = 1; // bip continu pendant la dernière minute de cuisson, jusqu'à l'arrêt de l'alarme
 
 // Texte de la mesure d'une cuisson terminée : température à cœur, ou « contrôle visuel » quand la fiche
@@ -15251,7 +15654,7 @@ function modeCuissonDepuisAppareil(app) {
   if (/plaque|feu|induction|gaz|marmite|sauteuse|casserole|bain/.test(n)) return "Plaque / casserole";
   return "";
 }
-const APPAREILS_CUISSON = ["Four à pizza", "Four Rational", "Four Atoll Speed / Mery Chef", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
+const APPAREILS_CUISSON = ["Four à pizza", "Four mixte (vapeur / convection)", "Four à cuisson accélérée", "Plaque de cuisson (induction / gaz)", "Marmite / sauteuse", "Four traditionnel", "Plancha", "Grill / barbecue", "Friteuse", "Salamandre", "Autre appareil"];
 
 function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, currentUserId, logActivity, who, produitSuggere, setProduitSuggere, ouvrirNormes, catalogue, setCatalogue, refroidissements, setRefroidissements, ajouterAlerteControle, onLancerRefroidissement, proposerEtiquetteRapide }) {
   const nomsFichesListe = React.useContext(FichesNomsContext);
@@ -15320,19 +15723,21 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
   // Fin de cuisson : température à cœur (ou contrôle visuel) → conforme / non conforme. Les alarmes de durée s'arrêtent.
   const finir = (c, visuel, enchainerRefroid) => {
     const temp = temperatureSaisie[c.id];
-    let conforme;
+    let conforme; let vd = null;
     if (visuel !== undefined) conforme = visuel;
-    else { if (temp === undefined || temp === "") return; conforme = parseFloat(temp) >= seuilCuissonEntree(c); }
+    else { if (temp === undefined || temp === "") return; vd = verdictCuisson(c, temp); conforme = vd.conforme; }
     // Cuisson terminée = elle disparaît de la liste (enregistrée dans l'historique), sauf si elle part en refroidissement.
     const cloturer = !enchainerRefroid && !c.refroidissementLance;
-    maj(c.id, { finie: true, heureFin: new Date().toTimeString().slice(0, 5), temperature: visuel !== undefined ? "" : temp, controleVisuel: visuel !== undefined ? true : undefined, conforme, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) });
-    logActivity("HACCP", "Fin de cuisson", `${c.produit} — ${visuel !== undefined ? "contrôle visuel" : `${temp}°C à cœur`} — ${conforme ? "conforme" : "non conforme"}`);
+    maj(c.id, { finie: true, heureFin: new Date().toTimeString().slice(0, 5), temperature: visuel !== undefined ? "" : temp, controleVisuel: visuel !== undefined ? true : undefined, conforme, avertissement: vd && vd.avertissement ? true : undefined, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) });
+    logActivity("HACCP", "Fin de cuisson", `${c.produit} — ${visuel !== undefined ? "contrôle visuel" : `${temp}°C à cœur`} — ${vd ? texteVerdictCuisson(vd) : conforme ? "conforme" : "non conforme"}`);
     if (cloturer) {
-      setResultatCuisson({ id: c.id, ok: conforme, texte: `${c.produit} : cuisson terminée · ${visuel !== undefined ? "contrôle visuel" : `${temp} °C à cœur`} · ${conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
+      setResultatCuisson({ id: c.id, ok: conforme, texte: `${c.produit} : cuisson terminée · ${visuel !== undefined ? "contrôle visuel" : `${temp} °C à cœur`} · ${vd ? texteVerdictCuisson(vd) : conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
       if (proposerEtiquetteRapide && conforme) proposerEtiquetteRapide(c.produit);
     }
     if (!conforme && ajouterAlerteControle) {
-      ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Cuisson", employeeId: currentUserId, titre: `${c.produit} — cuisson non conforme`, detail: visuel !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${temp} °C, inférieure au seuil de ${seuilCuissonEntree(c)} °C.`, conforme: false });
+      ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Cuisson", employeeId: currentUserId, titre: `${c.produit} — cuisson non conforme`, detail: visuel !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${temp} °C, inférieure au seuil de ${seuilCuissonEntree(c)} °C fixé par le PMS.`, conforme: false });
+    } else if (vd && vd.avertissement && ajouterAlerteControle) {
+      ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Cuisson", employeeId: currentUserId, titre: `${c.produit} — avertissement : sous le barème ANSES`, detail: `Température à cœur ${temp} °C, sous le barème ANSES de ${vd.seuil} °C (repère du guide officiel, pas une norme). Vérifiez la cuisson.` });
     }
   };
   const versRefroidissement = (c) => {
@@ -15412,7 +15817,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
                     <span className="min-w-0 text-sm">
                       <span className="block font-semibold text-[var(--ink)]">{p.nom}</span>
                       <span className="block text-xs text-[var(--steel)]">{[mode, p.reglage, `${p.dureeMin} min`, p.appareil].filter(Boolean).join(" · ")}</span>
-                      <span className="block text-xs text-[var(--steel)]">{p.controles && p.controles.temp === false ? "Contrôle visuel" : `À cœur : ≥ ${seuilCuissonEntree(p)} °C`}</span>
+                      <span className="block text-xs text-[var(--steel)]">{p.controles && p.controles.temp === false ? "Contrôle visuel" : (seuilCuissonEntree(p) != null ? `À cœur : ≥ ${seuilCuissonEntree(p)} °C` : "À cœur : température enregistrée")}</span>
                     </span>
                   </label>
                 );
@@ -15464,7 +15869,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
                   <Field label="Durée (min) *"><input className={inputCls} type="number" inputMode="numeric" value={mDuree} onChange={(e) => setMDuree(e.target.value)} placeholder="Ex. : 30" /></Field>
                   <Field label="Type de produit (température à cœur) *">
                     <select className={inputCls} value={mFamille} onChange={(e) => setMFamille(e.target.value)}>
-                      {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+                      {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — {libSeuilFamille(f)}</option>)}
                     </select>
                   </Field>
                   <Field label="Heure de départ *"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
@@ -15519,7 +15924,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
                     <div><span className="text-xs text-[var(--steel)] block">Quantité (fiche, modifiable)</span>
                       <span className="inline-flex items-center gap-1.5"><input className={`${inputCls} !w-24 !h-9`} type="number" inputMode="decimal" placeholder="—" value={c.quantite ?? ""} onChange={(e) => maj(c.id, { quantite: e.target.value, unite: c.unite || "kg" })} /><span>{c.unite || "kg"}</span></span></div>
                     <div><span className="text-xs text-[var(--steel)] block">Durée prévue</span>{c.dureeAttendueMin} min</div>
-                    <div><span className="text-xs text-[var(--steel)] block">À cœur</span>{c.controleVisuelSeul ? "Contrôle visuel" : `${familleLabel.split(" (")[0]} : ≥ ${seuil} °C`}</div>
+                    <div><span className="text-xs text-[var(--steel)] block">À cœur</span>{c.controleVisuelSeul ? "Contrôle visuel" : (seuil != null ? `${familleLabel.split(" (")[0]} : ≥ ${seuil} °C` : `${familleLabel.split(" (")[0]} : température enregistrée`)}</div>
                   </div>
                   {c.notes && <p className="text-xs text-[var(--steel)] mb-2">Notes : {c.notes}</p>}
                   {!c.finie && (
@@ -15870,7 +16275,9 @@ function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, em
         {decongelationInfo && (
           <div>Décongelé le : <strong>{decongelationInfo.dateAffichee}</strong> — jamais recongelé</div>
         )}
-        <div className="font-semibold text-base mt-1">{typeDlc === "ddm" ? "DDM" : typeDlc === "ouverture" ? "DLC après ouverture" : "DLC/DDM"} : {dlcDate}</div>
+        {dlcDate
+          ? <div className="font-semibold text-base mt-1">{typeDlc === "ddm" ? "DDM" : typeDlc === "ouverture" ? "DLC après ouverture" : "DLC/DDM"} : {dlcDate}</div>
+          : <div className="font-semibold text-base mt-1">DLC : ____ / ____ / ______ <span className="block text-xs font-normal">Durée non fixée : à écrire à la main (le chef est prévenu).</span></div>}
       </div>
     </div>
   );
@@ -16669,10 +17076,12 @@ function GestionCatalogueDlc({ produits, setProduits, logActivity }) {
 }
 
 // Règles de décongélation d'un produit surgelé : méthode et durée réglées par le chef sur la fiche produit.
-// Par défaut : chambre froide 0 à +3 °C, DLC en J+3 (jour de début compris). Jamais de température ambiante.
+// Aucune durée par défaut (décision du 25/11) : d'abord la durée du fabricant, sinon celle fixée dans le PMS par l'établissement ;
+// sinon rien n'est proposé (l'étiquette sort avec la date de fabrication et une alerte part au chef et au directeur).
+// Méthode : enceinte réfrigérée entre 0 °C et la température maximale du produit, à défaut 0 à +4 °C (arrêté du 21/12/2009, annexe VI).
 function reglesDecongelation(p) {
   const methode = p && p.decongelMethode === "cuisson" ? "cuisson" : p && p.decongelMethode === "fabricant" ? "fabricant" : "froid";
-  const jours = p && Number.isFinite(Number(p.decongelJours)) && Number(p.decongelJours) >= 1 ? Number(p.decongelJours) : 3;
+  const jours = p && p.decongelJours !== "" && p.decongelJours != null && Number.isFinite(Number(p.decongelJours)) && Number(p.decongelJours) >= 1 ? Number(p.decongelJours) : null;
   return { methode, jours, source: (p && p.decongelSource) || "" };
 }
 
@@ -16688,9 +17097,9 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
     if (p.dlcJours != null && Number.isFinite(Number(p.dlcJours))) {
       return { ddm: false, dlcDate: addDays(todayISO(), Number(p.dlcJours)), jours: Number(p.dlcJours), source: "produit", repere: "", typeDlc: "ouverture" };
     }
+    // Le tableau de repères n'est PLUS appliqué tout seul (décision du 25/11) : c'est un conseil, affiché seulement.
     const r = repereDlcOuverture(p.nom, surgele);
-    if (r) return { ddm: false, dlcDate: addDays(todayISO(), r.jours), jours: r.jours, source: "haccp", repere: r.repere, typeDlc: "ouverture" };
-    return { ddm: false, dlcDate: "", jours: null, source: "aucune", repere: "", typeDlc: "ouverture" };
+    return { ddm: false, dlcDate: "", jours: null, source: "aucune", repere: r ? r.repere : "", typeDlc: "ouverture" };
   };
   const lotDe = (p) => (modeMigre ? (p.ddmLotActuel || genererLot(p.nom)) : (estDdm(p) && p.ddmLotActuel ? p.ddmLotActuel : genererLot(p.nom)));
 
@@ -16737,13 +17146,24 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
 
   const toggleSelection = (id) => setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
+  const rapideEtiq = React.useContext(RapideContext) || {};
   const confirmerAssistant = (lignes) => {
+    // Durée non fixée (ni par le fabricant ni dans le PMS) : l'étiquette sort quand même avec la date de fabrication, la DLC est à
+    // écrire à la main, et une alerte part au chef et au directeur pour compléter le produit (décision du 25/11).
+    // Un produit à DDM sans date reste sans étiquette (la DDM vient de l'emballage, mise à jour à la réception).
+    lignes = lignes.filter((l) => l.decongele || l.dlcDate || l.typeDlc !== "ddm");
+    const sansDuree = lignes.filter((l) => (l.decongele ? !l.decongelJours : !l.dlcDate));
+    if (sansDuree.length && rapideEtiq.ajouterAlerteControle) {
+      const d = new Date();
+      sansDuree.forEach((l) => rapideEtiq.ajouterAlerteControle({ id: uid(), date: todayISO(), heure: d.toTimeString().slice(0, 5), type: "Durée non fixée", employeeId: currentUserId,
+        titre: `Durée non fixée : ${l.nom}`, detail: `Étiquette imprimée sans DLC (date de fabrication seulement). Complétez la fiche du produit : durée du fabricant, sinon durée fixée dans votre PMS.${l.repereHaccp ? ` Conseil (pas une norme) : ${l.repereHaccp}.` : ""}` }));
+    }
     const entries = lignes
-      .filter((l) => l.dlcDate)
       .map((l) => {
-        const dlcFinale = l.decongele ? addDays(l.decongelDate, (l.decongelJours || 3) - 1) : l.dlcDate;
+        const sans = l.decongele ? !l.decongelJours : !l.dlcDate;
+        const dlcFinale = sans ? "" : l.decongele ? addDays(l.decongelDate, (l.decongelJours) - 1) : l.dlcDate;
         const decongelationInfo = l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null;
-        return creerEtiquetteDlc({ produitNom: l.nom, lot: l.lot, dlcDate: dlcFinale, photo: null, quantiteUtilisee: l.quantiteUtilisee, nbEtiquettes: l.nbEtiquettes, decongelationInfo, typeDlc: l.decongele ? undefined : l.typeDlc });
+        return creerEtiquetteDlc({ sansDlc: sans, produitNom: l.nom, lot: l.lot, dlcDate: dlcFinale, photo: null, quantiteUtilisee: l.quantiteUtilisee, nbEtiquettes: l.nbEtiquettes, decongelationInfo, typeDlc: l.decongele ? undefined : l.typeDlc });
       })
       .filter(Boolean)
       .map((e) => ({ ...e, produitNom: e.nomLibre }));
@@ -16890,7 +17310,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             <div key={p.id} className="px-4 py-3 border-b border-[var(--line)] last:border-b-0">
               <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
               <div className="text-xs text-[var(--steel)] mb-2">{infoEtiq(p).ddm ? "DDM" : "DLC après ouverture"} : {infoEtiq(p).dlcDate ? infoEtiq(p).dlcDate.split("-").reverse().join("/") : "à renseigner"}</div>
-              {!infoEtiq(p).dlcDate && <p className="text-xs text-[var(--warn)] mb-2">{infoEtiq(p).ddm ? "DDM non renseignée : pas d'étiquette possible. À mettre à jour depuis la réception." : "Pas de DLC après ouverture : pas d'étiquette possible. À renseigner dans la fiche produit."}</p>}
+              {!infoEtiq(p).dlcDate && <p className="text-xs text-[var(--warn)] mb-2">{infoEtiq(p).ddm ? "DDM non renseignée : pas d'étiquette possible. À mettre à jour depuis la réception." : "Durée non fixée : l'étiquette sortira avec la date de fabrication, la DLC sera à écrire à la main et le chef sera prévenu."}</p>}
               <input className={`${inputCls} w-full mb-2`} value={qteParProduit[p.id] || ""} onChange={(e) => setQteParProduit((m) => ({ ...m, [p.id]: e.target.value }))} placeholder="Quantité utilisée (ex : 2 kg)" aria-label={`Quantité utilisée pour ${p.nom}`} />
               <div className="flex items-center gap-2">
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, -1)} aria-label={`Une étiquette de moins pour ${p.nom}`}>−</button>
@@ -16917,7 +17337,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                               <Field label="Date de début"><input className={inputCls} type="date" value={decongDe(p.id).date} onChange={(e) => majDecong(p.id, { date: e.target.value })} /></Field>
                               <Field label="Heure de début"><input className={inputCls} type="time" value={decongDe(p.id).heure} onChange={(e) => majDecong(p.id, { heure: e.target.value })} /></Field>
                             </div>
-                            <p className="text-xs text-[var(--steel)] mt-2">À mettre en chambre froide (0 à +3 °C), couvert, sur une grille. Jamais à température ambiante. L'étiquette portera « Décongelé le … » et une DLC en J+{rg.jours} (jour de début compris){rg.source ? ` — ${rg.source}` : ""}. Jamais recongelé.</p>
+                            <p className="text-xs text-[var(--steel)] mt-2">À décongeler en enceinte réfrigérée, entre 0 °C et la température maximale du produit (à défaut 0 à +4 °C, arrêté du 21/12/2009, annexe VI), couvert, sur une grille. Jamais à température ambiante. L'étiquette portera « Décongelé le … » et {rg.jours ? `une DLC en J+${rg.jours}` : "aucune DLC (durée non fixée : à écrire à la main, le chef est prévenu)"} (jour de début compris){rg.source ? ` — ${rg.source}` : ""}. Jamais recongelé.</p>
                           </>
                         )}
                       </>
@@ -16942,7 +17362,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                   l.dlcDate ? (
                     <div key={l.produitId} className="overflow-hidden">
                       {l.nbEtiquettes > 1 && <p className="text-xs text-[var(--steel)] text-center mb-1">× {l.nbEtiquettes} étiquettes identiques</p>}
-                      <EtiquetteDlcImprimable typeDlc={l.decongele ? undefined : l.typeDlc} produitNom={l.nom} lot={l.lot} dlcDate={l.decongele ? addDays(l.decongelDate, (l.decongelJours || 3) - 1) : l.dlcDate} date={todayISO()} heure={new Date().toTimeString().slice(0, 5)} who={who} employeeId={currentUserId} decongelationInfo={l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null} />
+                      <EtiquetteDlcImprimable typeDlc={l.decongele ? undefined : l.typeDlc} produitNom={l.nom} lot={l.lot} dlcDate={l.decongele ? (l.decongelJours ? addDays(l.decongelDate, l.decongelJours - 1) : "") : l.dlcDate} date={todayISO()} heure={new Date().toTimeString().slice(0, 5)} who={who} employeeId={currentUserId} decongelationInfo={l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null} />
                     </div>
                   ) : null
                 ))}
@@ -17846,19 +18266,20 @@ const SEUILS_RECEPTION = {
 };
 // Normes de réception de la version migrée (aperçu) : tolérance de transport pour le surgelé,
 // limite basse pour le frais (un produit frais ne doit pas arriver gelé), seuil plus strict pour poisson/haché/plats cuisinés.
+// Décision du 25/11 : plus de limite basse à −1 °C (aucun texte ne la fixe). Seul le maximum de l'arrêté du 21/12/2009 s'applique.
 const SEUILS_RECEPTION_NOUVEAU = {
   surgele: { min: null, max: -15, ideal: -18, label: "≤ -18°C (tolérance : +3°C en surface, brièvement, au déchargement)" },
-  frais: { min: -1, max: 4, label: "de -1°C à +4°C" },
-  viande: { min: -1, max: 4, label: "de -1°C à +4°C" },
+  frais: { min: null, max: 4, label: "≤ +4°C" },
+  viande: { min: null, max: 4, label: "≤ +4°C" },
   // Arrêté du 21/12/2009, annexe I (valeurs maximales) : viande hachée +2°C, produits de la pêche frais +2°C
   // (glace fondante 0 à +2°C), abats +3°C, préparations culinaires élaborées à l'avance +3°C.
-  hache: { min: -1, max: 2, label: "de -1°C à +2°C" },
-  poisson: { min: -1, max: 2, label: "de -1°C à +2°C (glace fondante : 0 à +2°C)" },
-  abats: { min: -1, max: 3, label: "de -1°C à +3°C" },
-  plat: { min: -1, max: 3, label: "de -1°C à +3°C" },
+  hache: { min: null, max: 2, label: "≤ +2°C" },
+  poisson: { min: null, max: 2, label: "≤ +2°C (glace fondante : 0 à +2°C)" },
+  abats: { min: null, max: 3, label: "≤ +3°C" },
+  plat: { min: null, max: 3, label: "≤ +3°C" },
   // Lait pasteurisé et fromages affinés : l'arrêté ne fixe pas de chiffre, la température est définie par le fabricant
   // (à lire sur l'emballage). Elle est saisie à la réception ; sans elle, aucun verdict n'est rendu.
-  laitier: { min: -1, max: 4, label: "de -1°C à +4°C" },
+  laitier: { min: null, max: 4, label: "≤ +4°C" },
 };
 const NOM_TYPE_TEMP = { viande: "viande fraîche / volaille", hache: "viande hachée", poisson: "poisson frais", abats: "abats", plat: "plat cuisiné", laitier: "lait pasteurisé / fromage affiné" };
 const RAISONS_NON_CONFORMITE = ["Produit abîmé à la livraison", "DLC trop courte", "Température non conforme", "Produit non commandé", "Produit substitué / facturé plus cher que commandé"];
@@ -18027,18 +18448,22 @@ const FICHES_NORMES = {
         type: "tableau",
         colonnes: ["Famille de produits", "Température à réception"],
         contenu: [
-          { produit: "Produits surgelés", duree: "-18°C ou moins (tolérance technique -15°C max ponctuellement)" },
-          { produit: "Viandes fraîches, volailles", duree: "0°C à 4°C" },
-          { produit: "Poissons frais, crustacés (sur glace)", duree: "0°C à 2°C" },
-          { produit: "Produits laitiers, plats cuisinés réfrigérés, charcuterie", duree: "0°C à 4°C" },
-          { produit: "Fruits et légumes frais", duree: "Température ambiante à 8°C selon le produit" },
+          { produit: "Produits surgelés et congelés (glaces, viande hachée, poisson)", duree: "−18 °C ou moins (tolérance : +3 °C en surface, brièvement, au déchargement)" },
+          { produit: "Viande hachée", duree: "+2 °C maximum" },
+          { produit: "Poissons frais, crustacés et mollusques cuits", duree: "+2 °C maximum (glace fondante : 0 à +2 °C)" },
+          { produit: "Abats", duree: "+3 °C maximum" },
+          { produit: "Plats cuisinés élaborés à l'avance", duree: "+3 °C maximum" },
+          { produit: "Viandes de découpe, volailles, préparations de viande", duree: "+4 °C maximum" },
+          { produit: "Charcuterie, ovoproduits, autres produits très périssables", duree: "+4 °C maximum" },
+          { produit: "Lait pasteurisé, fromages affinés, produits emballés", duree: "Température indiquée par le fabricant" },
+          { produit: "Fruits et légumes frais", duree: "Aucune température fixée par les textes (selon le produit)" },
           { produit: "Conserves, épicerie sèche, boissons", duree: "Température ambiante — pas d'exigence de froid" },
         ],
       },
       {
         titre: "Contrôles à effectuer sur chaque livraison",
         contenu: [
-          "🌡 Température des produits : toutes les familles à réception — sonde ou thermomètre laser. Si non conforme : 2e puis 3e mesure pour validation. Nettoyer la sonde avec de l'alcool à 70° entre chaque produit.",
+          "🌡 Température des produits : toutes les familles à réception — sonde ou thermomètre laser. Bonne pratique (pas une norme) : si la mesure est mauvaise, la refaire une 2e puis une 3e fois ; nettoyer la sonde entre deux produits.",
           "👁 Référence produits et aspect : chaque lot — contrôle visuel (pourriture, odeur, décoloration, surgelés en bloc sans cristaux de givre excessifs signe de rupture de la chaîne du froid).",
           "⚖ Quantité : chaque lot — comptage ou pesée, comparaison avec le bon de commande.",
           "📦 Emballage / Étiquetage / Agrément : chaque lot — sous vide fuités, sacs déchirés ou ouverts, boîtes becquées, bombées ou rouillées, présence de l'étiquette, agrément vétérinaire sur les produits d'origine animale.",
@@ -18123,7 +18548,8 @@ const FICHES_NORMES = {
       {
         titre: "3. Conserver",
         contenu: [
-          "Conserver les plats témoins et les restes de matières premières et de plats servis sur les 3 derniers jours (réservés aux services de contrôle).",
+          "Conserver tous les restes et emballages des repas suspects (réservés aux services de contrôle).",
+          "Plats témoins : obligatoires en restauration collective (5 jours, arrêté du 21/12/2009, annexe IV). Pour un restaurant : pas obligatoires ; si vous en gardez, conservez-les.",
           "Les étiquetages (ou toutes autres informations) des denrées alimentaires utilisées, renseignant l'origine des produits (traçabilité).",
           "Des échantillons de selles (diarrhée) et/ou rejets gastriques (vomissements) sur plusieurs malades — destinés aux analyses de laboratoire.",
         ],
@@ -18131,10 +18557,10 @@ const FICHES_NORMES = {
       {
         titre: "4. Réunir les éléments d'information",
         contenu: [
-          "Le nombre de convives pour chacun des repas servis dans les 5 jours précédant les premiers symptômes.",
+          "Le nombre de convives pour chacun des repas servis dans les jours précédant les premiers symptômes (la période exacte est indiquée par l'ARS ou la DDPP).",
           "La liste des malades (âge, symptômes, dates et heures de début des symptômes).",
-          "Les listes des agents du personnel en service aux cuisines au cours des 5 jours précédant les premiers symptômes.",
-          "La composition des repas collectifs consommés par chaque malade durant les 5 jours précédents.",
+          "Les listes des agents du personnel en service aux cuisines sur cette même période.",
+          "La composition des repas consommés par chaque malade sur cette même période.",
         ],
       },
     ],
@@ -18143,9 +18569,9 @@ const FICHES_NORMES = {
   lavageLegumes: {
     titre: "Lavage des fruits et légumes — Règles et repères HACCP",
     sections: [
-      { titre: "Qui / Quand / Où", contenu: "Personnel chargé de la légumerie — Avant de consommer ou d'utiliser les fruits et légumes (sauf légumes de 4e et 5e gamme et fruits dont la peau n'est pas consommée : banane, orange, clémentine…) — À la légumerie ou zone de plonge si opérations séparées dans le temps et matériel dédié." },
+      { titre: "Qui / Quand / Où (bonne pratique, sauf mention)", contenu: "Personnel chargé de la légumerie — Avant de consommer ou d'utiliser les fruits et légumes (sauf légumes de 4e et 5e gamme et fruits dont la peau n'est pas consommée : banane, orange, clémentine…) — À la légumerie ou zone de plonge si opérations séparées dans le temps et matériel dédié." },
       {
-        titre: "Méthode par type",
+        titre: "Méthode par type (bonne pratique, pas une norme)",
         contenu: [
           "🥬 Légumes verts à feuilles : double bac eau froide — couper les extrémités, retirer parties endommagées — tremper 2 à 3 min — ajouter produit — sécher à l'essoreuse ou serviette papier.",
           "🍎 Aliments à chair ferme (pommes, melon...) : frotter vigoureusement avec une brosse ou à la main — ajouter produit — sécher.",
@@ -18159,9 +18585,10 @@ const FICHES_NORMES = {
       {
         titre: "Produits désinfectants",
         contenu: [
-          "Eau de Javel à 2,6% : 60 ml (0,060 L) pour 100 L d'eau — laisser tremper 5 min.",
-          "Vinaigre blanc : 6% (6 L pour 100 L d'eau) — laisser tremper 10 min.",
-          "⚠ NE PAS UTILISER DE L'EAU DE JAVEL SUR LES VÉGÉTAUX POREUX OU À COUCHES.",
+          "Ce que dit le contrôle officiel (vade-mecum « Remise directe », C403L04) : laver les légumes dans un endroit dédié ou à un autre moment que les autres préparations ; eau de Javel à 80 ppm maximum, toujours suivie d'un rinçage à l'eau potable ; pas de pastilles de dichloroisocyanurate.",
+          "Avec un produit du commerce (désinfectant pour fruits et légumes) : suivre exactement la dose et le temps de sa fiche technique, puis rincer à l'eau potable.",
+          "Repères de terrain (bonne pratique, pas une norme) : eau de Javel à 2,6 % : 60 ml pour 100 L d'eau, 5 min, puis rinçage ; vinaigre blanc : 10 min, puis rinçage.",
+          "⚠ Ne jamais mélanger un produit chloré (Javel) et un acide (vinaigre, détartrant) : dégagement de chlore dangereux.",
         ],
       },
     ],
@@ -18179,7 +18606,7 @@ const FICHES_NORMES = {
         contenu: "La réglementation demande à chaque établissement de fixer et de justifier lui-même sa propre DLC interne, en s'appuyant sur les Guides de Bonnes Pratiques d'Hygiène (GBPH) de son secteur. Le tableau ci-dessous, largement utilisé en formation HACCP, vous est donc mis à disposition comme base de connaissance (viandes, poissons, charcuterie, produits laitiers, sauces, etc.) — ce n'est pas une loi, mais une base sérieuse et croisée sur plusieurs sources professionnelles.",
       },
       {
-        titre: "Tableau de repères (source non identifiée : à ne pas citer comme norme)",
+        titre: "Tableau de repères — Conseil, pas une norme HACCP. Ce tableau vient d'un document professionnel non officiel, utilisé en formation hygiène. La personne qui établit le PMS est responsable des durées qu'elle retient : elle doit s'assurer que son produit entre bien dans ce cadre (composition, fabrication, conditions de stockage). En cas de doute, la durée indiquée par le fabricant prime. Pour valider une durée, ou la prolonger, l'établissement peut faire analyser le produit par un laboratoire accrédité (COFRAC) : c'est le test de vieillissement, qui sert de justificatif dans le PMS.",
         type: "tableau",
         contenu: [
           { categorie: "Viandes", produit: "Viande crue (steak, escalope...)", duree: "2 à 3 jours" },
@@ -18195,7 +18622,7 @@ const FICHES_NORMES = {
           { categorie: "Fruits & légumes", produit: "Fruit frais transformé (coupé)", duree: "Jusqu'à 2 jours" },
           { categorie: "Fruits & légumes", produit: "Légume frais transformé (épluché/coupé)", duree: "1 à 2 jours" },
           { categorie: "Fruits & légumes", produit: "Préparation à base de légumes (crue ou cuite)", duree: "2 jours" },
-          { categorie: "Œufs", produit: "Œufs coquille", duree: "Jusqu'à la DLC de l'emballage (environ 21 jours)" },
+          { categorie: "Œufs", produit: "Œufs coquille", duree: "Jusqu'à la date de l'emballage (DDM : au plus 28 jours après la ponte, règlement 853/2004 modifié en 2022)" },
           { categorie: "Œufs", produit: "Œufs liquides / préparation à base d'œufs crus", duree: "1 jour (mayonnaise maison : 2h seulement)" },
           { categorie: "Œufs", produit: "Œufs durs (écalés)", duree: "3 jours" },
           { categorie: "Produits laitiers", produit: "Fromage à pâte molle / fraîche (une fois ouvert)", duree: "3 jours" },
@@ -18253,17 +18680,18 @@ const FICHES_NORMES = {
     sections: [
       {
         titre: "1. Après chaque utilisation — Contrôle visuel et olfactif",
-        contenu: "Un bain de friture usé se reconnaît à : brunissement de l'huile, changement d'odeur et de goût, huile plus visqueuse, apparition précoce de fumées et d'une mousse stable. Un bain qui a moussé une fois est inutilisable.",
+        contenu: "Bonne pratique (pas une norme) : un bain de friture usé se reconnaît à son brunissement, son changement d'odeur et de goût, une huile plus épaisse, des fumées précoces et une mousse qui reste.",
       },
-      { titre: "2. Modalité de contrôle avec testeur", contenu: "Chauffer l'huile à 180°C maximum." },
+      { titre: "2. Ce que dit la loi", contenu: "Norme : au-delà de 25 % de composés polaires ou de 14 % de polymères de triglycérides, l'huile est impropre à la consommation et doit être changée (décret n° 2008-184 du 26/02/2008, article 8). Le texte ne fixe pas de fréquence de changement : il faut tester régulièrement et garder la preuve. Rester sous 175 °C est une recommandation du vade-mecum « Remise directe » (C403L08), pas une obligation." },
       {
-        titre: "3. Plonger le testeur dans l'huile 10 secondes",
+        titre: "3. Contrôle avec un testeur",
         contenu: [
-          "🟢 Voyant VERT → L'huile est bonne",
-          "🟡 Voyant JAUNE → TPM + 24 → À changer → VIDANGER ET NETTOYER LA FRITEUSE",
+          "Suivre le mode d'emploi du testeur (température de l'huile et durée indiquées par son fabricant).",
+          "🟢 Résultat bon → l'huile peut être gardée.",
+          "🟡 Seuil d'alerte du testeur atteint → changer l'huile, vidanger et nettoyer la friteuse.",
         ],
       },
-      { titre: "4. Collecte des huiles", contenu: "L'huile usagée est stockée dans un bidon — elle est récupérée gratuitement." },
+      { titre: "4. Collecte des huiles usagées", contenu: "Norme : jamais à l'évier, dans les égouts ou à la poubelle. L'huile usagée est stockée dans un bidon fermé et reprise par une entreprise de collecte ; garder le bon d'enlèvement (vade-mecum « Remise directe », E2L02)." },
     ],
   },
 
@@ -18292,7 +18720,7 @@ const FICHES_NORMES = {
           "9. Arrêter le refroidissement quand la température à cœur est ≤ 10°C.",
           "10. Sortir les préparations et les stocker immédiatement entre 0°C et 3°C.",
           "11. Enregistrer l'heure et la température de sortie du bac.",
-          "12. Calculer la durée de refroidissement — La durée est la différence entre entrée et sortie : en moins de 2 heures.",
+          "12. Calculer la durée de refroidissement (sortie moins entrée) et la comparer à la durée fixée : 2 heures en restauration collective ; pour un restaurant, la durée fixée dans votre PMS.",
           "13. Étiquetage des préparations culinaires élaborées à l'avance :\n    → DLC sur les produits invendus (fin de service) : J+1 (aucun texte lu : choix du chef)\n    → DLC sur les préparations culinaires élaborées à l'avance : J+3 (arrêté du 21/12/2009, annexe IV : écrit pour la restauration collective)",
         ],
       },
@@ -18306,7 +18734,7 @@ const FICHES_NORMES = {
         titre: "Statut de ces règles (source)",
         contenu: [
           "Arrêté du 21/12/2009, annexe I (températures de conservation) : −18 °C pour les glaces, viandes hachées, préparations de viandes et produits de la pêche congelés ; −12 °C pour les autres denrées congelées. Tableau lu sur une copie préfectorale et dans le guide (page 179) : à reconfirmer sur Légifrance.",
-          "Aucun texte lu ne fixe de durée de surgélation (le logiciel utilise 4 h 30, valeur sans source).",
+          "Aucun texte ne fixe de durée de congélation : le produit doit passer rapidement la zone de cristallisation et atteindre −18 °C à cœur (directive 89/108/CEE). La durée annoncée par le fabricant de la cellule est une performance de l'appareil, pas une norme ; l'établissement peut en faire son alarme (Paramétrage > Appareils de froid).",
           "Décongélation : arrêté du 21/12/2009, annexe VI (texte lu sur Légifrance le 20/10/2026), applicable à tous les établissements.",
         ],
       },
@@ -18323,7 +18751,7 @@ const FICHES_NORMES = {
           "8. Si pas de sonde-pilote : surveiller régulièrement et arrêter quand la denrée la plus compacte est < -18°C.",
           "9. Sortir les préparations et les stocker dans une enceinte négative < -18°C.",
           "10. Enregistrer l'heure et la température de sortie.",
-          "11. Calculer la durée de surgélation (entrée - sortie) : en moins de 4h30. Tolérance : si > 4h30, la conservation du produit s'en trouve diminuée.",
+          "11. Noter la durée de congélation (sortie moins entrée). Aucun texte ne fixe de durée : alarme seulement si l'établissement en a réglé une.",
         ],
       },
       {
@@ -18348,7 +18776,7 @@ const FICHES_NORMES = {
     sections: [
       { titre: "Statut de ces valeurs (source)", contenu: [
         "Aucun texte français ou européen lu ne fixe une température de cuisson par type de viande. L'arrêté du 21/12/2009 ne donne que 63 °C, pour le maintien au chaud et la remise en température en restauration collective.",
-        "Les barèmes ci-dessous sont recommandés par l'ANSES et repris, à titre indicatif, par le guide de bonnes pratiques « Restaurateur » (novembre 2015, page imprimée 180, page 187 du PDF). Ce guide est d'application volontaire ; son respect est un moyen de justification privilégié du respect des règlements 852/2004 et 853/2004 (avis du JO du 15/06/2015). Les barèmes restent sous la responsabilité du professionnel.",
+        "Les barèmes ci-dessous sont recommandés par l'ANSES et repris, à titre indicatif, par le guide de bonnes pratiques « Restaurateur » (novembre 2015, page imprimée 180, page 187 du PDF). Ce guide est d'application volontaire (guide officiel : conseillé, pas obligatoire) ; son respect est un moyen reconnu de prouver le respect des règlements 852/2004 et 853/2004. Les barèmes restent sous la responsabilité du professionnel.",
         "Quand aucun texte n'existe, c'est le chef qui décide, avec sa justification dans le PMS.",
       ]},
       { titre: "Barèmes du guide Restaurateur (page 180)", contenu: [
@@ -18366,16 +18794,15 @@ const FICHES_NORMES = {
         "Autres préparations (légumes, plats, sauces), œufs : aucun barème trouvé.",
         "Cuisson saignante ou bleue d'une pièce entière : aucun texte lu ne l'autorise ni ne l'interdit expressément ; le barème du guide pour les viandes coupées est 63 °C pendant 15 s.",
       ]},
-      { titre: "Méthode — Cuisson au four (Rational / Atoll Speed / four à pizza)", contenu: [
+      { titre: "Méthode — Cuisson au four (bonne pratique, pas une norme)", contenu: [
         "1. Préchauffer le four à la température souhaitée.",
         "2. Utiliser une sonde à cœur pour vérifier la température interne — ne jamais se fier uniquement au temps ou à la couleur.",
         "3. Enregistrer l'heure de début et la température à cœur en fin de cuisson.",
         "4. Si non conforme : remettre en cuisson jusqu'à atteindre la température cible.",
-        "5. Après cuisson : service immédiat ou refroidissement rapide (≤ 10°C en moins de 2h).",
-        "Nettoyage four Rational : lancer le nettoyage automatique chaque soir avec les pastilles adaptées, ne jamais utiliser de produits abrasifs sur les parois.",
-        "Nettoyage four Atoll Speed / Mery Chef : éteindre après chaque service, nettoyage complet (intérieur, extérieur, portes) tous les jeudis.",
+        "5. Après cuisson : service immédiat, maintien à +63 °C minimum, ou refroidissement rapide (2 h jusqu'à +10 °C en restauration collective ; pour un restaurant, la durée fixée dans votre PMS).",
+        "Nettoyage du four : suivre la notice du fabricant et votre plan de nettoyage.",
       ]},
-      { titre: "Méthode — Plancha / poêle à induction", contenu: [
+      { titre: "Méthode — Plancha / poêle à induction (bonne pratique, pas une norme)", contenu: [
         "1. Préchauffer la plancha/induction à la température souhaitée.",
         "2. Ne jamais surcharger la surface de cuisson — cela abaisse la température et allonge le temps de cuisson.",
         "3. Vérifier la température à cœur à la sonde — ne pas juger à la couleur seule.",
@@ -18383,14 +18810,14 @@ const FICHES_NORMES = {
         "5. Enregistrer la température à cœur en fin de cuisson.",
         "Entretien : nettoyer la plaque et le plan de travail après chaque service (midi et soir) — ne jamais laisser de résidus brûlés s'accumuler.",
       ]},
-      { titre: "Méthode — Friture", contenu: [
-        "Température de l'huile : cuisson entre 160°C et 180°C maximum. Ne jamais dépasser 180°C — au-delà l'huile se dégrade rapidement et produit des composés toxiques.",
+      { titre: "Méthode — Friture (bonne pratique, sauf la limite légale ci-dessous)", contenu: [
+        "Température de l'huile : moins de 175 °C recommandé (vade-mecum « Remise directe », C403L08 : recommandation, pas une obligation). Au-delà, l'huile se dégrade plus vite.",
         "1. Vérifier l'état de l'huile avant utilisation (contrôle visuel et olfactif).",
         "2. Ne pas surcharger le panier — cela fait chuter la température de l'huile.",
         "3. Secouer légèrement le panier pour éviter que les produits ne collent.",
         "4. Égoutter soigneusement après cuisson.",
         "5. Ne jamais plonger des produits humides ou mouillés dans l'huile chaude.",
-        "Test de l'huile (la limite légale de composés polaires n'a pas été relue dans les textes) : chauffer l'huile à 180°C, plonger le testeur 10 secondes. Voyant vert = huile bonne. Voyant jaune = TPM + 24 → à changer, vidanger et nettoyer la friteuse.",
+        "Test de l'huile : norme = 25 % de composés polaires ou 14 % de polymères au maximum (décret n° 2008-184). Suivre le mode d'emploi du testeur ; seuil d'alerte atteint = changer l'huile, vidanger et nettoyer la friteuse.",
       ]},
       { titre: "Après cuisson", contenu: "Au chaud : 63 °C minimum. Sinon démarrer un refroidissement rapide (cellule ou bain de glace). Pour la restauration collective, l'arrêté du 21/12/2009 (annexe IV) fixe 2 h maximum entre +63 °C et +10 °C ; en remise directe aucune durée n'est fixée." },
     ],
@@ -18399,16 +18826,15 @@ const FICHES_NORMES = {
   maintienChaud: {
     titre: "Maintien au chaud — Règles et repères HACCP",
     sections: [
-      { titre: "Température minimale de maintien", contenu: "63 °C minimum, aussi longtemps que le produit reste en service. Sources : guide Restaurateur 2015, page imprimée 180 (« maintien à 63 °C ») ; arrêté du 21/12/2009, annexe IV point 3 (restauration collective) ; annexe I, tableau « température minimale en liaison chaude » (valeur à reconfirmer sur Légifrance). Une température plus basse n'est admise qu'avec une analyse des dangers validée. Aucune durée maximale de maintien n'a été trouvée dans les textes lus." },
+      { titre: "Température minimale de maintien", contenu: "63 °C minimum, aussi longtemps que le produit reste en service. Norme (obligatoire pour tous, restaurants compris) : arrêté du 21/12/2009, annexe I, tableau « Température minimale en liaison chaude » : « Plats cuisinés ou repas livrés chauds ou remis au consommateur : + 63 °C ». Repris par le guide Restaurateur 2015, page imprimée 180. Une température plus basse n'est admise qu'avec une analyse des dangers validée. Aucune durée maximale de maintien n'a été trouvée dans les textes lus." },
       { titre: "En cas de descente sous 63°C", contenu: "Aucun texte lu ne fixe la conduite à tenir sous 63 °C (régénération, nombre de fois, destruction). Pour information : le guide Restaurateur (page 180) indique 75 °C minimum pour le réchauffage des plats préparés ; l'arrêté (annexe IV, restauration collective) indique 63 °C." },
-      { titre: "Procédure", contenu: [
+      { titre: "Procédure (bonne pratique, pas une norme)", contenu: [
         "1. Préchauffer le bain-marie avant d'y placer les produits.",
         "2. Vérifier régulièrement la température de l'eau ET du produit.",
         "3. Couvrir les bacs pour maintenir la température et éviter la contamination.",
         "4. En fin de service (ou produit non utilisé) : sortir le produit et démarrer un refroidissement rapide, ou le finir avant.",
         "5. En fin de service : vider, nettoyer l'intérieur et l'extérieur, fermer avec le couvercle.",
       ]},
-      { titre: "Sauces concernées au poste chaud", contenu: "Sauce Vigneronne, Sauce Champignons & Parmesan, Sauce au Poivre, Sauce Cheddar, Sauce Parmesan." },
     ],
   },
 
@@ -18420,13 +18846,29 @@ const FICHES_NORMES = {
         contenu: "Personne en service — Contrôle et enregistrement le matin en arrivant (avant toute ouverture de porte) et le soir (juste avant de quitter l'établissement), plus tout contrôle aléatoire au thermomètre laser.",
       },
       {
-        titre: "Températures de conservation par enceinte (réglages de la cuisine)",
-        type: "tableau",
-        colonnes: ["Enceinte", "Température"],
+        titre: "La règle (décision du 25/11)",
         contenu: [
-          { produit: "Chambre froide positive (viandes, poissons, produits laitiers, plats cuisinés)", duree: "0°C à 3°C" },
-          { produit: "Chambre froide fruits et légumes", duree: "+4°C à 8°C" },
-          { produit: "Chambre froide négative (congélateur)", duree: "-18°C ou moins" },
+          "Chaque produit a sa température maximale (tableau ci-dessous). Chaque appareil se règle sur le produit le plus fragile qu'il contient : un frigo qui contient de la viande hachée doit rester à +2 °C maximum.",
+          "Fruits et légumes frais entiers : aucune température n'est fixée par les textes. Suivre l'indication du fournisseur ou celle du PMS de l'établissement.",
+          "La limite basse, un seuil d'alerte plus strict et le délai avant recontrôle sont choisis par la personne qui établit le PMS (Appareils de froid). À l'inspection, un écart de +2 à +3 °C au-dessus du maximum est noté C, plus de +3 °C est noté D (grille officielle).",
+        ],
+      },
+      {
+        titre: "Tableau officiel — arrêté du 21/12/2009, annexe I (températures maximales)",
+        type: "tableau",
+        colonnes: ["Produit", "Maximum"],
+        contenu: [
+          { produit: "Viandes hachées", duree: "+2 °C" },
+          { produit: "Produits de la pêche frais (poissons, crustacés, mollusques)", duree: "+2 °C (glace fondante)" },
+          { produit: "Abats", duree: "+3 °C" },
+          { produit: "Préparations culinaires élaborées à l'avance", duree: "+3 °C" },
+          { produit: "Préparations de viandes ; volailles, lagomorphes, petit gibier ; viandes découpées", duree: "+4 °C" },
+          { produit: "Ovoproduits, lait cru", duree: "+4 °C" },
+          { produit: "Autres denrées très périssables", duree: "+4 °C" },
+          { produit: "Viandes d'ongulés (carcasses, gros morceaux)", duree: "+7 °C" },
+          { produit: "Autres denrées périssables", duree: "+8 °C" },
+          { produit: "Glaces, viandes hachées, préparations de viandes, produits de la pêche congelés", duree: "−18 °C" },
+          { produit: "Autres denrées congelées", duree: "−12 °C" },
         ],
       },
       {
@@ -18437,7 +18879,7 @@ const FICHES_NORMES = {
           "Produits de la pêche frais : +2 °C ; ovoproduits : +4 °C ; lait cru : +4 °C.",
           "Autres denrées très périssables : +4 °C ; autres denrées périssables : +8 °C ; préparations culinaires élaborées à l'avance : +3 °C.",
           "Congelé : −18 °C (glaces, viandes hachées, préparations de viandes, produits de la pêche) ; −12 °C pour les autres denrées congelées. Tolérance : +3 °C en surface, brièvement, lors du chargement et du déchargement.",
-          "Source : tableau lu sur une copie préfectorale et dans le guide (page 179) ; à reconfirmer sur Légifrance, car les tableaux de l'annexe I n'étaient pas affichés dans la copie reçue le 20/10/2026. Le règlement 853/2004 peut fixer d'autres températures pour certains produits.",
+          "Source : arrêté du 21/12/2009, annexe I (relu le 25/11/2026 sur la copie de la DDPP de Saône-et-Loire) ; guide Restaurateur page 179. Un produit emballé suit la température indiquée par son fabricant si elle est plus basse.",
           "Un autre couple température et durée est admis s'il figure dans un guide validé ou résulte d'une analyse des dangers validée (arrêté, article 3).",
         ],
       },
@@ -18526,7 +18968,7 @@ const FICHES_NORMES = {
         titre: "Zones de stockage et température",
         contenu: [
           "Stock sec / épicerie : local ventilé, sec, à l'abri de la lumière directe, produits surélevés du sol (étagères ou palettes) — jamais à même le sol.",
-          "Stock frais : chambres froides positives selon la fiche Températures & stockage frigo/congélateur (0°C à 3°C viandes/poissons/laitages, +4°C à 8°C fruits et légumes).",
+          "Stock frais : chaque chambre froide est réglée sur le produit le plus fragile qu'elle contient (tableau de l'arrêté du 21/12/2009, annexe I, dans la fiche Températures & stockage). Fruits et légumes frais entiers : aucune température fixée par les textes.",
           "Stock surgelé : congélateur/chambre négative à -18°C ou moins, sans rupture de charge prolongée lors des manipulations.",
           "Ne jamais stocker un produit hors de sa zone de température adaptée, même temporairement.",
         ],
@@ -18651,7 +19093,7 @@ function BandeauNormes({ label, permanent }) {
 // Textes réglementaires affichés en haut des écrans de Contrôle & Gestion (vérifiés sur les textes officiels).
 // Fiches revues le 20/10/2026 contre les textes (voir le Lexique). Les autres portent un marqueur : leurs sources restent à contrôler.
 // La fiche TIAC reste telle quelle (décision de Loïc le 20/10/2026).
-const FICHES_NORMES_REVUES = ["refroidissementSansCellule", "refroidissementAvecCellule", "cuisson", "maintienChaud", "temperatureFrigo", "dlc", "reception", "tiac"];
+const FICHES_NORMES_REVUES = ["refroidissementSansCellule", "refroidissementAvecCellule", "cuisson", "maintienChaud", "temperatureFrigo", "dlc", "reception", "tiac", "huileFreture", "lavageLegumes"];
 Object.keys(FICHES_NORMES).forEach((k) => {
   if (!FICHES_NORMES_REVUES.includes(k)) FICHES_NORMES[k].sections.push({ titre: "Statut de cette fiche", contenu: "Cette fiche reprend la version précédente du logiciel. Ses sources sont en cours de vérification contre les textes officiels : voir le Lexique et réglementation pour les règles déjà vérifiées." });
 });
@@ -19571,7 +20013,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               return (
                 <Field key={type} label={`${label} (${seuilsAffiches[type].label})`}>
                   <input className={inputCls} type="number" step="0.1" value={temps[type]} onChange={(e) => setTemps({ ...temps, [type]: e.target.value })} />
-                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? (modeManuel && type === "surgele" && parseFloat(temps[type]) > SEUILS_RECEPTION_NOUVEAU.surgele.ideal ? "Accepté (tolérance transport), à mettre au congélateur immédiatement" : "Conforme") : (modeManuel && type !== "surgele" && parseFloat(temps[type]) < SEUILS_RECEPTION_NOUVEAU[type].min ? "Hors norme : produit gelé ? (un produit frais ne doit pas arriver gelé)" : "Hors norme")}</span>}
+                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? (modeManuel && type === "surgele" && parseFloat(temps[type]) > SEUILS_RECEPTION_NOUVEAU.surgele.ideal ? "Accepté (tolérance transport), à mettre au congélateur immédiatement" : "Conforme") : (modeManuel && type !== "surgele" && SEUILS_RECEPTION_NOUVEAU[type].min != null && parseFloat(temps[type]) < SEUILS_RECEPTION_NOUVEAU[type].min ? "Hors norme : produit gelé ? (un produit frais ne doit pas arriver gelé)" : "Hors norme")}</span>}
                 </Field>
               );
             })}
@@ -20349,7 +20791,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
     const noms = (ts) => ts.map((t) => LIBELLE_CONSERVATION[t] || t).join(", ");
     if (r.okTypes.length === 0) {
       return r.etat === "gele"
-        ? { ...ROUGE, titre: "Trop froid pour du frais : produit gelé ?", detail: "Limite basse : -1 °C. Vérifiez le produit et refusez-le s'il est gelé." }
+        ? { ...ROUGE, titre: "Trop froid pour du frais : produit gelé ?", detail: "Vérifiez le produit et refusez-le s'il est gelé." }
         : { ...ROUGE, titre: "Non conforme : hors norme", detail: f.id === "surgele" ? "Au-delà de -15 °C : refus et retour au fournisseur." : "Au-delà de +4 °C : tous les produits frais sont à refuser et à retourner au fournisseur." };
     }
     if (r.ncTypes.length > 0) {
@@ -21295,6 +21737,9 @@ function BarreAvancement({ faits, total, titre, sous, neutreEnCours = false, man
 }
 
 function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, tableauDeBord, employees, relevesFroid, equipementsFroid, refroidissements, cuissons, entriesMaintienChaud, huileTests, preparations, produits, cleaning, tasks, stock }) {
+  // Même contenu partout (Suivi et contrôle ET fenêtre du planning du chef) : les réceptions viennent du contexte si l'appelant ne les passe pas.
+  const ctxSoirHist = React.useContext(ControleSoirContext) || {};
+  if (!receptions.length && ctxSoirHist.receptions) receptions = ctxSoirHist.receptions;
   const aujourdhui = todayISO();
   const [jour, setJour] = useState(aujourdhui);
   const [etendus, setEtendus] = useState({});
@@ -21400,14 +21845,15 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
     const t = String(saisieFin.temp).replace(",", ".");
     const tNum = parseFloat(t);
     if (type === "cuisson") {
-      let conforme;
+      let conforme; let vd = null;
       if (visuelOk !== undefined) conforme = visuelOk;
-      else { if (t === "" || Number.isNaN(tNum)) return; conforme = tNum >= seuilCuissonEntree(item); }
+      else { if (t === "" || Number.isNaN(tNum)) return; vd = verdictCuisson(item, t); conforme = vd.conforme; }
       const cloturer = !item.refroidissementLance;
-      rapide.setCuissons((prev) => prev.map((x) => (x.id === item.id ? { ...x, finie: true, heureFin: heureNow(), temperature: visuelOk !== undefined ? "" : t, controleVisuel: visuelOk !== undefined ? true : undefined, conforme, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) } : x)));
-      rapide.logActivity("HACCP", "Fin de cuisson (depuis le contrôle)", `${item.produit} — ${visuelOk !== undefined ? "contrôle visuel" : `${t}°C à cœur`} — ${conforme ? "conforme" : "non conforme"}`);
-      if (!conforme && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Cuisson", employeeId: rapide.currentUserId, titre: `${item.produit} — cuisson non conforme`, detail: visuelOk !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${t} °C, inférieure au seuil de ${seuilCuissonEntree(item)} °C.` });
-      setVerdictFin({ ok: conforme, texte: `${item.produit} : cuisson terminée · ${visuelOk !== undefined ? "contrôle visuel" : `${t} °C à cœur`} · ${conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
+      rapide.setCuissons((prev) => prev.map((x) => (x.id === item.id ? { ...x, finie: true, heureFin: heureNow(), temperature: visuelOk !== undefined ? "" : t, controleVisuel: visuelOk !== undefined ? true : undefined, conforme, avertissement: vd && vd.avertissement ? true : undefined, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) } : x)));
+      rapide.logActivity("HACCP", "Fin de cuisson (depuis le contrôle)", `${item.produit} — ${visuelOk !== undefined ? "contrôle visuel" : `${t}°C à cœur`} — ${vd ? texteVerdictCuisson(vd) : conforme ? "conforme" : "non conforme"}`);
+      if (!conforme && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Cuisson", employeeId: rapide.currentUserId, titre: `${item.produit} — cuisson non conforme`, detail: visuelOk !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${t} °C, inférieure au seuil de ${seuilCuissonEntree(item)} °C fixé par le PMS.` });
+      else if (vd && vd.avertissement && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Cuisson", employeeId: rapide.currentUserId, titre: `${item.produit} — avertissement : sous le barème ANSES`, detail: `Température à cœur ${t} °C, sous le barème ANSES de ${vd.seuil} °C (repère du guide officiel, pas une norme). Vérifiez la cuisson.` });
+      setVerdictFin({ ok: conforme, texte: `${item.produit} : cuisson terminée · ${visuelOk !== undefined ? "contrôle visuel" : `${t} °C à cœur`} · ${vd ? texteVerdictCuisson(vd) : conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
     } else if (type === "refroidissement") {
       if (t === "" || Number.isNaN(tNum)) return;
       const norme = normeRefroidissement(item);
@@ -21551,8 +21997,8 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
                   <label className="block text-sm font-semibold mb-1">{fin.type === "cuisson" ? "Température à cœur (°C)" : "Température de fin (°C)"}</label>
                   <input type="number" inputMode="decimal" autoFocus className={`${inputCls} w-full`} value={saisieFin.temp} onChange={(e) => setSaisieFin({ ...saisieFin, temp: e.target.value })} placeholder="Ex. 74" />
                   <p className="text-xs text-[var(--steel)] mt-1">
-                    {fin.type === "cuisson" && `Seuil de ce plat : ${seuilCuissonEntree(it)} °C minimum.`}
-                    {fin.type === "refroidissement" && `Cible : moins de ${norme.finMax} °C en ${Math.floor(norme.dureeMaxMin / 60)} h ${norme.dureeMaxMin % 60 ? String(norme.dureeMaxMin % 60).padStart(2, "0") : ""}. Durée actuelle : ${Math.floor(dureeMin / 60)} h ${String(dureeMin % 60).padStart(2, "0")}.`}
+                    {fin.type === "cuisson" && (seuilCuissonEntree(it) != null ? `Seuil de ce plat : ${seuilCuissonEntree(it)} °C minimum.` : "Pas de seuil imposé : la température est enregistrée.")}
+                    {fin.type === "refroidissement" && `Cible : moins de ${norme.finMax} °C${Number.isFinite(norme.dureeMaxMin) ? ` en ${libDuree(norme.dureeMaxMin)}` : ""}. Durée actuelle : ${Math.floor(dureeMin / 60)} h ${String(dureeMin % 60).padStart(2, "0")}.`}
                     {fin.type === "maintien" && "Minimum 63 °C."}
                   </p>
                   {depasse && (
@@ -21841,95 +22287,9 @@ function AgendaGrille({ reservations, isToday, who, onRemove, plage, onUpdateNot
 
 const TACHES_OUVRE_FENETRE = ["Préparation culinaire", "Vérification des préparations culinaires", "Nettoyage", "Contrôle", "Nettoyage friteuse", "Contrôle obligatoire", "Contrôle et vérification"];
 
-const CONTROLE_POSTE = {
-  "Poste Chaud": {
-    midi: [
-      "Bain-marie éteint — sauces mises en refroidissement rapide (cellule ou bac de glace)",
-      "Saladette éteinte — marchandises filmées et rangées au frigo, couvercle posé",
-      "Ivario éteint et propre à l'intérieur",
-      "Friteuse éteinte — couvercle posé",
-      "Four Rational éteint",
-      "Four Atoll Speed éteint",
-      "Hotte éteinte",
-      "Plans de travail et plaque à induction désinfectés et nettoyés",
-      "Frigo viande — portes nettoyées",
-      "Frigo poste chaud — portes nettoyées",
-    ],
-    soir: [
-      "Bain-marie vidé, eau usagée jetée, intérieur et extérieur nettoyés — couvercle posé",
-      "Ivario éteint — intérieur nettoyé, couvercles fermés et nettoyés, côtés nettoyés",
-      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
-      "Frigo viande — intérieur filmé, portes et poignées nettoyés",
-      "Frigo poste chaud — intérieur et portes nettoyés",
-      "Friteuse éteinte — test huile fait, huile filtrée, couvercle posé",
-      "Four Rational en auto-lavage — dessus nettoyé, plaques au sale si besoin",
-      "Four Atoll Speed éteint — dessus nettoyé, plaques au sale si besoin",
-      "Plaque à induction et plan de travail nettoyés",
-      "Hotte éteinte",
-      "Crédence nettoyée si sale",
-      "Congélateur cuisine — produits filmés, étiquettes DLC correctes, miettes enlevées",
-    ],
-    general: [
-      "Températures du frigo viande et frigo poste chaud relevées et conformes",
-      "DLC des produits du poste vérifiées — aucun produit périmé",
-    ],
-  },
-  "Poste Pizza": {
-    midi: [
-      "Four à pizza éteint — devanture dépoussiérée",
-      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
-      "Frigo pâtons — intérieur et portes nettoyés",
-      "Frigo poste pizza — portes nettoyées",
-      "Plans de travail nettoyés et désinfectés",
-      "Pétrin nettoyé si utilisé ce matin",
-    ],
-    soir: [
-      "Four à pizza éteint — devanture dépoussiérée",
-      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
-      "Frigo pâtons — intérieur, portes et poignées nettoyés",
-      "Frigo poste pizza — intérieur, portes et poignées nettoyés",
-      "Passe-plat nettoyé et désinfecté",
-      "Pelle à pizza nettoyée",
-      "Plans de travail nettoyés — pizza, pâtons et sous le passe-plat",
-      "Pétrin nettoyé si utilisé",
-    ],
-    general: [
-      "Températures du frigo pâtons et frigo poste pizza relevées et conformes",
-      "DLC des produits du poste vérifiées — pâtons, sauces, garnitures",
-    ],
-  },
-  "Poste Froid": {
-    midi: [
-      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
-      "Frigo poste froid — portes et poignées nettoyées",
-      "Frigo réserve desserts — intérieur, portes et poignées nettoyés",
-      "Cellule de refroidissement — intérieur et porte nettoyés si utilisée",
-      "Robot batteur couvert",
-      "Plans de travail poste froid, desserts et gastro nettoyés",
-      "Chauffe-pot à Nutella — pots remplis",
-    ],
-    soir: [
-      "Saladette éteinte — nettoyage intérieur et extérieur — marchandises filmées au frigo",
-      "Frigo poste froid — intérieur, portes et poignées nettoyés",
-      "Frigo réserve desserts — portes et poignées nettoyées",
-      "Micro-ondes nettoyé intérieur et extérieur",
-      "Chauffe-pot à Nutella éteint — bouchons des pots à la plonge, pots filmés",
-      "Bol et boulier à glace lavés",
-      "Vitre congélateur à glace nettoyée — couvercles bien refermés",
-      "Plans de travail poste froid, desserts et gastro nettoyés",
-    ],
-    general: [
-      "Températures du frigo poste froid et frigo desserts relevées et conformes",
-      "DLC des desserts et produits du poste vérifiées",
-    ],
-  },
-};
 
-const CONTROLE_GENERAL_FIN = [
-  "Sol nettoyé — cuisine, réserve et plonge",
-  "Poubelles vidées et sacs changés",
-  "Plonge terminée, filtres nettoyés, éteinte",
-];
+
+
 
 // Nettoyage hebdomadaire / mensuel par poste et pour la plonge/communs — pour le Contrôle planning
 // (chef) : on ne réutilise PAS de liste inventée à part. On lit directement la vraie liste
@@ -21938,94 +22298,7 @@ const CONTROLE_GENERAL_FIN = [
 // `tacheDueAujourdhuiOuEnRetard` dit qu'elle tombe le jour du contrôle — jamais la liste complète
 // d'un coup. Voir ControlePlanningJour / itemsNettoyage plus haut dans le fichier.
 
-const CONTROLE_OBLIGATOIRE = {
-  midi: [
-    { section: "🔴 Poste Chaud", items: [
-      "Bain-marie éteint — sauces mises en refroidissement rapide",
-      "Saladette éteinte — marchandises filmées et rangées au frigo",
-      "Ivario éteint et propre",
-      "Friteuse éteinte — couvercle posé",
-      "Four Rational éteint",
-      "Four Atoll Speed éteint",
-      "Hotte éteinte",
-      "Plans de travail désinfectés et nettoyés",
-    ]},
-    { section: "🍕 Poste Pizza", items: [
-      "Four à pizza éteint — devanture dépoussiérée",
-      "Saladette éteinte — marchandises filmées au frigo",
-      "Frigo pâtons propre intérieur et porte",
-      "Plans de travail nettoyés",
-      "Pétrin nettoyé si utilisé ce matin",
-    ]},
-    { section: "🥗 Poste Froid", items: [
-      "Saladette éteinte — marchandises filmées au frigo, couvercle posé",
-      "Frigo poste froid propre — portes nettoyées",
-      "Cellule de refroidissement nettoyée si utilisée",
-      "Plans de travail nettoyés",
-      "Batteur couvert si non utilisé",
-    ]},
-    { section: "🌡 Températures & DLC", items: [
-      "Températures de tous les frigos et congélateurs relevées et conformes",
-      "DLC des produits utilisés ce matin vérifiées — aucun produit périmé",
-      "Aucun produit sans étiquette en chambre froide",
-    ]},
-    { section: "👁 Général", items: [
-      "Sol, poubelles et plonge — nettoyage terminé",
-      "Cuisine rangée et propre avant le service du soir",
-      "Aucune anomalie visible",
-    ]},
-  ],
-  soir: [
-    { section: "🔴 Poste Chaud", items: [
-      "Bain-marie vidé, eau usagée jetée, intérieur et extérieur nettoyés — couvercle posé",
-      "Ivario éteint — intérieur nettoyé, couvercles fermés et nettoyés, côtés nettoyés",
-      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
-      "Frigo viande — intérieur et portes nettoyés",
-      "Frigo poste chaud — intérieur et portes nettoyés",
-      "Friteuse éteinte — test huile fait, huile filtrée, couvercle posé",
-      "Four Rational éteint — auto-lavage lancé, dessus nettoyé, plaques au sale",
-      "Four Atoll Speed éteint — dessus nettoyé, plaques au sale",
-      "Plaque à induction et plan de travail nettoyés",
-      "Hotte éteinte",
-      "Crédence nettoyée si sale",
-      "Congélateur cuisine : produits filmés, étiquettes DLC correctes, miettes enlevées",
-    ]},
-    { section: "🍕 Poste Pizza", items: [
-      "Four à pizza éteint — devanture dépoussiérée",
-      "Saladette éteinte — nettoyage intérieur, extérieur et couvercle — marchandises filmées au frigo",
-      "Frigo pâtons — intérieur, portes et poignées nettoyés",
-      "Frigo poste pizza — intérieur, portes et poignées nettoyés",
-      "Passe-plat nettoyé",
-      "Pelle à pizza nettoyée",
-      "Plans de travail nettoyés",
-      "Pétrin nettoyé si utilisé",
-    ]},
-    { section: "🥗 Poste Froid", items: [
-      "Saladette éteinte — nettoyage intérieur et extérieur — marchandises filmées au frigo",
-      "Frigo poste froid — intérieur, portes et poignées nettoyés",
-      "Frigo réserve desserts — portes et poignées nettoyées",
-      "Micro-ondes nettoyé intérieur et extérieur",
-      "Chauffe-pot à Nutella éteint — bouchons à la plonge, pots filmés",
-      "Bol et boulier à glace lavés",
-      "Vitre congélateur à glace nettoyée — couvercles refermés",
-    ]},
-    { section: "🌡 Températures & DLC", items: [
-      "Températures de tous les frigos et congélateurs relevées et conformes",
-      "Produits à DLC atteinte ce soir retirés et éliminés ou signalés",
-      "Chambre froide : visuel — rien à terre, tout couvert, pas de carton",
-      "Aucun produit sans étiquette DLC",
-    ]},
-    { section: "📋 Clôture et sécurité", items: [
-      "Sol cuisine, réserve et plonge nettoyés",
-      "Poubelles vidées et sacs changés",
-      "Plonge terminée, filtres nettoyés, éteinte",
-      "Torchons et lavettes au lave-linge",
-      "Bouche d'évacuation des eaux usées nettoyée",
-      "Alertes HACCP vérifiées — aucune en suspens",
-      "Contrôle de fin de service signé dans l'onglet Contrôle",
-    ]},
-  ],
-};
+
 
 
 function PlanningGrille({ tasks, employeeId, date, actorId, onToggle, protocolesNettoyage, plage, onOuvrirFenetre }) {
@@ -23321,7 +23594,7 @@ function labelFreqCleaning(c) {
 // différentes qui pourraient diverger.
 function construireItemsNettoyageDuJour(cleaning, today) {
   return [
-    ...Object.entries(CONTROLE_POSTE).flatMap(([poste, data]) => {
+    ...[...new Set((cleaning || []).map((c) => c.poste).filter((p) => p && p !== "Tous"))].map((poste) => [poste, CONTROLE_EMPLOYE_DEFAUT]).flatMap(([poste, data]) => {
       const cleaningPoste = (cleaning || []).filter((c) => c.poste === poste);
       const quotidienPoste = cleaningPoste.filter((c) => c.frequence === "Quotidienne");
       const hebdoPoste = cleaningPoste.filter((c) => c.frequence === "Hebdomadaire" && tacheDueAujourdhuiOuEnRetard(c, today));
@@ -23335,7 +23608,7 @@ function construireItemsNettoyageDuJour(cleaning, today) {
         ...mensuelPoste.map((c) => ({ key: `nett-clean-${c.id}`, groupe: poste, label: labelFreqCleaning(c), detail: c.note, assignedTo: clePoste(poste), cleaningId: c.id })),
       ];
     }),
-    ...CONTROLE_GENERAL_FIN.map((label, i) => ({ key: `nett-gen-${i}`, groupe: "Plonge & communs", label: `${label} (quotidien)`, assignedTo: "tous" })),
+    ...CONTROLE_EMPLOYE_DEFAUT.fin.map((label, i) => ({ key: `nett-gen-${i}`, groupe: "Plonge & communs", label: `${label} (quotidien)`, assignedTo: "tous" })),
     ...(cleaning || [])
       .filter((c) => c.poste === "Tous" && c.frequence === "Quotidienne")
       .map((c) => ({ key: `nett-clean-${c.id}`, groupe: "Plonge & communs", label: labelFreqCleaning(c), detail: c.note, assignedTo: "tous", cleaningId: c.id })),
@@ -23604,16 +23877,14 @@ function labelJourNettoyage(item) {
   return item.frequence;
 }
 
-const APPAREILS_A_VERIFIER = {
-  "Poste Chaud": ["Ivario Pro", "Bain-marie", "Friteuse", "Four Rational", "Four Atoll Speed / Mery Chef", "Hotte"],
-  "Poste Pizza": ["Four à pizza", "Pétrin"],
-  "Poste Froid": ["Micro-ondes", "Chauffe-pot à Nutella", "Robot batteur"],
-};
+
 
 function ModalControlePoste({ moi, moment, onClose }) {
-  const poste = moi?.poste || "Poste Chaud";
-  const data = CONTROLE_POSTE[poste] || CONTROLE_POSTE["Poste Chaud"];
-  const items = [...(moment === "midi" ? data.midi : data.soir), ...data.general, ...CONTROLE_GENERAL_FIN];
+  // Listes de l'établissement (Paramétrage > Contrôles de fin de service), sinon les listes générales : aucun appareil écrit dans le code.
+  const ctxSoirPoste = React.useContext(ControleSoirContext) || {};
+  const listesPoste = listesControle(ctxSoirPoste.reglageControle);
+  const poste = moi?.poste || "";
+  const items = listePoste(listesPoste, poste, moment).items;
   const [statuts, setStatuts] = useState({});
   const [noteEnCours, setNoteEnCours] = useState(null);
   const [notes, setNotes] = useState({});
@@ -23692,7 +23963,8 @@ function ModalControlePoste({ moi, moment, onClose }) {
 }
 
 function ModalControleObligatoire({ moment, onClose }) {
-  const sections = CONTROLE_OBLIGATOIRE[moment] || CONTROLE_OBLIGATOIRE.soir;
+  const ctxSoirOblig = React.useContext(ControleSoirContext) || {};
+  const sections = sectionsObligatoires(listesControle(ctxSoirOblig.reglageControle), moment);
   const [statuts, setStatuts] = useState({}); // { key: "ok"|"ko" }
   const [noteEnCours, setNoteEnCours] = useState(null); // { key, note, photo }
 
@@ -23789,6 +24061,7 @@ function ModalControleObligatoire({ moment, onClose }) {
 
 function ModalControleChef({ refroidissements, cuissons, entriesMaintienChaud, tasks, employees, preparations, produits, stock, equipementsFroid, relevesFroid, huileTests, currentUserId, remarquesChef, setRemarquesChef, logActivity, cleaning, onSigner, onClose }) {
   const today = todayISO();
+  const ctxSoirModal = React.useContext(ControleSoirContext) || {};
   // Même checklist, mêmes données, que "Gestion et contrôle" → tuile Planning côté chef — voir
   // ControlePlanningJour. Ici on ne fait qu'ajouter l'habillage modal (fermer / PDF / signer).
   return (
@@ -23809,7 +24082,15 @@ function ModalControleChef({ refroidissements, cuissons, entriesMaintienChaud, t
 
         <ControlePlanningJour employees={employees} tasks={tasks} produits={produits} preparations={preparations} stock={stock} equipementsFroid={equipementsFroid} relevesFroid={relevesFroid} huileTests={huileTests} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} currentUserId={currentUserId} logActivity={logActivity} cleaning={cleaning} />
 
-        <button onClick={() => { onSigner(); onClose(); }} className="mt-4 w-full py-3 rounded-xl font-bold text-sm print:hidden" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
+        <button onClick={() => {
+          // La signature est aussi enregistrée avec le contrôle du jour (qui, à quelle heure) : c'est la preuve de la vérification du soir.
+          if (ctxSoirModal.setControlesSoir) {
+            const moi = employees.find((e) => e.id === currentUserId);
+            ctxSoirModal.setControlesSoir((l) => [...(l || []).filter((c) => !(c.date === today && c.cle === "__signature__")),
+              { id: uid(), date: today, cle: "__signature__", code: "", libelle: "Contrôle de fin de service signé", statut: "signe", parId: currentUserId, parNom: moi ? moi.nom : "", heure: new Date().toTimeString().slice(0, 5) }]);
+          }
+          onSigner(); onClose();
+        }} className="mt-4 w-full py-3 rounded-xl font-bold text-sm print:hidden" style={{ backgroundColor: "#2F6B4F", color: "#fff" }}>
           Terminer le contrôle
         </button>
       </div>
@@ -24405,7 +24686,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       const infos = [
         ...(fournisseursPlanning || []).filter((f) => jourPrevuPlanning(f.planning_livraison, today)).map((f) => ({ cle: "liv" + f.id, nom: `Livraison ${f.nom} — réception à faire à l'arrivée`, tag: "Aujourd'hui", ton: "bleu" })),
         ...(peutGererPlanning ? (fournisseursPlanning || []).filter((f) => jourPrevuPlanning(f.planning_commande, today)).map((f) => ({ cle: "cmd" + f.id, nom: `Commande ${f.nom} à passer`, tag: "Aujourd'hui", ton: "bleu" })) : []),
-        ...refroids.map((r) => { const restant = normeRefroidissement(r).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
+        ...refroids.map((r) => { const restant = normeRefroidissement(r).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: !Number.isFinite(restant) ? "En cours" : restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
         ...maintien.map((e) => ({ cle: "m" + e.id, nom: `${e.nom} (maintien au chaud)`, tag: `depuis ${Math.floor((Date.now() - e.debutTs) / 60000)} min`, ton: "bleu" })),
         ...preparations.filter((p) => !p.jete && p.dlcDate === demain).map((p) => ({ cle: "a" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "À utiliser ce soir", ton: "or" })),
         ...stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0).map((s) => ({ cle: "c" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "DLC demain", ton: "or" })),
@@ -25629,6 +25910,11 @@ function KitchenApp({ identiteExterne } = {}) {
   const [notificationsMemoire, setNotificationsMemoire] = useStoredOuMemoire("notifications-fournisseur", [], modeExterne);
   const [notificationsExternes, setNotificationsExternes] = useListeExterne(identiteExterne, "notifications");
   const notificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? notificationsExternes : notificationsMemoire;
+  // Contrôle du soir : en vrai mode, enregistré en base (table controles_soir) ; listes de l'établissement (Paramétrage).
+  const [controlesSoirExternes, setControlesSoirExternes] = useListeExterne(identiteExterne, "controlesSoir");
+  const controleSoirEnBase = !!(modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.controlesSoir);
+  const [reglageControle, setReglageControle] = useStored("controles-fin-service", null);
+  const [alarmesDuree, setAlarmesDuree] = useStored("alarmes-duree", {});
   const setNotificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? setNotificationsExternes : setNotificationsMemoire;
   // Carnet d'adresses e-mail fournisseur — { [nomFournisseur]: "email@..." } — permet de pré-remplir
   // le destinataire du mailto: de notification de non-conformité. Enregistré/modifié directement
@@ -25997,10 +26283,13 @@ function KitchenApp({ identiteExterne } = {}) {
       // corrigée par quelqu'un ne doit pas réapparaître en bloquant tout le monde au contrôle suivant.
       setAlertesRappelConso((prev) => {
         const anciennesParId = new Map(prev.map((a) => [a.id, a]));
-        return trouves.map((t) => {
+        const suivantes = trouves.map((t) => {
           const ancienne = anciennesParId.get(t.id);
-          return ancienne ? { ...t, traite: ancienne.traite, traiteParId: ancienne.traiteParId, traiteDate: ancienne.traiteDate } : { ...t, traite: false };
+          return ancienne ? { ...t, traite: ancienne.traite, traiteParId: ancienne.traiteParId, traiteDate: ancienne.traiteDate, recuLe: ancienne.recuLe, etapes: ancienne.etapes } : { ...t, traite: false, recuLe: new Date().toISOString() };
         });
+        // Les alertes saisies à la main (reçues du fournisseur) et celles en cours de traitement ne disparaissent pas.
+        const gardees = prev.filter((a) => (a.manuelle || (a.etapes && !a.traite)) && !suivantes.some((t) => t.id === a.id));
+        return [...gardees, ...suivantes];
       });
       setDernierControleRappelConso(todayISO());
       if (trouves.length > 0) logActivitySafe("Sécurité", "Alerte RappelConso", `${trouves.length} correspondance(s) trouvée(s) avec des rappels officiels récents`);
@@ -26018,6 +26307,16 @@ function KitchenApp({ identiteExterne } = {}) {
     setAlertesRappelConso((prev) => prev.map((a) => (a.id === id ? { ...a, traite: true, traiteParId: currentUserId, traiteDate: todayISO() } : a)));
     logActivitySafe("Sécurité", "Alerte RappelConso traitée", id);
   }, [setAlertesRappelConso, currentUserId, logActivitySafe]);
+
+  // Étapes de la procédure « Alerte rappel » (datées) et alertes reçues directement du fournisseur.
+  const majAlerteRappelConso = useCallback((id, patch) => {
+    setAlertesRappelConso((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+    if (patch && patch.traite) logActivitySafe("Sécurité", "Alerte rappel traitée (toutes les étapes faites)", id);
+  }, [setAlertesRappelConso, logActivitySafe]);
+  const ajouterAlerteRappelManuelle = useCallback((a) => {
+    setAlertesRappelConso((prev) => [{ id: uid(), lien: "", date: todayISO(), ...a, manuelle: true, traite: false, recuLe: new Date().toISOString() }, ...prev]);
+    logActivitySafe("Sécurité", "Alerte rappel reçue (saisie à la main)", a.produit || "");
+  }, [setAlertesRappelConso, logActivitySafe]);
 
   useEffect(() => {
     const jour = new Date().getDay(); // 0 = dimanche, 4 = jeudi
@@ -26349,8 +26648,8 @@ function KitchenApp({ identiteExterne } = {}) {
     }
   }, [fiches, addTaskShared, stock, setStock, logActivitySafe]);
 
-  const creerEtiquetteDlc = useCallback(({ produitNom, lot, dlcDate, photo, photos, quantiteUtilisee, nbEtiquettes, photoEtiquette, allergenes, origine, codeUsine, delaiApresOuvertureJours, decongelationInfo, typeDlc }) => {
-    if (!dlcDate) return null;
+  const creerEtiquetteDlc = useCallback(({ sansDlc, produitNom, lot, dlcDate, photo, photos, quantiteUtilisee, nbEtiquettes, photoEtiquette, allergenes, origine, codeUsine, delaiApresOuvertureJours, decongelationInfo, typeDlc }) => {
+    if (!dlcDate && !sansDlc) return null;
     // Info cuisson / refroidissement la plus récente pour ce produit, à faire apparaître sur
     // l'étiquette (le produit a-t-il été cuit ou refroidi lors de sa préparation ?).
     const nomPropre = (produitNom || "").trim().toLowerCase();
@@ -26820,6 +27119,15 @@ function KitchenApp({ identiteExterne } = {}) {
   return (
     <FichesNomsContext.Provider value={(fiches || []).map((f) => f.nom).filter(Boolean)}>
     <NettoyageContext.Provider value={valeurNettoyageFin}>
+    <AlarmesContext.Provider value={{ alarmes: alarmesDuree, setAlarmes: setAlarmesDuree, collective: estRestaurationCollective(reglagesEtablissementApp) }}>
+    <ControleSoirContext.Provider value={{
+      controlesSoir: controleSoirEnBase ? controlesSoirExternes : undefined,
+      setControlesSoir: controleSoirEnBase ? setControlesSoirExternes : undefined,
+      reglageControle, setReglageControle,
+      alertesRappel: alertesRappelConso, notificationsFournisseur, receptions,
+      refroidissements, cuissons, entriesMaintienChaud,
+      onAller: (ecran) => { const cible = { temperatures: "haccpTemp", huile: "haccpHuile", etiquettes: "etiquettes", reception: "reception", controles: "haccp", rappels: "controle" }[ecran]; if (cible) setTab(cible); },
+    }}>
     <AccesContext.Provider value={{ estResponsable: chefComplet || currentUserId === "direction", estSecond: moiSecond }}>
     <RapideContext.Provider value={valeurRapide}>
     <BarreChefSlotContext.Provider value={reclamerSlotBarreChef}>
@@ -26842,9 +27150,7 @@ function KitchenApp({ identiteExterne } = {}) {
               <div className="font-semibold text-[var(--ink)]">{a.produit} — {a.titre}</div>
               <div className="text-xs text-[var(--steel)] mt-1">{a.motif}{a.date ? ` — publié le ${a.date}` : ""}</div>
               <a href={a.lien} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] font-medium block mt-1">Voir la fiche officielle →</a>
-              <div className="mt-2.5">
-                <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Produit vérifié / retiré — marquer comme traité</Button>
-              </div>
+              <ProcedureAlerteRappel alerte={a} onMaj={(patch) => majAlerteRappelConso(a.id, patch)} currentUserId={currentUserId} nomDe={(id) => (employees.find((x) => x.id === id) || {}).nom} etablissementNom={(reglagesEtablissementApp && reglagesEtablissementApp.fiche && reglagesEtablissementApp.fiche.nom) || ""} />
             </div>
           )}
         />
@@ -27212,7 +27518,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {(tab === "controle" || (tab === "parametrage" && peutParametrage) || (tab === "historique" && peutHistorique)) && !bloqueChef && (
-          <Controle key={tab} slotMenuParam={tab === "parametrage" ? slotParam : null} onQuitterParam={() => setTab("accueil")} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setPlanningParam((cible === "@reservations" || cible === "reservations") ? "reservations" : "horaires"); } : undefined} planningParam={tab === "parametrage" ? planningParam : null} fermerPlanningParam={() => setPlanningParam(null)} ecranPlanningParam={tab === "parametrage" && planningParam === "horaires" ? <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} /> : (tab === "parametrage" && planningParam === "reservations" ? <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" /> : null)} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle key={tab} slotMenuParam={tab === "parametrage" ? slotParam : null} onQuitterParam={() => setTab("accueil")} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setPlanningParam((cible === "@reservations" || cible === "reservations") ? "reservations" : "horaires"); } : undefined} planningParam={tab === "parametrage" ? planningParam : null} fermerPlanningParam={() => setPlanningParam(null)} ecranPlanningParam={tab === "parametrage" && planningParam === "horaires" ? <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} /> : (tab === "parametrage" && planningParam === "reservations" ? <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" /> : null)} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} majAlerteRappelConso={majAlerteRappelConso} ajouterAlerteRappelManuelle={ajouterAlerteRappelManuelle} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} />
@@ -27251,6 +27557,8 @@ function KitchenApp({ identiteExterne } = {}) {
     </BarreChefSlotContext.Provider>
     </RapideContext.Provider>
     </AccesContext.Provider>
+    </ControleSoirContext.Provider>
+    </AlarmesContext.Provider>
     </NettoyageContext.Provider>
     </FichesNomsContext.Provider>
   );

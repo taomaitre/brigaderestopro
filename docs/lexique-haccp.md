@@ -1,504 +1,543 @@
-# Lexique HACCP du logiciel : brouillon v5 (20/10/2026)
+# Lexique HACCP du logiciel : version 6 (25/11/2026)
 
-Statut : brouillon à relire par Loïc. Rien n'est intégré au logiciel.
-**Nouveauté v4** : chaque entrée suit le même format, avec renvoi au texte officiel et lien.
+Statut : réécrit le 25/11/2026 à la demande de Loïc. Chaque fiche dit maintenant **ce qu'elle est** (champ « Nature ») : une norme obligatoire, une règle des collectivités, un guide officiel, un avis scientifique, une bonne pratique… Les fiches sont réservées à la restauration commerciale (restaurants, snacks) : les fiches propres aux collectivités sont gardées seulement quand elles servent de repère, et le disent.
+Versions précédentes : v5 du 20/10 (git), compléments du 26/10 et du 31/10.
 
 ## 0. Format d'une entrée (obligatoire)
-- **En bref** : 3 à 5 lignes, en mots simples.
-- **Texte de référence** : nom du texte, article ou page, date.
-- **Lien** : adresse officielle. Statut du lien : « ouvert le 20/10 » ou « trouvé, non ouvert » ou « à retrouver ».
-- **Citation courte** : seulement quand un chiffre en dépend. Lois et règlements : citation libre. Guide Restaurateur : citation courte seulement, avec renvoi à la page.
-- **Certitude** : ✔ texte officiel lu / ◐ à relire / ✖ non publié. Date de dernière vérification.
-- **Pour aller plus loin** : « Texte complet : voir le lien ci-dessus. »
-
-Choix par type de contenu : un chiffre réglementaire = en bref + citation + lien. Une notion générale = en bref + lien. Un texte long (annexe entière, guide) = jamais recopié, uniquement lien et page.
+- **Nature** : un des mots suivants (le logiciel affiche l'étiquette correspondante).
+  - `norme` : texte obligatoire (règlement européen, loi, décret, arrêté). « Norme : obligatoire ».
+  - `collectivite` : texte obligatoire seulement pour la restauration collective (cantines, entreprises sous contrat). Pour un restaurant commercial, c'est un repère.
+  - `guide` : guide de bonnes pratiques validé par l'État (GBPH « Restaurateur »). Pas obligatoire, mais c'est le moyen reconnu de prouver qu'on travaille bien.
+  - `avis` : avis ou fiche scientifique d'un organisme public (ANSES). Pas une norme.
+  - `inspection` : ce que l'inspecteur de l'État vérifie et comment il note (vade-mecum). Ce n'est pas une loi nouvelle : c'est la façon dont les lois sont contrôlées.
+  - `information` : information d'un site public (Santé publique France, service-public). Pas une norme.
+  - `explication` : définition d'un mot pour comprendre. Pas une norme.
+  - `bonne-pratique` : conseil de terrain (fiche pédagogique, académie, profession). Pas une norme.
+- **En bref** : 2 à 5 phrases courtes, en mots simples.
+- **Texte** : le texte de référence (nom, article ou page, date).
+- **Lien** : adresse officielle.
+- **Citation** : seulement quand un chiffre en dépend.
+- **Certitude** : ✔ texte officiel lu / ◐ à relire / ✖ non publié, avec la date.
 
 ## 1. Avertissements (haut du lexique, bas de chaque entrée)
 « Les informations de ce lexique sont pédagogiques. Le plan de maîtrise sanitaire (PMS) de l'établissement fait foi. Ce lexique ne remplace en aucun cas une vérification, un contrôle ou une formation HACCP. En cas de doute, consultez votre PMS, votre consultant HACCP ou la DDPP. »
-Mention de source : « Source : [texte], [date]. Dernière vérification dans le logiciel : [date]. »
+« Fiches vérifiées sur les textes officiels par l'éditeur. Elles ne remplacent ni la formation ni la lecture des textes. » (décision du 25/11/2026 : ne jamais écrire « validé par un expert » ni « certifié »)
 
 ## 2. Règles de rédaction
-1. N'écrire que ce qui est sûr. Un doute = non publié, ou « à vérifier » avec la source à consulter.
-2. Deux sources françaises ou européennes qui diffèrent : afficher les deux, chacune avec sa source.
-3. Mettre en premier ce qui pèse le plus lors d'un contrôle DDPP.
-4. Toute entrée porte la date de son texte.
-5. Quand aucun texte n'existe, le logiciel ne propose aucune valeur conseillée : le chef décide et le justifie dans son PMS.
-6. Normes françaises et européennes uniquement.
+1. N'écrire que ce qui est sûr. Un doute = non publié, ou « à vérifier » avec la source.
+2. Toujours dire si c'est une norme ou non (champ Nature). Un conseil n'est jamais présenté comme une obligation.
+3. Deux sources officielles qui diffèrent : afficher les deux, chacune avec sa source.
+4. Quand aucun texte n'existe, le logiciel n'impose aucune valeur : la personne qui établit le PMS décide et le justifie. Un repère professionnel peut être montré seulement s'il est marqué « Conseil, pas une norme ».
+5. Textes français et européens uniquement. Restauration commerciale uniquement.
+6. Phrases courtes. Un chiffre = sa source.
 
-Hiérarchie : 1) règlements UE et arrêtés (Légifrance, EUR-Lex) ; 2) ANSES, DGAL, EFSA ; 3) guides de bonnes pratiques validés (« moyen de justification privilégié », avis JO du 15/06/2015, application volontaire) ; 4) fiches pédagogiques d'État, indicatives ; 5) sites privés : jamais seuls.
+Hiérarchie : 1) règlements UE, lois, décrets, arrêtés (Légifrance, EUR-Lex) ; 2) instructions et vade-mecums de la DGAL (méthode de contrôle) ; 3) guide de bonnes pratiques validé (GBPH Restaurateur 2015, application volontaire) ; 4) avis ANSES ; 5) fiches pédagogiques : seulement comme « bonne pratique » ; 6) sites privés : jamais seuls.
 
 ## 3. Liens officiels (registre central)
-| Texte | Lien | Statut au 20/10/2026 |
+| Texte | Lien | Statut |
 |---|---|---|
-| Arrêté du 21/12/2009 (NOR AGRG0927709A, JO du 31/12/2009), texte | https://www.legifrance.gouv.fr/loda/id/JORFTEXT000021573483 (version consolidée) ; version initiale : https://www.legifrance.gouv.fr/eli/arrete/2009/12/21/AGRG0927709A/jo/texte | lien consolidé collé par Loïc le 20/10 après avoir consulté la page (capture : « en vigueur au 20/10/2026 ») ; lien initial vu dans sa copie ; je ne les ai pas ouverts moi-même |
-| Même arrêté, annexe IV (restauration collective) | https://www.legifrance.gouv.fr/loda/article_lc/LEGIARTI000041864953 | texte copié de Légifrance par Loïc le 20/10 et lu : « Version en vigueur depuis le 09/05/2020, modifié par arrêté du 7 mai 2020 art. 5 » ; le lien exact n'a pas été confirmé |
-| Même arrêté, annexe VI (décongélation) | https://www.legifrance.gouv.fr/loda/article_lc/LEGIARTI000021699388 | texte copié de Légifrance par Loïc le 20/10 et lu ; le lien exact n'a pas été confirmé |
-| Même arrêté, annexe I (températures) | non trouvé (passer par le lien du texte) | à retrouver |
-| Copie lue de l'arrêté | https://www.calvados.gouv.fr/contenu/telechargement/6526/82018/file/Arrete_21dec2009.pdf | lue, version préfecture, à comparer |
-| Règlement (CE) 852/2004 | https://eur-lex.europa.eu/eli/reg/2004/852/2021-03-24 | texte consolidé 24/03/2021 reçu de Loïc le 20/10 et lu (art. 1-18, annexe II) ; annexe I non lue ; lien non ouvert par moi, version plus récente non vérifiée |
-| Règlement (CE) 853/2004 | https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:32004R0853 | trouvé, non ouvert |
-| Règlement (UE) 1169/2011 | https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=celex%3A32011R1169 | ouvert le 20/10 (en-tête seulement : 25/10/2011, en vigueur 12/12/2011) |
-| Règlement (CE) 2073/2005, version consolidée en vigueur du 01/07/2026 (02005R2073-20260701) | https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01 | ouvert par Loïc le 20/10 : articles, annexe I chapitres 1 et 2 lus ; règles d'interprétation, chapitre 3 et annexe II non lus. Page de base du règlement : https://eur-lex.europa.eu/eli/reg/2005/2073/oj/fra (en-tête ouvert le 20/10) |
-| Règlement (CE) 589/2008 | https://eur-lex.europa.eu/eli/reg/2008/589/oj/fra | adresse construite, non confirmée |
-| Règlement (UE) 2024/2895 | à retrouver | à retrouver |
-| Guide Restaurateur, nov. 2015 (seule version officielle selon GHR) | https://agriculture.gouv.fr/telecharger/79464 ; fichier : https://agriculture.gouv.fr/sites/default/files/gph_20165905_0001_p000.pdf ; liste des guides : https://agriculture.gouv.fr/guides-de-bonnes-pratiques-dhygiene-gbph | page GHR ouverte le 20/10 (cite ces adresses) ; fichier non rouvert |
-| ANSES, fiche Listeria monocytogenes (avril 2020) | https://www.anses.fr/fr/system/files/BIORISK2016SA0081Fi.pdf?download=1 | lue |
-| ANSES, fiche cuisson basse température | https://www.anses.fr/fr/system/files/Anses%20-%20fiche%20cuisson%20basse%20temp%C3%A9rature.pdf | lue |
-| Fiche PMS 2.10 œufs (académie de Strasbourg) | https://pedagogie.ac-strasbourg.fr/fileadmin/pedagogie/ecogestionpro/filieres_et_ressources/hotellerie_restauration/PMS_-_PRP/guide_PMS/2._BONNES_PRATIQUES_DE_FABRICATION/2.10_UTILISATION_D_OEUFS_EN_COQUILLE.pdf | lue, fiche pédagogique |
-| 853/2004, annexe III section X (copie britannique) | https://www.legislation.gov.uk/eur/2004/853/annex/III/section/X | lue, à remplacer par EUR-Lex |
-
-Journal officiel avis du 15/06/2015 (NOR ECOC0500094V) : lien à retrouver.
+| Arrêté du 21/12/2009 (règles sanitaires du commerce de détail) | https://www.legifrance.gouv.fr/loda/id/JORFTEXT000021573483 | version consolidée « en vigueur » vue par Loïc le 20/10 ; annexe I relue le 25/11 sur la copie de la DDPP de Saône-et-Loire |
+| Même arrêté, annexe IV (restauration collective) | https://www.legifrance.gouv.fr/loda/article_lc/LEGIARTI000041864953 | lue le 20/10, version du 09/05/2020 |
+| Même arrêté, annexe VI (décongélation) | https://www.legifrance.gouv.fr/loda/article_lc/LEGIARTI000021699388 | lue le 20/10 |
+| Règlement (CE) 852/2004 (hygiène) | https://eur-lex.europa.eu/eli/reg/2004/852/2021-03-24 | consolidé du 24/03/2021 lu le 20/10 |
+| Règlement (CE) 853/2004 (produits d'origine animale) | https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:32004R0853 | section X (œufs) : modifiée par le règlement délégué (UE) 2022/2258 |
+| Règlement (UE) 1169/2011 (information du consommateur) | https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=celex%3A32011R1169 | en-tête lu le 20/10 |
+| Règlement (CE) 2073/2005 (critères microbiologiques), version du 01/07/2026 | https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01 | annexe I chapitres 1 et 2 lus le 20/10 |
+| Règlement (UE) 2024/2895 (Listeria) | https://eur-lex.europa.eu/eli/reg/2024/2895/oj | application au 01/07/2026 confirmée le 25/11 |
+| Règlement délégué (UE) 2023/2465 (normes de commercialisation des œufs, remplace le 589/2008) | https://eur-lex.europa.eu/eli/reg_del/2023/2465/oj?locale=fr | trouvé le 25/11, non lu en entier |
+| Décret n° 2008-184 du 26/02/2008 (huiles et graisses comestibles) | https://faolex.fao.org/docs/pdf/fra85501.pdf | lu le 25/11 (copie FAO du JO du 28/02/2008) |
+| Guide Restaurateur, nov. 2015 | https://agriculture.gouv.fr/telecharger/79464 | lu le 20/10 ; date de l'avis au Journal officiel : à vérifier |
+| Vade-mecums d'inspection (DGAL) | https://agriculture.gouv.fr/les-vade-mecums-dinspection | général V7 et « Remise directe » V3 lus le 26/10 |
 
 ## 4. Règles du logiciel
 
-### Quelle annexe de l'arrêté du 21/12/2009 pour quel établissement ? ✔
-**En bref** : l'arrêté s'applique « aux activités de commerce de détail, d'entreposage et de transport des produits d'origine animale et denrées alimentaires en contenant » (art. 1). « Remise directe » = cession à un consommateur final « en dehors de toute activité de restauration collective » ; « restauration collective » = « fourniture de repas à une collectivité de consommateurs réguliers, liée par accord ou par contrat » (art. 2). Renvois : restauration collective, cuisines centrales comprises → annexes IV et VI (art. 6) ; restauration collective hors cuisines centrales → annexes VII et VIII (art. 7) ; remise directe → annexes V, VI, VII et VIII (art. 8). Pour tous : annexe I (températures de conservation, art. 3).
-**Ce que contient l'annexe V (remise directe)** : seulement (a) des règles sur les matériels à risque spécifiés bovins pour les ateliers de boucherie, (b) section II : déconditionnement des denrées destinées au tranchage ou au service « au fur et à mesure des besoins » dans des conditions évitant la contamination, avec conservation des informations d'identification et de durée de vie pendant toute la détention ; nom, adresse et téléphone du responsable sur les distributeurs automatiques. Aucune règle de refroidissement, de remise en température, de durée de vie ni de plats témoins.
-**Conséquence** : le refroidissement 63 → 10 °C en 2 h, 0 à +3 °C, remise en température en 1 h, durée de vie 3 jours et plats témoins sont écrits dans l'annexe IV, donc pour la restauration collective. Dans cet arrêté, rien de tel n'est écrit pour la remise directe (restaurant commercial). Ces chiffres ne sont pas imposés par cet arrêté à un restaurant commercial : le chef décide. Catégorie des établissements visés par le logiciel : restaurants traditionnels, snacks, etc., pas de restauration collective pour le moment (précisé par Loïc le 20/10/2026) : ils relèvent donc de la remise directe. Les règles de l'annexe IV ne leur sont pas imposées ; le chef décide (durées de vie, par exemple, J+1, J+3 ou plus selon le produit). Si une cuisine fournit un jour une collectivité sous contrat, l'annexe IV s'appliquerait à cette activité. Confirmation écrite de la DDPP conseillée mais non bloquante.
-**Texte** : arrêté du 21/12/2009, articles 1, 2, 6, 7, 8 ; annexe V (version initiale du JORF n°0303 du 31/12/2009 copiée de Légifrance). La version consolidée a été vérifiée seulement pour l'article 3 (capture : « en vigueur depuis le 01/01/2010 »), l'annexe IV (modifiée le 09/05/2020) et l'annexe VI ; les annexes V, VII, VIII et les autres articles en version actuelle : non comparés.
-**Lien** : arrêté (registre).
-**Certitude** : ✔ texte lu le 20/10/2026 ; application aux restaurants traditionnels et snacks : remise directe, d'après Loïc.
+### Quelles règles pour quel type d'établissement ? ✔
+**Nature** : norme
+**En bref** : un restaurant, un snack ou une pizzeria fait de la « remise directe » : il vend au client final. La « restauration collective » sert des repas à des clients réguliers liés par un contrat (cantine, restaurant d'entreprise). Les deux suivent les températures de l'annexe I et la décongélation de l'annexe VI. Seule la restauration collective suit l'annexe IV : refroidissement en 2 h, remise en température en 1 h, plats témoins, durée de vie de 3 jours. Pour un restaurant commercial, ces chiffres sont des repères, pas des obligations.
+**Texte** : arrêté du 21/12/2009, articles 1, 2, 6, 7 et 8.
+**Lien** : https://www.legifrance.gouv.fr/loda/id/JORFTEXT000021573483
+**Certitude** : ✔ lu le 20/10/2026. Si votre cuisine livre un jour une collectivité sous contrat, l'annexe IV s'applique à cette activité.
 
-### Viande hachée (cession au consommateur) ✔ (remise directe et restauration collective hors cuisines centrales)
-**En bref** : la viande hachée est préparée « à la demande et à la vue de l'acheteur » ; elle peut être préparée à l'avance si l'atelier respecte la section V de l'annexe III du règlement 853/2004 et si l'exploitant a déclaré l'activité au préfet (directeur départemental en charge des services vétérinaires). Matières premières : chapitre II de la section V de l'annexe III du 853/2004 (non lu).
-**Texte** : arrêté du 21/12/2009, annexe VII (version initiale).
-**Certitude** : ✔ annexe lue ; renvois au 853/2004 non lus. 20/10/2026.
-
-### Gibier sauvage en petites quantités ✔
-**En bref** : un commerce de détail fourni par un chasseur en petite quantité ne peut accepter : gibier dépouillé ou plumé, gibier congelé, gibier sans fiche d'examen initial, gibier non identifié, sanglier sans résultat favorable du test trichine, gibier chassé à plus de 80 km (dérogation possible du préfet). Pas de congélation en l'état.
-**Texte** : arrêté du 21/12/2009, annexe VIII (version initiale).
-**Certitude** : ✔ lu le 20/10/2026.
-
-### Annexe IV : changements entre la version initiale (2009) et la version en vigueur (09/05/2020) ✔
-**En bref** : version 2009 : durée de vie des préparations réfrigérées « ne peut excéder trois jours après celui de la fabrication, en l'absence d'études de durée de vie » et DLC sur une face du conditionnement ; plats témoins 5 jours « après la dernière présentation au consommateur » ; excédents du menu du jour pouvant être représentés le lendemain ; signalement au DDASS et aux services vétérinaires. Version 2020 : DLC obligatoire pour les préparations très périssables, remise en température suivie d'une consommation le jour même, étiquetage individuel, don possible, signalement à l'ARS et à la DDPP. Seule la version 2020 est en vigueur.
-**Certitude** : ✔ les deux textes lus le 20/10/2026.
+### Viande hachée (cession au consommateur) ✔
+**Nature** : norme
+**En bref** : en remise directe, la viande hachée se prépare à la demande et devant le client. La préparer à l'avance n'est permis que si l'atelier respecte les règles du règlement 853/2004 et si l'activité est déclarée au préfet.
+**Texte** : arrêté du 21/12/2009, annexe VII.
+**Certitude** : ✔ annexe lue le 20/10/2026 ; renvois au 853/2004 non lus.
 
 ### Maintien au chaud : +63 °C minimum ✔
-**En bref** : un plat chaud servi ou livré chaud reste à +63 °C ou plus. Moins n'est possible qu'avec une analyse des dangers validée.
-**Texte** : arrêté du 21/12/2009, annexe I (tableau « température minimale en liaison chaude » : intitulé lu, chiffres non vus) et annexe IV point 3 (restauration collective) ; guide Restaurateur 2015, p.180.
-**Lien** : voir registre (arrêté ; guide).
-**Citation** : « maintien à 63 °C » (guide, p.180).
-**Certitude** : ✔ lu, à comparer avec Légifrance. 20/10/2026.
+**Nature** : norme
+**En bref** : un plat servi ou livré chaud doit rester à +63 °C ou plus. C'est obligatoire pour tous les établissements, restaurants compris. En dessous, il faut une analyse des dangers validée.
+**Texte** : arrêté du 21/12/2009, annexe I, tableau « Température minimale en liaison chaude » : « Plats cuisinés ou repas livrés chauds ou remis au consommateur : + 63 °C ».
+**Lien** : https://www.legifrance.gouv.fr/loda/id/JORFTEXT000021573483
+**Certitude** : ✔ chiffre lu le 25/11/2026 (annexe I, copie de la DDPP de Saône-et-Loire).
 
-### Refroidissement : +63 °C à +10 °C en 2 h maximum ✔ (restauration collective)
-**En bref** : un plat cuit passe de 63 °C à 10 °C en moins de 2 h, puis se conserve entre 0 et +3 °C. Plus lent seulement avec analyse des dangers validée.
+### Refroidissement : +63 °C à +10 °C en 2 h maximum (collectivités) ✔
+**Nature** : collectivite
+**En bref** : en restauration collective, un plat cuit doit passer de +63 °C à +10 °C à cœur en moins de 2 heures, puis être gardé entre 0 et +3 °C. Pour un restaurant commercial, aucun texte ne fixe de durée : l'établissement fixe sa propre règle dans son PMS et enregistre chaque refroidissement. L'inspecteur vérifie qu'une procédure existe et qu'elle est suivie.
 **Citation** : « leur température à cœur ne demeure pas à des valeurs comprises entre + 63° C et + 10° C pendant plus de deux heures ».
-**Texte** : arrêté du 21/12/2009, annexe IV point 1 (version en vigueur depuis le 09/05/2020). Température mesurée à cœur. Après refroidissement : enceinte entre 0 et +3 °C.
-**Lien** : annexe IV (registre).
-**Certitude** : ✔ texte Légifrance lu le 20/10/2026. L'annexe IV vise la restauration collective ; question ouverte : s'applique-t-elle à ton établissement (collectif ou commercial) ?
+**Texte** : arrêté du 21/12/2009, annexe IV point 1 (version du 09/05/2020) ; vade-mecum « Remise directe » V3, ligne C403L09.
+**Certitude** : ✔ lus le 20/10 et le 26/10/2026.
 
-### Remise en température : 1 h maximum, +63 °C minimum ✔ (restauration collective)
-**En bref** : de +10 °C à la température de service en 1 h maximum, 63 °C atteints, consommation le jour même de la remise en température. Voir aussi 75 °C en section 6.
-**Citation** : « ne demeure pas pendant plus d'une heure à des valeurs comprises entre + 10° C et la température de remise au consommateur » ; « ne peut être inférieure à + 63° C » sauf analyse des dangers validée ; « consommées le jour de leur première remise en température ».
-**Texte** : arrêté du 21/12/2009, annexe IV point 3 (en vigueur depuis le 09/05/2020).
-**Lien** : annexe IV (registre).
-**Certitude** : ✔ texte Légifrance lu le 20/10/2026. Restauration collective.
+### Remise en température (collectivités) ✔
+**Nature** : collectivite
+**En bref** : en restauration collective, un plat réchauffé passe de +10 °C à la température de service en 1 heure maximum, atteint au moins +63 °C et se mange le jour même. Pour un restaurant commercial, c'est un repère. Le guide Restaurateur donne aussi un repère de 75 °C (voir « Barèmes de cuisson »). Un bain-marie ou une étuve sert à maintenir au chaud, pas à réchauffer.
+**Citation** : « ne demeure pas pendant plus d'une heure à des valeurs comprises entre + 10° C et la température de remise au consommateur ».
+**Texte** : arrêté du 21/12/2009, annexe IV point 3 ; vade-mecum « Remise directe » V3, ligne C403L10.
+**Certitude** : ✔ lus le 20/10 et le 26/10/2026.
 
-### Durée de vie des plats préparés à l'avance : 3 jours ✔ (restauration collective)
-**En bref** : au froid, 3 jours maximum après le jour de fabrication, sauf étude de durée de vie. Le guide rappelle que la durée de vie relève de la responsabilité du professionnel (p.109).
-**Précisions du texte** : préparation très périssable élaborée à l'avance : l'exploitant fixe une DLC (art. 24 du règlement 1169/2011). Produits déconditionnés puis reconditionnés sans transformation : DLC au plus égale à la durée de vie initiale du composant le plus court. Préparation réfrigérée : DLC « ne peut excéder le troisième jour après celui de sa fabrication en l'absence d'études de durée de vie ».
-**Texte** : arrêté du 21/12/2009, annexe IV point 4 (en vigueur depuis le 09/05/2020).
-**Lien** : annexe IV (registre).
-**Certitude** : ✔ texte Légifrance lu le 20/10/2026. Restauration collective.
+### Durée de vie des plats préparés à l'avance ✔
+**Nature** : collectivite
+**En bref** : en restauration collective, un plat préparé à l'avance et gardé au froid se garde au maximum jusqu'au 3e jour après sa fabrication, sauf étude de durée de vie. Pour un restaurant commercial, aucun texte ne fixe de nombre de jours : c'est l'établissement qui fixe la date limite et qui doit pouvoir la justifier. Une durée non justifiée vaut une note C à l'inspection.
+**Citation** : DLC « ne peut excéder le troisième jour après celui de sa fabrication en l'absence d'études de durée de vie ».
+**Texte** : arrêté du 21/12/2009, annexe IV point 4 ; vade-mecum général V7, ligne C6L04 ; guide Restaurateur p. 109.
+**Certitude** : ✔ lus le 20/10 et le 26/10/2026.
 
-### Plats témoins : 5 jours ✔ (restauration collective)
-**En bref** : échantillons représentatifs de chaque plat distribué, clairement identifiés, à la disposition exclusive des agents de contrôle, conservés au moins 5 jours en froid positif (0 à +3 °C) après présentation au consommateur. Cuisine centrale : plats témoins de tout ce qui part vers un restaurant satellite. Satellite : seulement ce qu'il a transformé ou manipulé sur place (découpé, tranché, haché, mixé, mouliné).
-**Texte** : arrêté du 21/12/2009, annexe IV point 5 (en vigueur depuis le 09/05/2020).
-**Lien** : annexe IV (registre).
-**Certitude** : ✔ texte Légifrance lu le 20/10/2026. Restauration collective.
+### Plats témoins : 5 jours (collectivités) ✔
+**Nature** : collectivite
+**En bref** : en restauration collective, on garde un échantillon de chaque plat servi pendant au moins 5 jours, entre 0 et +3 °C, pour les contrôleurs. Ce n'est pas demandé à un restaurant commercial.
+**Texte** : arrêté du 21/12/2009, annexe IV point 5.
+**Certitude** : ✔ lu le 20/10/2026.
 
-### Préparations servies froides ✔ (restauration collective)
-**En bref** : entreposées dès la fin de l'élaboration et jusqu'à l'utilisation dans une enceinte à 0 à +3 °C ; sorties au plus près de la consommation, 2 h maximum, produit maintenu à +10 °C ou moins, sauf analyse des dangers validée prouvant un autre couple temps/température.
+### Préparations servies froides (collectivités) ✔
+**Nature** : collectivite
+**En bref** : en restauration collective, une préparation froide est gardée entre 0 et +3 °C jusqu'au service. Elle peut rester sortie 2 heures au maximum, à +10 °C au plus. Pour un restaurant commercial, c'est un repère.
 **Texte** : arrêté du 21/12/2009, annexe IV point 2.
-**Certitude** : ✔ texte Légifrance lu le 20/10/2026.
+**Certitude** : ✔ lu le 20/10/2026.
 
-### Effet indésirable inhabituel (au moins 2 consommateurs) ✔ (restauration collective)
-**En bref** : dès que le responsable a connaissance d'un effet indésirable inhabituel pouvant être lié aux aliments chez au moins deux consommateurs : inviter à consulter un médecin, signaler sans délai au directeur de l'ARS et au directeur départemental de la protection des populations ; tenir à disposition menus servis et plats témoins des repas précédents.
+### Effet indésirable chez au moins 2 clients (collectivités) ✔
+**Nature** : collectivite
+**En bref** : en restauration collective, si au moins deux clients ont des troubles qui peuvent venir du repas, le responsable les invite à consulter un médecin, prévient sans attendre l'ARS et la DDPP, et garde les menus et les plats témoins. Pour un restaurant, voir la fiche TIAC.
 **Texte** : arrêté du 21/12/2009, annexe IV point 6.
-**Certitude** : ✔ texte Légifrance lu le 20/10/2026.
+**Certitude** : ✔ lu le 20/10/2026.
 
-### Fin de service : restes et excédents ✔ (restauration collective)
-**En bref** : après le service, les denrées d'origine animale ne vont plus ni à l'alimentation humaine ni animale, sauf « excédents » visés à l'article 2 point i (article non lu) : ils peuvent être présentés à un service ultérieur ou donnés à une personne morale visée à l'art. L. 266-2 du code de l'action sociale et des familles, avec une DLC par plat et salubrité assurée ; pas applicable dans les restaurants satellites sauf préparations non déconditionnées maintenues à 0 à +3 °C. Étiquetage individuel avec DLC et mention de l'éventuelle première remise en température (point 8).
+### Fin de service : restes et excédents (collectivités) ✔
+**Nature** : collectivite
+**En bref** : en restauration collective, ce qui a été présenté au client ne se ressert pas. Les « excédents » jamais présentés peuvent être servis plus tard ou donnés, avec une date limite et une étiquette. Pour un restaurant commercial, c'est un repère.
 **Texte** : arrêté du 21/12/2009, annexe IV points 7 et 8.
-**Certitude** : ✔ annexe IV lue ; définition d'« excédents » (article 2) ◐ non lue.
+**Certitude** : ✔ lu le 20/10/2026 ; définition des « excédents » (article 2) non lue.
 
 ### Températures maximales de conservation au froid ✔
-**En bref** : viandes hachées +2 °C ; abats +3 °C ; préparations de viandes +4 °C ; volailles, lagomorphes, ratites, petit gibier +4 °C ; viandes d'ongulés +7 °C (carcasses, gros morceaux) ou +4 °C (découpe) ; produits de la pêche frais +2 °C ; ovoproduits +4 °C ; lait cru +4 °C ; autres denrées très périssables +4 °C ; autres périssables +8 °C ; préparations culinaires élaborées à l'avance +3 °C.
-**Texte** : arrêté du 21/12/2009, annexe I ; guide Restaurateur 2015, p.179 (tableau identique).
-**Lien** : arrêté (registre). Annexe I : passer par le texte.
-**Certitude** : ✔ lu sur copie préfecture. 20/10/2026.
+**Nature** : norme
+**En bref** : viande hachée +2 °C. Abats +3 °C. Préparations de viande +4 °C. Volailles, lapin, petit gibier +4 °C. Viandes de bœuf, veau, porc, agneau : +4 °C pour les morceaux de découpe, +7 °C pour les carcasses et gros morceaux. Poisson frais, crustacés et mollusques cuits : +2 °C (glace fondante : 0 à +2 °C). Ovoproduits et lait cru +4 °C. Plats cuisinés à l'avance +3 °C. Autres produits très périssables +4 °C ; autres périssables +8 °C. Lait pasteurisé et fromages affinés : température du fabricant.
+**Citation** : « La limite inférieure de conservation des denrées alimentaires réfrigérées doit se situer à la température débutante de congélation propre à chaque catégorie de produits. »
+**Texte** : arrêté du 21/12/2009, annexe I, colonne « établissements de remise directe ou de restauration collective » ; guide Restaurateur p. 179. Un produit emballé peut porter une température plus basse fixée par le fabricant : c'est elle qu'on suit.
+**Certitude** : ✔ relu le 25/11/2026 (copie de la DDPP de Saône-et-Loire).
+
+### Réglage d'un frigo : le produit le plus fragile ✔
+**Nature** : norme
+**En bref** : chaque appareil se règle sur le produit le plus fragile qu'il contient. Un frigo avec de la viande hachée doit rester à +2 °C maximum, même s'il contient aussi des laitages. Fruits et légumes frais entiers : aucune température fixée par les textes (indication du fournisseur ou PMS). Aucun texte ne fixe de limite basse chiffrée ni de délai avant recontrôle : c'est la personne qui établit le PMS qui les choisit, et elle peut prendre un seuil d'alerte plus strict.
+**Texte** : arrêté du 21/12/2009, annexe I.
+**Certitude** : ✔ relu le 25/11/2026.
+
+### Écart de température : ce que note l'inspecteur ✔
+**Nature** : information
+**En bref** : à l'inspection, un relevé de +2 à +3 °C au-dessus du maximum est noté C ; plus de +3 °C est noté D, comme l'absence de relevés. Le logiciel suit ces seuils : alerte au-delà de +2 °C, alerte urgente au chef et au directeur au-delà de +3 °C, avec contrôle et action obligatoires (transfert ou destruction, noté).
+**Texte** : vade-mecum général V7, ligne C401 (méthode de contrôle de la DGAL).
+**Certitude** : ✔ lu le 26/10/2026.
 
 ### Surgélation et congélation ✔
-**En bref** : -18 °C pour glaces, viandes hachées, préparations de viandes, produits de la pêche congelés ; -12 °C pour les autres denrées congelées.
-**Texte** : arrêté du 21/12/2009, annexe I ; guide p.179.
-**Certitude** : ✔ lu. 20/10/2026.
+**Nature** : norme
+**En bref** : −18 °C pour les glaces, la viande hachée, les préparations de viande et le poisson congelés. −12 °C pour les autres produits congelés. Une remontée de +3 °C en surface est tolérée seulement pendant de courts moments (chargement, déchargement, mise en vitrine).
+**Texte** : arrêté du 21/12/2009, annexe I (tableau des denrées congelées et paragraphe a) qui suit) ; guide p. 179.
+**Certitude** : ✔ relu le 25/11/2026.
 
 ### Décongélation ✔
-**En bref** : en enceinte réfrigérée entre 0 °C et la température maximale de conservation de la denrée, sinon entre 0 et +4 °C. Pas de recongélation en l'état sauf analyse des dangers validée. Aucune durée fixée.
-**Précisions du texte** : trois voies : (1) enceinte réfrigérée entre 0 °C et la température maximale de conservation de la denrée quand elle est fixée réglementairement, sinon 0 à +4 °C ; (2) cuisson ou remise en température sans décongélation préalable ; (3) toute autre méthode si une analyse des dangers validée montre le même niveau de sécurité. Une fois décongelés, conservation selon l'annexe I (produits réfrigérés). Produits décongelés (hors surgelés) : pas de recongélation, sauf analyse des dangers validée.
+**Nature** : norme
+**En bref** : on décongèle au réfrigérateur, entre 0 °C et la température de conservation du produit (à défaut entre 0 et +4 °C), ou on cuit directement sans décongeler. Jamais à température ambiante. Un produit décongelé ne se recongèle pas. Le texte ne fixe aucune durée : on suit la durée du fabricant quand elle existe, sinon l'établissement fixe la sienne dans son PMS. La mention « décongelé » n'est obligatoire que sur un produit vendu tel quel, pas sur un plat cuisiné avec ce produit.
 **Citation** : « soit dans une enceinte réfrigérée entre 0 °C et la température maximale de conservation de la denrée » ; « A défaut, [...] entre 0 °C et + 4 °C ».
-**Texte** : arrêté du 21/12/2009, annexe VI (version en vigueur depuis le 01/01/2010). Applicable à tous (pas limitée à la restauration collective).
-**Lien** : annexe VI (registre).
-**Certitude** : ✔ texte Légifrance lu le 20/10/2026 (page « En vigueur depuis le 01/01/2010, dernière mise à jour des données : 09 mai 2020 »).
+**Texte** : arrêté du 21/12/2009, annexe VI ; vade-mecum « Remise directe » V3, lignes C403L02-03 et C7L02.
+**Certitude** : ✔ lus le 20/10 et le 26/10/2026.
 
-### Œufs ◐
-**En bref** : l'UE demande un stockage à température de préférence constante, adaptée à la conservation, et une livraison au consommateur sous 21 jours après la ponte (853/2004, annexe III section X) ✔ lu le 20/10/2026. Préparations liquides d'œufs entiers : 5 min à 60 °C (guide p.180) ✔. ANSES (fiche Salmonella, 2021) : « les œufs et les produits à base d'œufs crus » ; à éviter « d'œufs crus ou peu cuits » pour les personnes vulnérables. Le règlement 589/2008 n'est plus en vigueur depuis le 27/11/2023 (EUR-Lex) : le texte qui s'applique maintenant n'a pas été lu, donc aucune durée en jours ni température n'est affichée à sa place.
-**Texte** : règlement (CE) 853/2004 ; guide Restaurateur p.180 ; ANSES fiche Salmonella spp.
-**Lien** : registre.
-**Certitude** : mixte. 853/2004 lu le 20/10/2026 ; ANSES et statut du 589/2008 le 31/10/2026.
+### Œufs ✔
+**Nature** : norme
+**En bref** : les œufs doivent être remis au consommateur au plus tard 28 jours après la ponte (avant novembre 2022 : 21 jours). Leur date de durabilité minimale (DDM) est au plus 28 jours après la ponte. On les garde à une température de préférence constante, adaptée à leur conservation. Les préparations à base d'œufs crus (mayonnaise, mousse) sont les plus à risque de salmonelle.
+**Texte** : règlement (CE) 853/2004, annexe III, section X, modifié par le règlement délégué (UE) 2022/2258 du 9/09/2022 ; normes de commercialisation : règlement délégué (UE) 2023/2465 (remplace le règlement 589/2008, abrogé). Risque : ANSES, fiche Salmonella spp. (2021).
+**Lien** : https://eur-lex.europa.eu/legal-content/FR/TXT/?uri=CELEX:32004R0853
+**Certitude** : ✔ délai de 28 jours confirmé le 25/11/2026 (texte du règlement 2022/2258 cité par la presse professionnelle ; EUR-Lex à relire). La fiche pédagogique de l'académie de Strasbourg (cuisson à plus de 70 °C) est une bonne pratique, pas une norme.
 
-### Cuisson par type de viande dans l'arrêté ✔
-**En bref** : l'arrêté ne fixe aucune température de cuisson par viande. Seuls chiffres : 63 °C (maintien au chaud, remise en température).
+### Huile de friture ✔
+**Nature** : norme
+**En bref** : une huile de friture est jugée impropre à la consommation quand elle dépasse 25 % de composés polaires ou 14 % de polymères de triglycérides. Le texte ne dit pas combien de fois on change l'huile : il faut la tester régulièrement (bandelette ou testeur) et garder la preuve. Ne pas dépasser 175 °C est une recommandation, pas une obligation.
+**Texte** : décret n° 2008-184 du 26/02/2008, article 8 ; vade-mecum « Remise directe » V3, ligne C403L08 (pour le test régulier et les 175 °C).
+**Lien** : https://faolex.fao.org/docs/pdf/fra85501.pdf
+**Certitude** : ✔ décret lu le 25/11/2026.
+
+### Huiles usagées ◐
+**Nature** : norme
+**En bref** : l'huile usagée ne va ni à l'évier, ni dans les égouts, ni dans la poubelle. Elle est reprise par une entreprise de collecte, qui vous remet un bon d'enlèvement à garder. Le seuil de 60 litres par an à partir duquel la collecte séparée devient obligatoire est cité par des sources professionnelles (arrêté du 12/07/2011) : texte non relu.
+**Texte** : vade-mecum « Remise directe » V3, ligne E2L02 (cite le code de la santé publique, art. R.1331-2) ; arrêté du 12/07/2011 (non lu).
+**Certitude** : ◐ règle générale lue dans le vade-mecum le 26/10/2026 ; seuil de 60 L à vérifier.
+
+### Cuisson des viandes dans l'arrêté ✔
+**Nature** : norme
+**En bref** : l'arrêté du 21/12/2009 ne fixe aucune température de cuisson pour les viandes. Ses seuls chiffres de chaleur concernent le maintien au chaud (+63 °C) et, pour les collectivités, la remise en température. Les températures de cuisson viennent du guide Restaurateur et de l'ANSES (voir « Barèmes de cuisson »).
 **Texte** : arrêté du 21/12/2009 (lecture complète).
 **Certitude** : ✔ 20/10/2026.
 
 ## 5. Notions et bactéries
 
 ### Zone de danger ✔
-**En bref** : deux textes officiels, deux repères, affichés chacun avec sa source. Arrêté du 21/12/2009 (refroidissement) : « leur température à cœur ne demeure pas à des valeurs comprises entre + 63° C et + 10° C pendant plus de deux heures ». ANSES (fiche Staphylococcus aureus) : « zone de température dangereuse (de + 10 °C à + 45 °C) ».
-**Texte** : arrêté du 21/12/2009 ; ANSES, fiche « Caractéristiques et sources de Staphylococcus aureus et entérotoxines staphylococciques », septembre 2011.
+**Nature** : avis
+**En bref** : c'est la plage de température où les microbes se multiplient le plus vite. L'ANSES la situe entre +10 °C et +45 °C (fiche staphylocoque). L'arrêté de 2009 demande de ne pas rester entre +63 °C et +10 °C plus de 2 heures en restauration collective. Retenir : un plat ne doit pas rester tiède.
+**Texte** : ANSES, fiche Staphylococcus aureus (septembre 2011) ; arrêté du 21/12/2009, annexe IV.
 **Lien** : https://davar.gouv.nc/sites/default/files/atoms/files/anses_-_fiche_sur_staphylococcus_aureus.pdf
-**Certitude** : ✔ citation ANSES lue le 31/10/2026 ; citation de l'arrêté lue le 20/10/2026.
-
-### Température à cœur ◐
-**En bref** : je n'ai pas trouvé de définition officielle de ce terme dans les textes lus. Emploi par l'ANSES (fiche E. coli STEC, juillet 2024) : « recommande une cuisson avec une température à cœur de 65 °C » ; « bien cuire à cœur (70 °C) les viandes hachées et les produits à base de viande hachée ». Aucune définition n'est donc affichée tant qu'elle n'est pas sourcée.
-**Certitude** : ◐ définition à sourcer (31/10/2026).
-
-### Valeur D, valeur z, réduction logarithmique ✔
-**En bref** : définitions mot pour mot de l'ANSES. Valeur D : « D est le temps (en minutes) de réduction décimale, c'est-à-dire le temps nécessaire à une température donnée pour détruire 10% de la population bactérienne ». Valeur z : « z (en °C) est la variation de température qui entraine une variation de D d'un facteur 10 ». Réduction en log10 : « Cette réduction bactérienne dénommée critère de performance, est exprimée en log10 » ; « Par exemple, une réduction de 2 log10 correspond à 100 fois moins de bactéries. »
-**Citation** : « On peut considérer que la cuisson est assainissante si le critère de performance est supérieur ou égal à 6 log10 ».
-**Exemples de couples temps / température (même fiche)** : volaille « 63° - 1 min » ; saumon « 61°C – 1 min ». Les durées de maintien du guide Restaurateur sont dans la fiche « Barèmes de cuisson du guide Restaurateur » (section 3).
-**Texte** : ANSES, fiche « La cuisson basse température », rubrique « Méthodologie de validation du procédé » (fiche sans date visible ; sources citées par l'ANSES : fiches de dangers microbiologiques, ILSI 2012, van Asselt et Zwietering 2006).
-**Lien** : https://www.anses.fr/fr/system/files/Anses%20-%20fiche%20cuisson%20basse%20temp%C3%A9rature.pdf
-**Certitude** : ✔ fiche ouverte et citée le 31/10/2026.
-
-### Spores ✔
-**En bref** : ANSES, fiche cuisson basse température : « Les formes sporulées de Bacillus cereus, Clostridium botulinum et Clostridium perfringens ne sont jamais détruites par un procédé de cuisson basse température, mais un refroidissement rapide immédiatement consécutif à la cuisson permet d'éviter leur germination. »
-**Texte** : ANSES, fiche « La cuisson basse température », rubrique « Analyse des dangers ».
-**Lien** : https://www.anses.fr/fr/system/files/Anses%20-%20fiche%20cuisson%20basse%20temp%C3%A9rature.pdf
-**Certitude** : ✔ lu et cité le 31/10/2026.
-
-### Contamination croisée ✔
-**En bref** : voir l'entrée « Contamination croisée, déchets, eau, nuisibles » (section 7) : elle reprend le texte du règlement 852/2004. Aucune définition propre n'est affichée ici faute de texte officiel lu.
-**Certitude** : ✔ renvoi au texte lu le 20/10/2026.
-
-### TIAC ✔
-**En bref** : Santé publique France : une TIAC « est définie par l'apparition d'au moins 2 cas d'une symptomatologie similaire, en général gastro-intestinale » (la page précise le lien avec une même origine alimentaire). Déclaration : « les TIAC sont à déclaration obligatoire (DO) depuis 1987 ». À qui déclarer : non précisé sur la page lue, donc non indiqué ici.
-**Texte** : Santé publique France, page « Toxi-infections alimentaires collectives, la maladie ».
-**Lien** : https://www.santepubliquefrance.fr/toxi-infections-alimentaires-collectives/la-maladie
 **Certitude** : ✔ lu le 31/10/2026.
 
-### Salmonella (fiche ANSES) ✔
-**En bref** : ANSES (fiche Salmonella spp., mise à jour juin 2021) : « La thermorésistance dépend de la souche et de la matrice alimentaire » ; recommandation : « cuire à cœur (70°C) les aliments et en particulier les viandes de porc et de volailles ». Œufs : la fiche cite « les œufs et les produits à base d'œufs crus » comme cause d'environ 45 % des TIAC liées aux aliments. Barème cité par l'ANSES dans sa fiche cuisson basse température : volaille « 63° - 1 min ». Guide Restaurateur p.181 : 60 °C pendant 5 min pour les préparations liquides d'œufs entiers (lu le 20/10/2026).
-**Texte** : ANSES, fiche de description de danger biologique Salmonella spp. (juin 2021) ; ANSES, fiche cuisson basse température ; guide Restaurateur 2015 p.181.
+### Température à cœur ✔
+**Nature** : explication
+**En bref** : c'est la température au centre du produit, à l'endroit le plus épais, là où il chauffe ou refroidit en dernier. On la mesure avec une sonde piquée au milieu. Les textes officiels l'emploient (arrêté de 2009, annexe IV ; ANSES) sans la définir.
+**Texte** : arrêté du 21/12/2009, annexe IV ; ANSES, fiche E. coli STEC (2024).
+**Certitude** : ✔ mot employé dans les textes lus ; définition donnée ici en mots simples.
+
+### Valeur D, valeur z, réduction logarithmique ✔
+**Nature** : avis
+**En bref** : pour tuer les microbes, la température ne suffit pas : il faut aussi la durée. Valeur D : temps pour éliminer 90 % des bactéries à une température donnée. Valeur z : nombre de degrés qu'il faut ajouter pour aller 10 fois plus vite. Une cuisson est jugée assainissante quand elle divise les bactéries par 1 million (6 log).
+**Citation** : « On peut considérer que la cuisson est assainissante si le critère de performance est supérieur ou égal à 6 log10 ».
+**Texte** : ANSES, fiche « La cuisson basse température ». Exemples : volaille « 63° - 1 min » ; saumon « 61°C – 1 min ».
+**Lien** : https://www.anses.fr/fr/system/files/Anses%20-%20fiche%20cuisson%20basse%20temp%C3%A9rature.pdf
+**Certitude** : ✔ lu le 31/10/2026.
+
+### Spores ✔
+**Nature** : avis
+**En bref** : certaines bactéries (Bacillus cereus, Clostridium) se protègent sous forme de spores que la cuisson ne tue pas. Si le plat refroidit lentement, elles se réveillent et se multiplient. D'où l'intérêt de refroidir vite.
+**Citation** : « un refroidissement rapide immédiatement consécutif à la cuisson permet d'éviter leur germination ».
+**Texte** : ANSES, fiche « La cuisson basse température ».
+**Certitude** : ✔ lu le 31/10/2026.
+
+### TIAC ✔
+**Nature** : information
+**En bref** : une TIAC (toxi-infection alimentaire collective), c'est au moins 2 personnes malades avec les mêmes symptômes (en général digestifs) après le même repas. C'est une maladie à déclaration obligatoire depuis 1987. Une seule plainte de client n'est pas une TIAC, mais elle doit être notée et traitée.
+**Texte** : Santé publique France, « Toxi-infections alimentaires collectives, la maladie ».
+**Lien** : https://www.santepubliquefrance.fr/toxi-infections-alimentaires-collectives/la-maladie
+**Certitude** : ✔ lu le 31/10/2026. À qui déclarer : voir la procédure TIAC du logiciel (ARS et DDPP).
+
+### Salmonella ✔
+**Nature** : avis
+**En bref** : on la trouve surtout dans les œufs, la volaille et le porc. La fiche de l'ANSES cite les œufs et les produits à base d'œufs crus (mayonnaise, mousse, tiramisu) parmi les premières causes d'intoxication. L'ANSES conseille de cuire à cœur à 70 °C, surtout la volaille et le porc.
+**Texte** : ANSES, fiche Salmonella spp. (juin 2021) ; guide Restaurateur p. 181 (œufs liquides : 60 °C pendant 5 min).
 **Lien** : https://www.anses.fr/fr/system/files/BIORISK2016SA0080.pdf?download=1
-**Certitude** : ✔ fiche ANSES lue le 31/10/2026.
+**Certitude** : ✔ lu le 31/10/2026.
 
 ### Listeria monocytogenes ✔
-**En bref** : se multiplie même au froid (de -2 à 45 °C, optimum 30 à 37 °C). Concerne charcuterie cuite, fromages au lait cru, plats préparés. Formes graves chez la femme enceinte et le nouveau-né.
-**Texte** : ANSES, fiche de danger, avril 2020.
-**Lien** : registre.
+**Nature** : avis
+**En bref** : elle se multiplie même au froid (de −2 à +45 °C). On la trouve dans la charcuterie cuite, les fromages au lait cru, les plats préparés. Elle est très grave pour la femme enceinte, le nouveau-né et les personnes fragiles. C'est pour elle que la durée de conservation des plats doit être justifiée.
+**Texte** : ANSES, fiche de danger Listeria monocytogenes (avril 2020).
+**Lien** : https://www.anses.fr/fr/system/files/BIORISK2016SA0081Fi.pdf?download=1
+**Certitude** : ✔ lu le 20/10/2026.
 
 ### Campylobacter ✔
-**En bref** : surtout volaille crue. Un traitement thermique supérieur à 60 °C les détruit (guide p.181).
+**Nature** : guide
+**En bref** : surtout dans la volaille crue. Une cuisson au-dessus de 60 °C le détruit. Le risque vient surtout des contaminations croisées (planche, couteau, mains).
+**Texte** : guide Restaurateur 2015, p. 181.
+**Certitude** : ✔ lu le 20/10/2026.
 
 ### E. coli STEC ✔
-**En bref** : ANSES (fiche STEC/EHEC, juillet 2024) : « Dans le monde, les principaux aliments mis en cause lors d'épidémies sont la viande hachée de bœuf insuffisamment cuite » ; « Parmi les produits laitiers au lait cru, les fromages à pâte pressée non cuites à affinage court » ; « bien cuire à cœur (70 °C) les viandes hachées et les produits à base de viande hachée ».
-**Texte** : ANSES, saisine n° 2024-MPEX-0031, fiche de description de danger biologique « E. coli producteurs de shigatoxines (STEC) / EHEC », mise à jour juillet 2024.
+**Nature** : avis
+**En bref** : bactérie liée surtout à la viande hachée de bœuf pas assez cuite et à certains fromages au lait cru. L'ANSES conseille de bien cuire à cœur (70 °C) la viande hachée, en particulier pour les enfants.
+**Texte** : ANSES, fiche STEC/EHEC (juillet 2024).
 **Lien** : https://www.anses.fr/sites/default/files/Fiche-EHEC-2024-MPEX-0031.pdf?download=1
 **Certitude** : ✔ lu le 31/10/2026.
 
 ### Staphylococcus aureus ✔
-**En bref** : ANSES (fiche de septembre 2011) : « les SE sont stables dans les conditions de traitements thermiques généralement appliqués aux aliments » ; « Ce dernier détruira les bactéries mais pas leurs entérotoxines si elles sont présentes » ; « Les principaux aliments incriminés dans les TIAC à entérotoxines staphylococciques sont des plats cuisinés ».
-**Texte** : ANSES, « Caractéristiques et sources de Staphylococcus aureus et entérotoxines staphylococciques », septembre 2011.
+**Nature** : avis
+**En bref** : il vient surtout des mains, du nez et des plaies du personnel. Il fabrique des toxines que la cuisson ne détruit pas. Les plats manipulés puis laissés tièdes sont les plus touchés. D'où l'importance du lavage des mains et du froid.
+**Texte** : ANSES, fiche Staphylococcus aureus (septembre 2011).
 **Lien** : https://davar.gouv.nc/sites/default/files/atoms/files/anses_-_fiche_sur_staphylococcus_aureus.pdf
 **Certitude** : ✔ lu le 31/10/2026.
 
 ### Clostridium perfringens et Bacillus cereus ✔
-**En bref** : liés aux plats cuisinés à l'avance : conserver au-dessus de 63 °C ou en dessous de 3 °C, réchauffer à 75 °C minimum (fiche C. perfringens). Riz, pâtes, plats cuisinés non consommés tout de suite : au-dessus de 63 °C, surgelés ou réfrigérés (guide p.180).
+**Nature** : guide
+**En bref** : deux bactéries des plats cuisinés à l'avance (sauces, viandes en sauce, riz, pâtes). Elles se développent quand le plat reste tiède. Repères du guide : garder au-dessus de 63 °C ou en dessous de 3 °C, réchauffer à 75 °C au moins.
+**Texte** : guide Restaurateur 2015, p. 180 (fiche C. perfringens).
+**Certitude** : ✔ lu le 20/10/2026.
 
 ### Clostridium botulinum ✔
-**En bref** : ANSES (fiche de janvier 2011) : « Le réservoir de C. botulinum, comme des autres Clostridium est l'environnement: sol, poussière » ; « Les aliments à risque pour le consommateur sont des aliments conservés peu acides » ; toxines : « Détruites après 10 min à 100 °C ou 30 min à 80 °C » ; « Une cuisson par ébullition est insuffisante pour stériliser les denrées alimentaires ».
-**Texte** : ANSES, « Caractéristiques et sources des Clostridium botulinum et des Clostridium neurotoxinogènes », janvier 2011.
+**Nature** : avis
+**En bref** : bactérie du sol, dangereuse dans les conserves maison, les produits sous vide et les aliments peu acides mal conservés. Sa toxine est détruite par 10 min à 100 °C, mais l'ébullition ne suffit pas à stériliser une conserve.
+**Texte** : ANSES, fiche Clostridium botulinum (janvier 2011).
 **Lien** : https://www.anses.fr/fr/system/files/MIC-Fi-Clostridiumbotu.pdf
 **Certitude** : ✔ lu le 31/10/2026.
 
 ### Anisakis ✔
-**En bref** : au-dessus de 55 °C, les larves meurent en moins d'une minute. Le poisson « rosé à l'arête » ne garantit pas l'élimination des parasites (guide p.180).
+**Nature** : norme
+**En bref** : ver parasite du poisson de mer. Au-dessus de 55 °C, il meurt en moins d'une minute ; un poisson « rosé à l'arête » ne garantit pas qu'il est mort. Un poisson servi cru ou mariné doit avoir été congelé (24 h à −20 °C ou 15 h à −35 °C), sauf attestation du fournisseur. Le contrôle visuel des parasites est obligatoire.
+**Texte** : guide Restaurateur p. 180 ; vade-mecum « Remise directe » V3, ligne C403L12 (qui renvoie au règlement 853/2004).
+**Certitude** : ✔ lus le 20/10 et le 26/10/2026.
 
 ## 6. Températures de cuisson (France et UE seulement)
-**Principe** : les barèmes du guide sont « donnés à titre indicatif » et « restent sous la responsabilité de chaque professionnel » (p.109, p.180). Le lexique affiche des couples température + durée sourcés, l'établissement choisit.
+**Principe** : les barèmes du guide sont « donnés à titre indicatif » et « restent sous la responsabilité de chaque professionnel » (p. 109, p. 180). Ce ne sont pas des normes : l'établissement choisit et l'écrit dans son PMS.
+**Dans le logiciel** : en dessous d'un barème ANSES, le logiciel affiche un avertissement (pas « non conforme »). Famille « Général » (légumes, plats, sauces) : aucun seuil imposé, la température est seulement enregistrée. Si le PMS fixe sa propre valeur, c'est elle qui décide de la conformité. Le maintien au chaud à +63 °C reste une norme (annexe I).
 
-**Barèmes ANSES du guide Restaurateur 2015, p.180** ✔ (citations courtes ; texte complet : voir le guide)
+**Barèmes ANSES du guide Restaurateur 2015, p. 180** ✔
 | Famille | Barème | Détail |
 |---|---|---|
-| Viandes hachées | 71 °C à cœur ou 2 min à 70 °C | bœuf : perte de la couleur rouge |
-| Hachée bœuf, veau, agneau, porc | 71 °C 15 s | citation fiche Yersinia |
-| Volaille hachée | 74 °C 15 s | citation fiche Yersinia |
-| Viande coupée bœuf, veau, agneau, jambon | 63 °C 15 s | citation fiche Yersinia |
-| Plats préparés, viandes | maintien 63 °C, réchauffage 75 °C minimum | |
-| Poissons | de 1 min à 60 °C à 15 min à 80 °C | |
+| Viande hachée | 71 °C à cœur, ou 2 min à 70 °C | bœuf : plus de couleur rouge |
+| Viande hachée de bœuf, veau, agneau, porc | 71 °C pendant 15 s | |
+| Volaille hachée | 74 °C pendant 15 s | |
+| Morceau entier de bœuf, veau, agneau, jambon | 63 °C pendant 15 s | |
+| Plats cuisinés | maintien 63 °C, réchauffage 75 °C minimum | |
+| Poisson | de 1 min à 60 °C à 15 min à 80 °C | |
 | Coquillages | 2 min à 90 °C | |
 | Œufs liquides entiers | 5 min à 60 °C | |
 | Sanglier, cheval | 63 °C, ou 3 min à 58 °C, ou 4 h à 51 °C | |
 
-**Réchauffage, deux chiffres à afficher ensemble** : 75 °C (guide p.180) et 63 °C (arrêté, annexe IV point 3, restauration collective).
-
-**Volaille en morceau entier, canard, magret** ✖ : aucun barème dans le guide ni dans l'arrêté. Rien n'est affiché comme règle. Exemples « à titre indicatif » des fiches de fabrication (blanquette de volaille : 80 °C pendant 1 h 20, sans précision sur la température à cœur). À demander à la DDPP / DGAL / ANSES (`claude/questions-en-attente-autorites.md`).
-
-**Pas de barème officiel** ✖ : aucun texte lu ne fixe la température pour la volaille entière. Le chef choisit et justifie dans le PMS.
+**Volaille entière, canard, magret** ✖ : aucun barème dans le guide ni dans les textes. Le 80 °C utilisé en cuisine est un choix de l'établissement, pas une norme.
 
 ## 7. Réglementation et organisation
 
 ### 14 allergènes ✔
-**En bref** : céréales contenant du gluten, crustacés, œufs, poissons, arachides, soja, lait, fruits à coque, céleri, moutarde, sésame, sulfites (plus de 10 mg/kg ou 10 mg/L), lupin, mollusques. Information obligatoire pour les denrées non préemballées. Le danger allergènes se traite par les bonnes pratiques d'hygiène, pas par un CCP (avis CNA n° 66).
-**Texte** : règlement (UE) 1169/2011 (25/10/2011), annexe II ; guide p.177.
-**Lien** : registre (annexe II à confirmer dans le texte complet).
-**Certitude** : ✔ guide lu ; règlement ◐. 20/10/2026.
+**Nature** : norme
+**En bref** : gluten (blé, seigle, orge, avoine…), crustacés, œufs, poissons, arachides, soja, lait, fruits à coque, céleri, moutarde, sésame, sulfites (plus de 10 mg/kg ou 10 mg/L), lupin, mollusques. Pour les plats non emballés (restaurant), l'information du client est obligatoire, par écrit. Le risque allergène se gère par les bonnes pratiques (nettoyage, séparation), pas par un point critique HACCP.
+**Texte** : règlement (UE) 1169/2011, article 44 et annexe II ; décret n° 2015-447 ; guide p. 177 ; avis CNA n° 66.
+**Certitude** : ✔ guide lu le 20/10/2026 ; annexe II du règlement : liste conforme au guide.
 
 ### DLC et DDM ✔
-**En bref** : Santé.fr (information du ministère de l'Agriculture et de l'Alimentation) : DLC, « À consommer jusqu'au... » ; denrées « impérativement retirées de la vente une fois la date dépassée ». DDM, « À consommer de préférence avant... » ; « Une fois la date passée, la denrée ne présente pas de danger », mais elle peut « avoir perdu tout ou partie de ses qualités : goût, texture... ». Texte de l'article 24 du règlement 1169/2011 : non relu.
-**Texte** : Santé.fr, « Comment conserver les aliments ? DLC, DDM, quelle différence ? » (publié 09/10/2024, modifié 06/07/2026) ; règlement (UE) 1169/2011.
+**Nature** : norme
+**En bref** : DLC = « À consommer jusqu'au… » : après la date, le produit ne se sert plus (danger). DDM = « À consommer de préférence avant… » : après la date, pas de danger, mais le goût ou la texture peuvent baisser. Servir un produit à DLC dépassée vaut une note D à l'inspection.
+**Texte** : règlement (UE) 1169/2011, article 24 ; information Santé.fr (ministère de l'Agriculture, 2024) ; vade-mecum général V7, items C3 et C401.
 **Lien** : https://www.sante.fr/node/8999023
-**Certitude** : ✔ page Santé.fr lue le 31/10/2026 ; règlement non relu.
+**Certitude** : ✔ Santé.fr lu le 31/10/2026 ; article 24 non relu mot à mot.
 
 ### HACCP, CCP, PMS ✔
-**En bref** : l'exploitant « met en place, applique et maintient une ou plusieurs procédures permanentes fondées sur les principes HACCP ». 7 principes : (a) identifier les dangers, (b) points critiques, (c) limites critiques, (d) surveillance, (e) actions correctives, (f) vérification périodique, (g) documents et dossiers adaptés à la nature et la taille de l'entreprise. Procédure revue à chaque changement de produit, procédé ou étape. Durée de conservation des dossiers : « période appropriée » (non chiffrée). PMS = nom français du dossier de l'établissement (bonnes pratiques + HACCP + traçabilité) ; il prouve l'application à l'autorité.
-**Texte** : règlement (CE) 852/2004, article 5 §1, §2, §4 ; art. 4 §6 et 7 (guides facultatifs).
-**Lien** : https://eur-lex.europa.eu/eli/reg/2004/852/2021-03-24 (à vérifier).
-**Citation courte** : « des procédures permanentes fondées sur les principes HACCP ».
-**Certitude** : ✔ texte consolidé du 24/03/2021 lu le 20/10/2026 ; version plus récente non vérifiée.
+**Nature** : norme
+**En bref** : chaque restaurant doit avoir un système fondé sur les 7 principes HACCP : repérer les dangers, trouver les points critiques (CCP), fixer leurs limites, les surveiller, corriger quand ça dérape, vérifier que ça marche, et garder les preuves. Le PMS (plan de maîtrise sanitaire) est le dossier qui rassemble tout cela pour l'inspecteur. Le texte ne fixe pas de durée de conservation des preuves (« période appropriée »).
+**Texte** : règlement (CE) 852/2004, article 5.
+**Lien** : https://eur-lex.europa.eu/eli/reg/2004/852/2021-03-24
+**Certitude** : ✔ lu le 20/10/2026.
 
-### DDPP, RappelConso ✔
-**En bref** : DDPP (INC-Conso) : « Placées sous l'autorité des préfets de département, les directions départementales de la protection des populations assument les missions de protection du consommateur dans le cadre du Code de la consommation ». RappelConso (service-public.gouv.fr) : « Mis en place par la Direction générale de la concurrence, de la consommation et de la répression des fraudes (DGCCRF) » ; « RappelConso est un site public, accessible à tous, qui recense les rappels de produits » ; « vous pouvez rechercher un produit par catégorie ».
-**Texte** : INC-Conso, fiche DDPP (28/04/2023) ; service-public.gouv.fr, « Alertes produits ».
-**Lien** : https://www.inc-conso.fr/content/direction-departementale-de-la-protection-des-populations ; https://www.service-public.gouv.fr/particuliers/actualites/A18561?lang=fr ; site : https://rappel.conso.gouv.fr/
-**Certitude** : ✔ DDPP et RappelConso lus le 31/10/2026.
+### DDPP et RappelConso ✔
+**Nature** : information
+**En bref** : la DDPP (direction départementale de la protection des populations) est le service de l'État qui contrôle l'hygiène des restaurants. RappelConso est le site officiel des rappels de produits : on peut y chercher un produit. Le logiciel le consulte deux fois par semaine.
+**Texte** : INC-Conso, fiche DDPP (2023) ; service-public.gouv.fr, « Alertes produits ».
+**Lien** : https://rappel.conso.gouv.fr/
+**Certitude** : ✔ lu le 31/10/2026.
 
 ## 8. Critères microbiologiques (règlement (CE) n° 2073/2005) : version en vigueur au 01/07/2026
 
 ### Critère de sécurité et critère d'hygiène du procédé ✔
-**En bref** : un critère de sécurité s'applique au produit mis sur le marché. S'il est dépassé, le produit est retiré ou rappelé. Un critère d'hygiène du procédé mesure le bon fonctionnement de la production. S'il est dépassé, il faut corriger le procédé. Tous les exploitants, y compris au détail, doivent respecter ces critères dans leur HACCP et leurs bonnes pratiques.
-**Texte** : règlement (CE) n° 2073/2005, articles 2, 3 et 7, version consolidée du 01/07/2026.
+**Nature** : norme
+**En bref** : ce règlement fixe des seuils de microbes pour les analyses de laboratoire. Un « critère de sécurité » concerne le produit vendu : s'il est dépassé, on retire ou on rappelle le produit. Un « critère d'hygiène » concerne la fabrication : s'il est dépassé, on corrige sa façon de travailler. Il ne fixe aucune fréquence d'analyses pour un restaurant : c'est l'établissement qui décide avec son laboratoire.
+**Texte** : règlement (CE) n° 2073/2005, articles 2, 3 et 7.
 **Lien** : https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01
-**Citation courte** : « les exploitants du secteur alimentaire veillent à ce que les denrées alimentaires respectent les critères microbiologiques pertinents » (art. 3 §1).
 **Certitude** : ✔ lu le 20/10/2026.
 
-### Listeria monocytogenes : seuils (annexe I, 1.1 à 1.3) ✔
-**En bref** : pour les denrées prêtes à consommer, le seuil est de 100 ufc/g pendant la durée de conservation. Si l'exploitant n'a pas pu démontrer que ce seuil ne sera pas dépassé, il faut « non détecté dans 25 g » pendant toute la durée de conservation. Pour les nourrissons et les fins médicales spéciales : non détecté dans 25 g (n = 10). Sont classés d'office « ne permet pas le développement » les produits à pH ≤ 4,4 ou aw ≤ 0,92, à pH ≤ 5,0 et aw ≤ 0,94, ou à durée de conservation inférieure à 5 jours.
-**Texte** : règlement 2073/2005, annexe I chapitre 1, lignes 1.1 à 1.3, notes (*1), (*2), (6), modifié par le règlement (UE) 2024/2895 (M11).
+### Listeria monocytogenes : seuils ✔
+**Nature** : norme
+**En bref** : pour un produit prêt à manger, le seuil est de 100 microbes par gramme pendant toute la durée de conservation, à condition de pouvoir le prouver. Sinon, la Listeria ne doit pas être détectée dans 25 g. Depuis le 1er juillet 2026, ce contrôle vaut jusqu'à la date limite. Un produit gardé moins de 5 jours est classé « ne permet pas le développement de Listeria ».
+**Texte** : règlement 2073/2005, annexe I, lignes 1.1 à 1.3, modifié par le règlement (UE) 2024/2895 (applicable au 01/07/2026).
 **Lien** : https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01
-**Citation courte** : « 100 ufc/g » ; « Non détecté dans 25 g ».
-**Certitude** : ✔ lu sur captures le 20/10/2026. Règles d'interprétation non lues.
-**Lien avec le logiciel** : la durée de vie de 3 jours des plats préparés à l'avance (arrêté du 21/12/2009) reste une règle distincte ; ce règlement fixe seulement les seuils d'analyse.
+**Certitude** : ✔ lu le 20/10/2026 ; date d'application confirmée le 25/11/2026.
 
-### Salmonella : absence dans 25 g, viande hachée, œufs crus (annexe I, 1.4 à 1.20) ✔
-**En bref** : « non détecté dans 25 g » pour la viande hachée et préparations destinées à être consommées crues, la volaille hachée destinée à être cuite, les ovoproduits, les préparations prêtes à consommer contenant des œufs crus, les crustacés et mollusques cuits, les fruits et légumes prédécoupés, les jus non pasteurisés. Pour la viande hachée et les préparations d'espèces autres que la volaille destinées à être cuites : non détecté dans 10 g.
-**Texte** : règlement 2073/2005, annexe I chapitre 1, lignes 1.4 à 1.20.
-**Lien** : https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01
-**Citation courte** : « Non détecté dans 25 g » (1.15 : « 25 g ou ml »).
-**Certitude** : ✔ lu sur captures le 20/10/2026.
+### Salmonella : absence dans 25 g ✔
+**Nature** : norme
+**En bref** : aucune salmonelle ne doit être trouvée dans 25 g pour : la viande hachée à manger crue, la volaille hachée, les ovoproduits, les préparations prêtes à manger avec des œufs crus, les crustacés et coquillages cuits, les fruits et légumes prédécoupés, les jus non pasteurisés. Dans 10 g pour la viande hachée (hors volaille) destinée à être cuite.
+**Texte** : règlement 2073/2005, annexe I, lignes 1.4 à 1.20.
+**Certitude** : ✔ lu le 20/10/2026.
 
 ### Histamine (poisson) ✔
-**En bref** : pour les poissons des familles à forte teneur en histidine (Scombridae, Clupeidae, Engraulidae, Coryphaenidae, Pomatomidae, Scombresocidae), 100 mg/kg (m) et 200 mg/kg (M), sur 9 échantillons dont 2 au plus entre m et M. Maturation enzymatique en saumure : 200 et 400 mg/kg. Sauce de poisson fermentée : 400 mg/kg.
-**Texte** : règlement 2073/2005, annexe I, lignes 1.26, 1.27, 1.27 bis, note (15).
-**Lien** : https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01
-**Certitude** : ✔ lu sur captures le 20/10/2026.
+**Nature** : norme
+**En bref** : thon, maquereau, sardine, anchois et poissons proches peuvent produire de l'histamine s'ils sont mal conservés au froid. Seuils : 100 mg/kg (m) et 200 mg/kg (M) sur 9 échantillons. La cuisson ne détruit pas l'histamine : seul le froid la prévient.
+**Texte** : règlement 2073/2005, annexe I, lignes 1.26 et 1.27.
+**Certitude** : ✔ lu le 20/10/2026.
 
-### Viande hachée et préparations de viande : critères d'hygiène du procédé (annexe I, 2.1.6 et 2.1.8) ✔
-**En bref** : en fin de fabrication, la viande hachée est contrôlée sur 5 échantillons (2 au plus entre m et M) : E. coli 50 ufc/g (m) et 500 ufc/g (M) ; colonies aérobies 5×10⁵ (m) et 5×10⁶ (M) ufc/g. Les préparations de viande : E. coli 500 (m) et 5 000 (M) ufc/g ou cm². Le critère « colonies aérobies » ne s'applique pas aux viandes hachées produites au détail avec une durée de conservation inférieure à 24 heures. Un dépassement oblige à améliorer l'hygiène de production et le choix des matières premières. Ce n'est pas un critère de sécurité : il ne déclenche pas à lui seul un rappel.
-**Texte** : règlement 2073/2005, annexe I chapitre 2, lignes 2.1.6 et 2.1.8, note (7), version du 01/07/2026.
-**Lien** : https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01
-**Citation courte** : « ne s'applique pas aux viandes hachées produites au détail lorsque la durée de conservation est inférieure à 24 heures ».
-**Certitude** : ✔ lu sur captures le 20/10/2026.
+### Viande hachée et préparations de viande : critères d'hygiène ✔
+**Nature** : norme
+**En bref** : seuils de fabrication pour la viande hachée (E. coli 50 à 500 par gramme) et les préparations de viande (500 à 5 000). Un dépassement oblige à améliorer l'hygiène et le choix des matières premières, sans rappel automatique. Le critère « colonies aérobies » ne s'applique pas à une viande hachée faite sur place et gardée moins de 24 heures.
+**Texte** : règlement 2073/2005, annexe I, lignes 2.1.6 et 2.1.8.
+**Certitude** : ✔ lu le 20/10/2026.
 
-### Autres critères d'hygiène utiles en cuisine (annexe I chapitre 2) ✔
-**En bref** : ovoproduits : Enterobacteriaceae 10 (m) et 100 (M) ufc/g ou ml. Crustacés et mollusques cuits décortiqués : E. coli 1 (m) et 10 (M) NPP/g, staphylocoques à coagulase positive 100 et 1 000 ufc/g. Fruits et légumes prédécoupés et jus non pasteurisés : E. coli 100 et 1 000 ufc/g. Fromages au lait cru : staphylocoques 10⁴ et 10⁵ ufc/g ; au-delà de 10⁵ ufc/g, recherche des entérotoxines staphylococciques.
-**Texte** : règlement 2073/2005, annexe I chapitre 2, lignes 2.2.3, 2.3.1, 2.4.1, 2.5.1, 2.5.2.
-**Lien** : https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01
-**Certitude** : ✔ lu sur captures le 20/10/2026.
+### Autres critères d'hygiène utiles en cuisine ✔
+**Nature** : norme
+**En bref** : ovoproduits (entérobactéries 10 à 100 par g), crustacés et coquillages cuits décortiqués (E. coli 1 à 10, staphylocoques 100 à 1 000), fruits et légumes prédécoupés (E. coli 100 à 1 000), fromages au lait cru (staphylocoques 10 000 à 100 000).
+**Texte** : règlement 2073/2005, annexe I, chapitre 2.
+**Certitude** : ✔ lu le 20/10/2026.
 
-### Étude de durée de conservation (annexe II) ◐
-**En bref** : l'exploitant qui fabrique des denrées prêtes à consommer permettant le développement de Listeria peut devoir démontrer par des études (pH, aw, sel, conservateurs, emballage, essais) que le seuil sera respecté pendant toute la durée de conservation. Texte de l'annexe II dans la version actuelle non relu.
-**Texte** : règlement 2073/2005, article 3 §2 ✔ ; annexe II (lu en 2005/2006, non relu en 2026).
-**Lien** : https://eur-lex.europa.eu/eli/reg/2005/2073/2026-07-01
+### Étude de durée de conservation ◐
+**Nature** : norme
+**En bref** : quand un produit prêt à manger permet à la Listeria de se développer, l'exploitant peut devoir prouver par des études (acidité, sel, emballage, essais) que le seuil sera respecté jusqu'à la date limite. Pour un restaurant, cela concerne surtout les plats gardés plusieurs jours.
+**Texte** : règlement 2073/2005, article 3 §2 et annexe II (annexe non relue en 2026).
+**Certitude** : ◐ article lu le 20/10/2026 ; annexe II à relire.
 
 ## 8 bis. Hygiène générale : règlement (CE) n° 852/2004, annexe II (consolidé 24/03/2021)
-Lien : https://eur-lex.europa.eu/eli/reg/2004/852/2021-03-24 (à vérifier). Notes de lecture : `lecture-reglement-852-2004-20-10.md`. Ce texte donne des obligations de résultat, sans chiffres de température.
+Ce règlement fixe des obligations de résultat, sans chiffres de température.
 
 ### Hygiène du personnel ✔
-**En bref** : niveau élevé de propreté, tenue propre et adaptée. Aucune personne malade ou porteuse d'une maladie transmissible par les aliments, avec plaies infectées, lésions cutanées ou diarrhée, ne manipule si risque de contamination ; le salarié prévient immédiatement l'exploitant.
-**Texte** : 852/2004 annexe II chapitre VIII ; chapitre I points 4 (lavabos eau chaude et froide, séchage hygiénique) et 9 (vestiaires).
-**Certitude** : ✔ 20/10/2026. Pas de liste de maladies ni de délai d'éviction dans ce texte.
+**Nature** : norme
+**En bref** : tenue propre et adaptée, grande propreté personnelle. Une personne malade (diarrhée, maladie transmissible par les aliments) ou avec une plaie infectée ne touche pas les aliments s'il y a un risque, et prévient tout de suite son responsable. Lavabos avec eau chaude et froide et séchage hygiénique ; vestiaires adaptés.
+**Texte** : règlement 852/2004, annexe II, chapitre VIII ; chapitre I points 4 et 9.
+**Certitude** : ✔ 20/10/2026. Le texte ne donne ni liste de maladies ni délai d'arrêt.
 
 ### Contamination croisée, déchets, eau, nuisibles ✔
-**En bref** : denrées protégées contre toute contamination à toutes les étapes (ch. IX pt 3) ; matières premières et produits finis séparés (pt 5) ; produits de nettoyage jamais dans les zones de manipulation (ch. I pt 10) ; déchets évacués vite, conteneurs fermés (ch. VI) ; eau potable, circuit non potable séparé et signalé (ch. VII) ; lutte contre les nuisibles, animaux domestiques exclus (ch. IX pt 4) ; équipements allergènes nettoyés avant autre usage (ch. IX pt 9).
+**Nature** : norme
+**En bref** : protéger les aliments à chaque étape ; séparer les produits crus et les produits prêts à manger ; jamais de produit de nettoyage là où on manipule les aliments ; déchets évacués vite dans des poubelles fermées ; eau potable ; lutte contre les nuisibles et pas d'animaux en cuisine ; nettoyer le matériel entre deux préparations quand il y a un risque d'allergène.
+**Texte** : règlement 852/2004, annexe II, chapitres I, VI, VII et IX.
 **Certitude** : ✔ 20/10/2026.
 
-### Chaîne du froid, refroidissement, décongélation (principes) ✔
-**En bref** : ne pas laisser les denrées à risque à une température dangereuse ; écarts « de courte durée » admis pour la manutention sans risque ; refroidir « dès que possible » après le traitement thermique ; décongeler en limitant la multiplication des pathogènes et évacuer le liquide. Les chiffres (63 °C, 63 à 10 °C en moins de 2 h, 0 à +4 °C) viennent de l'arrêté du 21/12/2009 (section 4), pas de ce règlement.
-**Texte** : 852/2004 annexe II ch. IX pt 5 à 7.
+### Chaîne du froid : les principes ✔
+**Nature** : norme
+**En bref** : ne pas laisser un aliment fragile à une température dangereuse. De courtes sorties du froid sont admises pour la manutention si elles sont sans risque. Refroidir « dès que possible » après la cuisson. Décongeler en limitant la multiplication des microbes et évacuer le jus. Les chiffres (63 °C, +4 °C…) viennent de l'arrêté de 2009, pas de ce règlement.
+**Texte** : règlement 852/2004, annexe II, chapitre IX points 5 à 7.
 **Certitude** : ✔ 20/10/2026.
 
-### Culture de la sécurité alimentaire ✔ (nouveau)
-**En bref** : l'exploitant met en place et prouve une culture de la sécurité alimentaire : engagement de la direction et de tous, communication ouverte (y compris des écarts), ressources suffisantes, formation et supervision, documentation à jour, amélioration continue, adaptée à la taille de l'entreprise.
-**Texte** : 852/2004 annexe II ch. XI bis (ajouté par modification M3 ; date d'application exacte non vérifiée).
+### Culture de la sécurité alimentaire ✔
+**Nature** : norme
+**En bref** : la direction doit montrer que l'hygiène est l'affaire de tous : chacun connaît son rôle, peut signaler un problème, est formé et encadré, et l'équipe s'améliore. Cela s'adapte à la taille du restaurant.
+**Texte** : règlement 852/2004, annexe II, chapitre XI bis.
 **Certitude** : ✔ texte lu ; date d'application ◐.
 
 ### Formation ✔
-**En bref** : manutentionnaires encadrés et formés en hygiène adaptée à leur poste ; responsables de la procédure HACCP formés aux principes HACCP ; respect du droit national (France : arrêté du 5/10/2011, à lire).
-**Texte** : 852/2004 annexe II ch. XII.
-**Certitude** : ✔ 20/10/2026.
+**Nature** : norme
+**En bref** : toute personne qui manipule des aliments est encadrée et formée à l'hygiène selon son poste. En restauration commerciale (codes NAF 56.10A, B, C), au moins une personne de l'effectif doit avoir suivi la formation spécifique de 14 heures (dont au moins deux sessions de 2 h en présentiel, organisme autorisé). Aucune condition de fonction ni de présence permanente. L'effectif compte le gérant, les conjoints collaborateurs, les stagiaires, les alternants et les intérimaires. L'obligation vaut site par site (un SIRET = une personne formée). Sur place : l'attestation et la preuve que la personne fait toujours partie de l'effectif. Dispenses : 3 ans comme gestionnaire ou exploitant, ou diplôme de l'arrêté du 18/11/2024 obtenu après le 01/01/2006. Aucun renouvellement imposé. La restauration collective, les traiteurs et les hôtels ne sont pas concernés par cette formation de 14 h.
+La formation « HACCP » (règlement 852/2004) est autre chose : une personne responsable du PMS, pas forcément présente, sans durée ni programme imposés ; elle se justifie par un cursus, un diplôme ou des campagnes d'information professionnelles. La formation de 14 h ne la remplace pas.
+**Texte** : règlement 852/2004, annexe II, chapitre XII §2 ; code rural, art. L. 233-4 et arrêté du 5/10/2011 ; instruction DGAL/SDSSA/2026-185 du 3 avril 2026 (abroge 2017-861) ; vade-mecum « Remise directe » V3, ligne F2L02 (aucune personne formée = note D).
+**Certitude** : ✔ règlement, instruction 2026-185 (lue le 25/11/2026) et vade-mecum lus ; arrêté du 5/10/2011 ◐ non relu.
 
-### Don alimentaire (redistribution) ✔
-**En bref** : DLC : redistribuer avant la date ; DDM : jusqu'à la date et après ; contrôle régulier, emballage intègre, température, traçabilité pour produits d'origine animale.
-**Texte** : 852/2004 annexe II ch. V bis.
+### Don alimentaire ✔
+**Nature** : norme
+**En bref** : on peut donner un produit à DLC avant la date, et un produit à DDM même après. Il faut vérifier l'emballage, la température et garder la traçabilité pour les produits d'origine animale.
+**Texte** : règlement 852/2004, annexe II, chapitre V bis.
 **Certitude** : ✔ 20/10/2026.
 
 ### Locaux et équipements ✔
-**En bref** : sols, murs, portes, surfaces : matériaux lisses, lavables, non absorbants, non toxiques, résistant à la corrosion, sauf preuve d'équivalence à l'autorité ; équipements nettoyés et désinfectés à fréquence suffisante ; lavabos mains avec eau chaude et froide ; ventilation sans flux de la zone contaminée vers la zone propre.
-**Texte** : 852/2004 annexe II ch. I, II, V.
+**Nature** : norme
+**En bref** : sols, murs, portes et plans de travail lisses, lavables et faciles à désinfecter ; matériel nettoyé et désinfecté assez souvent ; lave-mains avec eau chaude et froide ; l'air ne doit pas aller de la zone sale vers la zone propre.
+**Texte** : règlement 852/2004, annexe II, chapitres I, II et V.
 **Certitude** : ✔ 20/10/2026.
 
 ## 8 ter. Contrôle officiel 1 : le déroulement
-Lien commun : https://agriculture.gouv.fr/les-vade-mecums-dinspection (page ouverte le 26/10/2026 ; PDF du général : https://agriculture.gouv.fr/telecharger/129252). Statut : brouillon relu par Loïc le 26/10.
+Source commune : vade-mecums d'inspection de la DGAL (https://agriculture.gouv.fr/les-vade-mecums-dinspection), lus le 26/10/2026.
 
 ### Comment se passe un contrôle d'hygiène ✔
-**En bref** : le contrôle est en général sans prévenir. L'inspecteur se présente, demande un responsable, rappelle les écarts du dernier contrôle et demande ce que vous avez fait depuis. Il demande aussi ce qui a changé (travaux, nouveau matériel, nouveaux plats) et si l'établissement est certifié ou audité. Il visite, regarde vos documents, puis donne ses constats à l'oral avant de rédiger son rapport. Il ne donne pas d'ordres dans le rapport : seulement des constats.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.C.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Nature** : inspection
+**En bref** : le contrôle se fait en général sans prévenir. L'inspecteur demande un responsable, rappelle les écarts du dernier contrôle et demande ce qui a été fait depuis. Il demande ce qui a changé (travaux, matériel, plats). Il visite, lit les documents, donne ses constats à l'oral, puis écrit son rapport.
+**Texte** : vade-mecum général V7 (sept. 2026), chapitre II.C.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Ce que l'inspecteur prépare avant de venir ✔
-**En bref** : il regarde la déclaration de l'activité, les rapports des contrôles précédents et les écarts notés, les résultats d'analyses officielles, l'historique des intoxications (TIAC) et votre PMS. Il peut préparer une liste de questions. Il peut contrôler dans l'ordre qu'il veut : par produit (de la date limite jusqu'aux matières premières), dans le sens de la production, d'abord sur place puis les documents, ou rubrique par rubrique.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.C.1 et III.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Nature** : inspection
+**En bref** : il relit votre déclaration d'activité, les rapports précédents, les analyses officielles, l'historique des intoxications et votre PMS. Sur place, il peut suivre un produit au hasard, de la date limite jusqu'au fournisseur.
+**Texte** : vade-mecum général V7, chapitres II.C.1 et III.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Le vade-mecum et la grille d'inspection ✔
-**En bref** : le vade-mecum est le guide public que les inspecteurs de l'État suivent ; la grille est la liste des points qu'ils notent. Les six chapitres : A identification de l'établissement, B locaux et équipements (conception, équipements, nuisibles, maintenance, nettoyage), C maîtrise de la production (dangers, points déterminants, réception, températures, emballages, eau, produits finis, étiquetage), D traçabilité et réactivité, E déchets, F personnel (hygiène, formation). Tout le monde peut le télécharger. Pour un restaurant commercial, c'est le vade-mecum « Remise directe » (V3 sept. 2026), qui précise le général.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL) ; vade-mecum sectoriel « Remise directe » V3 sept. 2026 (https://agriculture.gouv.fr/telecharger/129266).
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Nature** : inspection
+**En bref** : le vade-mecum est le guide public des inspecteurs ; la grille est la liste des points notés. Six chapitres : A identification, B locaux et matériel, C maîtrise de la production, D traçabilité et réactivité, E déchets, F personnel. Pour un restaurant, c'est le vade-mecum « Remise directe ». Tout le monde peut le lire.
+**Texte** : vade-mecum général V7 ; vade-mecum « Remise directe » V3 (https://agriculture.gouv.fr/telecharger/129266).
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Réactivité : ce que vous avez fait depuis la dernière visite ✔
-**En bref** : c'est l'item D2 de la grille. L'inspecteur demande la liste des écarts passés et ce qui a été corrigé. Garder une trace datée des actions vaut mieux que d'expliquer de mémoire. C'est aussi le chapitre qui juge la gestion des alertes, des rappels de produits, des réclamations de clients et d'une suspicion d'intoxication.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), item D2 et chapitre II.C.2.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Nature** : inspection
+**En bref** : l'inspecteur demande la liste des écarts passés et ce qui a été corrigé. Une trace écrite et datée vaut mieux qu'une explication de mémoire. Ce chapitre juge aussi la gestion des alertes, des rappels, des plaintes de clients et des intoxications.
+**Texte** : vade-mecum général V7, item D2.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Action corrective et autocontrôle ✔
-**En bref** : action corrective : ce qu'on fait quand quelque chose n'est pas bon (température trop haute, produit abîmé) : mettre le produit de côté, décider de sa destination, éviter que ça recommence. Autocontrôle : tout ce que vous contrôlez vous-même (relevés de température, nettoyage, réception, prélèvements). Ce sont vos enregistrements que l'inspecteur lit en premier ; sans trace écrite, l'action n'existe pas pour lui.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), définitions (autocontrôle : art. R200-1 du code rural).
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Nature** : inspection
+**En bref** : action corrective = ce qu'on fait quand quelque chose ne va pas (mettre le produit de côté, décider de son sort, éviter que ça recommence). Autocontrôle = tout ce que vous vérifiez vous-même (températures, nettoyage, réception). Sans trace écrite, l'action n'existe pas pour l'inspecteur.
+**Texte** : vade-mecum général V7, définitions.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ## 8 quater. Contrôle officiel 2 : les notes
 
 ### Les notes A, B, C, D ✔
-**En bref** : A = conforme. B = écart mineur, aucun risque pour le client. C = écart moyen, risque augmenté de servir un produit dangereux. D = écart majeur, risque élevé. L'inspecteur note chaque ligne et écrit un constat. Le chapitre prend le jugement global de l'inspecteur (pas une moyenne), mais ne peut pas être meilleur que son meilleur point, et un seul D dans un chapitre donne un chapitre D. Pas observé (PO) ou sans objet (SO) existent aussi.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre III.D.1 et III.D.2.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Nature** : inspection
+**En bref** : A = conforme. B = petit écart, sans risque. C = écart moyen, le risque augmente. D = écart grave, risque élevé. Un seul D dans un chapitre suffit pour que tout le chapitre soit noté D.
+**Texte** : vade-mecum général V7, chapitre III.D.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### La note globale de l'établissement ✔
-**En bref** : A : maîtrise satisfaisante. B : acceptable. C : insuffisante, l'inspecteur n'a plus confiance. D : perte de maîtrise, décisions administratives sans délai. Un seul chapitre noté D suffit pour un D global ; pour un A il faut au moins un chapitre A et aucun D. La note ne peut jamais être meilleure que le meilleur chapitre.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre III.D.3.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Nature** : inspection
+**En bref** : A satisfaisant, B acceptable, C insuffisant (l'inspecteur n'a plus confiance), D perte de maîtrise (sanctions sans délai). Un seul chapitre D donne un D global.
+**Texte** : vade-mecum général V7, chapitre III.D.3.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ## 8 quinquies. Contrôle officiel 3 : ce qui pèse le plus
-La note C ou D tient toujours compte de la gravité (analyse de risque). Listes tirées des « lignes directrices de notation » du vade-mecum général.
+Listes tirées des « lignes directrices de notation » du vade-mecum général. La note tient toujours compte de la gravité.
 
-### Notes D : températures, DLC et enregistrements (chapitres C) ✔
-**En bref** : note D (majeur) : DLC dépassée exposée à la vente ou susceptible de l'être ; températures ou actions non surveillées, non enregistrées ou sans action quand elles sont mauvaises ; matières premières interdites reçues ; emballages non alimentaires, sales ou abîmés ; pas d'analyse des dangers ; pas d'eau potable ; aucune mesure après des analyses mauvaises sur des produits finis.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices des items C1 à C7.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+### Notes D : températures, DLC et enregistrements ✔
+**Nature** : inspection
+**En bref** : produit à DLC dépassée en vente ; températures non surveillées, non notées, ou sans action quand elles sont mauvaises ; produits interdits reçus ; emballages sales ou non alimentaires ; pas d'analyse des dangers ; pas d'eau potable.
+**Texte** : vade-mecum général V7, items C1 à C7.
 **Certitude** : ✔ lu le 26/10/2026.
 
-### Notes D : traçabilité et alertes (chapitre D) ✔
-**En bref** : note D (majeur) : pas de traçabilité amont ou aval (d'où vient le produit, où il est allé) ; suspicion d'intoxication (TIAC) non signalée ; alerte non transmise aux autorités, à un fournisseur ou à un client ; aucun retrait, aucune information des clients ni rappel d'une denrée dangereuse. Notes C : alerte ou TIAC signalée trop tard ; réclamations de clients non traitées.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de D1 et D2.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+### Notes D : traçabilité et alertes ✔
+**Nature** : inspection
+**En bref** : impossible de dire d'où vient un produit ou où il est allé ; intoxication non signalée ; alerte non transmise ; produit dangereux ni retiré ni rappelé. Note C : alerte signalée trop tard, plainte de client non traitée.
+**Texte** : vade-mecum général V7, items D1 et D2.
 **Certitude** : ✔ lu le 26/10/2026.
 
-### Notes D : locaux, nuisibles, déchets (chapitres B et E) ✔
-**En bref** : note D (majeur) : locaux totalement inadaptés ; toilettes ouvrant directement sur la zone de manipulation ; denrées non protégées qui circulent en zone non adaptée ou à l'extérieur ; condensation importante au-dessus de denrées nues ; ouvertures sur l'extérieur non protégées et ouvertes pendant le travail ; conteneurs à déchets ou poubelles en zone de production avec risque de contamination croisée ; transport de denrées avec déchets ou produits dangereux sans séparation.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de B1, B2, B3, E1.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+### Notes D : locaux, nuisibles, déchets ✔
+**Nature** : inspection
+**En bref** : locaux inadaptés ; toilettes qui ouvrent directement sur la cuisine ; aliments non protégés dehors ; condensation qui goutte sur des aliments ; fenêtres sans protection ouvertes pendant le travail ; poubelles en zone de préparation avec risque de contamination.
+**Texte** : vade-mecum général V7, items B1, B2, B3 et E1.
 **Certitude** : ✔ lu le 26/10/2026.
 
-### Notes D : personnel et hygiène (chapitre F) ✔
-**En bref** : note D (majeur) : lave-mains absent ou non conforme (pas de savon, d'eau mitigée ou d'essuie-mains) ; lave-mains inaccessible à cause du comportement du personnel ; vestiaires en désordre avec tenues propres et sales mélangées ; personne malade ou blessée non protégée au contact des denrées ; aucune instruction à disposition d'un poste qui gère un point déterminant.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de F1 et F2.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+### Notes D : personnel et hygiène ✔
+**Nature** : inspection
+**En bref** : lave-mains absent ou incomplet (pas de savon, d'eau tiède ou d'essuie-mains) ; lave-mains inaccessible ; tenues propres et sales mélangées au vestiaire ; personne malade ou blessée non protégée ; aucune consigne écrite à un poste qui gère un point critique.
+**Texte** : vade-mecum général V7, items F1 et F2.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Notes C : les écarts les plus courants ✔
-**En bref** : procédures absentes ou non écrites pour les points qui maîtrisent le risque (celles-ci doivent être écrites) ; mauvais résultat de vérification sans action derrière ; sondes et thermomètres jamais vérifiés ; nettoyage pas fait selon la procédure (produit, dosage, temps de contact, rinçage) ; analyse des dangers incomplète ; durée de vie des plats non justifiée ; procédures HACCP non validées.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes directrices de B2, B5, C1 à C6.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+**Nature** : inspection
+**En bref** : procédures manquantes pour les points critiques (elles doivent être écrites) ; mauvais résultat de contrôle sans action ; sondes et thermomètres jamais vérifiés ; nettoyage qui ne suit pas la procédure (produit, dose, temps, rinçage) ; durée de vie des plats non justifiée ; écart de température de +2 à +3 °C (au-delà de +3 °C : D).
+**Texte** : vade-mecum général V7, items B2, B5, C1 à C6 ; vade-mecum « Remise directe » V3, item C401.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ## 8 sexies. Contrôle officiel 4 : retraits et rappels
-Texte : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026. Lien : https://agriculture.gouv.fr/telecharger/138248. Seuls les chapitres A et D (item D2) sont notés ; résultat : conforme ou non conforme. Le contrôle peut avoir lieu à tout moment, sans prévenir.
+Texte : vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026 (https://agriculture.gouv.fr/telecharger/138248), lu le 26/10/2026.
 
 ### Retrait et rappel : la différence ✔
-**En bref** : retrait : on empêche de vendre le produit (il sort du rayon ou de la carte). Rappel : on prévient les clients qui l'ont déjà et on leur dit quoi faire (le rapporter, le jeter). Un restaurant fait surtout des retraits ; le rappel concerne ce que le client a emporté.
-**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, définitions.
-**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Nature** : inspection
+**En bref** : retrait = on arrête de vendre le produit (il sort de la carte). Rappel = on prévient les clients qui l'ont déjà et on leur dit quoi faire. Un restaurant fait surtout des retraits.
+**Texte** : vade-mecum retraits/rappels V2, définitions.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Retirer un produit rappelé : la demi-journée ✔
-**En bref** : dès que vous recevez l'alerte (message du fournisseur ou communiqué de presse), le produit doit être retiré. Tolérance : jusqu'à une demi-journée ouvrée, ou moins si votre PMS prévoit moins. Au-delà, le produit encore présent est noté D ; entre le délai du PMS et la demi-journée, C. Retrait fait et noté : A ; retrait fait mais non documenté : B.
-**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D201.
-**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Nature** : inspection
+**En bref** : dès que l'alerte arrive (fournisseur ou communiqué), le produit est retiré, au plus tard dans la demi-journée ouvrée (ou plus vite si votre PMS le prévoit). Produit encore là après ce délai : D. Retrait fait et noté : A ; fait mais pas noté : B.
+**Texte** : vade-mecum retraits/rappels V2, ligne D201.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Informer les clients d'un rappel ✔
-**En bref** : afficher un message lisible, près de la carte ou en caisse (sur le site si vous vendez en ligne). Il identifie le produit (lot, DLC), dit le danger et la conduite à tenir ; pas de numéro payant. Durée minimale : 15 jours d'ouverture pour les produits frais, avec DLC ou froid positif ; 2 mois pour surgelés, conserves, secs. Une carte de fidélité ou un message ne remplace pas l'affichage. Absence plus d'une demi-journée alors que le produit a été vendu : D ; affichage peu visible, retiré trop tôt ou erroné : C.
-**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D202 ; modèles d'information dans le Guide d'aide à la gestion des alertes (annexe VIII).
-**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Nature** : inspection
+**En bref** : afficher un message lisible près de la carte ou de la caisse : produit, lot, date, danger, quoi faire. Au moins 15 jours d'ouverture pour un produit frais, 2 mois pour un surgelé, une conserve ou un produit sec. Pas d'affichage alors que le produit a été vendu : D.
+**Texte** : vade-mecum retraits/rappels V2, ligne D202.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Que faire d'un produit retiré ✔
-**En bref** : le mettre à part, avec une étiquette claire (« non conforme, non destiné à la consommation humaine » ou « exclusivement pour élimination »). « Ne pas toucher » ou « retour fournisseur » seuls ne suffisent pas (C) ; produit non identifié : D. Interdits : le donner, le vendre, le transformer dans un autre plat, le donner aux animaux. Pas de traitement assainissant au commerce de détail.
-**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D203.
-**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Nature** : inspection
+**En bref** : le mettre à part avec une étiquette claire : « non conforme, non destiné à la consommation humaine » ou « exclusivement pour élimination ». « Ne pas toucher » ou « retour fournisseur » ne suffisent pas. Interdit de le donner, le vendre, le cuisiner ou le donner aux animaux.
+**Texte** : vade-mecum retraits/rappels V2, ligne D203.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ### Prévenir ceux à qui vous avez cédé le produit ✔
-**En bref** : si vous avez donné ou revendu un produit rappelé (association, autre point de vente, vente en ligne), il faut leur transmettre l'alerte avec un message clair (produit, lot, quoi faire). Message clair : A ; message flou : C ; non transmis : D. Pour un envoi à l'étranger : « recipient list » à fournir spontanément. Si vous ne cédez jamais de produits : sans objet.
-**Texte** : Vade-mecum « Contrôle de l'effectivité des retraits/rappels en remise directe » V2 sept. 2026, ligne D204.
-**Lien** : https://agriculture.gouv.fr/telecharger/138248
+**Nature** : inspection
+**En bref** : si vous avez donné ou revendu le produit (association, autre point de vente), transmettez-leur l'alerte avec un message clair. Pas transmis : D. Si vous ne cédez jamais de produits : sans objet.
+**Texte** : vade-mecum retraits/rappels V2, ligne D204.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ## 8 septies. Contrôle officiel 5 : petits restaurants et produits d'entretien
 
 ### Petits restaurants : la « flexibilité » ✔
-**En bref** : avec 5 personnes ou moins au contact des denrées, vous pouvez noter seulement les écarts et ce que vous avez fait pour les corriger (procédures orales acceptées) pour les bonnes pratiques d'hygiène. Pas d'analyse des dangers pour : vente de préemballé, stockage ambiant, congélation et décongélation de denrées conditionnées, stockage de préemballé au froid. Mais cuissons, refroidissements, maintien au chaud et préparations à risque restent à documenter complètement, sauf si vous suivez un guide de bonnes pratiques évalué. Si l'inspecteur constate des manquements, cette souplesse peut être suspendue.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), chapitre II.B.3 (cite l'instruction DGAL/SDSSA/2018-924 du 7/01/2019).
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
-**Certitude** : ✔ pour le vade-mecum ; ◐ l'instruction elle-même n'a pas été lue (à relire).
+**Nature** : inspection
+**En bref** : avec 5 personnes ou moins au contact des aliments, on peut noter seulement les écarts et leurs corrections pour les bonnes pratiques d'hygiène, et les procédures peuvent être orales. Mais cuissons, refroidissements, maintien au chaud et préparations à risque restent à documenter, sauf si vous suivez un guide de bonnes pratiques validé. En cas de manquements, cette souplesse peut être retirée.
+**Texte** : vade-mecum général V7, chapitre II.B.3 (cite l'instruction DGAL/SDSSA/2018-924).
+**Certitude** : ✔ vade-mecum lu ; ◐ instruction elle-même non lue.
 
-### Produits d'entretien, de maintenance et contre les nuisibles ✔
-**En bref** : dans leur emballage d'origine ou un récipient fermé et étiqueté en permanence ; rangés dans un local ou un meuble à part, loin des denrées (un petit stock d'appoint dans un meuble approprié est toléré près de la cuisine) ; fiche technique conservée ; utilisés selon le mode d'emploi du fabricant. Produits contre les nuisibles : produit autorisé, numéro d'autorisation sur l'étiquette. Produits de nettoyage : nom, usage et mode d'emploi (dosage, rinçage) sur l'étiquette.
-**Texte** : Vade-mecum général « VM SSA Général » V7 sept. 2026 (ministère de l'Agriculture, DGAL), lignes B3L02, B4L02, B5L02.
-**Lien** : https://agriculture.gouv.fr/les-vade-mecums-dinspection
+### Produits d'entretien et contre les nuisibles ✔
+**Nature** : inspection
+**En bref** : dans leur emballage d'origine ou un récipient fermé et étiqueté ; rangés à part, loin des aliments ; fiche technique gardée ; utilisés selon le mode d'emploi (dose, temps, rinçage). Produits contre les nuisibles : autorisés, avec leur numéro d'autorisation.
+**Texte** : vade-mecum général V7, lignes B3L02, B4L02, B5L02.
 **Certitude** : ✔ lu le 26/10/2026.
 
 ## 9. Non publié
-- Règlement (UE) 2024/2895 lui-même : non lu ; ses effets sur l'annexe I sont lus dans la consolidée du 01/07/2026. Date d'application : non confirmée.
-- Règlement 2073/2005 version 2026 : règles d'interprétation, chapitre 3 et annexe II non lus.
-- Règlement (CE) 589/2008 : non lu.
-- Avis JO du 15/06/2015 : lien à retrouver. Avis spécifique au guide Restaurateur 2015 : non vu.
-- Équivalences temps/température (63 °C ≈ 30 min, etc.) : source privée.
-- Huiles de friture, botulisme : aucun chiffre vérifié.
-- Volaille entière, canard, magret. Seuil 80 °C.
+- Volaille entière, canard, magret : aucun barème officiel ; le 80 °C est un choix de cuisine. Question posée aux autorités (en attente).
+- Règlement 2073/2005 : règles d'interprétation, chapitre 3 et annexe II non relus.
+- Date de l'avis au Journal officiel du guide Restaurateur : à retrouver.
+- Équivalences temps/température trouvées sur des sites privés : non reprises.
+- Fiches retirées le 25/11 (hors restauration commerciale) : gibier sauvage en petites quantités (commerce de détail fourni par un chasseur) ; historique des changements de l'annexe IV entre 2009 et 2020.
 
 ## 10. Questions pour Loïc
-1. Restauration collective ou commerciale ?
-2. Relecture par ton consultant HACCP avant intégration ?
-3. Lexique réservé aux employés ou version simplifiée sur le site ?
-4. Le 80 °C vient-il de la fiche « blanquette de volaille » ?
-5. Peux-tu ouvrir les liens Légifrance du registre et me dire s'ils marchent ?
+1. Relecture par un consultant HACCP avant de dire « vérifié » aux clients ?
+2. Lexique réservé aux clients connectés, ou aussi public sur le site ?

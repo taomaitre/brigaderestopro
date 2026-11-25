@@ -5,7 +5,12 @@ import fs from 'fs';
 const app = fs.readFileSync(new URL('../src/App.jsx', import.meta.url), 'utf8');
 const reel = fs.readFileSync(new URL('../src/ConnexionReelle.jsx', import.meta.url), 'utf8');
 const service = fs.readFileSync(new URL('../src/nettoyageFinService.js', import.meta.url), 'utf8');
-const tout = app + '\n' + reel + '\n' + service;
+const lexiqueUi = fs.readFileSync(new URL('../src/LexiqueReglementaire.jsx', import.meta.url), 'utf8');
+const lexiqueMd = fs.readFileSync(new URL('../docs/lexique-haccp.md', import.meta.url), 'utf8');
+const lexiqueJs = fs.readFileSync(new URL('../src/lexiqueDonnees.js', import.meta.url), 'utf8');
+const controleFin = fs.readFileSync(new URL('../src/controleFinService.js', import.meta.url), 'utf8');
+const grille = fs.readFileSync(new URL('../src/grilleInspection.js', import.meta.url), 'utf8');
+const tout = app + '\n' + reel + '\n' + service + '\n' + lexiqueUi + '\n' + lexiqueMd + '\n' + lexiqueJs + '\n' + controleFin + '\n' + grille;
 // [libellé, motif, doit exister (true) ou être absent (false), fichier(s) : 'app' | 'reel' | 'tout']
 const R = [
   // Accueil, navigation, libellés (decision-accueil-12-tuiles-24-10, liste-modifications-a-faire-24-10)
@@ -28,7 +33,14 @@ const R = [
   ["Étiquettes : « Réimprimer la dernière étiquette faite »", /Réimprimer la dernière étiquette faite/, true],
   ["Étiquettes : « Quantité utilisée »", /Quantité utilisée/, true],
   ["Étiquettes : plus de note « Aperçu des étiquettes qui seront imprimées »", /Aperçu des étiquettes qui seront imprimées/, false],
-  ["Étiquettes : DLC après décongélation = jour de sortie inclus (3 jours par défaut)", /decongelJours \|\| 3\) - 1/, true],
+  // Décision de Loïc du 25/11 : plus de « 3 jours par défaut » (aucun texte). Jour de sortie toujours inclus ; sans durée = étiquette sans DLC + alerte.
+  ["Étiquettes : DLC après décongélation = jour de sortie inclus", /addDays\(l\.decongelDate, \(l\.decongelJours\) - 1\)/, true],
+  ["Étiquettes : plus de durée de décongélation par défaut (3 jours)", /decongelJours \|\| 3|Vide = 3 jours/, false],
+  ["Étiquettes : sans durée fixée, l'étiquette sort sans DLC et le chef est prévenu", /Durée non fixée : \$\{l\.nom\}/, true],
+  ["DLC : le tableau des repères n'est plus appliqué tout seul (conseil seulement)", /source: "haccp", repere: r\.repere/, false],
+  ["Congélation : plus d'alerte à 4 h 30 imposée", /dureeMaxMin: 270/, false],
+  ["Restauration collective : règle des 2 h appliquée automatiquement", /const estRestaurationCollective/, true],
+  ["Alarmes de durée réglées par l'établissement, avec le repère officiel en un clic", /Appliquer le repère officiel \(\+63 → \+10 °C en 2 h\)/, true],
   ["Étiquettes : mêmes groupes que le Stock (groupeDuProduit)", /const catDe = \(p\) => \{[\s\S]{0,200}groupeDuProduit\(p, groupesBase\)/, true],
   ["Étiquettes : même ordre que le Stock (ordreStockCmp)", /rangCat\(a\) - rangCat\(b\)\) \|\| ordreStockCmp\(a, b\)/, true],
   ["Étiquettes : le catalogue transmet groupeStock et ordreStock", /groupeStock: c\.groupeStock \|\| "", ordreStock:/, true],
@@ -63,6 +75,48 @@ const R = [
   ["Couleur Températures #2563EB", /#2563EB/, true],
   ["Couleur Historique #0F766E", /#0F766E/, true],
   ["Couleur Contrôle (ambre) #F59E0B", /#F59E0B/, true],
+  // Normes et lexique (relecture du 25/11 : chaque fiche dit si c'est une norme ou non, valeurs alignées sur les textes)
+  ["Lexique : étiquette « Norme : obligatoire »", /Norme : obligatoire/, true],
+  ["Lexique : filtre « Afficher seulement les normes obligatoires »", /Afficher seulement les normes obligatoires/, true],
+  ["Lexique : œufs remis au consommateur sous 28 jours (règlement 2022/2258)", /28 jours après la ponte/, true],
+  ["Lexique et logiciel : plus d'œufs « environ 21 jours »", /environ 21 jours/, false],
+  ["Huile de friture : limite légale 25 % / 14 % (décret 2008-184)", /décret n° 2008-184/, true],
+  ["Huile de friture : plus de « TPM + 24 »", /TPM \+ 24/, false],
+  ["Maintien au chaud : +63 °C cité comme norme de l'annexe I", /Température minimale en liaison chaude/, true],
+  ["Fiche technique : une DLC au-delà de J+3 ne bloque plus l'enregistrement", /out\.push\(\["r", `DLC J\+/, false],
+  ["Températures : surveillance dès 2 °C d'écart (décision du 03/10)", /const MARGE_ANOMALIE_FROID = 2;/, true],
+  ["Températures : motif « Ouvertures de porte trop fréquentes »", /Ouvertures de porte trop fréquentes/, true],
+  ["Températures : préréglage Saladette +4 °C maximum, sans limite basse imposée (25/11)", /label: "Saladette", min: null, max: 4/, true],
+  ["Fiches HACCP : plus de matériel ni de sauces d'un établissement dans les fiches communes", /Méthode — Cuisson au four \(Rational|Sauces concernées au poste chaud/, false],
+  // Contrôle du soir (25/11) : enregistré en base, général, relié à la grille officielle
+  ["Contrôle du soir : enregistré en base (table controles_soir)", /from\("controles_soir"\)/, true],
+  ["Contrôle du soir : bloc « Risques pour l'inspection aujourd'hui »", /Risques pour l'inspection aujourd'hui/, true],
+  ["Contrôle du soir : signature enregistrée avec le contrôle", /cle: "__signature__"/, true],
+  ["Contrôle du soir : plus de listes d'appareils écrites dans le code", /const (APPAREILS_A_VERIFIER|CONTROLE_POSTE|CONTROLE_OBLIGATOIRE|CONTROLE_GENERAL_FIN) =/, false],
+  ["Contrôle du soir : lignes générales avec code de la grille (lave-mains F1)", /code: "F1", texte: "Lave-mains/, true],
+  ["Réglages de l'écran rangés par établissement (donnees_cles), plus dans le stockage commun", /from\("donnees_cles"\)/, true],
+  ["Cuisson : aucun nom de marque dans la liste des appareils", /const APPAREILS_CUISSON = \[[^\]]*(Rational|Atoll)/, false],
+  // Décision Q4 (25/11) : maximum par contenu, alerte > +2 °C, alerte urgente > +3 °C, délai et limite basse réglés par l'établissement
+  ["Q4 : maximum de l'appareil déduit du produit le plus fragile qu'il contient", /function maxDepuisContenus\(/, true],
+  ["Q4 : viande hachée +2 °C dans les contenus (arrêté du 21/12/2009)", /cle: "hache", label: "Viande hachée", max: 2/, true],
+  ["Q4 : au-delà de +3 °C, alerte urgente au chef et au directeur", /plus de 3 °C au-dessus du maximum/, true],
+  ["Q4 : délai avant recontrôle réglé par appareil (plus de 30 min imposées)", /const delaiRecontroleMin = /, true],
+  ["Q4 : contenus, seuil et délai enregistrés en base", /delai_alerte_min/, true],
+  ["Q4 : plus de limite basse à −1 °C à la réception", /min: -1, max/, false],
+  // Q5 TIAC, Q6 fiche températures, Q7 cuisson (25/11)
+  ["Q5 : TIAC, période exacte indiquée par l'ARS ou la DDPP", /La période exacte vous sera indiquée par l'ARS ou la DDPP/, true],
+  ["Q5 : plus de « 3 derniers jours » imposés pour les restes", /3 derniers jours/, false],
+  ["Q5 : plats témoins obligatoires seulement en restauration collective", /const collectiveTiac = /, true],
+  ["Q6 : plus de 0 à 3 °C / +4 à 8 °C de macuisine dans la fiche commune", /duree: "0°C à 3°C"|duree: "\+4°C à 8°C"/, false],
+  ["Q6 : tableau officiel de l'annexe I dans la fiche Températures", /Tableau officiel — arrêté du 21\/12\/2009, annexe I/, true],
+  ["Q7 : famille « Général » sans seuil imposé", /id: "general", label: "[^"]*", seuil: null/, true],
+  ["Q7 : sous un barème ANSES = avertissement, pas « non conforme »", /avertissement : sous le barème ANSES/, true],
+  // Étape 3.4 (25/11) : points manquants de la grille, Alerte rappel, préparation reliée aux contrôles du soir
+  ["Grille : remise en température (C403L10), viande hachée (C403L05), parasites (C403L12), œufs", /code: "C403L10"[\s\S]*code: "C403L12"[\s\S]*code: "C3L02 · C401L04"/, true],
+  ["Alerte rappel : procédure datée (retrait, étiquette, affichage, cessions)", /function ProcedureAlerteRappel\(/, true],
+  ["Alerte rappel : affichage 15 jours (frais) ou 2 mois", /DUREES_AFFICHAGE_RAPPEL = \{ frais: \{[^}]*jours: 15 \}, long: \{[^}]*jours: 61 \}/, true],
+  ["Alerte rappel : alerte du fournisseur saisie à la main", /function AjoutAlerteRappelManuelle\(/, true],
+  ["Préparation à l'inspection : contrôles du soir des 30 derniers jours", /Contrôles du soir \(30 derniers jours\)/, true],
 ];
 // Nom de l'ancien exploitant : remplacé par « macuisine » partout (demande de Loïc, 25/11). Écrit en morceaux pour ne pas figurer ici.
 {
