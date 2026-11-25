@@ -1366,6 +1366,108 @@ function AlerteBanniere({ label, children, warn = true, onClick, onArreterAlarme
 // quel écran, n'importe quel onglet) et y reste, avec bip + vibration répétés, tant que chaque
 // élément listé n'a pas été validé et corrigé. `porteeGlobale` = visible par tout le monde
 // (RappelConso) ; sinon elle n'est affichée qu'à la personne concernée (alerte d'action).
+// Alerte rappel (décision du 25/11, vade-mecum « Retraits/rappels en remise directe » V2, lignes D201 à D204, lu le 26/10/2026) :
+// chaque étape est datée avec son auteur. Retrait au plus tard dans la demi-journée ouvrée (D201) ; produit retiré mis à part avec
+// une étiquette « non conforme, non destiné à la consommation humaine » (D203) ; affichage aux clients si le produit a été servi
+// (15 jours d'ouverture pour un produit frais, 2 mois pour un surgelé, une conserve ou un produit sec, D202) ; cessions prévenues (D204).
+const DUREES_AFFICHAGE_RAPPEL = { frais: { libelle: "Produit frais : 15 jours d'ouverture", jours: 15 }, long: { libelle: "Surgelé, conserve ou produit sec : 2 mois", jours: 61 } };
+function alerteRappelComplete(a) {
+  const e = (a && a.etapes) || {};
+  if (e.concerne === "non") return true;
+  if (e.concerne !== "oui" || !e.retire) return false;
+  if (e.servi === "oui" && !e.affichageDebut) return false;
+  if (e.cede === "oui" && !e.cessionsPrevenues) return false;
+  return e.servi === "oui" || e.servi === "non" ? (e.cede === "oui" || e.cede === "non") : false;
+}
+function imprimerAffichetteRappel(a, etablissementNom) {
+  const fen = window.open("", "_blank");
+  if (!fen) return;
+  const esc = (t) => String(t || "").replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+  fen.document.write(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>Rappel de produit</title><style>body{font-family:Arial,sans-serif;margin:32px;color:#111}h1{font-size:30px;border-bottom:4px solid #C1432D;padding-bottom:8px}p{font-size:18px;line-height:1.5}.l{font-weight:bold}</style></head><body>
+<h1>⚠ RAPPEL DE PRODUIT</h1>
+<p><span class="l">Produit :</span> ${esc(a.produit)}${a.titre ? " — " + esc(a.titre) : ""}</p>
+<p><span class="l">Lot(s) :</span> ${esc((a.etapes && a.etapes.lots) || "voir la fiche officielle")}</p>
+<p><span class="l">Date :</span> ${esc(a.date || "")}</p>
+<p><span class="l">Danger :</span> ${esc(a.motif || "")}</p>
+<p><span class="l">Que faire si vous avez consommé ce produit :</span> suivez les consignes de la fiche officielle ${a.lien ? esc(a.lien) : "rappel.conso.gouv.fr"} et, en cas de symptômes, consultez un médecin en signalant cette consommation.</p>
+<p style="margin-top:28px;font-size:14px">${esc(etablissementNom || "")} — affiché le ${new Date().toLocaleDateString("fr-FR")}</p>
+</body></html>`);
+  fen.document.close();
+  fen.focus();
+  fen.print();
+}
+// Alerte reçue directement du fournisseur ou par un communiqué (pas encore sur RappelConso) : saisie à la main, l'heure de réception compte.
+function AjoutAlerteRappelManuelle({ onAjouter }) {
+  const [ouvert, setOuvert] = useState(false);
+  const [f, setF] = useState({ produit: "", titre: "", motif: "" });
+  if (!ouvert) return <div className="mb-3"><Button variant="ghost" onClick={() => setOuvert(true)}>+ Alerte reçue du fournisseur ou d'un communiqué</Button></div>;
+  return (
+    <div className="mb-3 rounded-lg border border-[var(--cadre)] p-3 space-y-2">
+      <Field label="Produit"><input className={`${inputCls} w-full`} value={f.produit} onChange={(e) => setF({ ...f, produit: e.target.value })} /></Field>
+      <Field label="Marque, référence, lot(s)"><input className={`${inputCls} w-full`} value={f.titre} onChange={(e) => setF({ ...f, titre: e.target.value })} /></Field>
+      <Field label="Danger (motif du rappel)"><input className={`${inputCls} w-full`} value={f.motif} onChange={(e) => setF({ ...f, motif: e.target.value })} /></Field>
+      <div className="flex gap-2">
+        <Button disabled={!f.produit.trim()} onClick={() => { onAjouter({ produit: f.produit.trim(), titre: f.titre.trim(), motif: f.motif.trim() }); setF({ produit: "", titre: "", motif: "" }); setOuvert(false); }}>Enregistrer l'alerte (heure de réception notée)</Button>
+        <Button variant="ghost" onClick={() => setOuvert(false)}>Annuler</Button>
+      </div>
+    </div>
+  );
+}
+function ProcedureAlerteRappel({ alerte, onMaj, currentUserId, nomDe, etablissementNom }) {
+  const e = alerte.etapes || {};
+  const maintenant = () => ({ le: new Date().toISOString(), par: currentUserId || null });
+  const fixer = (patch) => {
+    const etapes = { ...e, ...patch };
+    const suivante = { ...alerte, etapes };
+    const complete = alerteRappelComplete(suivante);
+    onMaj({ etapes, ...(complete && !alerte.traite ? { traite: true, traiteParId: currentUserId, traiteDate: todayISO() } : {}) });
+  };
+  const trace = (x) => (x && x.le ? `${new Date(x.le).toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}${x.par && nomDe ? ` · ${nomDe(x.par) || ""}` : ""}` : "");
+  const recu = alerte.recuLe ? new Date(alerte.recuLe) : null;
+  const heures = recu ? Math.floor((Date.now() - recu.getTime()) / 3600000) : null;
+  const choix = (cle, oui, non) => (
+    <span className="inline-flex gap-2 ml-2">
+      {[["oui", oui], ["non", non]].map(([v, l]) => (
+        <button key={v} type="button" className="px-3 py-1 rounded-lg text-xs font-semibold border-2" onClick={() => fixer({ [cle]: v, [cle + "Trace"]: maintenant() })}
+          style={e[cle] === v ? { background: "#475569", color: "#fff", borderColor: "#475569" } : { background: "#fff", color: "#475569", borderColor: "#475569" }}>{l}</button>
+      ))}
+    </span>
+  );
+  const finAffichage = e.affichageDebut ? addDays(e.affichageDebut, (DUREES_AFFICHAGE_RAPPEL[e.dureeAffichage || "frais"] || DUREES_AFFICHAGE_RAPPEL.frais).jours) : null;
+  return (
+    <div className="rounded-lg border border-[var(--cadre)] p-3 mt-2 text-sm text-[var(--ink)] space-y-2 bg-white">
+      <div className="text-xs text-[var(--steel)]">Alerte reçue {recu ? `le ${recu.toLocaleString("fr-FR", { dateStyle: "short", timeStyle: "short" })}` : "(date inconnue)"}{heures != null && !alerte.traite ? ` · il y a ${heures} h` : ""}. Le retrait doit être fait au plus tard dans la demi-journée ouvrée.</div>
+      <div><span className="font-semibold">1. Ce produit est-il chez nous (même lot) ?</span>{choix("concerne", "Oui", "Non, pas ce produit ni ce lot")}{e.concerneTrace && <span className="block text-xs text-[var(--steel)]">{trace(e.concerneTrace)}</span>}</div>
+      {e.concerne === "oui" && (<>
+        <div><span className="font-semibold">2. Lots concernés</span> (voir Traçabilité et Réception)
+          <input className={`${inputCls} w-full mt-1`} placeholder="ex. lot 24187, DLC 30/11" value={e.lots || ""} onChange={(ev) => fixer({ lots: ev.target.value })} /></div>
+        <label className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={!!e.retire} onChange={(ev) => fixer({ retire: ev.target.checked ? maintenant() : null })} />
+          <span><span className="font-semibold">3. Produit retiré et mis à part</span> avec une étiquette « Non conforme, non destiné à la consommation humaine » (ou « Exclusivement pour élimination »). Ni donné, ni vendu, ni cuisiné.{e.retire && <span className="block text-xs text-[var(--steel)]">{trace(e.retire)}</span>}</span></label>
+        <div><span className="font-semibold">4. Le produit a-t-il été servi à des clients ?</span>{choix("servi", "Oui", "Non")}</div>
+        {e.servi === "oui" && (
+          <div className="pl-3 border-l-4 border-[var(--cadre)] space-y-1">
+            <p>Affichez un message lisible près de la carte ou de la caisse (produit, lot, date, danger, quoi faire).</p>
+            <div className="flex flex-wrap items-center gap-2">
+              <select className={inputCls} value={e.dureeAffichage || "frais"} onChange={(ev) => fixer({ dureeAffichage: ev.target.value })}>
+                {Object.entries(DUREES_AFFICHAGE_RAPPEL).map(([k, d]) => <option key={k} value={k}>{d.libelle}</option>)}
+              </select>
+              <Button variant="ghost" onClick={() => imprimerAffichetteRappel(alerte, etablissementNom)}>Imprimer l'affichette</Button>
+              {!e.affichageDebut && <Button onClick={() => fixer({ affichageDebut: todayISO(), affichageTrace: maintenant() })}>Affichette posée aujourd'hui</Button>}
+            </div>
+            {e.affichageDebut && <p className="text-xs text-[var(--steel)]">Affichée depuis le {fmtShort(e.affichageDebut)} · à laisser au moins jusqu'au {fmtShort(finAffichage)} (jours d'ouverture).{e.affichageTrace ? ` ${trace(e.affichageTrace)}` : ""}</p>}
+          </div>
+        )}
+        <div><span className="font-semibold">5. Avez-vous donné ou revendu ce produit</span> (association, autre point de vente) ?{choix("cede", "Oui", "Non, jamais")}</div>
+        {e.cede === "oui" && (
+          <label className="flex items-start gap-2 pl-3"><input type="checkbox" className="mt-1" checked={!!e.cessionsPrevenues} onChange={(ev) => fixer({ cessionsPrevenues: ev.target.checked ? maintenant() : null })} />
+            <span>Alerte transmise à ceux qui ont reçu le produit, avec un message clair.{e.cessionsPrevenues && <span className="block text-xs text-[var(--steel)]">{trace(e.cessionsPrevenues)}</span>}</span></label>
+        )}
+      </>)}
+      <p className="text-xs text-[var(--steel)]">Source : vade-mecum « Retraits/rappels en remise directe » V2 (DGAL), lignes D201 à D204. L'alerte se ferme toute seule quand toutes les étapes sont faites.</p>
+    </div>
+  );
+}
+
 function AlerteBloquante({ titre, sousTitre, items, renderItem, zIndex = 9999 }) {
   useEffect(() => {
     const alerter = () => {
@@ -2757,10 +2859,21 @@ function PmsPreparationInspection({ pms, locales }) {
   const reponses = pmsReponsesPoints(pms, locales);
   const couleur = (e) => (ETATS_POINT_PMS.find((x) => x.value === e) || { couleur: "#C1432D" }).couleur;
   const libelleEtat = { fait: "Fait", incomplet: "Incomplet", pas_fait: "Pas fait" };
+  // Résultat des contrôles du soir des 30 derniers jours pour chaque ligne de la grille (codes des lignes du contrôle).
+  const ctxSoirPrep = React.useContext(ControleSoirContext) || {};
+  const debut30 = addDays(todayISO(), -29);
+  const controles30 = (ctxSoirPrep.controlesSoir || []).filter((x) => x.date >= debut30 && x.cle !== "__signature__");
+  const joursSignes30 = new Set((ctxSoirPrep.controlesSoir || []).filter((x) => x.date >= debut30 && x.cle === "__signature__").map((x) => x.date)).size;
+  const codesLigne = (item) => String(item.code).split(/\s*·\s*/);
+  const bilanControles = (item) => {
+    const lignes = controles30.filter((x) => x.code && codesLigne(item).includes(x.code));
+    return { ok: lignes.filter((x) => x.statut === "ok").length, ko: lignes.filter((x) => x.statut === "ko").length, jours: new Set(lignes.map((x) => x.date)).size };
+  };
   const etatItem = (item) => {
     const etats = item.points.map((id) => (reponses[id] && reponses[id].etat) || "pas_fait");
     if (etats.some((e) => e === "pas_fait")) return "pas_fait";
-    if (etats.some((e) => e === "incomplet")) return "incomplet";
+    // Un point « Pas fait » au contrôle du soir dans les 30 derniers jours : la ligne n'est pas prête.
+    if (etats.some((e) => e === "incomplet") || bilanControles(item).ko > 0) return "incomplet";
     return "fait";
   };
   const tous = GRILLE_CHAPITRES.flatMap((c) => c.items.map((it) => ({ ...it, lettre: c.lettre, etat: etatItem(it) })));
@@ -2771,6 +2884,7 @@ function PmsPreparationInspection({ pms, locales }) {
     <Card className="mb-4">
       <h3 className="font-semibold text-[var(--ink)]">Préparation à l'inspection : la grille de l'inspecteur, point par point</h3>
       <p className="text-sm text-[var(--steel)] mb-2">L'inspecteur suit une grille officielle publique : 6 chapitres (A à F). Ici, chaque ligne de la grille est reliée à vos points du Dossier PMS. Un « D » à l'inspection (écart majeur) fait tomber tout le chapitre : traitez d'abord les lignes en rouge. La note n'est donnée que par l'inspecteur.</p>
+      {ctxSoirPrep.controlesSoir && <p className="text-sm text-[var(--ink)] mb-1">Contrôle du soir signé <span className="font-bold">{joursSignes30}</span> jour{joursSignes30 > 1 ? "s" : ""} sur les 30 derniers jours.</p>}
       <p className="text-sm text-[var(--ink)] mb-3"><span className="font-bold">{tous.length - aTraiter.length}</span> ligne{tous.length - aTraiter.length > 1 ? "s" : ""} prête{tous.length - aTraiter.length > 1 ? "s" : ""} sur {tous.length}{prioritaires.length ? <> · <span className="font-bold" style={{ color: "#C1432D" }}>{prioritaires.length} à traiter en priorité</span></> : null}</p>
       <div className="space-y-2">
         {GRILLE_CHAPITRES.map((c) => (
@@ -2797,6 +2911,9 @@ function PmsPreparationInspection({ pms, locales }) {
                         <li key={id} className="flex items-start gap-2 py-0.5"><span className="w-2.5 h-2.5 rounded-full mt-1.5 shrink-0" style={{ background: couleur(et) }} /><span className="flex-1">{titrePoint(id)}</span><span className="text-xs text-[var(--steel)] shrink-0">{libelleEtat[et]}</span></li>
                       ); })}</ul>
                     </div>
+                    {(() => { const b = bilanControles(it); return b.jours > 0 ? (
+                      <p className="text-xs"><span className="font-semibold text-[var(--steel)] uppercase">Contrôles du soir (30 derniers jours)</span><br />{b.ok} « Oui » · <span style={{ color: b.ko ? "#C1432D" : undefined, fontWeight: b.ko ? 700 : undefined }}>{b.ko} « Pas fait »</span> · {b.jours} jour{b.jours > 1 ? "s" : ""} contrôlé{b.jours > 1 ? "s" : ""}</p>
+                    ) : null; })()}
                     <p className="text-xs text-[var(--steel)]">Où le faire : {it.ou}</p>
                   </div>
                 </details>
@@ -4902,7 +5019,7 @@ function GestionComptesEquipe({ employees, currentUserId, gestion, logActivity, 
   );
 }
 
-function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam, ecranPlanningParam, fermerPlanningParam, modeParametrage, modeHistorique, cibleInit, onCibleOuverte, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
+function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam, ecranPlanningParam, fermerPlanningParam, modeParametrage, modeHistorique, cibleInit, onCibleOuverte, exporterSauvegarde, produitAOuvrirInit, onProduitOuvert, remplacantsChef, setRemplacantsChef, commandesHistorique, setProduits, setEquipementsFroid, catalogueMaintienChaud, setCatalogueMaintienChaud, gestionComptes, chargerPlanDepart, employees, setEmployees, tasks, activityLog, tempLogs, huileTests, refroidissements, setRefroidissements, cuissons, preparations, produits, cleaning, setCleaning, protocolesNettoyage, setProtocolesNettoyage, zonesNettoyage, setZonesNettoyage, shifts, setShifts, reservations, cartes, setCartes, setTab, creerEtiquetteDlc, notificationsFournisseur, setNotificationsFournisseur, emailsFournisseurs, setEmailsFournisseurs, alertesControle, setAlertesControle, toggleTask, currentUserId, logActivity, relevesFroid, equipementsFroid, surveillancesFroid, stock, setStock, remarquesChef, setRemarquesChef, alertesRappelConso, dernierControleRappelConso, rappelConsoEnCours, onVerifierRappelConso, traiterAlerteRappelConso, majAlerteRappelConso, ajouterAlerteRappelManuelle, receptions, setReceptions, entriesMaintienChaud, fiches, allergenesPlats, setAllergenesPlats, allergenesProduits, setAllergenesProduits, origineProduits, setOrigineProduits, allergenesStandard, setAllergenesStandard, origineStandard, setOrigineStandard, produitsLotException, setProduitsLotException, declarationsTiac, setDeclarationsTiac, fichesCustom, setFichesCustom, stockCatalogue, fournisseursCatalogue, gestionCatalogue, reglagesEtablissement, demandesAjout, signalerAjout }) {
   // "Contrôle" et "Gestion" ne sont plus deux icônes séparées sur l'écran d'accueil : une seule
   // icône "Contrôle & Gestion" y mène, et ce bouton à bascule choisit la section à l'intérieur.
   const [sectionActive, setSectionActive] = useState(null);
@@ -5511,6 +5628,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         </div>
         <p className="text-xs text-[var(--steel)] mb-3">Croise automatiquement vos produits (stock + catalogue) avec la liste officielle des rappels sanitaires — automatique tous les jeudis et dimanches après les livraisons. Dernière vérification : {dernierControleRappelConso ? fmtLong(dernierControleRappelConso) : "jamais"}.</p>
         <div className="mb-3"><Button onClick={onVerifierRappelConso} disabled={rappelConsoEnCours}>{rappelConsoEnCours ? "Vérification en cours..." : "Vérifier maintenant"}</Button></div>
+        {ajouterAlerteRappelManuelle && <AjoutAlerteRappelManuelle onAjouter={ajouterAlerteRappelManuelle} />}
         {alertesRappelConso.length === 0 ? (
           <p className="text-sm text-[var(--accent)]">Aucune correspondance avec un rappel officiel récent.</p>
         ) : (
@@ -5520,9 +5638,10 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
                 <div className={`font-medium ${a.traite ? "text-[var(--steel)]" : "text-[var(--warn)]"}`}>{a.produit} — {a.titre}</div>
                 <div className="text-xs text-[var(--steel)]">{a.motif}{a.date ? ` — publié le ${a.date}` : ""}</div>
                 <a href={a.lien} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] font-medium">Voir la fiche officielle →</a>
-                {a.traite ? (
-                  <div className="text-xs text-[var(--accent)] font-medium mt-1">✓ Traité{a.traiteDate ? ` le ${a.traiteDate}` : ""}</div>
-                ) : (
+                {a.traite && <div className="text-xs text-[var(--accent)] font-medium mt-1">✓ Traité{a.traiteDate ? ` le ${a.traiteDate}` : ""}</div>}
+                {majAlerteRappelConso ? (
+                  (!a.traite || (a.etapes && a.etapes.affichageDebut)) && <ProcedureAlerteRappel alerte={a} onMaj={(patch) => majAlerteRappelConso(a.id, patch)} currentUserId={currentUserId} nomDe={(id) => (employees.find((x) => x.id === id) || {}).nom} etablissementNom={(reglagesEtablissement && reglagesEtablissement.fiche && reglagesEtablissement.fiche.nom) || ""} />
+                ) : !a.traite && (
                   <div className="mt-1.5">
                     <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Rappel traité (produit retiré / vérifié)</Button>
                   </div>
@@ -26164,10 +26283,13 @@ function KitchenApp({ identiteExterne } = {}) {
       // corrigée par quelqu'un ne doit pas réapparaître en bloquant tout le monde au contrôle suivant.
       setAlertesRappelConso((prev) => {
         const anciennesParId = new Map(prev.map((a) => [a.id, a]));
-        return trouves.map((t) => {
+        const suivantes = trouves.map((t) => {
           const ancienne = anciennesParId.get(t.id);
-          return ancienne ? { ...t, traite: ancienne.traite, traiteParId: ancienne.traiteParId, traiteDate: ancienne.traiteDate } : { ...t, traite: false };
+          return ancienne ? { ...t, traite: ancienne.traite, traiteParId: ancienne.traiteParId, traiteDate: ancienne.traiteDate, recuLe: ancienne.recuLe, etapes: ancienne.etapes } : { ...t, traite: false, recuLe: new Date().toISOString() };
         });
+        // Les alertes saisies à la main (reçues du fournisseur) et celles en cours de traitement ne disparaissent pas.
+        const gardees = prev.filter((a) => (a.manuelle || (a.etapes && !a.traite)) && !suivantes.some((t) => t.id === a.id));
+        return [...gardees, ...suivantes];
       });
       setDernierControleRappelConso(todayISO());
       if (trouves.length > 0) logActivitySafe("Sécurité", "Alerte RappelConso", `${trouves.length} correspondance(s) trouvée(s) avec des rappels officiels récents`);
@@ -26185,6 +26307,16 @@ function KitchenApp({ identiteExterne } = {}) {
     setAlertesRappelConso((prev) => prev.map((a) => (a.id === id ? { ...a, traite: true, traiteParId: currentUserId, traiteDate: todayISO() } : a)));
     logActivitySafe("Sécurité", "Alerte RappelConso traitée", id);
   }, [setAlertesRappelConso, currentUserId, logActivitySafe]);
+
+  // Étapes de la procédure « Alerte rappel » (datées) et alertes reçues directement du fournisseur.
+  const majAlerteRappelConso = useCallback((id, patch) => {
+    setAlertesRappelConso((prev) => prev.map((a) => (a.id === id ? { ...a, ...patch } : a)));
+    if (patch && patch.traite) logActivitySafe("Sécurité", "Alerte rappel traitée (toutes les étapes faites)", id);
+  }, [setAlertesRappelConso, logActivitySafe]);
+  const ajouterAlerteRappelManuelle = useCallback((a) => {
+    setAlertesRappelConso((prev) => [{ id: uid(), lien: "", date: todayISO(), ...a, manuelle: true, traite: false, recuLe: new Date().toISOString() }, ...prev]);
+    logActivitySafe("Sécurité", "Alerte rappel reçue (saisie à la main)", a.produit || "");
+  }, [setAlertesRappelConso, logActivitySafe]);
 
   useEffect(() => {
     const jour = new Date().getDay(); // 0 = dimanche, 4 = jeudi
@@ -27018,9 +27150,7 @@ function KitchenApp({ identiteExterne } = {}) {
               <div className="font-semibold text-[var(--ink)]">{a.produit} — {a.titre}</div>
               <div className="text-xs text-[var(--steel)] mt-1">{a.motif}{a.date ? ` — publié le ${a.date}` : ""}</div>
               <a href={a.lien} target="_blank" rel="noreferrer" className="text-xs text-[var(--accent)] font-medium block mt-1">Voir la fiche officielle →</a>
-              <div className="mt-2.5">
-                <Button variant="danger" onClick={() => traiterAlerteRappelConso(a.id)}>Produit vérifié / retiré — marquer comme traité</Button>
-              </div>
+              <ProcedureAlerteRappel alerte={a} onMaj={(patch) => majAlerteRappelConso(a.id, patch)} currentUserId={currentUserId} nomDe={(id) => (employees.find((x) => x.id === id) || {}).nom} etablissementNom={(reglagesEtablissementApp && reglagesEtablissementApp.fiche && reglagesEtablissementApp.fiche.nom) || ""} />
             </div>
           )}
         />
@@ -27388,7 +27518,7 @@ function KitchenApp({ identiteExterne } = {}) {
         )}
         {bloqueChef && <GardeCodeChef verifierCodeChef={identiteExterne.verifierCodeChef} onAutorise={() => setControleDebloque(true)} onRetour={() => setTab("accueil")} />}
         {(tab === "controle" || (tab === "parametrage" && peutParametrage) || (tab === "historique" && peutHistorique)) && !bloqueChef && (
-          <Controle key={tab} slotMenuParam={tab === "parametrage" ? slotParam : null} onQuitterParam={() => setTab("accueil")} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setPlanningParam((cible === "@reservations" || cible === "reservations") ? "reservations" : "horaires"); } : undefined} planningParam={tab === "parametrage" ? planningParam : null} fermerPlanningParam={() => setPlanningParam(null)} ecranPlanningParam={tab === "parametrage" && planningParam === "horaires" ? <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} /> : (tab === "parametrage" && planningParam === "reservations" ? <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" /> : null)} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
+          <Controle key={tab} slotMenuParam={tab === "parametrage" ? slotParam : null} onQuitterParam={() => setTab("accueil")} ouvrirPlanning={tab === "parametrage" && peutParametrage ? (cible) => { setPlanningParam((cible === "@reservations" || cible === "reservations") ? "reservations" : "horaires"); } : undefined} planningParam={tab === "parametrage" ? planningParam : null} fermerPlanningParam={() => setPlanningParam(null)} ecranPlanningParam={tab === "parametrage" && planningParam === "horaires" ? <Planning employees={employees} setEmployees={setEmployees} shifts={shifts} setShifts={setShifts} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" nouvelleBase={modeExterne} horaires={horaires} setHoraires={setHoraires} /> : (tab === "parametrage" && planningParam === "reservations" ? <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => setPlanningParam(null)} libelleRetour="Retour au Paramétrage" /> : null)} modeParametrage={tab === "parametrage"} modeHistorique={tab === "historique"} cibleInit={cibleControleApp} onCibleOuverte={() => setCibleControleApp(null)} exporterSauvegarde={modeExterne ? identiteExterne.exporterSauvegarde : undefined} produitAOuvrirInit={produitAOuvrirApp} onProduitOuvert={() => setProduitAOuvrirApp(null)} remplacantsChef={remplacantsChef} setRemplacantsChef={setRemplacantsChef} commandesHistorique={commandesHistorique} setProduits={setProduits} setEquipementsFroid={setEquipementsFroid} catalogueMaintienChaud={catalogueMaintienChaud} setCatalogueMaintienChaud={setCatalogueMaintienChaud} gestionComptes={identiteExterne && identiteExterne.gestionEquipe} chargerPlanDepart={chargerPlanDepart} employees={employees} setEmployees={setEmployees} tasks={tasks} activityLog={activityLog} tempLogs={tempLogs} huileTests={huileTests} refroidissements={refroidissements} setRefroidissements={setRefroidissements} cuissons={cuissons} preparations={preparations} produits={produits} cleaning={cleaning} setCleaning={setCleaning} protocolesNettoyage={protocolesNettoyage} setProtocolesNettoyage={setProtocolesNettoyage} zonesNettoyage={zonesNettoyage} setZonesNettoyage={setZonesNettoyage} shifts={shifts} setShifts={setShifts} reservations={reservations} cartes={cartes} setCartes={setCartes} setTab={setTab} creerEtiquetteDlc={creerEtiquetteDlc} notificationsFournisseur={notificationsFournisseur} setNotificationsFournisseur={setNotificationsFournisseur} emailsFournisseurs={emailsFournisseurs} setEmailsFournisseurs={setEmailsFournisseurs} alertesControle={alertesControle} setAlertesControle={setAlertesControle} toggleTask={toggleTaskShared} currentUserId={currentUserId} logActivity={logActivitySafe} relevesFroid={relevesFroid} equipementsFroid={equipementsFroid} surveillancesFroid={surveillancesFroid} stock={stock} stockCatalogue={modeExterne && identiteExterne.catalogue ? identiteExterne.catalogue : null} fournisseursCatalogue={modeExterne && identiteExterne.fournisseurs ? identiteExterne.fournisseurs : null} gestionCatalogue={modeExterne && identiteExterne.gestionCatalogue ? identiteExterne.gestionCatalogue : null} setStock={setStock} remarquesChef={remarquesChef} setRemarquesChef={setRemarquesChef} alertesRappelConso={alertesRappelConso} dernierControleRappelConso={dernierControleRappelConso} rappelConsoEnCours={rappelConsoEnCours} onVerifierRappelConso={() => verifierRappelConso(true)} traiterAlerteRappelConso={traiterAlerteRappelConso} majAlerteRappelConso={majAlerteRappelConso} ajouterAlerteRappelManuelle={ajouterAlerteRappelManuelle} receptions={receptions} setReceptions={setReceptions} entriesMaintienChaud={entriesMaintienChaud} fiches={fiches} allergenesPlats={allergenesPlats} setAllergenesPlats={setAllergenesPlats} allergenesProduits={allergenesProduits} setAllergenesProduits={setAllergenesProduits} origineProduits={origineProduits} setOrigineProduits={setOrigineProduits} allergenesStandard={allergenesStandard} setAllergenesStandard={setAllergenesStandard} origineStandard={origineStandard} setOrigineStandard={setOrigineStandard} produitsLotException={produitsLotException} setProduitsLotException={setProduitsLotException} declarationsTiac={declarationsTiac} setDeclarationsTiac={setDeclarationsTiac} fichesCustom={fichesCustom} setFichesCustom={setFichesCustom} reglagesEtablissement={modeExterne ? identiteExterne.reglagesEtablissement : undefined} demandesAjout={modeExterne ? identiteExterne.demandesAjout : undefined} signalerAjout={modeExterne ? identiteExterne.signalerAjout : undefined} />
         )}
         {tab === "reservations" && !bloqueChef && (
           <Reservations reservations={reservations} setReservations={setReservations} currentUserId={currentUserId} employees={employees} logActivity={logActivitySafe} onBack={() => { setTab(retourPlanning || "controle"); setRetourPlanning(null); }} />

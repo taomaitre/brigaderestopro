@@ -110,6 +110,12 @@ const R = [
   ["Q6 : tableau officiel de l'annexe I dans la fiche Températures", /Tableau officiel — arrêté du 21\/12\/2009, annexe I/, true],
   ["Q7 : famille « Général » sans seuil imposé", /id: "general", label: "[^"]*", seuil: null/, true],
   ["Q7 : sous un barème ANSES = avertissement, pas « non conforme »", /avertissement : sous le barème ANSES/, true],
+  // Étape 3.4 (25/11) : points manquants de la grille, Alerte rappel, préparation reliée aux contrôles du soir
+  ["Grille : remise en température (C403L10), viande hachée (C403L05), parasites (C403L12), œufs", /code: "C403L10"[\s\S]*code: "C403L12"[\s\S]*code: "C3L02 · C401L04"/, true],
+  ["Alerte rappel : procédure datée (retrait, étiquette, affichage, cessions)", /function ProcedureAlerteRappel\(/, true],
+  ["Alerte rappel : affichage 15 jours (frais) ou 2 mois", /DUREES_AFFICHAGE_RAPPEL = \{ frais: \{[^}]*jours: 15 \}, long: \{[^}]*jours: 61 \}/, true],
+  ["Alerte rappel : alerte du fournisseur saisie à la main", /function AjoutAlerteRappelManuelle\(/, true],
+  ["Préparation à l'inspection : contrôles du soir des 30 derniers jours", /Contrôles du soir \(30 derniers jours\)/, true],
 ];
 // Nom de l'ancien exploitant : remplacé par « macuisine » partout (demande de Loïc, 25/11). Écrit en morceaux pour ne pas figurer ici.
 {
