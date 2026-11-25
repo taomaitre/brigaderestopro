@@ -43,6 +43,16 @@ export const GRILLE_CHAPITRES = [
     { code: "C403", titre: "Autres mesures de maîtrise (cuisson, refroidissement, décongélation, friture, légumes)", regarde: "Barèmes de cuisson suivis et enregistrés, refroidissement, remise en température, décongélation, qualité de l'huile de friture, lavage des légumes.",
       d: ["Absence de surveillance ou d'enregistrement des non-conformités", "Corrections non mises en œuvre", "DLC dépassée exposée à la vente"], c: ["Procédures absentes ou non pertinentes", "Mauvais résultat de vérification sans action"],
       points: ["d-cuisson", "d-refroidissement", "d-decongelation", "d-huile", "d-legumes"], ou: "Cuisson ; Cellule ; Maintien ; Huile ; Étiquettes DLC" },
+    // Lignes du vade-mecum « Remise directe » V3 relues le 25/11/2026 dans le PDF officiel (agriculture.gouv.fr/telecharger/129266).
+    // Le vade-mecum ne donne pas de note propre à ces lignes : les notes de l'item (C3, C401, C403) s'appliquent.
+    { code: "C403L05", titre: "Viande hachée préparée à l'avance", regarde: "La viande hachée provient d'un établissement agréé pour cette activité ; délais maximaux depuis l'abattage non dépassés : 3 jours pour la volaille, 6 jours pour les autres animaux, 15 jours pour les viandes bovines désossées et emballées sous vide. Hachoir démonté, nettoyé et désinfecté régulièrement, rangé à l'abri des souillures.",
+      d: [], c: [], points: ["c-controle", "c-tracabilite", "b-nettoyage"], ou: "Réception ; Traçabilité ; Plan de nettoyage (hachoir)" },
+    { code: "C403L10", titre: "Remise en température", regarde: "Technique de remise en température (elle peut être décrite oralement) : les denrées sont rapidement réchauffées à +63 °C ou plus. Les bains-marie et étuves servent au maintien, pas au réchauffage.",
+      d: [], c: [], points: ["d-maintien", "d-cuisson"], ou: "Fiches techniques (remise en température) ; Maintien au chaud" },
+    { code: "C403L12", titre: "Poisson : parasites", regarde: "Contrôle visuel des parasites, quels que soient le produit et son mode de consommation. Poisson cru ou peu cuit : congélation assainissante (24 h à −20 °C ou 15 h à −35 °C) ou indication écrite du fournisseur (bon de livraison, étiquetage, attestation).",
+      d: ["Poissons sauvages massivement parasités"], c: [], points: ["c-controle", "d-froid"], ou: "Réception ; Refroidissement rapide et congélation" },
+    { code: "C3L02 · C401L04", titre: "Œufs", regarde: "Les œufs utilisés sont conformes à la réglementation ; ils sont conservés dans le respect des mentions d'étiquetage.",
+      d: [], c: [], points: ["c-controle", "d-froid"], ou: "Réception ; Températures" },
     { code: "C5", titre: "Eau potable", regarde: "Alimentation en eau potable, circuit d'eau non potable séparé, arrêté préfectoral si ressource privée.",
       d: ["Absence d'eau potable", "Ressource privée sans arrêté préfectoral"], c: ["Pas de vérification ni d'action corrective"],
       points: ["b-eau", "b-eau-circuit"], ou: "Dossier PMS, partie B" },

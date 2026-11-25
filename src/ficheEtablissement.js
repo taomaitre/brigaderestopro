@@ -2,7 +2,7 @@
 // lecture/écriture en base (ConnexionReelle.jsx). `colonne` = nom de la colonne de la table etablissements.
 // `type` : texte | nombre | date | choix | liste. `requis` = compte dans le niveau de remplissage.
 export const FORMES_JURIDIQUES = ["SARL", "SAS", "SASU", "EURL", "SA", "EI / micro-entreprise", "Association", "Autre"];
-export const TYPES_ETABLISSEMENT = ["Restaurant", "Pizzeria", "Crêperie", "Brasserie", "Snack", "Traiteur", "Bar avec restauration", "Autre"];
+export const TYPES_ETABLISSEMENT = ["Restaurant", "Pizzeria", "Crêperie", "Brasserie", "Snack", "Traiteur", "Bar avec restauration", "Restauration collective (cantine, restaurant d'entreprise)", "Autre"];
 export const ORIGINES_EAU = ["Réseau public", "Source privée (puits, forage)"];
 export const SERVICES_ETABLISSEMENT = ["Sur place", "À emporter", "Livraison", "Buffet"];
 
