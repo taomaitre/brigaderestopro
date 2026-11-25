@@ -61,7 +61,7 @@ export const LEXIQUE_GROUPES = [
 ];
 export const LEXIQUE = [
  {
-  "id": "haccp-ccp-pms-32",
+  "id": "haccp-ccp-pms-34",
   "section": "1 · Les bases : HACCP, PMS, qui contrôle",
   "titre": "HACCP, CCP, PMS : ce que c'est",
   "certitude": "verifie",
@@ -87,7 +87,7 @@ export const LEXIQUE = [
   "motsCles": "ccp pms 852 principes plan maîtrise sanitaire"
  },
  {
-  "id": "ddpp-et-rappelconso-33",
+  "id": "ddpp-et-rappelconso-35",
   "section": "1 · Les bases : HACCP, PMS, qui contrôle",
   "titre": "La DDPP et RappelConso",
   "certitude": "verifie",
@@ -113,7 +113,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "culture-de-la-securite-alimentaire-44",
+  "id": "culture-de-la-securite-alimentaire-46",
   "section": "1 · Les bases : HACCP, PMS, qui contrôle",
   "titre": "La culture de la sécurité alimentaire",
   "certitude": "verifie",
@@ -187,7 +187,51 @@ export const LEXIQUE = [
   "motsCles": "steak haché boeuf 71 steak température conservation frigo congélateur annexe i"
  },
  {
-  "id": "chaine-du-froid-les-principes-43",
+  "id": "reglage-d-un-frigo-le-produit-le-plus-fragile-11",
+  "section": "2 · Le froid et le chaud pendant le service",
+  "titre": "Réglage d'un frigo : le produit le plus fragile",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "chaque appareil se règle sur le produit le plus fragile qu'il contient. Un frigo avec de la viande hachée doit rester à +2 °C maximum, même s'il contient aussi des laitages. Fruits et légumes frais entiers : aucune température fixée par les textes (indication du fournisseur ou PMS). Aucun texte ne fixe de limite basse chiffrée ni de délai avant recontrôle : c'est la personne qui établit le PMS qui les choisit, et elle peut prendre un seuil d'alerte plus strict."
+   },
+   {
+    "label": "Texte",
+    "texte": "arrêté du 21/12/2009, annexe I."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ relu le 25/11/2026."
+   }
+  ],
+  "nature": "norme",
+  "motsCles": "steak haché boeuf 71 steak"
+ },
+ {
+  "id": "ecart-de-temperature-ce-que-note-l-inspecteur-12",
+  "section": "2 · Le froid et le chaud pendant le service",
+  "titre": "Écart de température : ce que note l'inspecteur",
+  "certitude": "verifie",
+  "champs": [
+   {
+    "label": "En bref",
+    "texte": "à l'inspection, un relevé de +2 à +3 °C au-dessus du maximum est noté C ; plus de +3 °C est noté D, comme l'absence de relevés. Le logiciel suit ces seuils : alerte au-delà de +2 °C, alerte urgente au chef et au directeur au-delà de +3 °C, avec contrôle et action obligatoires (transfert ou destruction, noté)."
+   },
+   {
+    "label": "Texte",
+    "texte": "vade-mecum général V7, ligne C401 (méthode de contrôle de la DGAL)."
+   },
+   {
+    "label": "Certitude",
+    "texte": "✔ lu le 26/10/2026."
+   }
+  ],
+  "nature": "information",
+  "motsCles": ""
+ },
+ {
+  "id": "chaine-du-froid-les-principes-45",
   "section": "2 · Le froid et le chaud pendant le service",
   "titre": "Chaîne du froid : les principes",
   "certitude": "verifie",
@@ -235,7 +279,7 @@ export const LEXIQUE = [
   "motsCles": "bain-marie 63 liaison chaude"
  },
  {
-  "id": "zone-de-danger-17",
+  "id": "zone-de-danger-19",
   "section": "2 · Le froid et le chaud pendant le service",
   "titre": "Zone de danger",
   "certitude": "verifie",
@@ -261,7 +305,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "temperature-a-c-ur-18",
+  "id": "temperature-a-c-ur-20",
   "section": "2 · Le froid et le chaud pendant le service",
   "titre": "Température à cœur",
   "certitude": "verifie",
@@ -309,7 +353,7 @@ export const LEXIQUE = [
   "motsCles": "ccp pms 852 principes plan maîtrise sanitaire steak haché boeuf 71 steak"
  },
  {
-  "id": "cuisson-des-viandes-dans-l-arrete-16",
+  "id": "cuisson-des-viandes-dans-l-arrete-18",
   "section": "3 · La cuisson et la friture",
   "titre": "Cuisson des viandes dans l'arrêté",
   "certitude": "verifie",
@@ -331,7 +375,7 @@ export const LEXIQUE = [
   "motsCles": "réchauffage reheat 63 75 une heure 1h bain-marie 63 liaison chaude"
  },
  {
-  "id": "valeur-d-valeur-z-reduction-logarithmique-19",
+  "id": "valeur-d-valeur-z-reduction-logarithmique-21",
   "section": "3 · La cuisson et la friture",
   "titre": "Valeur D, valeur z (pour comprendre les barèmes)",
   "certitude": "verifie",
@@ -361,7 +405,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "huile-de-friture-14",
+  "id": "huile-de-friture-16",
   "section": "3 · La cuisson et la friture",
   "titre": "Huile de friture",
   "certitude": "verifie",
@@ -439,7 +483,7 @@ export const LEXIQUE = [
   "motsCles": "réchauffage reheat 63 75 une heure 1h"
  },
  {
-  "id": "surgelation-et-congelation-11",
+  "id": "surgelation-et-congelation-13",
   "section": "4 · Refroidir, réchauffer, congeler, décongeler",
   "titre": "Surgélation et congélation",
   "certitude": "verifie",
@@ -461,7 +505,7 @@ export const LEXIQUE = [
   "motsCles": "steak haché boeuf 71 steak"
  },
  {
-  "id": "decongelation-12",
+  "id": "decongelation-14",
   "section": "4 · Refroidir, réchauffer, congeler, décongeler",
   "titre": "Décongélation",
   "certitude": "verifie",
@@ -601,7 +645,7 @@ export const LEXIQUE = [
   "motsCles": "steak haché boeuf 71 steak"
  },
  {
-  "id": "ufs-13",
+  "id": "ufs-15",
   "section": "5 · Produits particuliers",
   "titre": "Les œufs",
   "certitude": "verifie",
@@ -627,7 +671,7 @@ export const LEXIQUE = [
   "motsCles": "salmonelle œuf volaille"
  },
  {
-  "id": "histamine-poisson-37",
+  "id": "histamine-poisson-39",
   "section": "5 · Produits particuliers",
   "titre": "Poisson : l'histamine",
   "certitude": "verifie",
@@ -649,7 +693,7 @@ export const LEXIQUE = [
   "motsCles": "température conservation frigo congélateur annexe i"
  },
  {
-  "id": "anisakis-29",
+  "id": "anisakis-31",
   "section": "5 · Produits particuliers",
   "titre": "Poisson : l'anisakis (vers)",
   "certitude": "verifie",
@@ -671,7 +715,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "dlc-et-ddm-31",
+  "id": "dlc-et-ddm-33",
   "section": "6 · Dates, allergènes et information du client",
   "titre": "DLC et DDM : la différence",
   "certitude": "verifie",
@@ -697,7 +741,7 @@ export const LEXIQUE = [
   "motsCles": "hygiène 5 octobre 2011 manipulateur"
  },
  {
-  "id": "14-allergenes-30",
+  "id": "14-allergenes-32",
   "section": "6 · Dates, allergènes et information du client",
   "titre": "Les 14 allergènes",
   "certitude": "verifie",
@@ -719,7 +763,7 @@ export const LEXIQUE = [
   "motsCles": "gluten arachide lait œuf soja sulfites 1169 ccp pms 852 principes plan maîtrise sanitaire hygiène 5 octobre 2011 manipulateur"
  },
  {
-  "id": "etude-de-duree-de-conservation-40",
+  "id": "etude-de-duree-de-conservation-42",
   "section": "6 · Dates, allergènes et information du client",
   "titre": "Étude de durée de conservation",
   "certitude": "a-confirmer",
@@ -741,7 +785,7 @@ export const LEXIQUE = [
   "motsCles": "listériose femme enceinte charcuterie 2073"
  },
  {
-  "id": "don-alimentaire-46",
+  "id": "don-alimentaire-48",
   "section": "6 · Dates, allergènes et information du client",
   "titre": "Donner des denrées (don alimentaire)",
   "certitude": "verifie",
@@ -763,7 +807,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "hygiene-du-personnel-41",
+  "id": "hygiene-du-personnel-43",
   "section": "7 · Hygiène du personnel, locaux et nettoyage",
   "titre": "Hygiène du personnel",
   "certitude": "verifie",
@@ -785,29 +829,29 @@ export const LEXIQUE = [
   "motsCles": "température conservation frigo congélateur annexe i"
  },
  {
-  "id": "formation-45",
+  "id": "formation-47",
   "section": "7 · Hygiène du personnel, locaux et nettoyage",
   "titre": "Formation à l'hygiène",
   "certitude": "verifie",
   "champs": [
    {
     "label": "En bref",
-    "texte": "toute personne qui manipule des aliments est encadrée et formée à l'hygiène selon son poste. En restauration commerciale, au moins une personne de l'équipe doit avoir suivi la formation spécifique de 14 heures, et le justificatif doit être sur place. La formation « HACCP » n'est pas la même chose que la formation de 14 heures."
+    "texte": "toute personne qui manipule des aliments est encadrée et formée à l'hygiène selon son poste. En restauration commerciale (codes NAF 56.10A, B, C), au moins une personne de l'effectif doit avoir suivi la formation spécifique de 14 heures (dont au moins deux sessions de 2 h en présentiel, organisme autorisé). Aucune condition de fonction ni de présence permanente. L'effectif compte le gérant, les conjoints collaborateurs, les stagiaires, les alternants et les intérimaires. L'obligation vaut site par site (un SIRET = une personne formée). Sur place : l'attestation et la preuve que la personne fait toujours partie de l'effectif. Dispenses : 3 ans comme gestionnaire ou exploitant, ou diplôme de l'arrêté du 18/11/2024 obtenu après le 01/01/2006. Aucun renouvellement imposé. La restauration collective, les traiteurs et les hôtels ne sont pas concernés par cette formation de 14 h. La formation « HACCP » (règlement 852/2004) est autre chose : une personne responsable du PMS, pas forcément présente, sans durée ni programme imposés ; elle se justifie par un cursus, un diplôme ou des campagnes d'information professionnelles. La formation de 14 h ne la remplace pas."
    },
    {
     "label": "Texte",
-    "texte": "règlement 852/2004, annexe II, chapitre XII ; code rural, art. L. 233-4 et arrêté du 5/10/2011 ; instruction DGAL 2026-185 ; vade-mecum « Remise directe » V3, ligne F2L02 (aucune personne formée = note D)."
+    "texte": "règlement 852/2004, annexe II, chapitre XII §2 ; code rural, art. L. 233-4 et arrêté du 5/10/2011 ; instruction DGAL/SDSSA/2026-185 du 3 avril 2026 (abroge 2017-861) ; vade-mecum « Remise directe » V3, ligne F2L02 (aucune personne formée = note D)."
    },
    {
     "label": "Certitude",
-    "texte": "✔ règlement et vade-mecum lus ; arrêté du 5/10/2011 ◐ non relu."
+    "texte": "✔ règlement, instruction 2026-185 (lue le 25/11/2026) et vade-mecum lus ; arrêté du 5/10/2011 ◐ non relu."
    }
   ],
   "nature": "norme",
   "motsCles": "ccp pms 852 principes plan maîtrise sanitaire hygiène 5 octobre 2011 manipulateur"
  },
  {
-  "id": "locaux-et-equipements-47",
+  "id": "locaux-et-equipements-49",
   "section": "7 · Hygiène du personnel, locaux et nettoyage",
   "titre": "Locaux et équipements",
   "certitude": "verifie",
@@ -829,7 +873,7 @@ export const LEXIQUE = [
   "motsCles": "température conservation frigo congélateur annexe i"
  },
  {
-  "id": "contamination-croisee-dechets-eau-nuisibles-42",
+  "id": "contamination-croisee-dechets-eau-nuisibles-44",
   "section": "7 · Hygiène du personnel, locaux et nettoyage",
   "titre": "Contamination croisée, déchets, eau, nuisibles",
   "certitude": "verifie",
@@ -851,7 +895,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "huiles-usagees-15",
+  "id": "huiles-usagees-17",
   "section": "7 · Hygiène du personnel, locaux et nettoyage",
   "titre": "Huiles usagées : la collecte",
   "certitude": "a-confirmer",
@@ -873,7 +917,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "tiac-21",
+  "id": "tiac-23",
   "section": "8 · Les germes et les intoxications",
   "titre": "TIAC : intoxication alimentaire collective",
   "certitude": "verifie",
@@ -921,7 +965,7 @@ export const LEXIQUE = [
   "motsCles": "échantillon conservation 5 jours 0 3 intoxication alimentaire déclaration ars ddpp"
  },
  {
-  "id": "salmonella-22",
+  "id": "salmonella-24",
   "section": "8 · Les germes et les intoxications",
   "titre": "Salmonella",
   "certitude": "verifie",
@@ -947,7 +991,7 @@ export const LEXIQUE = [
   "motsCles": "salmonelle œuf volaille"
  },
  {
-  "id": "listeria-monocytogenes-23",
+  "id": "listeria-monocytogenes-25",
   "section": "8 · Les germes et les intoxications",
   "titre": "Listeria monocytogenes",
   "certitude": "verifie",
@@ -973,7 +1017,7 @@ export const LEXIQUE = [
   "motsCles": "listériose femme enceinte charcuterie 2073 température conservation frigo congélateur annexe i"
  },
  {
-  "id": "campylobacter-24",
+  "id": "campylobacter-26",
   "section": "8 · Les germes et les intoxications",
   "titre": "Campylobacter",
   "certitude": "verifie",
@@ -995,7 +1039,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "e-coli-stec-25",
+  "id": "e-coli-stec-27",
   "section": "8 · Les germes et les intoxications",
   "titre": "E. coli STEC",
   "certitude": "verifie",
@@ -1021,7 +1065,7 @@ export const LEXIQUE = [
   "motsCles": "steak haché boeuf 71 steak"
  },
  {
-  "id": "staphylococcus-aureus-26",
+  "id": "staphylococcus-aureus-28",
   "section": "8 · Les germes et les intoxications",
   "titre": "Staphylococcus aureus",
   "certitude": "verifie",
@@ -1047,7 +1091,7 @@ export const LEXIQUE = [
   "motsCles": "température conservation frigo congélateur annexe i"
  },
  {
-  "id": "clostridium-perfringens-et-bacillus-cereus-27",
+  "id": "clostridium-perfringens-et-bacillus-cereus-29",
   "section": "8 · Les germes et les intoxications",
   "titre": "Clostridium perfringens et Bacillus cereus",
   "certitude": "verifie",
@@ -1069,7 +1113,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "clostridium-botulinum-28",
+  "id": "clostridium-botulinum-30",
   "section": "8 · Les germes et les intoxications",
   "titre": "Clostridium botulinum (botulisme)",
   "certitude": "verifie",
@@ -1095,7 +1139,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "spores-20",
+  "id": "spores-22",
   "section": "8 · Les germes et les intoxications",
   "titre": "Les spores",
   "certitude": "verifie",
@@ -1121,7 +1165,7 @@ export const LEXIQUE = [
   "motsCles": "cellule abattage 63 10 deux heures 2h température conservation frigo congélateur annexe i"
  },
  {
-  "id": "critere-de-securite-et-critere-d-hygiene-du-procede-34",
+  "id": "critere-de-securite-et-critere-d-hygiene-du-procede-36",
   "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
   "titre": "Critère de sécurité et critère d'hygiène",
   "certitude": "verifie",
@@ -1147,7 +1191,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "listeria-monocytogenes-seuils-35",
+  "id": "listeria-monocytogenes-seuils-37",
   "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
   "titre": "Listeria : les seuils",
   "certitude": "verifie",
@@ -1173,7 +1217,7 @@ export const LEXIQUE = [
   "motsCles": "listériose femme enceinte charcuterie 2073"
  },
  {
-  "id": "salmonella-absence-dans-25-g-36",
+  "id": "salmonella-absence-dans-25-g-38",
   "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
   "titre": "Salmonella : absence dans 25 g",
   "certitude": "verifie",
@@ -1195,7 +1239,7 @@ export const LEXIQUE = [
   "motsCles": "salmonelle œuf volaille steak haché boeuf 71 steak"
  },
  {
-  "id": "viande-hachee-et-preparations-de-viande-criteres-d-hygiene-38",
+  "id": "viande-hachee-et-preparations-de-viande-criteres-d-hygiene-40",
   "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
   "titre": "Viande hachée et préparations de viande : critères",
   "certitude": "verifie",
@@ -1217,7 +1261,7 @@ export const LEXIQUE = [
   "motsCles": "steak haché boeuf 71 steak"
  },
  {
-  "id": "autres-criteres-d-hygiene-utiles-en-cuisine-39",
+  "id": "autres-criteres-d-hygiene-utiles-en-cuisine-41",
   "section": "9 · Analyses de laboratoire (règlement 2073/2005)",
   "titre": "Autres critères d'hygiène utiles en cuisine",
   "certitude": "verifie",
@@ -1239,7 +1283,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "comment-se-passe-un-controle-d-hygiene-48",
+  "id": "comment-se-passe-un-controle-d-hygiene-50",
   "section": "10 · Le contrôle officiel : le déroulement",
   "titre": "Comment se passe un contrôle d'hygiène",
   "certitude": "verifie",
@@ -1261,7 +1305,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "ce-que-l-inspecteur-prepare-avant-de-venir-49",
+  "id": "ce-que-l-inspecteur-prepare-avant-de-venir-51",
   "section": "10 · Le contrôle officiel : le déroulement",
   "titre": "Ce que l'inspecteur prépare avant de venir",
   "certitude": "verifie",
@@ -1283,7 +1327,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "le-vade-mecum-et-la-grille-d-inspection-50",
+  "id": "le-vade-mecum-et-la-grille-d-inspection-52",
   "section": "10 · Le contrôle officiel : le déroulement",
   "titre": "Le vade-mecum et la grille d'inspection",
   "certitude": "verifie",
@@ -1305,7 +1349,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "reactivite-ce-que-vous-avez-fait-depuis-la-derniere-visite-51",
+  "id": "reactivite-ce-que-vous-avez-fait-depuis-la-derniere-visite-53",
   "section": "10 · Le contrôle officiel : le déroulement",
   "titre": "Réactivité : ce que vous avez fait depuis la dernière visite",
   "certitude": "verifie",
@@ -1327,7 +1371,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "action-corrective-et-autocontrole-52",
+  "id": "action-corrective-et-autocontrole-54",
   "section": "10 · Le contrôle officiel : le déroulement",
   "titre": "Action corrective et autocontrôle",
   "certitude": "verifie",
@@ -1349,7 +1393,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "les-notes-a-b-c-d-53",
+  "id": "les-notes-a-b-c-d-55",
   "section": "11 · Le contrôle officiel : les notes",
   "titre": "Les notes A, B, C, D",
   "certitude": "verifie",
@@ -1371,7 +1415,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "la-note-globale-de-l-etablissement-54",
+  "id": "la-note-globale-de-l-etablissement-56",
   "section": "11 · Le contrôle officiel : les notes",
   "titre": "La note globale de l'établissement",
   "certitude": "verifie",
@@ -1393,7 +1437,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "notes-d-temperatures-dlc-et-enregistrements-55",
+  "id": "notes-d-temperatures-dlc-et-enregistrements-57",
   "section": "12 · Le contrôle officiel : ce qui pèse le plus",
   "titre": "Notes D : températures, DLC et enregistrements",
   "certitude": "verifie",
@@ -1415,7 +1459,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "notes-d-tracabilite-et-alertes-56",
+  "id": "notes-d-tracabilite-et-alertes-58",
   "section": "12 · Le contrôle officiel : ce qui pèse le plus",
   "titre": "Notes D : traçabilité et alertes",
   "certitude": "verifie",
@@ -1437,7 +1481,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "notes-d-locaux-nuisibles-dechets-57",
+  "id": "notes-d-locaux-nuisibles-dechets-59",
   "section": "12 · Le contrôle officiel : ce qui pèse le plus",
   "titre": "Notes D : locaux, nuisibles, déchets",
   "certitude": "verifie",
@@ -1459,7 +1503,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "notes-d-personnel-et-hygiene-58",
+  "id": "notes-d-personnel-et-hygiene-60",
   "section": "12 · Le contrôle officiel : ce qui pèse le plus",
   "titre": "Notes D : personnel et hygiène",
   "certitude": "verifie",
@@ -1481,7 +1525,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "notes-c-les-ecarts-les-plus-courants-59",
+  "id": "notes-c-les-ecarts-les-plus-courants-61",
   "section": "12 · Le contrôle officiel : ce qui pèse le plus",
   "titre": "Notes C : les écarts les plus courants",
   "certitude": "verifie",
@@ -1503,7 +1547,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "retrait-et-rappel-la-difference-60",
+  "id": "retrait-et-rappel-la-difference-62",
   "section": "13 · Le contrôle officiel : retraits et rappels",
   "titre": "Retrait et rappel : la différence",
   "certitude": "verifie",
@@ -1525,7 +1569,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "retirer-un-produit-rappele-la-demi-journee-61",
+  "id": "retirer-un-produit-rappele-la-demi-journee-63",
   "section": "13 · Le contrôle officiel : retraits et rappels",
   "titre": "Retirer un produit rappelé : la demi-journée",
   "certitude": "verifie",
@@ -1547,7 +1591,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "informer-les-clients-d-un-rappel-62",
+  "id": "informer-les-clients-d-un-rappel-64",
   "section": "13 · Le contrôle officiel : retraits et rappels",
   "titre": "Informer les clients d'un rappel",
   "certitude": "verifie",
@@ -1569,7 +1613,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "que-faire-d-un-produit-retire-63",
+  "id": "que-faire-d-un-produit-retire-65",
   "section": "13 · Le contrôle officiel : retraits et rappels",
   "titre": "Que faire d'un produit retiré",
   "certitude": "verifie",
@@ -1591,7 +1635,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "prevenir-ceux-a-qui-vous-avez-cede-le-produit-64",
+  "id": "prevenir-ceux-a-qui-vous-avez-cede-le-produit-66",
   "section": "13 · Le contrôle officiel : retraits et rappels",
   "titre": "Prévenir ceux à qui vous avez cédé le produit",
   "certitude": "verifie",
@@ -1613,7 +1657,7 @@ export const LEXIQUE = [
   "motsCles": ""
  },
  {
-  "id": "petits-restaurants-la-flexibilite-65",
+  "id": "petits-restaurants-la-flexibilite-67",
   "section": "14 · Le contrôle officiel : petits restaurants et produits d'entretien",
   "titre": "Petits restaurants : la « flexibilité »",
   "certitude": "verifie",
@@ -1635,7 +1679,7 @@ export const LEXIQUE = [
   "motsCles": "cellule abattage 63 10 deux heures 2h bain-marie 63 liaison chaude température conservation frigo congélateur annexe i"
  },
  {
-  "id": "produits-d-entretien-et-contre-les-nuisibles-66",
+  "id": "produits-d-entretien-et-contre-les-nuisibles-68",
   "section": "14 · Le contrôle officiel : petits restaurants et produits d'entretien",
   "titre": "Produits d'entretien et contre les nuisibles",
   "certitude": "verifie",

@@ -106,6 +106,8 @@ const GROUPES = [
   ] },
   { nom: "2 · Le froid et le chaud pendant le service", intro: "Les températures à connaître au quotidien.", fiches: [
     ["temperatures maximales de conservation", null],
+    ["reglage d'un frigo", null],
+    ["ecart de temperature", null],
     ["chaine du froid", null],
     ["maintien au chaud", null],
     ["zone de danger", null],

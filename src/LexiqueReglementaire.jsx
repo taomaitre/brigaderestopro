@@ -105,7 +105,7 @@ export default function LexiqueReglementaire({ couleur }) {
   return (
     <div className="space-y-3">
       <div className="rounded-xl p-3 text-sm text-[var(--ink)] bg-white" style={{ border: `2px solid ${zc.bord}`, background: zc.fond }}>
-        Français et européens uniquement, pour la restauration commerciale. Chaque fiche dit d'abord ce qu'elle est : <b>norme obligatoire</b>, règle des collectivités (repère pour un restaurant), guide officiel conseillé, avis scientifique, ou bonne pratique. Elle donne aussi la source, le lien et son niveau de vérification. Les informations sont pédagogiques : le PMS de l'établissement fait foi, et ce lexique ne remplace ni la vérification des textes ni la formation HACCP. Mis à jour le {LEXIQUE_DATE}.
+        Français et européens uniquement, pour la restauration commerciale. Chaque fiche dit d'abord ce qu'elle est : <b>norme obligatoire</b>, règle des collectivités (repère pour un restaurant), guide officiel conseillé, avis scientifique, ou bonne pratique. Elle donne aussi la source, le lien et son niveau de vérification. Fiches vérifiées sur les textes officiels par l'éditeur. Elles ne remplacent ni la formation ni la lecture des textes. Les informations sont pédagogiques : le PMS de l'établissement fait foi. Mis à jour le {LEXIQUE_DATE}.
       </div>
 
       <div className="relative">

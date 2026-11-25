@@ -21,12 +21,13 @@ Versions précédentes : v5 du 20/10 (git), compléments du 26/10 et du 31/10.
 
 ## 1. Avertissements (haut du lexique, bas de chaque entrée)
 « Les informations de ce lexique sont pédagogiques. Le plan de maîtrise sanitaire (PMS) de l'établissement fait foi. Ce lexique ne remplace en aucun cas une vérification, un contrôle ou une formation HACCP. En cas de doute, consultez votre PMS, votre consultant HACCP ou la DDPP. »
+« Fiches vérifiées sur les textes officiels par l'éditeur. Elles ne remplacent ni la formation ni la lecture des textes. » (décision du 25/11/2026 : ne jamais écrire « validé par un expert » ni « certifié »)
 
 ## 2. Règles de rédaction
 1. N'écrire que ce qui est sûr. Un doute = non publié, ou « à vérifier » avec la source.
 2. Toujours dire si c'est une norme ou non (champ Nature). Un conseil n'est jamais présenté comme une obligation.
 3. Deux sources officielles qui diffèrent : afficher les deux, chacune avec sa source.
-4. Quand aucun texte n'existe, le logiciel ne propose aucune valeur : l'établissement décide et le justifie dans son PMS.
+4. Quand aucun texte n'existe, le logiciel n'impose aucune valeur : la personne qui établit le PMS décide et le justifie. Un repère professionnel peut être montré seulement s'il est marqué « Conseil, pas une norme ».
 5. Textes français et européens uniquement. Restauration commerciale uniquement.
 6. Phrases courtes. Un chiffre = sa source.
 
@@ -121,6 +122,18 @@ Hiérarchie : 1) règlements UE, lois, décrets, arrêtés (Légifrance, EUR-Lex
 **Citation** : « La limite inférieure de conservation des denrées alimentaires réfrigérées doit se situer à la température débutante de congélation propre à chaque catégorie de produits. »
 **Texte** : arrêté du 21/12/2009, annexe I, colonne « établissements de remise directe ou de restauration collective » ; guide Restaurateur p. 179. Un produit emballé peut porter une température plus basse fixée par le fabricant : c'est elle qu'on suit.
 **Certitude** : ✔ relu le 25/11/2026 (copie de la DDPP de Saône-et-Loire).
+
+### Réglage d'un frigo : le produit le plus fragile ✔
+**Nature** : norme
+**En bref** : chaque appareil se règle sur le produit le plus fragile qu'il contient. Un frigo avec de la viande hachée doit rester à +2 °C maximum, même s'il contient aussi des laitages. Fruits et légumes frais entiers : aucune température fixée par les textes (indication du fournisseur ou PMS). Aucun texte ne fixe de limite basse chiffrée ni de délai avant recontrôle : c'est la personne qui établit le PMS qui les choisit, et elle peut prendre un seuil d'alerte plus strict.
+**Texte** : arrêté du 21/12/2009, annexe I.
+**Certitude** : ✔ relu le 25/11/2026.
+
+### Écart de température : ce que note l'inspecteur ✔
+**Nature** : information
+**En bref** : à l'inspection, un relevé de +2 à +3 °C au-dessus du maximum est noté C ; plus de +3 °C est noté D, comme l'absence de relevés. Le logiciel suit ces seuils : alerte au-delà de +2 °C, alerte urgente au chef et au directeur au-delà de +3 °C, avec contrôle et action obligatoires (transfert ou destruction, noté).
+**Texte** : vade-mecum général V7, ligne C401 (méthode de contrôle de la DGAL).
+**Certitude** : ✔ lu le 26/10/2026.
 
 ### Surgélation et congélation ✔
 **Nature** : norme
@@ -253,6 +266,7 @@ Hiérarchie : 1) règlements UE, lois, décrets, arrêtés (Légifrance, EUR-Lex
 
 ## 6. Températures de cuisson (France et UE seulement)
 **Principe** : les barèmes du guide sont « donnés à titre indicatif » et « restent sous la responsabilité de chaque professionnel » (p. 109, p. 180). Ce ne sont pas des normes : l'établissement choisit et l'écrit dans son PMS.
+**Dans le logiciel** : en dessous d'un barème ANSES, le logiciel affiche un avertissement (pas « non conforme »). Famille « Général » (légumes, plats, sauces) : aucun seuil imposé, la température est seulement enregistrée. Si le PMS fixe sa propre valeur, c'est elle qui décide de la conformité. Le maintien au chaud à +63 °C reste une norme (annexe I).
 
 **Barèmes ANSES du guide Restaurateur 2015, p. 180** ✔
 | Famille | Barème | Détail |
@@ -373,9 +387,10 @@ Ce règlement fixe des obligations de résultat, sans chiffres de température.
 
 ### Formation ✔
 **Nature** : norme
-**En bref** : toute personne qui manipule des aliments est encadrée et formée à l'hygiène selon son poste. En restauration commerciale, au moins une personne de l'équipe doit avoir suivi la formation spécifique de 14 heures, et le justificatif doit être sur place. La formation « HACCP » n'est pas la même chose que la formation de 14 heures.
-**Texte** : règlement 852/2004, annexe II, chapitre XII ; code rural, art. L. 233-4 et arrêté du 5/10/2011 ; instruction DGAL 2026-185 ; vade-mecum « Remise directe » V3, ligne F2L02 (aucune personne formée = note D).
-**Certitude** : ✔ règlement et vade-mecum lus ; arrêté du 5/10/2011 ◐ non relu.
+**En bref** : toute personne qui manipule des aliments est encadrée et formée à l'hygiène selon son poste. En restauration commerciale (codes NAF 56.10A, B, C), au moins une personne de l'effectif doit avoir suivi la formation spécifique de 14 heures (dont au moins deux sessions de 2 h en présentiel, organisme autorisé). Aucune condition de fonction ni de présence permanente. L'effectif compte le gérant, les conjoints collaborateurs, les stagiaires, les alternants et les intérimaires. L'obligation vaut site par site (un SIRET = une personne formée). Sur place : l'attestation et la preuve que la personne fait toujours partie de l'effectif. Dispenses : 3 ans comme gestionnaire ou exploitant, ou diplôme de l'arrêté du 18/11/2024 obtenu après le 01/01/2006. Aucun renouvellement imposé. La restauration collective, les traiteurs et les hôtels ne sont pas concernés par cette formation de 14 h.
+La formation « HACCP » (règlement 852/2004) est autre chose : une personne responsable du PMS, pas forcément présente, sans durée ni programme imposés ; elle se justifie par un cursus, un diplôme ou des campagnes d'information professionnelles. La formation de 14 h ne la remplace pas.
+**Texte** : règlement 852/2004, annexe II, chapitre XII §2 ; code rural, art. L. 233-4 et arrêté du 5/10/2011 ; instruction DGAL/SDSSA/2026-185 du 3 avril 2026 (abroge 2017-861) ; vade-mecum « Remise directe » V3, ligne F2L02 (aucune personne formée = note D).
+**Certitude** : ✔ règlement, instruction 2026-185 (lue le 25/11/2026) et vade-mecum lus ; arrêté du 5/10/2011 ◐ non relu.
 
 ### Don alimentaire ✔
 **Nature** : norme
