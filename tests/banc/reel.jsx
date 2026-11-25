@@ -55,7 +55,7 @@ if (q.get('grp') === '1' && identite.catalogue) {
   const ordre = { p5: 1, p2: 2, p1: 3 }; // Pains, Glace, Flan (l'inverse de l'ordre alphabétique)
   identite.catalogue = identite.catalogue.map((c) => ({ ...c, ordreStock: ordre[c.id] == null ? null : ordre[c.id] }));
 }
-// ?ft=1 : trois fiches techniques FICTIVES vides d'étapes (noms du classeur Games Factory) pour tester « Compléter mes fiches ».
+// ?ft=1 : trois fiches techniques FICTIVES vides d'étapes (noms du classeur macuisine) pour tester « Compléter mes fiches ».
 if (q.get('ft') === '1') {
   const base = (id, nom, cat) => ({ id, nom, code: 'FT-' + id, categorie: cat, type: 'recette', poste: '', sousTitre: 'Allergènes seulement (recette à saisir)', allergenes: ['Lait'], ingredients: id === 'g3' ? [{ nom: 'Mozzarella', quantite: '1', unite: 'kg', lienId: 'L1', lienType: 'stock' }] : [], preparation: [], haccp: [], materiel: [], aRetenir: [], dressage: [], rendement: [], etiquetage: [], tracabilite: [], nonConformite: [], nonCategorise: [], autresSections: [], groupesPortions: [], titresSections: {}, dureeConservation: [], consignesImportantes: [], refroidissementStockage: [], cout: { prixVente: '', coutPortion: '', coutRecette: '' }, rendementCourt: '', rendementAttendu: '', dlcJours: 0 });
   identite.listes = { ...(identite.listes || {}), fiches: [base('g1', 'Lasagne – Montage & Envoi', 'Plat'), base('g2', 'Burger Le Bacon', 'Burger'), base('g3', 'Margherita', 'Pizza')] };
