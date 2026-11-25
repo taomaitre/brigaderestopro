@@ -102,6 +102,14 @@ const R = [
   ["Q4 : délai avant recontrôle réglé par appareil (plus de 30 min imposées)", /const delaiRecontroleMin = /, true],
   ["Q4 : contenus, seuil et délai enregistrés en base", /delai_alerte_min/, true],
   ["Q4 : plus de limite basse à −1 °C à la réception", /min: -1, max/, false],
+  // Q5 TIAC, Q6 fiche températures, Q7 cuisson (25/11)
+  ["Q5 : TIAC, période exacte indiquée par l'ARS ou la DDPP", /La période exacte vous sera indiquée par l'ARS ou la DDPP/, true],
+  ["Q5 : plus de « 3 derniers jours » imposés pour les restes", /3 derniers jours/, false],
+  ["Q5 : plats témoins obligatoires seulement en restauration collective", /const collectiveTiac = /, true],
+  ["Q6 : plus de 0 à 3 °C / +4 à 8 °C de macuisine dans la fiche commune", /duree: "0°C à 3°C"|duree: "\+4°C à 8°C"/, false],
+  ["Q6 : tableau officiel de l'annexe I dans la fiche Températures", /Tableau officiel — arrêté du 21\/12\/2009, annexe I/, true],
+  ["Q7 : famille « Général » sans seuil imposé", /id: "general", label: "[^"]*", seuil: null/, true],
+  ["Q7 : sous un barème ANSES = avertissement, pas « non conforme »", /avertissement : sous le barème ANSES/, true],
 ];
 // Nom de l'ancien exploitant : remplacé par « macuisine » partout (demande de Loïc, 25/11). Écrit en morceaux pour ne pas figurer ici.
 {

@@ -4077,7 +4077,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
 
 // Déclaration TIAC (Toxi-Infection Alimentaire Collective) — pré-remplit automatiquement ce qui peut
 // l'être à partir des données déjà enregistrées dans l'application (personnel actif, réservations,
-// produits réceptionnés/tracés sur les 5 jours précédant les premiers symptômes, comme demandé par
+// produits réceptionnés/tracés sur la période proposée (5 jours par défaut, modifiable ; la période exacte est fixée par l'ARS ou la DDPP), comme demandé par
 // la procédure officielle), pour ne laisser à compléter à la main que ce que le logiciel ne peut pas
 // savoir : la liste des malades et le suivi de l'alerte aux autorités.
 function DeclarationTiac({ employees, activityLog, receptions, preparations, produits, reservations, currentUserId, logActivity, declarationsTiac, setDeclarationsTiac }) {
@@ -4090,6 +4090,8 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
   const [ddTel, setDdTel] = useStored("tiac-dd-tel", "");
   const [joursEnquete, setJoursEnquete] = useStored("tiac-jours-enquete", 5);
   const [mesures, setMesures] = useState({ isoler: false, temoins: false, suspendre: false, nettoyer: false });
+  // Décision Q5 (25/11) : plats témoins obligatoires seulement en restauration collective (arrêté du 21/12/2009, annexe IV, 5 jours).
+  const collectiveTiac = !!(React.useContext(AlarmesContext) || {}).collective;
   const [documents, setDocuments] = useState({ menus: false, tracabilite: false, autocontroles: false, malades: false, personnel: false });
   const [dateDebut, setDateDebut] = useState(todayISO());
   const [malades, setMalades] = useState([{ id: uid(), nom: "", age: "", symptomes: "", dateHeure: "" }]);
@@ -4135,7 +4137,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
 
   const genererTexte = (source) => {
     const s = source || {
-      etablissementNom, etablissementAdresse, dateDebut, dateDebutPlage, joursEnquete, responsableNoms,
+      etablissementNom, etablissementAdresse, dateDebut, dateDebutPlage, joursEnquete, responsableNoms, collective: collectiveTiac,
       personnelNoms, convivesParJour, produitsReceptionnes, produitsPrepares,
       malades, arsFait, arsDateHeure, ddcspFait, ddcspDateHeure, conserve, notes,
       arsNom, arsTel, ddNom, ddTel, mesures, documents,
@@ -4155,7 +4157,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
     lignes.push("");
     lignes.push("MESURES IMMÉDIATES");
     lignes.push(`  [${s.mesures.isoler ? "x" : " "}] Produits suspects écartés (non jetés)`);
-    lignes.push(`  [${s.mesures.temoins ? "x" : " "}] Plats témoins et restes de matières premières et de plats des 3 derniers jours conservés (réservés aux services de contrôle)`);
+    lignes.push(`  [${s.mesures.temoins ? "x" : " "}] ${s.collective ? "Plats témoins (5 jours) et restes" : "Restes"} et emballages des repas suspects conservés (réservés aux services de contrôle)`);
     lignes.push(`  [${s.mesures.suspendre ? "x" : " "}] Service des plats concernés suspendu`);
     lignes.push(`  [${s.mesures.nettoyer ? "x" : " "}] Nettoyage et désinfection après prélèvement des échantillons`);
     lignes.push("");
@@ -4169,7 +4171,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
     lignes.push("3. ÉLÉMENTS CONSERVÉS");
     lignes.push(s.conserve || "à compléter");
     lignes.push("");
-    lignes.push(`4. ÉLÉMENTS D'INFORMATION — période du ${fmtShort(s.dateDebutPlage)} au ${fmtShort(s.dateDebut)} (${s.joursEnquete || 5} jours précédant les premiers symptômes)`);
+    lignes.push(`4. ÉLÉMENTS D'INFORMATION — période du ${fmtShort(s.dateDebutPlage)} au ${fmtShort(s.dateDebut)} (${s.joursEnquete || 5} jours précédant les premiers symptômes ; période exacte indiquée par l'ARS ou la DDPP)`);
     lignes.push("");
     lignes.push("Convives par jour (d'après les réservations enregistrées — ne compte pas les clients sans réservation) :");
     if (s.convivesParJour.length) s.convivesParJour.forEach(([d, n]) => lignes.push(`  - ${fmtShort(d)} : ${n} personne(s)`));
@@ -4250,7 +4252,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
 
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-2">1. Date des premiers symptômes signalés</h3>
-        <p className="text-xs text-[var(--steel)] mb-2">Les informations sont reprises automatiquement sur la période qui précède cette date (modifiable ci-dessous).</p>
+        <p className="text-xs text-[var(--steel)] mb-2">Les informations sont reprises automatiquement sur la période qui précède cette date. Aucun texte ne fixe cette durée pour un restaurant : la période proposée est modifiable. <strong>La période exacte vous sera indiquée par l'ARS ou la DDPP.</strong></p>
         <div className="flex flex-wrap items-center gap-3">
           <input className={inputCls} type="date" value={dateDebut} onChange={(e) => setDateDebut(e.target.value)} />
           <label className="text-xs text-[var(--steel)] flex items-center gap-1.5">Jours étudiés avant
@@ -4318,7 +4320,7 @@ function DeclarationTiac({ employees, activityLog, receptions, preparations, pro
         <h3 className="font-semibold text-[var(--ink)] mb-1">Mesures immédiates</h3>
         <p className="text-xs text-[var(--steel)] mb-2">À cocher au fur et à mesure (aide, rien n'est bloquant).</p>
         <div className="space-y-1.5 text-sm text-[var(--ink)]">
-          {[["isoler", "Écarter les produits suspects (ne pas les jeter)"], ["temoins", "Conserver les plats témoins et les restes de matières premières et de plats des 3 derniers jours (réservés aux services de contrôle)"], ["suspendre", "Suspendre le service des plats concernés"], ["nettoyer", "Nettoyer et désinfecter après prélèvement des échantillons"]].map(([k, t]) => (
+          {[["isoler", "Écarter les produits suspects (ne pas les jeter)"], ["temoins", collectiveTiac ? "Conserver les plats témoins (obligatoires en restauration collective : 5 jours, arrêté du 21/12/2009, annexe IV) et tous les restes et emballages des repas suspects" : "Conserver tous les restes et emballages des repas suspects. Plats témoins : pas obligatoires pour un restaurant ; si vous en gardez, conservez-les"], ["suspendre", "Suspendre le service des plats concernés"], ["nettoyer", "Nettoyer et désinfecter après prélèvement des échantillons"]].map(([k, t]) => (
             <label key={k} className="flex items-start gap-2"><input type="checkbox" className="mt-1" checked={mesures[k]} onChange={(e) => setMesures({ ...mesures, [k]: e.target.checked })} /> {t}</label>
           ))}
         </div>
@@ -7224,7 +7226,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                   <p className="text-base font-bold" style={{ color: NOIR }}>Décongélation de ce produit</p>
                   <p className="text-sm mb-2" style={{ color: "#4A524E" }}>Ce produit surgelé est-il décongelé avant usage ?</p>
                   <div className="grid gap-2 sm:grid-cols-3">
-                    {[["cuisson", "Non : utilisé congelé", "Cuisson directe depuis le congelé, pas de décongélation"], ["", "Oui : décongelé en chambre froide", "0 à +3 °C — l'étiquette portera « Décongelé le … » et ne sera jamais recongelé"], ["fabricant", "Oui : décongelé selon le fabricant", "Durée et source de la notice ci-dessous"]].map(([val, titre, aide]) => {
+                    {[["cuisson", "Non : utilisé congelé", "Cuisson directe depuis le congelé, pas de décongélation"], ["", "Oui : décongelé en chambre froide", "Entre 0 °C et la température maximale du produit (à défaut 0 à +4 °C, annexe VI) — l'étiquette portera « Décongelé le … » et ne sera jamais recongelé"], ["fabricant", "Oui : décongelé selon le fabricant", "Durée et source de la notice ci-dessous"]].map(([val, titre, aide]) => {
                       const actif = (v.decongel_methode || "") === val;
                       return (
                         <button key={val || "froid"} type="button" onClick={() => maj("decongel_methode", val || null)} className="text-left rounded-lg border-2 px-3 py-2" style={actif ? { borderColor: Z.texte, background: Z.fond } : { borderColor: "#9CA3AF", background: "#fff" }}>
@@ -7339,7 +7341,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 <p className="text-xs font-semibold text-[var(--ink)] mb-1">Décongélation de ce produit</p>
                 <p className="text-xs text-[var(--steel)] mb-1">Ce produit surgelé est-il décongelé avant usage ?</p>
                 <div className="grid gap-2 sm:grid-cols-3">
-                  {[["cuisson", "Non : utilisé congelé", "Cuisson directe depuis le congelé, pas de décongélation"], ["", "Oui : décongelé en chambre froide", "0 à +3 °C — l'étiquette portera « Décongelé le … » et ne sera jamais recongelé"], ["fabricant", "Oui : décongelé selon le fabricant", "Durée et source de la notice ci-dessous"]].map(([val, titre, aide]) => {
+                  {[["cuisson", "Non : utilisé congelé", "Cuisson directe depuis le congelé, pas de décongélation"], ["", "Oui : décongelé en chambre froide", "Entre 0 °C et la température maximale du produit (à défaut 0 à +4 °C, annexe VI) — l'étiquette portera « Décongelé le … » et ne sera jamais recongelé"], ["fabricant", "Oui : décongelé selon le fabricant", "Durée et source de la notice ci-dessous"]].map(([val, titre, aide]) => {
                     const actif = (v.decongel_methode || "") === val;
                     return (
                       <button key={val || "froid"} type="button" onClick={() => maj("decongel_methode", val || null)} className={`text-left rounded-lg border-2 px-3 py-2 ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
@@ -7629,7 +7631,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
                   <td className="p-2 text-[var(--ink)]">{c.produit}</td>
                   <td className={`p-2 font-medium ${c.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{c.temperature ? `${c.temperature}°C` : "—"}</td>
                   <td className="p-2 text-[var(--steel)]">{c.heureFin || c.heureDebut}</td>
-                  <td className={`p-2 font-medium ${c.conforme ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{c.conforme ? "✓ ≥ 63°C" : "✗ Non conforme"}</td>
+                  <td className={`p-2 font-medium ${c.conforme && !c.avertissement ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{!c.conforme ? "✗ Non conforme" : c.avertissement ? "⚠ Sous le barème ANSES" : "✓ Conforme"}</td>
                   <td className="p-2 text-[var(--steel)]">{who(c.employeeId)}</td>
                 </tr>
               ))}
@@ -11631,7 +11633,7 @@ function haccpRowsFiche(S) {
   if (ingOk.length) rows.push({ etape: "Réception", pointCritique: "Matières premières", aControler: "T° conforme (≤ +4 °C frais, ≤ +2 °C viande hachée), emballage intact, DLC" });
   if (p.froid.on) rows.push({ etape: "Préparation froide", pointCritique: "Chaîne du froid", aControler: "≤ +3 °C, préparée au plus près du service" });
   if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 °C à la T° de conservation du produit (à défaut 0 à +4 °C) · DLC : durée du fabricant ou celle fixée par l'établissement" : "Cuisson directe depuis le congelé" });
-  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C${p.cuisson.coeurAutre ? ` — norme personnalisée sous la responsabilité de l'établissement${p.cuisson.coeurJustif ? ` (justification : ${p.cuisson.coeurJustif})` : ""}` : ""}${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
+  if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `${seuilCuissonPerso(p.cuisson) != null ? `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C` : "T° à cœur enregistrée (pas de seuil imposé)"}${p.cuisson.coeurAutre ? ` — norme personnalisée sous la responsabilité de l'établissement${p.cuisson.coeurJustif ? ` (justification : ${p.cuisson.coeurJustif})` : ""}` : ""}${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
   if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: (p.refroid.autre ? `${p.refroid.cibleTxt || "norme à préciser"}${MENTION_NORME_PERSO}${p.refroid.justif ? ` (justification : ${p.refroid.justif})` : ""}` : "+63 °C → +10 °C à cœur (2 h : règle des collectivités, repère pour un restaurant)") + (p.refroid.mode === "sans" ? " · relevé à la durée fixée par l'établissement" : "") });
   if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C (aucune durée fixée par les textes), étiquette « congelé le … »" });
   if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
@@ -12079,11 +12081,11 @@ function CreationFicheTechniqueComplete({ actionsChef, fiches, fichesCustom, set
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [modeFiche]);
   // Nouvelle version : la T° à cœur visée suit automatiquement la norme de la famille choisie, ou la valeur
-  // plus stricte choisie par le chef (« Autre valeur »). Jamais en dessous de la norme.
+  // choisie par le chef (« Autre valeur »). Famille « Général » : aucune valeur imposée (décision Q7).
   useEffect(() => {
     const c = S.procedes.cuisson;
     if (!avecModes || !c.on) return;
-    const cible = `≥ +${seuilCuissonPerso(c)} °C`;
+    const cible = seuilCuissonPerso(c) != null ? `≥ +${seuilCuissonPerso(c)} °C` : "";
     if (c.coeur !== cible) majProcede("cuisson", { coeur: cible });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [avecModes, S.procedes.cuisson.on, S.procedes.cuisson.famille, S.procedes.cuisson.coeurAutre, S.procedes.cuisson.coeurPerso]);
@@ -12485,7 +12487,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Type de produit (température à atteindre à cœur)">
                   <select className={inputCls} value={S.procedes.cuisson.famille} onChange={(e) => majProcede("cuisson", { famille: e.target.value })}>
-                    {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+                    {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — {libSeuilFamille(f)}</option>)}
                   </select>
                 </Field>
                 <Field label="Appareil de cuisson">
@@ -12523,7 +12525,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && <Field label="Réglage / température appareil"><input className={inputCls} value={S.procedes.cuisson.reglage} onChange={(e) => majProcede("cuisson", { reglage: e.target.value })} placeholder="ex. 180 °C chaleur combinée" /></Field>}
                 {modeFiche === "expert" && <Field label="Durée (affichée sur la fiche)"><input className={inputCls} value={S.procedes.cuisson.duree} onChange={(e) => majProcede("cuisson", { duree: e.target.value })} placeholder="ex. 12 à 15 min" /></Field>}
                 {modeFiche === "expert" && <Field label="Durée en minutes (pour le chrono de cuisson)"><input className={inputCls} type="number" min="0" value={S.procedes.cuisson.dureeMin} onChange={(e) => majProcede("cuisson", { dureeMin: e.target.value })} placeholder="ex. 14" /></Field>}
-                {!avecModes && <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={`ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C`} /></Field>}
+                {!avecModes && <Field label="T° à cœur visée"><input className={inputCls} value={S.procedes.cuisson.coeur} onChange={(e) => majProcede("cuisson", { coeur: e.target.value })} placeholder={cuissonSeuilMin(S.procedes.cuisson.famille) != null ? `ex. ≥ +${cuissonSeuilMin(S.procedes.cuisson.famille)} °C` : "ex. ≥ +65 °C (votre PMS)"} /></Field>}
                 {avecModes && (() => {
                   const c = S.procedes.cuisson;
                   const fam = cuissonFamille(c.famille);
@@ -12533,7 +12535,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                       <div className="text-xs font-semibold text-[var(--steel)] uppercase tracking-wide mb-1">T° à cœur visée</div>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer mb-2 ${!perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                         <input type="radio" className="mt-0.5" checked={!perso} onChange={() => majProcede("cuisson", { coeurAutre: false, coeurPerso: "", coeurJustif: "" })} />
-                        <span><strong>Référence retenue : ≥ +{fam.seuil} °C à cœur</strong><span className="block text-xs text-[var(--steel)]">{fam.note}</span></span>
+                        <span><strong>{fam.seuil != null ? `Référence retenue : ≥ +${fam.seuil} °C à cœur (barème ANSES, avertissement en dessous)` : "Aucun seuil imposé : la température est seulement enregistrée"}</strong><span className="block text-xs text-[var(--steel)]">{fam.note}</span></span>
                       </label>
                       <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${perso ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                         <input type="radio" className="mt-0.5" checked={perso} onChange={() => majProcede("cuisson", { coeurAutre: true, coeurPerso: c.coeurPerso || "" })} />
@@ -15485,16 +15487,18 @@ function EtiquetteCuisson({ c, who }) {
   );
 }
 
-// Seuils de conformité par famille de produit (fiche HACCP "Cuisson" — ce sont les vrais chiffres
-// officiels, pas une simplification) : la règle générale est 63°C, mais viande hachée et volaille
-// ont des seuils officiels plus élevés. On ne compare donc plus toutes les cuissons au même chiffre.
+// Familles de cuisson (décision Q7, 25/11) : les barèmes ANSES repris par le guide officiel « Restaurateur » (page 180) sont des repères :
+// en dessous, AVERTISSEMENT (pas « non conforme »). Famille « Général » : aucun seuil imposé, la température est seulement enregistrée,
+// sauf si la personne qui établit le PMS fixe le sien (« Autre »). Le maintien au chaud (+63 °C, annexe I) reste une norme, à part.
 const CUISSON_FAMILLES = [
-  { id: "general", label: "Général (viande en morceau entier, légumes, plats, sauces...)", seuil: 63, note: "Barème du guide Restaurateur (page 180) : viandes coupées de bœuf, veau, agneau, jambon, 63 °C pendant 15 s. Pour les autres préparations, aucun barème : le chef choisit (« Autre valeur ») et justifie." },
-  { id: "viandeHachee", label: "Viande hachée (bœuf, veau, agneau, porc : steak haché, bolognaise, lasagne...)", seuil: 71, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +71 °C à cœur pendant 15 secondes." },
-  { id: "volaille", label: "Volaille hachée", seuil: 74, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +74 °C à cœur pendant 15 secondes. Il n'existe pas de valeur officielle chiffrée pour la volaille en morceau entier : utilise « Autre valeur »." },
-  { id: "poisson", label: "Poisson", seuil: 60, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : de 1 minute à +60 °C jusqu'à 15 minutes à +80 °C à cœur (plus la température est basse, plus le temps doit être long)." },
-  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Barème indicatif du guide Restaurateur (page 180, barèmes ANSES) : +90 °C à cœur pendant 2 minutes." },
+  { id: "general", label: "Général (légumes, plats, sauces...)", seuil: null, note: "Aucun barème officiel : la température est seulement enregistrée. La personne qui établit le PMS peut fixer sa propre valeur (« Autre ») et la justifier." },
+  { id: "morceaux", label: "Viande en morceau entier (bœuf, veau, agneau, jambon)", seuil: 63, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : +63 °C à cœur pendant 15 secondes. Repère, pas une norme : en dessous, avertissement." },
+  { id: "viandeHachee", label: "Viande hachée (bœuf, veau, agneau, porc : steak haché, bolognaise, lasagne...)", seuil: 71, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : +71 °C à cœur pendant 15 secondes. Repère, pas une norme : en dessous, avertissement." },
+  { id: "volaille", label: "Volaille hachée", seuil: 74, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : +74 °C à cœur pendant 15 secondes. Il n'existe pas de valeur officielle chiffrée pour la volaille en morceau entier : utilisez « Général » ou « Autre »." },
+  { id: "poisson", label: "Poisson", seuil: 60, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : de 1 minute à +60 °C jusqu'à 15 minutes à +80 °C à cœur (plus la température est basse, plus le temps doit être long)." },
+  { id: "coquillages", label: "Coquillages cuits (moules, palourdes...)", seuil: 90, note: "Barème ANSES repris par le guide officiel Restaurateur (page 180) : +90 °C à cœur pendant 2 minutes. Repère, pas une norme : en dessous, avertissement." },
 ];
+const libSeuilFamille = (f) => (f && f.seuil != null ? `≥ ${f.seuil} °C (ANSES)` : "pas de seuil imposé");
 const cuissonSeuilMin = (familleId) => (CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0]).seuil;
 const cuissonFamille = (familleId) => CUISSON_FAMILLES.find((f) => f.id === familleId) || CUISSON_FAMILLES[0];
 // Seuil appliqué : la norme officielle de la famille, ou la valeur choisie par l'établissement (« Autre »),
@@ -15504,6 +15508,16 @@ const seuilCuissonPerso = (c) => {
   return Number.isFinite(p) ? p : cuissonSeuilMin(c && c.famille);
 };
 const seuilCuissonEntree = (c) => (c && c.seuilPerso != null && Number.isFinite(Number(c.seuilPerso)) ? Number(c.seuilPerso) : cuissonSeuilMin(c && c.famille));
+// Verdict d'une température à cœur (décision Q7) : seuil du PMS dépassé vers le bas = non conforme ; sous un barème ANSES = avertissement ;
+// aucun seuil = température enregistrée seulement.
+function verdictCuisson(c, temp) {
+  const v = parseFloat(String(temp).replace(",", "."));
+  const pms = !!(c && c.seuilPerso != null && Number.isFinite(Number(c.seuilPerso)));
+  const seuil = seuilCuissonEntree(c);
+  if (seuil == null || !Number.isFinite(v) || v >= seuil) return { conforme: true, avertissement: false, seuil, pms };
+  return pms ? { conforme: false, avertissement: false, seuil, pms } : { conforme: true, avertissement: true, seuil, pms };
+}
+const texteVerdictCuisson = (vd) => (!vd.conforme ? "NON CONFORME au seuil de votre PMS, ne pas utiliser le produit" : vd.avertissement ? `avertissement : sous le barème ANSES (${vd.seuil} °C), prolongez la cuisson si besoin` : vd.seuil == null ? "température enregistrée" : "conforme");
 const CUISSON_ALERTE_AVANT_MIN = 1; // bip continu pendant la dernière minute de cuisson, jusqu'à l'arrêt de l'alarme
 
 // Texte de la mesure d'une cuisson terminée : température à cœur, ou « contrôle visuel » quand la fiche
@@ -15590,19 +15604,21 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
   // Fin de cuisson : température à cœur (ou contrôle visuel) → conforme / non conforme. Les alarmes de durée s'arrêtent.
   const finir = (c, visuel, enchainerRefroid) => {
     const temp = temperatureSaisie[c.id];
-    let conforme;
+    let conforme; let vd = null;
     if (visuel !== undefined) conforme = visuel;
-    else { if (temp === undefined || temp === "") return; conforme = parseFloat(temp) >= seuilCuissonEntree(c); }
+    else { if (temp === undefined || temp === "") return; vd = verdictCuisson(c, temp); conforme = vd.conforme; }
     // Cuisson terminée = elle disparaît de la liste (enregistrée dans l'historique), sauf si elle part en refroidissement.
     const cloturer = !enchainerRefroid && !c.refroidissementLance;
-    maj(c.id, { finie: true, heureFin: new Date().toTimeString().slice(0, 5), temperature: visuel !== undefined ? "" : temp, controleVisuel: visuel !== undefined ? true : undefined, conforme, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) });
-    logActivity("HACCP", "Fin de cuisson", `${c.produit} — ${visuel !== undefined ? "contrôle visuel" : `${temp}°C à cœur`} — ${conforme ? "conforme" : "non conforme"}`);
+    maj(c.id, { finie: true, heureFin: new Date().toTimeString().slice(0, 5), temperature: visuel !== undefined ? "" : temp, controleVisuel: visuel !== undefined ? true : undefined, conforme, avertissement: vd && vd.avertissement ? true : undefined, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) });
+    logActivity("HACCP", "Fin de cuisson", `${c.produit} — ${visuel !== undefined ? "contrôle visuel" : `${temp}°C à cœur`} — ${vd ? texteVerdictCuisson(vd) : conforme ? "conforme" : "non conforme"}`);
     if (cloturer) {
-      setResultatCuisson({ id: c.id, ok: conforme, texte: `${c.produit} : cuisson terminée · ${visuel !== undefined ? "contrôle visuel" : `${temp} °C à cœur`} · ${conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
+      setResultatCuisson({ id: c.id, ok: conforme, texte: `${c.produit} : cuisson terminée · ${visuel !== undefined ? "contrôle visuel" : `${temp} °C à cœur`} · ${vd ? texteVerdictCuisson(vd) : conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
       if (proposerEtiquetteRapide && conforme) proposerEtiquetteRapide(c.produit);
     }
     if (!conforme && ajouterAlerteControle) {
-      ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Cuisson", employeeId: currentUserId, titre: `${c.produit} — cuisson non conforme`, detail: visuel !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${temp} °C, inférieure au seuil de ${seuilCuissonEntree(c)} °C.`, conforme: false });
+      ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Cuisson", employeeId: currentUserId, titre: `${c.produit} — cuisson non conforme`, detail: visuel !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${temp} °C, inférieure au seuil de ${seuilCuissonEntree(c)} °C fixé par le PMS.`, conforme: false });
+    } else if (vd && vd.avertissement && ajouterAlerteControle) {
+      ajouterAlerteControle({ id: uid(), date: today, heure: new Date().toTimeString().slice(0, 5), type: "Cuisson", employeeId: currentUserId, titre: `${c.produit} — avertissement : sous le barème ANSES`, detail: `Température à cœur ${temp} °C, sous le barème ANSES de ${vd.seuil} °C (repère du guide officiel, pas une norme). Vérifiez la cuisson.` });
     }
   };
   const versRefroidissement = (c) => {
@@ -15682,7 +15698,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
                     <span className="min-w-0 text-sm">
                       <span className="block font-semibold text-[var(--ink)]">{p.nom}</span>
                       <span className="block text-xs text-[var(--steel)]">{[mode, p.reglage, `${p.dureeMin} min`, p.appareil].filter(Boolean).join(" · ")}</span>
-                      <span className="block text-xs text-[var(--steel)]">{p.controles && p.controles.temp === false ? "Contrôle visuel" : `À cœur : ≥ ${seuilCuissonEntree(p)} °C`}</span>
+                      <span className="block text-xs text-[var(--steel)]">{p.controles && p.controles.temp === false ? "Contrôle visuel" : (seuilCuissonEntree(p) != null ? `À cœur : ≥ ${seuilCuissonEntree(p)} °C` : "À cœur : température enregistrée")}</span>
                     </span>
                   </label>
                 );
@@ -15734,7 +15750,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
                   <Field label="Durée (min) *"><input className={inputCls} type="number" inputMode="numeric" value={mDuree} onChange={(e) => setMDuree(e.target.value)} placeholder="Ex. : 30" /></Field>
                   <Field label="Type de produit (température à cœur) *">
                     <select className={inputCls} value={mFamille} onChange={(e) => setMFamille(e.target.value)}>
-                      {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — ≥{f.seuil}°C</option>)}
+                      {CUISSON_FAMILLES.map((f) => <option key={f.id} value={f.id}>{f.label} — {libSeuilFamille(f)}</option>)}
                     </select>
                   </Field>
                   <Field label="Heure de départ *"><input className={inputCls} type="time" value={heureDebut} onChange={(e) => setHeureDebut(e.target.value)} /></Field>
@@ -15789,7 +15805,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
                     <div><span className="text-xs text-[var(--steel)] block">Quantité (fiche, modifiable)</span>
                       <span className="inline-flex items-center gap-1.5"><input className={`${inputCls} !w-24 !h-9`} type="number" inputMode="decimal" placeholder="—" value={c.quantite ?? ""} onChange={(e) => maj(c.id, { quantite: e.target.value, unite: c.unite || "kg" })} /><span>{c.unite || "kg"}</span></span></div>
                     <div><span className="text-xs text-[var(--steel)] block">Durée prévue</span>{c.dureeAttendueMin} min</div>
-                    <div><span className="text-xs text-[var(--steel)] block">À cœur</span>{c.controleVisuelSeul ? "Contrôle visuel" : `${familleLabel.split(" (")[0]} : ≥ ${seuil} °C`}</div>
+                    <div><span className="text-xs text-[var(--steel)] block">À cœur</span>{c.controleVisuelSeul ? "Contrôle visuel" : (seuil != null ? `${familleLabel.split(" (")[0]} : ≥ ${seuil} °C` : `${familleLabel.split(" (")[0]} : température enregistrée`)}</div>
                   </div>
                   {c.notes && <p className="text-xs text-[var(--steel)] mb-2">Notes : {c.notes}</p>}
                   {!c.finie && (
@@ -18413,7 +18429,8 @@ const FICHES_NORMES = {
       {
         titre: "3. Conserver",
         contenu: [
-          "Conserver les plats témoins et les restes de matières premières et de plats servis sur les 3 derniers jours (réservés aux services de contrôle).",
+          "Conserver tous les restes et emballages des repas suspects (réservés aux services de contrôle).",
+          "Plats témoins : obligatoires en restauration collective (5 jours, arrêté du 21/12/2009, annexe IV). Pour un restaurant : pas obligatoires ; si vous en gardez, conservez-les.",
           "Les étiquetages (ou toutes autres informations) des denrées alimentaires utilisées, renseignant l'origine des produits (traçabilité).",
           "Des échantillons de selles (diarrhée) et/ou rejets gastriques (vomissements) sur plusieurs malades — destinés aux analyses de laboratoire.",
         ],
@@ -18421,10 +18438,10 @@ const FICHES_NORMES = {
       {
         titre: "4. Réunir les éléments d'information",
         contenu: [
-          "Le nombre de convives pour chacun des repas servis dans les 5 jours précédant les premiers symptômes.",
+          "Le nombre de convives pour chacun des repas servis dans les jours précédant les premiers symptômes (la période exacte est indiquée par l'ARS ou la DDPP).",
           "La liste des malades (âge, symptômes, dates et heures de début des symptômes).",
-          "Les listes des agents du personnel en service aux cuisines au cours des 5 jours précédant les premiers symptômes.",
-          "La composition des repas collectifs consommés par chaque malade durant les 5 jours précédents.",
+          "Les listes des agents du personnel en service aux cuisines sur cette même période.",
+          "La composition des repas consommés par chaque malade sur cette même période.",
         ],
       },
     ],
@@ -18710,13 +18727,29 @@ const FICHES_NORMES = {
         contenu: "Personne en service — Contrôle et enregistrement le matin en arrivant (avant toute ouverture de porte) et le soir (juste avant de quitter l'établissement), plus tout contrôle aléatoire au thermomètre laser.",
       },
       {
-        titre: "Exemple de réglage des enceintes (choix de l'établissement, pas une norme)",
-        type: "tableau",
-        colonnes: ["Enceinte", "Température"],
+        titre: "La règle (décision du 25/11)",
         contenu: [
-          { produit: "Chambre froide positive (viandes, poissons, produits laitiers, plats cuisinés)", duree: "0°C à 3°C" },
-          { produit: "Chambre froide fruits et légumes", duree: "+4°C à 8°C" },
-          { produit: "Chambre froide négative (congélateur)", duree: "-18°C ou moins" },
+          "Chaque produit a sa température maximale (tableau ci-dessous). Chaque appareil se règle sur le produit le plus fragile qu'il contient : un frigo qui contient de la viande hachée doit rester à +2 °C maximum.",
+          "Fruits et légumes frais entiers : aucune température n'est fixée par les textes. Suivre l'indication du fournisseur ou celle du PMS de l'établissement.",
+          "La limite basse, un seuil d'alerte plus strict et le délai avant recontrôle sont choisis par la personne qui établit le PMS (Appareils de froid). À l'inspection, un écart de +2 à +3 °C au-dessus du maximum est noté C, plus de +3 °C est noté D (grille officielle).",
+        ],
+      },
+      {
+        titre: "Tableau officiel — arrêté du 21/12/2009, annexe I (températures maximales)",
+        type: "tableau",
+        colonnes: ["Produit", "Maximum"],
+        contenu: [
+          { produit: "Viandes hachées", duree: "+2 °C" },
+          { produit: "Produits de la pêche frais (poissons, crustacés, mollusques)", duree: "+2 °C (glace fondante)" },
+          { produit: "Abats", duree: "+3 °C" },
+          { produit: "Préparations culinaires élaborées à l'avance", duree: "+3 °C" },
+          { produit: "Préparations de viandes ; volailles, lagomorphes, petit gibier ; viandes découpées", duree: "+4 °C" },
+          { produit: "Ovoproduits, lait cru", duree: "+4 °C" },
+          { produit: "Autres denrées très périssables", duree: "+4 °C" },
+          { produit: "Viandes d'ongulés (carcasses, gros morceaux)", duree: "+7 °C" },
+          { produit: "Autres denrées périssables", duree: "+8 °C" },
+          { produit: "Glaces, viandes hachées, préparations de viandes, produits de la pêche congelés", duree: "−18 °C" },
+          { produit: "Autres denrées congelées", duree: "−12 °C" },
         ],
       },
       {
@@ -18816,7 +18849,7 @@ const FICHES_NORMES = {
         titre: "Zones de stockage et température",
         contenu: [
           "Stock sec / épicerie : local ventilé, sec, à l'abri de la lumière directe, produits surélevés du sol (étagères ou palettes) — jamais à même le sol.",
-          "Stock frais : chambres froides positives selon la fiche Températures & stockage frigo/congélateur (0°C à 3°C viandes/poissons/laitages, +4°C à 8°C fruits et légumes).",
+          "Stock frais : chaque chambre froide est réglée sur le produit le plus fragile qu'elle contient (tableau de l'arrêté du 21/12/2009, annexe I, dans la fiche Températures & stockage). Fruits et légumes frais entiers : aucune température fixée par les textes.",
           "Stock surgelé : congélateur/chambre négative à -18°C ou moins, sans rupture de charge prolongée lors des manipulations.",
           "Ne jamais stocker un produit hors de sa zone de température adaptée, même temporairement.",
         ],
@@ -21693,14 +21726,15 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
     const t = String(saisieFin.temp).replace(",", ".");
     const tNum = parseFloat(t);
     if (type === "cuisson") {
-      let conforme;
+      let conforme; let vd = null;
       if (visuelOk !== undefined) conforme = visuelOk;
-      else { if (t === "" || Number.isNaN(tNum)) return; conforme = tNum >= seuilCuissonEntree(item); }
+      else { if (t === "" || Number.isNaN(tNum)) return; vd = verdictCuisson(item, t); conforme = vd.conforme; }
       const cloturer = !item.refroidissementLance;
-      rapide.setCuissons((prev) => prev.map((x) => (x.id === item.id ? { ...x, finie: true, heureFin: heureNow(), temperature: visuelOk !== undefined ? "" : t, controleVisuel: visuelOk !== undefined ? true : undefined, conforme, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) } : x)));
-      rapide.logActivity("HACCP", "Fin de cuisson (depuis le contrôle)", `${item.produit} — ${visuelOk !== undefined ? "contrôle visuel" : `${t}°C à cœur`} — ${conforme ? "conforme" : "non conforme"}`);
-      if (!conforme && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Cuisson", employeeId: rapide.currentUserId, titre: `${item.produit} — cuisson non conforme`, detail: visuelOk !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${t} °C, inférieure au seuil de ${seuilCuissonEntree(item)} °C.` });
-      setVerdictFin({ ok: conforme, texte: `${item.produit} : cuisson terminée · ${visuelOk !== undefined ? "contrôle visuel" : `${t} °C à cœur`} · ${conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
+      rapide.setCuissons((prev) => prev.map((x) => (x.id === item.id ? { ...x, finie: true, heureFin: heureNow(), temperature: visuelOk !== undefined ? "" : t, controleVisuel: visuelOk !== undefined ? true : undefined, conforme, avertissement: vd && vd.avertissement ? true : undefined, alarmeAcquittee: true, preAlarmeAcquittee: true, ...(cloturer ? { statut: "termine" } : {}) } : x)));
+      rapide.logActivity("HACCP", "Fin de cuisson (depuis le contrôle)", `${item.produit} — ${visuelOk !== undefined ? "contrôle visuel" : `${t}°C à cœur`} — ${vd ? texteVerdictCuisson(vd) : conforme ? "conforme" : "non conforme"}`);
+      if (!conforme && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Cuisson", employeeId: rapide.currentUserId, titre: `${item.produit} — cuisson non conforme`, detail: visuelOk !== undefined ? "Contrôle visuel non conforme." : `Température à cœur ${t} °C, inférieure au seuil de ${seuilCuissonEntree(item)} °C fixé par le PMS.` });
+      else if (vd && vd.avertissement && rapide.ajouterAlerteControle) rapide.ajouterAlerteControle({ id: uid(), date: aujourdhui, heure: heureNow(), type: "Cuisson", employeeId: rapide.currentUserId, titre: `${item.produit} — avertissement : sous le barème ANSES`, detail: `Température à cœur ${t} °C, sous le barème ANSES de ${vd.seuil} °C (repère du guide officiel, pas une norme). Vérifiez la cuisson.` });
+      setVerdictFin({ ok: conforme, texte: `${item.produit} : cuisson terminée · ${visuelOk !== undefined ? "contrôle visuel" : `${t} °C à cœur`} · ${vd ? texteVerdictCuisson(vd) : conforme ? "conforme" : "NON CONFORME, ne pas utiliser le produit"}` });
     } else if (type === "refroidissement") {
       if (t === "" || Number.isNaN(tNum)) return;
       const norme = normeRefroidissement(item);
@@ -21844,7 +21878,7 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
                   <label className="block text-sm font-semibold mb-1">{fin.type === "cuisson" ? "Température à cœur (°C)" : "Température de fin (°C)"}</label>
                   <input type="number" inputMode="decimal" autoFocus className={`${inputCls} w-full`} value={saisieFin.temp} onChange={(e) => setSaisieFin({ ...saisieFin, temp: e.target.value })} placeholder="Ex. 74" />
                   <p className="text-xs text-[var(--steel)] mt-1">
-                    {fin.type === "cuisson" && `Seuil de ce plat : ${seuilCuissonEntree(it)} °C minimum.`}
+                    {fin.type === "cuisson" && (seuilCuissonEntree(it) != null ? `Seuil de ce plat : ${seuilCuissonEntree(it)} °C minimum.` : "Pas de seuil imposé : la température est enregistrée.")}
                     {fin.type === "refroidissement" && `Cible : moins de ${norme.finMax} °C${Number.isFinite(norme.dureeMaxMin) ? ` en ${libDuree(norme.dureeMaxMin)}` : ""}. Durée actuelle : ${Math.floor(dureeMin / 60)} h ${String(dureeMin % 60).padStart(2, "0")}.`}
                     {fin.type === "maintien" && "Minimum 63 °C."}
                   </p>
