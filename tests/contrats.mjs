@@ -85,7 +85,7 @@ const R = [
   ["Fiche technique : une DLC au-delà de J+3 ne bloque plus l'enregistrement", /out\.push\(\["r", `DLC J\+/, false],
   ["Températures : surveillance dès 2 °C d'écart (décision du 03/10)", /const MARGE_ANOMALIE_FROID = 2;/, true],
   ["Températures : motif « Ouvertures de porte trop fréquentes »", /Ouvertures de porte trop fréquentes/, true],
-  ["Températures : préréglage Saladette 0 à +4 °C", /label: "Saladette", min: 0, max: 4/, true],
+  ["Températures : préréglage Saladette +4 °C maximum, sans limite basse imposée (25/11)", /label: "Saladette", min: null, max: 4/, true],
   ["Fiches HACCP : plus de matériel ni de sauces d'un établissement dans les fiches communes", /Méthode — Cuisson au four \(Rational|Sauces concernées au poste chaud/, false],
   // Contrôle du soir (25/11) : enregistré en base, général, relié à la grille officielle
   ["Contrôle du soir : enregistré en base (table controles_soir)", /from\("controles_soir"\)/, true],
@@ -95,6 +95,13 @@ const R = [
   ["Contrôle du soir : lignes générales avec code de la grille (lave-mains F1)", /code: "F1", texte: "Lave-mains/, true],
   ["Réglages de l'écran rangés par établissement (donnees_cles), plus dans le stockage commun", /from\("donnees_cles"\)/, true],
   ["Cuisson : aucun nom de marque dans la liste des appareils", /const APPAREILS_CUISSON = \[[^\]]*(Rational|Atoll)/, false],
+  // Décision Q4 (25/11) : maximum par contenu, alerte > +2 °C, alerte urgente > +3 °C, délai et limite basse réglés par l'établissement
+  ["Q4 : maximum de l'appareil déduit du produit le plus fragile qu'il contient", /function maxDepuisContenus\(/, true],
+  ["Q4 : viande hachée +2 °C dans les contenus (arrêté du 21/12/2009)", /cle: "hache", label: "Viande hachée", max: 2/, true],
+  ["Q4 : au-delà de +3 °C, alerte urgente au chef et au directeur", /plus de 3 °C au-dessus du maximum/, true],
+  ["Q4 : délai avant recontrôle réglé par appareil (plus de 30 min imposées)", /const delaiRecontroleMin = /, true],
+  ["Q4 : contenus, seuil et délai enregistrés en base", /delai_alerte_min/, true],
+  ["Q4 : plus de limite basse à −1 °C à la réception", /min: -1, max/, false],
 ];
 // Nom de l'ancien exploitant : remplacé par « macuisine » partout (demande de Loïc, 25/11). Écrit en morceaux pour ne pas figurer ici.
 {

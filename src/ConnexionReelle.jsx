@@ -552,6 +552,8 @@ export default function ConnexionReelle() {
       aDb: (e) => ({
         nom: e.nom, famille: e.type === "congelateur" ? "negatif" : "positif", type: e.type || null,
         norme_min: e.min == null ? null : Number(e.min), norme_max: e.max == null ? null : Number(e.max), numero_sonde: e.sonde || null,
+        contenus: Array.isArray(e.contenus) ? e.contenus : null, seuil_alerte: e.seuilAlerte == null || e.seuilAlerte === "" ? null : Number(e.seuilAlerte),
+        delai_alerte_min: e.delaiAlerteMin == null || e.delaiAlerteMin === "" ? null : Math.round(Number(e.delaiAlerteMin)),
       }),
     },
     preparations: {
@@ -792,6 +794,7 @@ export default function ConnexionReelle() {
           id: r.id, nom: r.nom, type: r.type || (r.famille === "negatif" ? "congelateur" : "frigo"),
           min: r.norme_min == null ? null : Number(r.norme_min), max: r.norme_max == null ? null : Number(r.norme_max),
           sonde: r.numero_sonde || null, sondeConnectee: false,
+          contenus: r.contenus || null, seuilAlerte: r.seuil_alerte == null ? null : Number(r.seuil_alerte), delaiAlerteMin: r.delai_alerte_min == null ? null : Number(r.delai_alerte_min),
         })),
         releves: (rr.data || []).map((r) => {
           const dl = dateLocale(r.date_heure);

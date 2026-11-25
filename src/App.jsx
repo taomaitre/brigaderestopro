@@ -655,37 +655,82 @@ const MOTIFS_ANOMALIE_FROID = ["Ouvertures de porte trop fréquentes (service)",
 // puis le type précis d'appareil, ce qui pré-remplit la norme de température à respecter —
 // toujours modifiable ensuite si l'appareil réel du restaurant a un réglage différent.
 const PRESETS_EQUIPEMENT_FROID = {
+  // Le type ne fait que proposer un contenu habituel ; le maximum vient TOUJOURS du contenu coché (annexe I), aucune limite basse imposée.
   positif: [
-    { label: "Frigo viande", min: 0, max: 2 },
-    { label: "Frigo poisson", min: 0, max: 2 },
-    { label: "Frigo produits laitiers / œufs", min: 0, max: 4 },
-    { label: "Frigo légumes", min: 4, max: 8 },
-    { label: "Saladette", min: 0, max: 4 },
-    { label: "Chambre froide positive", min: 0, max: 4 },
-    { label: "Frigo pâtisserie / desserts", min: 0, max: 4 },
-    { label: "Autre (froid positif)", min: 0, max: 4 },
+    { label: "Frigo viande", min: null, max: 4, contenus: ["viande"] },
+    { label: "Frigo viande hachée", min: null, max: 2, contenus: ["hache"] },
+    { label: "Frigo poisson", min: null, max: 2, contenus: ["poisson"] },
+    { label: "Frigo produits laitiers / œufs", min: null, max: 4, contenus: ["laitier"] },
+    { label: "Frigo fruits et légumes", min: null, max: null, contenus: ["legumes"] },
+    { label: "Saladette", min: null, max: 4, contenus: ["tresperissable"] },
+    { label: "Chambre froide positive", min: null, max: null, contenus: [] },
+    { label: "Frigo pâtisserie / desserts", min: null, max: 4, contenus: ["tresperissable"] },
+    { label: "Autre (froid positif)", min: null, max: null, contenus: [] },
   ],
   negatif: [
-    { label: "Congélateur", min: null, max: -18 },
-    { label: "Chambre froide négative", min: null, max: -18 },
-    { label: "Armoire de surgélation", min: null, max: -18 },
-    { label: "Autre (froid négatif)", min: null, max: -18 },
+    { label: "Congélateur", min: null, max: -18, contenus: ["congeleSensible"] },
+    { label: "Chambre froide négative", min: null, max: -18, contenus: ["congeleSensible"] },
+    { label: "Armoire de congélation", min: null, max: -18, contenus: ["congeleSensible"] },
+    { label: "Autre (froid négatif)", min: null, max: null, contenus: [] },
   ],
 };
 
 function equipementConforme(eq, valeur) {
   const v = parseFloat(valeur);
-  if (Number.isNaN(v)) return null;
-  if (eq.type === "congelateur") return v <= eq.max;
-  return v >= eq.min && v <= eq.max;
+  if (Number.isNaN(v) || eq.max == null || eq.max === "") return null;
+  if (eq.type === "congelateur") return v <= Number(eq.max);
+  return (eq.min == null || eq.min === "" || v >= Number(eq.min)) && v <= Number(eq.max);
 }
 
+// Ce que contient un appareil de froid → sa température maximale (arrêté du 21/12/2009, annexe I). Règle de Loïc (25/11) : chaque produit
+// a sa norme, l'appareil se règle sur le produit le plus fragile qu'il contient.
+const CONTENUS_FROID = {
+  positif: [
+    { cle: "hache", label: "Viande hachée", max: 2 },
+    { cle: "poisson", label: "Poisson, crustacés et mollusques frais", max: 2 },
+    { cle: "abats", label: "Abats", max: 3 },
+    { cle: "plat", label: "Plats cuisinés à l'avance", max: 3 },
+    { cle: "viande", label: "Viande en morceaux, volaille, préparations de viande", max: 4 },
+    { cle: "laitier", label: "Produits laitiers, œufs, ovoproduits (sauf température du fabricant)", max: 4 },
+    { cle: "tresperissable", label: "Autres denrées très périssables (desserts, garnitures…)", max: 4 },
+    { cle: "perissable", label: "Autres denrées périssables", max: 8 },
+    { cle: "legumes", label: "Fruits et légumes frais entiers (aucune température fixée)", max: null },
+  ],
+  negatif: [
+    { cle: "congeleSensible", label: "Glaces, viande hachée, préparations de viande, poisson congelés", max: -18 },
+    { cle: "congeleAutre", label: "Autres denrées congelées", max: -12 },
+  ],
+};
+function libNormeEquipement(eq) {
+  if (!eq || eq.max == null || eq.max === "") return "Maximum non fixé";
+  const f = (v) => `${Number(v) > 0 ? "+" : ""}${v} °C`;
+  return eq.type !== "congelateur" && eq.min != null && eq.min !== "" ? `${f(eq.min)} à ${f(eq.max)}` : `≤ ${f(eq.max)}`;
+}
+function maxDepuisContenus(famille, contenus) {
+  const liste = CONTENUS_FROID[famille === "negatif" ? "negatif" : "positif"].filter((c) => (contenus || []).includes(c.cle) && c.max != null);
+  if (!liste.length) return null;
+  const c = liste.reduce((a, b) => (b.max < a.max ? b : a));
+  return { max: c.max, produit: c.label };
+}
+
+// Seuils alignés sur la grille officielle (vade-mecum C401, décision du 25/11) : écart de plus de +2 °C au-dessus du maximum = alerte
+// (risque C) ; plus de +3 °C = contrôle et vérification impératifs, alerte urgente au chef et au directeur (risque D). L'établissement peut
+// fixer un seuil d'alerte plus strict (`seuilAlerte`) et une limite basse (`min`, facultative : aucun texte ne donne de chiffre).
 function equipementEcartAnomalie(eq, valeur) {
   const v = parseFloat(valeur);
   if (Number.isNaN(v)) return false;
-  if (eq.type === "congelateur") return v > eq.max + MARGE_ANOMALIE_FROID;
-  return v > eq.max + MARGE_ANOMALIE_FROID || v < eq.min - MARGE_ANOMALIE_FROID;
+  const seuilPerso = eq.seuilAlerte != null && eq.seuilAlerte !== "" && Number.isFinite(Number(eq.seuilAlerte)) ? Number(eq.seuilAlerte) : null;
+  if (seuilPerso != null && v > seuilPerso) return true;
+  if (eq.max != null && v > Number(eq.max) + MARGE_ANOMALIE_FROID) return true;
+  return eq.type !== "congelateur" && eq.min != null && eq.min !== "" && v < Number(eq.min);
 }
+function equipementEcartMajeur(eq, valeur) {
+  const v = parseFloat(valeur);
+  return !Number.isNaN(v) && eq.max != null && v > Number(eq.max) + 3;
+}
+// Délai avant le recontrôle : fixé par la personne qui fait le PMS, appareil par appareil (dégivrage, ouvertures de porte).
+// Non fixé : recontrôle demandé tout de suite (aucune durée n'est imposée par le logiciel).
+const delaiRecontroleMin = (eq) => (eq && Number(eq.delaiAlerteMin) > 0 ? Number(eq.delaiAlerteMin) : 0);
 
 const toISO = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const addDays = (dateStr, n) => { const d = new Date(dateStr + "T00:00:00"); d.setDate(d.getDate() + n); return toISO(d); };
@@ -3399,7 +3444,7 @@ function TableauTemperaturesDuJour({ equipementsFroid, relevesFroid, who, replia
   const releves = lignes.filter((l) => l.dernier).length;
   const horsNorme = lignes.filter((l) => l.dernier && l.conforme === false).length;
   const manquants = lignes.length - releves;
-  const norme = (eq) => (eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`);
+  const norme = (eq) => libNormeEquipement(eq);
 
   if (equipementsFroid.length === 0) return <p className="text-sm text-[var(--steel)]">Aucun appareil de froid enregistré.</p>;
 
@@ -14248,7 +14293,6 @@ function HistoriqueEtCourbesTemperature({ relevesFroid, equipementsFroid, who })
   const [periodeGraphique, setPeriodeGraphique] = useState("jour"); // "jour" | "semaine" | "mois"
 
   const eqById = (id) => equipementsFroid.find((e) => e.id === id);
-
   const relevesEquipementHistorique = relevesFroid.filter((r) => r.equipementId === equipementHistorique && r.date === todayISO());
 
   const joursPeriode = periodeGraphique === "jour" ? 0 : periodeGraphique === "semaine" ? 6 : 29;
@@ -14314,7 +14358,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
   const [editionId, setEditionId] = useState(null);
   const [editionForm, setEditionForm] = useState({});
   const [suppressionDemandee, setSuppressionDemandee] = useState(null);
-  const [formAjout, setFormAjout] = useState({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "" });
+  const [formAjout, setFormAjout] = useState({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "", contenus: [], seuilAlerte: "", delaiAlerteMin: "" });
   const choixMode = (form, setForm) => (
     <div className="w-full">
       <div className="text-xs font-semibold text-[var(--steel)] mb-1">Comment relever la température de cet appareil ?</div>
@@ -14327,6 +14371,42 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
       </div>
     </div>
   );
+  // Décision du 25/11 : le maximum vient du produit le plus fragile rangé dans l'appareil (arrêté du 21/12/2009, annexes I et II).
+  // L'établissement peut choisir plus strict (jamais plus haut), une limite basse facultative, un seuil d'alerte et un délai avant recontrôle.
+  const champsNorme = (form, setForm, famille) => {
+    const derive = maxDepuisContenus(famille, form.contenus);
+    const basculer = (cle) => {
+      const contenus = (form.contenus || []).includes(cle) ? form.contenus.filter((c) => c !== cle) : [...(form.contenus || []), cle];
+      const d = maxDepuisContenus(famille, contenus);
+      setForm({ ...form, contenus, max: d ? String(d.max) : form.max });
+    };
+    const maxSaisi = form.max === "" || form.max == null ? null : Number(form.max);
+    return (
+      <div className="w-full">
+        <div className="text-xs font-semibold text-[var(--steel)] mb-1">Que range-t-on dans cet appareil ? (le maximum vient du produit le plus fragile)</div>
+        <div className="flex flex-wrap gap-x-4 gap-y-1 mb-2">
+          {CONTENUS_FROID[famille === "negatif" ? "negatif" : "positif"].map((c) => (
+            <label key={c.cle} className="text-xs flex items-center gap-1.5">
+              <input type="checkbox" checked={(form.contenus || []).includes(c.cle)} onChange={() => basculer(c.cle)} />
+              {c.label}{c.max != null ? ` (${c.max > 0 ? "+" : ""}${c.max} °C)` : ""}
+            </label>
+          ))}
+        </div>
+        {derive && <div className="text-xs text-[var(--ink)] mb-2">Maximum : <strong>{derive.max > 0 ? "+" : ""}{derive.max} °C</strong> à cause de « {derive.produit} » (arrêté du 21 décembre 2009).</div>}
+        {derive && maxSaisi != null && maxSaisi > derive.max && <div className="text-xs font-semibold text-[var(--warn)] mb-2">Le maximum saisi est plus haut que celui du produit le plus fragile : ce n'est pas conforme.</div>}
+        <div className="flex flex-wrap items-end gap-2">
+          <Field label="Maximum (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={form.max} onChange={(e) => setForm({ ...form, max: e.target.value })} /></Field>
+          {famille !== "negatif" && (
+            <Field label="Limite basse (facultative, °C)"><input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="aucune" value={form.min} onChange={(e) => setForm({ ...form, min: e.target.value })} /></Field>
+          )}
+          <Field label="Seuil d'alerte plus strict (facultatif, °C)"><input className={`${inputCls} w-24`} type="number" step="0.1" placeholder="aucun" value={form.seuilAlerte} onChange={(e) => setForm({ ...form, seuilAlerte: e.target.value })} /></Field>
+          <Field label="Délai avant recontrôle (facultatif, min)"><input className={`${inputCls} w-24`} type="number" min="0" step="1" placeholder="tout de suite" value={form.delaiAlerteMin} onChange={(e) => setForm({ ...form, delaiAlerteMin: e.target.value })} /></Field>
+        </div>
+        <p className="text-xs text-[var(--steel)] mt-1">Alerte au-delà de 2 °C au-dessus du maximum ; au-delà de 3 °C, contrôle et vérification obligatoires (grille officielle d'inspection). Limite basse, seuil plus strict et délai : à fixer par la personne qui établit le PMS.</p>
+      </div>
+    );
+  };
+  const nombreOuNull = (v) => (v === "" || v == null || !Number.isFinite(Number(v)) ? null : Number(v));
   const eqById = (id) => equipementsFroid.find((e) => e.id === id);
   const updateEquipement = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val === "" ? null : Number(val) } : e)));
   const updateEquipementTexte = (id, champ, val) => setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? { ...e, [champ]: val } : e)));
@@ -14338,8 +14418,8 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
     const preset = PRESETS_EQUIPEMENT_FROID[famille].find((p) => p.label === label);
     if (!preset) return;
     setFormAjout((prev) => ({
-      ...prev, sousType: label, nom: prev.nom || label,
-      min: preset.min === null ? "" : String(preset.min), max: String(preset.max),
+      ...prev, sousType: label, nom: prev.nom || label, contenus: preset.contenus || [],
+      min: preset.min == null ? "" : String(preset.min), max: preset.max == null ? "" : String(preset.max),
     }));
   };
 
@@ -14347,25 +14427,26 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
     if (!formAjout.nom.trim() || formAjout.max === "") return;
     const nouveau = {
       id: uid(), nom: formAjout.nom.trim(), type: formAjout.famille === "negatif" ? "congelateur" : "frigo",
-      min: formAjout.famille === "negatif" ? null : (formAjout.min === "" ? null : Number(formAjout.min)),
-      max: Number(formAjout.max), sonde: formAjout.mode === "sonde" ? (formAjout.sonde.trim() || null) : null, sondeConnectee: false,
+      min: formAjout.famille === "negatif" ? null : nombreOuNull(formAjout.min),
+      max: Number(formAjout.max), contenus: formAjout.contenus || [], seuilAlerte: nombreOuNull(formAjout.seuilAlerte), delaiAlerteMin: nombreOuNull(formAjout.delaiAlerteMin), sonde: formAjout.mode === "sonde" ? (formAjout.sonde.trim() || null) : null, sondeConnectee: false,
     };
     setEquipementsFroid((prev) => [...prev, nouveau]);
-    logActivity("HACCP", "Appareil de froid ajouté", `${nouveau.nom} — norme ${nouveau.type === "congelateur" ? `≤ ${nouveau.max}°C` : `${nouveau.min}°C à ${nouveau.max}°C`}`);
-    setFormAjout({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "" });
+    logActivity("HACCP", "Appareil de froid ajouté", `${nouveau.nom} — norme ${libNormeEquipement(nouveau)}`);
+    setFormAjout({ famille: "positif", sousType: "", nom: "", sonde: "", mode: "manuel", min: "", max: "", contenus: [], seuilAlerte: "", delaiAlerteMin: "" });
   };
 
   const commencerEdition = (eq) => {
     setEditionId(eq.id);
-    setEditionForm({ nom: eq.nom, sonde: eq.sonde || "", mode: eq.sonde ? "sonde" : "manuel", min: eq.min ?? "", max: eq.max ?? "" });
+    setEditionForm({ nom: eq.nom, sonde: eq.sonde || "", mode: eq.sonde ? "sonde" : "manuel", min: eq.min ?? "", max: eq.max ?? "", contenus: eq.contenus || [], seuilAlerte: eq.seuilAlerte ?? "", delaiAlerteMin: eq.delaiAlerteMin ?? "" });
   };
   const annulerEdition = () => { setEditionId(null); setEditionForm({}); };
   const validerEdition = (id) => {
-    updateEquipementTexte(id, "nom", editionForm.nom.trim());
-    updateEquipementTexte(id, "sonde", editionForm.mode === "sonde" ? (editionForm.sonde.trim() || null) : null);
     const eq = eqById(id);
-    if (eq.type !== "congelateur") updateEquipement(id, "min", editionForm.min);
-    updateEquipement(id, "max", editionForm.max);
+    setEquipementsFroid(equipementsFroid.map((e) => (e.id === id ? {
+      ...e, nom: editionForm.nom.trim(), sonde: editionForm.mode === "sonde" ? (String(editionForm.sonde || "").trim() || null) : null,
+      min: eq.type === "congelateur" ? null : nombreOuNull(editionForm.min), max: nombreOuNull(editionForm.max),
+      contenus: editionForm.contenus || [], seuilAlerte: nombreOuNull(editionForm.seuilAlerte), delaiAlerteMin: nombreOuNull(editionForm.delaiAlerteMin),
+    } : e)));
     logActivity("HACCP", "Appareil de froid modifié", editionForm.nom);
     annulerEdition();
   };
@@ -14406,12 +14487,9 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
                       <td colSpan={4} className="px-3 py-3">
                         <div className="flex flex-wrap items-end gap-2">
                           <Field label="Nom de l'appareil"><input className={`${inputCls} w-48`} value={editionForm.nom} onChange={(e) => setEditionForm({ ...editionForm, nom: e.target.value })} /></Field>
-                          {eq.type !== "congelateur" && (
-                            <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.min} onChange={(e) => setEditionForm({ ...editionForm, min: e.target.value })} /></Field>
-                          )}
-                          <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={editionForm.max} onChange={(e) => setEditionForm({ ...editionForm, max: e.target.value })} /></Field>
+                          {champsNorme(editionForm, setEditionForm, eq.type === "congelateur" ? "negatif" : "positif")}
                           {choixMode(editionForm, setEditionForm)}
-                          <Button onClick={() => validerEdition(eq.id)} disabled={editionForm.mode === "sonde" && !String(editionForm.sonde || "").trim()}>Enregistrer</Button>
+                          <Button onClick={() => validerEdition(eq.id)} disabled={editionForm.max === "" || (editionForm.mode === "sonde" && !String(editionForm.sonde || "").trim())}>Enregistrer</Button>
                           <Button variant="ghost" onClick={annulerEdition}>Annuler</Button>
                         </div>
                       </td>
@@ -14434,7 +14512,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
                       ) : <div className="text-xs font-semibold" style={{ color: "#B45309" }}>✋ Relevé à la main (matin et soir)</div>}
                     </td>
                     <td className="px-3 py-2 align-top whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#136B33" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
-                    <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
+                    <td className="px-3 py-2 align-top text-[var(--ink)] whitespace-nowrap">{libNormeEquipement(eq)}</td>
                     <td className="px-3 py-2 align-top whitespace-nowrap">
                       <button className="text-xs text-[var(--steel)] underline mr-2" onClick={() => commencerEdition(eq)}>Modifier</button>
                       <button className="text-[var(--warn)]" onClick={() => setSuppressionDemandee(eq)} title="Retirer cet appareil"><Trash2 size={15} /></button>
@@ -14449,12 +14527,12 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
 
       <Card>
         <h3 className="font-semibold text-[var(--ink)] mb-1">Gérer les appareils</h3>
-        <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — la norme de température est pré-remplie automatiquement, modifiable ensuite si besoin.</p>
+        <p className="text-xs text-[var(--steel)] mb-4">Ajoutez un nouvel appareil en choisissant d'abord sa famille puis son type précis — puis ce que vous y rangez : le maximum vient du produit le plus fragile.</p>
         <div className="flex flex-wrap items-end gap-2 mb-2">
           <Field label="Famille">
-            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ famille: e.target.value, sousType: "", nom: "", sonde: "", mode: formAjout.mode, min: "", max: "" })}>
-              <option value="positif">Réfrigéré (0 à +4 °C)</option>
-              <option value="negatif">Congelé (−18 °C)</option>
+            <select className={inputCls} value={formAjout.famille} onChange={(e) => setFormAjout({ sousType: "", nom: "", sonde: "", min: "", max: "", contenus: [], seuilAlerte: "", delaiAlerteMin: "", famille: e.target.value, mode: formAjout.mode })}>
+              <option value="positif">Réfrigéré</option>
+              <option value="negatif">Congelé</option>
             </select>
           </Field>
           <Field label="Type d'appareil">
@@ -14466,11 +14544,8 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
           <Field label="Nom de cet appareil"><input className={`${inputCls} w-48`} placeholder="ex. Frigo viande 2" value={formAjout.nom} onChange={(e) => setFormAjout({ ...formAjout, nom: e.target.value })} /></Field>
         </div>
         <div className="mb-3">{choixMode(formAjout, setFormAjout)}</div>
+        <div className="mb-3">{champsNorme(formAjout, setFormAjout, formAjout.famille)}</div>
         <div className="flex flex-wrap items-end gap-2 mb-4">
-          {formAjout.famille === "positif" && (
-            <Field label="Température mini acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.min} onChange={(e) => setFormAjout({ ...formAjout, min: e.target.value })} /></Field>
-          )}
-          <Field label="Température maxi acceptée (°C)"><input className={`${inputCls} w-24`} type="number" step="0.1" value={formAjout.max} onChange={(e) => setFormAjout({ ...formAjout, max: e.target.value })} /></Field>
           <Button onClick={ajouterEquipement} disabled={!formAjout.nom.trim() || formAjout.max === "" || (formAjout.mode === "sonde" && !formAjout.sonde.trim())}><Plus size={14} /> Ajouter cet appareil</Button>
         </div>
         <p className="text-xs text-[var(--steel)]">Chaque appareil a son propre mode : à la main (matin et soir, sans rien acheter) ou avec une sonde. On peut commencer avec une ou deux sondes et passer les autres appareils plus tard, un par un, avec « Modifier ».</p>
@@ -14497,6 +14572,19 @@ function HaccpTemperatures({
   const [anomalieForm, setAnomalieForm] = useState({}); // { [surveillanceId]: { motif, note } }
 
   const eqById = (id) => equipementsFroid.find((e) => e.id === id);
+  // Écart repéré sur un relevé : surveillance avec recontrôle (délai de l'appareil) ; plus de +3 °C = alerte urgente (risque D).
+  const signalerEcart = (eq, valeur, heure) => {
+    if (!equipementEcartAnomalie(eq, valeur)) return;
+    const delai = delaiRecontroleMin(eq);
+    setSurveillancesFroid((prev) => [{ id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: heure, valeurInitiale: valeur, rappelTs: Date.now() + delai * 60000, statut: "attente", alarmeAcquittee: false }, ...prev]);
+    logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${valeur}°C — ${delai ? `à recontrôler dans ${delai} min` : "à recontrôler tout de suite"}`);
+    if (equipementEcartMajeur(eq, valeur)) {
+      ajouterAlerteControle({ id: uid(), date: todayISO(), heure, type: "Température", employeeId: currentUserId, urgent: true,
+        titre: `🔴 ${eq.nom} : ${valeur} °C, plus de 3 °C au-dessus du maximum (${eq.max} °C)`,
+        detail: "Contrôle et vérification impératifs : vérifier la température des produits, puis transférer ou détruire, et noter l'action. À l'inspection, un écart de plus de +3 °C est un écart majeur (note D)." });
+    }
+  };
+
 
   const majSaisie = (eqId, champ, val) => setSaisieManuelle((prev) => ({ ...prev, [eqId]: { ...(prev[eqId] || {}), [champ]: val } }));
 
@@ -14508,11 +14596,7 @@ function HaccpTemperatures({
     setRelevesFroid((prev) => [entry, ...prev]);
     logActivity("HACCP", "Contrôle température — saisie manuelle (thermomètre laser)", `${eq.nom} : ${s.valeur}°C — ${conforme ? "conforme" : "hors seuil"}${s.note ? ` — ${s.note}` : ""}`);
 
-    if (equipementEcartAnomalie(eq, s.valeur)) {
-      const surveillance = { id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: entry.heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false };
-      setSurveillancesFroid((prev) => [surveillance, ...prev]);
-      logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${s.valeur}°C — à recontrôler dans 30 min`);
-    }
+    signalerEcart(eq, s.valeur, entry.heure);
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
   };
 
@@ -14526,9 +14610,7 @@ function HaccpTemperatures({
     setRelevesFroid((prev) => [{ id: uid(), equipementId: eq.id, valeur: s.valeur, date: todayISO(), heure, employeeId: currentUserId, conforme, manuel: true, note: `Correction apportée : ${s.note.trim()}` }, ...prev]);
     logActivity("HACCP", "Correction apportée (température)", `${eq.nom} : ${s.valeur}°C au thermomètre laser — ${s.note.trim()}`);
     ajouterAlerteControle({ id: uid(), date: todayISO(), heure, type: "Température", employeeId: currentUserId, titre: `${eq.nom} — correction apportée`, detail: `${s.note.trim()} — contrôle au thermomètre laser : ${s.valeur}°C (${conforme ? "conforme" : "toujours hors norme"}).`, conforme });
-    if (!conforme && equipementEcartAnomalie(eq, s.valeur)) {
-      setSurveillancesFroid((prev) => [{ id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: heure, valeurInitiale: s.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false }, ...prev]);
-    }
+    if (!conforme) signalerEcart(eq, s.valeur, heure);
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[eq.id]; return n; });
     setCorrectionOuverte(null);
   };
@@ -14543,11 +14625,7 @@ function HaccpTemperatures({
     const entry = { id: uid(), equipementId: eq.id, valeur: sv.valeur, date: todayISO(), heure: new Date().toTimeString().slice(0, 5), employeeId: currentUserId, conforme, manuel: true, note: sv.note ? `${prefixe} — ${sv.note}` : prefixe };
     setRelevesFroid((prev) => [entry, ...prev]);
     logActivity("HACCP", `Contrôle température — relevé manuel du ${creneau}`, `${eq.nom} : ${sv.valeur}°C — ${conforme ? "conforme" : "hors seuil"}${sv.note ? ` — ${sv.note}` : ""}`);
-    if (equipementEcartAnomalie(eq, sv.valeur)) {
-      const surveillance = { id: uid(), equipementId: eq.id, employeeId: currentUserId, date: todayISO(), heureDetection: entry.heure, valeurInitiale: sv.valeur, rappelTs: Date.now() + 30 * 60000, statut: "attente", alarmeAcquittee: false };
-      setSurveillancesFroid((prev) => [surveillance, ...prev]);
-      logActivity("HACCP", "Écart important détecté", `${eq.nom} : ${sv.valeur}°C — à recontrôler dans 30 min`);
-    }
+    signalerEcart(eq, sv.valeur, entry.heure);
     setSaisieManuelle((prev) => { const n = { ...prev }; delete n[cle]; return n; });
   };
   const creneauDe = (r) => (String(r.note || "").startsWith("Relevé du matin") ? "matin" : String(r.note || "").startsWith("Relevé du soir") ? "soir" : ((r.heure || "00:00") < "15:00" ? "matin" : "soir"));
@@ -14649,7 +14727,7 @@ function HaccpTemperatures({
                 <div key={eq.id} className="grid gap-2 items-stretch px-3 py-1 border-t border-[var(--cadre)] grid-cols-[minmax(6rem,1fr)_minmax(8rem,1.2fr)] md:grid-cols-[minmax(7rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)] md:min-w-[440px]">
                   <div className="min-w-0 self-center">
                     <div className="text-sm font-semibold text-[var(--ink)] break-words">{eq.nom}</div>
-                    <div className="text-xs text-[var(--steel)]">Norme : {eq.type === "congelateur" ? `≤ ${eq.max} °C` : `${eq.min} à ${eq.max} °C`}</div>
+                    <div className="text-xs text-[var(--steel)]">Norme : {libNormeEquipement(eq)}</div>
                   </div>
                   <div className={creneauMobile === "matin" ? "" : "hidden md:block"}>{cellule(eq, "matin", f.couleur)}</div>
                   <div className={creneauMobile === "soir" ? "" : "hidden md:block"}>{cellule(eq, "soir", f.couleur)}</div>
@@ -14680,7 +14758,7 @@ function HaccpTemperatures({
           <span className="ml-auto">Dernière mise à jour : {(() => { const t = relevesFroid.filter((r) => r.date <= jourReleve).sort((x, y) => `${y.date} ${y.heure || ""}`.localeCompare(`${x.date} ${x.heure || ""}`))[0]; return t ? `${t.date === todayISO() ? "aujourd'hui" : t.date} à ${t.heure || "—"}` : "aucun relevé"; })()}</span>
         </div>
         <p className="text-[11px] leading-snug text-[var(--steel)] mb-1">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
-        <p className="text-[11px] leading-snug text-[var(--steel)] mb-3">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min. Ce seuil est un réglage du logiciel, pas une tolérance : la norme reste la norme. À l'inspection, un écart de +2 à +3 °C est noté C et un écart de plus de +3 °C est noté D (vade-mecum « Remise directe », item C401).</p>
+        <p className="text-[11px] leading-snug text-[var(--steel)] mb-3">Tout relevé au-dessus du maximum de l'appareil est enregistré comme non conforme (le maximum est celui du produit le plus fragile qu'il contient, arrêté du 21/12/2009, annexe I). Les alertes suivent la grille de l'inspecteur (vade-mecum « Remise directe », item C401) : plus de {MARGE_ANOMALIE_FROID} °C au-dessus = surveillance et recontrôle (écart noté C à l'inspection) ; plus de 3 °C au-dessus = contrôle et vérification impératifs, alerte urgente au chef et au directeur (écart noté D). Le délai avant recontrôle (dégivrage, ouvertures de porte) et un éventuel seuil d'alerte plus strict se règlent sur chaque appareil.</p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -14711,7 +14789,7 @@ function HaccpTemperatures({
                       ) : <div className="text-xs text-[var(--steel)]">Sonde non renseignée</div>}
                     </td>
                     <td className="px-3 py-1.5 align-middle whitespace-nowrap"><span className="text-xs font-semibold px-2 py-0.5 rounded-full" style={eq.type === "congelateur" ? { background: "#DCEBFB", color: "#1B4F9C" } : { background: "#E4F4EA", color: "#136B33" }}>{eq.type === "congelateur" ? "Congélateur" : "Réfrigérateur"}</span></td>
-                    <td className="px-3 py-1.5 align-middle text-[var(--ink)] whitespace-nowrap">{eq.type === "congelateur" ? `≤ ${eq.max}°C` : `${eq.min}°C à ${eq.max}°C`}</td>
+                    <td className="px-3 py-1.5 align-middle text-[var(--ink)] whitespace-nowrap">{libNormeEquipement(eq)}</td>
                     <td className="px-3 py-1.5 align-middle whitespace-nowrap">
                       {dr ? (
                         <>
@@ -14746,11 +14824,11 @@ function HaccpTemperatures({
 
       {enAttente.length > 0 && (
         <Card className="mb-6 border-[var(--warn)]/40">
-          <h3 className="font-semibold text-[var(--ink)] mb-3">À re-mesurer dans les 30 min (température hors limite)</h3>
+          <h3 className="font-semibold text-[var(--ink)] mb-3">À re-mesurer (température hors limite) : délai réglé sur chaque appareil</h3>
           <div className="space-y-3">
             {enAttente.map((s) => {
               const eq = eqById(s.equipementId);
-              const minutes = Math.floor((Date.now() - (s.rappelTs - 30 * 60000)) / 60000);
+              const minutes = Math.floor((Date.now() - (s.rappelTs - delaiRecontroleMin(eqById(s.equipementId)) * 60000)) / 60000);
               const pret = Date.now() >= s.rappelTs;
               const form = anomalieForm[s.id];
               return (
@@ -18053,19 +18131,20 @@ const SEUILS_RECEPTION = {
 };
 // Normes de réception de la version migrée (aperçu) : tolérance de transport pour le surgelé,
 // limite basse pour le frais (un produit frais ne doit pas arriver gelé), seuil plus strict pour poisson/haché/plats cuisinés.
+// Décision du 25/11 : plus de limite basse à −1 °C (aucun texte ne la fixe). Seul le maximum de l'arrêté du 21/12/2009 s'applique.
 const SEUILS_RECEPTION_NOUVEAU = {
   surgele: { min: null, max: -15, ideal: -18, label: "≤ -18°C (tolérance : +3°C en surface, brièvement, au déchargement)" },
-  frais: { min: -1, max: 4, label: "de -1°C à +4°C" },
-  viande: { min: -1, max: 4, label: "de -1°C à +4°C" },
+  frais: { min: null, max: 4, label: "≤ +4°C" },
+  viande: { min: null, max: 4, label: "≤ +4°C" },
   // Arrêté du 21/12/2009, annexe I (valeurs maximales) : viande hachée +2°C, produits de la pêche frais +2°C
   // (glace fondante 0 à +2°C), abats +3°C, préparations culinaires élaborées à l'avance +3°C.
-  hache: { min: -1, max: 2, label: "de -1°C à +2°C" },
-  poisson: { min: -1, max: 2, label: "de -1°C à +2°C (glace fondante : 0 à +2°C)" },
-  abats: { min: -1, max: 3, label: "de -1°C à +3°C" },
-  plat: { min: -1, max: 3, label: "de -1°C à +3°C" },
+  hache: { min: null, max: 2, label: "≤ +2°C" },
+  poisson: { min: null, max: 2, label: "≤ +2°C (glace fondante : 0 à +2°C)" },
+  abats: { min: null, max: 3, label: "≤ +3°C" },
+  plat: { min: null, max: 3, label: "≤ +3°C" },
   // Lait pasteurisé et fromages affinés : l'arrêté ne fixe pas de chiffre, la température est définie par le fabricant
   // (à lire sur l'emballage). Elle est saisie à la réception ; sans elle, aucun verdict n'est rendu.
-  laitier: { min: -1, max: 4, label: "de -1°C à +4°C" },
+  laitier: { min: null, max: 4, label: "≤ +4°C" },
 };
 const NOM_TYPE_TEMP = { viande: "viande fraîche / volaille", hache: "viande hachée", poisson: "poisson frais", abats: "abats", plat: "plat cuisiné", laitier: "lait pasteurisé / fromage affiné" };
 const RAISONS_NON_CONFORMITE = ["Produit abîmé à la livraison", "DLC trop courte", "Température non conforme", "Produit non commandé", "Produit substitué / facturé plus cher que commandé"];
@@ -19782,7 +19861,7 @@ function ReceptionWizard({ stock, setStock, receptions, setReceptions, currentUs
               return (
                 <Field key={type} label={`${label} (${seuilsAffiches[type].label})`}>
                   <input className={inputCls} type="number" step="0.1" value={temps[type]} onChange={(e) => setTemps({ ...temps, [type]: e.target.value })} />
-                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? (modeManuel && type === "surgele" && parseFloat(temps[type]) > SEUILS_RECEPTION_NOUVEAU.surgele.ideal ? "Accepté (tolérance transport), à mettre au congélateur immédiatement" : "Conforme") : (modeManuel && type !== "surgele" && parseFloat(temps[type]) < SEUILS_RECEPTION_NOUVEAU[type].min ? "Hors norme : produit gelé ? (un produit frais ne doit pas arriver gelé)" : "Hors norme")}</span>}
+                  {ok !== null && <span className={`text-xs mt-1 block ${ok ? "text-[var(--accent)]" : "text-[var(--warn)]"}`}>{ok ? (modeManuel && type === "surgele" && parseFloat(temps[type]) > SEUILS_RECEPTION_NOUVEAU.surgele.ideal ? "Accepté (tolérance transport), à mettre au congélateur immédiatement" : "Conforme") : (modeManuel && type !== "surgele" && SEUILS_RECEPTION_NOUVEAU[type].min != null && parseFloat(temps[type]) < SEUILS_RECEPTION_NOUVEAU[type].min ? "Hors norme : produit gelé ? (un produit frais ne doit pas arriver gelé)" : "Hors norme")}</span>}
                 </Field>
               );
             })}
@@ -20560,7 +20639,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
     const noms = (ts) => ts.map((t) => LIBELLE_CONSERVATION[t] || t).join(", ");
     if (r.okTypes.length === 0) {
       return r.etat === "gele"
-        ? { ...ROUGE, titre: "Trop froid pour du frais : produit gelé ?", detail: "Limite basse : -1 °C. Vérifiez le produit et refusez-le s'il est gelé." }
+        ? { ...ROUGE, titre: "Trop froid pour du frais : produit gelé ?", detail: "Vérifiez le produit et refusez-le s'il est gelé." }
         : { ...ROUGE, titre: "Non conforme : hors norme", detail: f.id === "surgele" ? "Au-delà de -15 °C : refus et retour au fournisseur." : "Au-delà de +4 °C : tous les produits frais sont à refuser et à retourner au fournisseur." };
     }
     if (r.ncTypes.length > 0) {
