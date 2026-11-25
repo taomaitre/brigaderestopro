@@ -9,7 +9,8 @@ const lexiqueUi = fs.readFileSync(new URL('../src/LexiqueReglementaire.jsx', imp
 const lexiqueMd = fs.readFileSync(new URL('../docs/lexique-haccp.md', import.meta.url), 'utf8');
 const lexiqueJs = fs.readFileSync(new URL('../src/lexiqueDonnees.js', import.meta.url), 'utf8');
 const controleFin = fs.readFileSync(new URL('../src/controleFinService.js', import.meta.url), 'utf8');
-const tout = app + '\n' + reel + '\n' + service + '\n' + lexiqueUi + '\n' + lexiqueMd + '\n' + lexiqueJs + '\n' + controleFin;
+const grille = fs.readFileSync(new URL('../src/grilleInspection.js', import.meta.url), 'utf8');
+const tout = app + '\n' + reel + '\n' + service + '\n' + lexiqueUi + '\n' + lexiqueMd + '\n' + lexiqueJs + '\n' + controleFin + '\n' + grille;
 // [libellé, motif, doit exister (true) ou être absent (false), fichier(s) : 'app' | 'reel' | 'tout']
 const R = [
   // Accueil, navigation, libellés (decision-accueil-12-tuiles-24-10, liste-modifications-a-faire-24-10)
