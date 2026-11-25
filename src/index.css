@@ -2,6 +2,30 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Échelle de texte unique (décision du 25/11) : 14 px minimum, 16 px pour le texte courant, 20 à 24 px pour les titres.
+   --echelle-texte suit le réglage « Taille du texte » de l'appareil (Paramétrage) : normale 1, grande 1.125, très grande 1.25. */
+:root {
+  --echelle-texte: 1;
+  --t-xs: calc(0.875rem * var(--echelle-texte));
+  --t-sm: calc(1rem * var(--echelle-texte));
+  --t-base: calc(1.0625rem * var(--echelle-texte));
+  --t-lg: calc(1.1875rem * var(--echelle-texte));
+  --t-xl: calc(1.3125rem * var(--echelle-texte));
+  --t-2xl: calc(1.5rem * var(--echelle-texte));
+  --t-3xl: calc(1.875rem * var(--echelle-texte));
+}
+html[data-taille-texte="grande"] { --echelle-texte: 1.125; }
+html[data-taille-texte="tres-grande"] { --echelle-texte: 1.25; }
+/* Étiquettes (taille physique) et impression : tailles d'origine, jamais agrandies. */
+.taille-fixe, .taille-fixe * {
+  --t-xs: 0.75rem; --t-sm: 0.875rem; --t-base: 1rem; --t-lg: 1.125rem; --t-xl: 1.25rem; --t-2xl: 1.5rem; --t-3xl: 1.875rem;
+}
+@media print {
+  :root, html[data-taille-texte] {
+    --t-xs: 0.75rem; --t-sm: 0.875rem; --t-base: 1rem; --t-lg: 1.125rem; --t-xl: 1.25rem; --t-2xl: 1.5rem; --t-3xl: 1.875rem;
+  }
+}
+
 /* Garde-fou d'agencement : un champ ou une cellule de grille ne dépasse jamais son cadre
    (sinon deux champs côte à côte se chevauchent et les mots sont coupés). */
 @layer base {
@@ -25,10 +49,10 @@
 
 /* Pages de contrôles de cuisine : champs et marges resserrés pour tenir dans une fenêtre. */
 .hc-compact label.flex-col { gap: 2px; }
-.hc-compact label.flex-col > span:first-child { font-size: 12px; line-height: 1.15; }
+.hc-compact label.flex-col > span:first-child { font-size: var(--t-xs); line-height: 1.2; }
 .hc-compact input:not([type="checkbox"]):not([type="radio"]), .hc-compact select { padding-top: 0.4rem; padding-bottom: 0.4rem; }
 .hc-compact .grid.gap-3 { gap: 0.5rem; }
-@media (min-width: 1024px) { .hc-compact input:not([type="checkbox"]):not([type="radio"]), .hc-compact select { min-height: 38px; } }
+@media (min-width: 1024px) { .hc-compact input:not([type="checkbox"]):not([type="radio"]), .hc-compact select { min-height: 44px; } }
 @media (min-width: 1024px) { .hc-compact .p-5 { padding: 0.75rem 1rem; } .hc-compact .mb-6 { margin-bottom: 0.75rem; } .hc-compact .mb-4 { margin-bottom: 0.5rem; } }
 @media (max-width: 639px) {
   .hc-compact .grid.grid-cols-1.sm\:grid-cols-2 { grid-template-columns: repeat(2, minmax(0, 1fr)); }

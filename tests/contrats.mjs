@@ -10,7 +10,8 @@ const lexiqueMd = fs.readFileSync(new URL('../docs/lexique-haccp.md', import.met
 const lexiqueJs = fs.readFileSync(new URL('../src/lexiqueDonnees.js', import.meta.url), 'utf8');
 const controleFin = fs.readFileSync(new URL('../src/controleFinService.js', import.meta.url), 'utf8');
 const grille = fs.readFileSync(new URL('../src/grilleInspection.js', import.meta.url), 'utf8');
-const tout = app + '\n' + reel + '\n' + service + '\n' + lexiqueUi + '\n' + lexiqueMd + '\n' + lexiqueJs + '\n' + controleFin + '\n' + grille;
+const css = fs.readFileSync(new URL('../src/index.css', import.meta.url), 'utf8');
+const tout = css + '\n' + app + '\n' + reel + '\n' + service + '\n' + lexiqueUi + '\n' + lexiqueMd + '\n' + lexiqueJs + '\n' + controleFin + '\n' + grille;
 // [libellé, motif, doit exister (true) ou être absent (false), fichier(s) : 'app' | 'reel' | 'tout']
 const R = [
   // Accueil, navigation, libellés (decision-accueil-12-tuiles-24-10, liste-modifications-a-faire-24-10)
@@ -117,6 +118,18 @@ const R = [
   ["Alerte rappel : affichage 15 jours (frais) ou 2 mois", /DUREES_AFFICHAGE_RAPPEL = \{ frais: \{[^}]*jours: 15 \}, long: \{[^}]*jours: 61 \}/, true],
   ["Alerte rappel : alerte du fournisseur saisie à la main", /function AjoutAlerteRappelManuelle\(/, true],
   ["Préparation à l'inspection : contrôles du soir des 30 derniers jours", /Contrôles du soir \(30 derniers jours\)/, true],
+  // Visuel (25/11) : rapport « Visuel du logiciel : constats et propositions », propositions validées par Loïc
+  ["Visuel : chaque écran s'ouvre en haut de page", /useLayoutEffect\(\(\) => \{ try \{ window\.scrollTo\(0, 0\); \} catch \(e\) \{ \/\* ignore \*\/ \} \}, \[tab\]\)/, true],
+  ["Visuel : plus de texte de 10 ou 11 pixels", /text-\[1[01]px\]/, false],
+  ["Visuel : échelle de texte unique (variables --t-xs…)", /--t-xs: calc\(0\.875rem \* var\(--echelle-texte\)\)/, true],
+  ["Visuel : réglage « Taille du texte » par appareil", /function ReglageTailleTexte\(/, true],
+  ["Visuel : étiquettes et impressions gardent leur taille", /\.taille-fixe, \.taille-fixe \*/, true],
+  ["Visuel : texte des tuiles lisible (encre choisie selon la couleur)", /const encre = encreSur\(fond\);/, true],
+  ["Visuel : rectangles « Normes » en bleu information, plus en rouge", /borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5"/, false],
+  ["Visuel : boutons d'au moins 48 pixels", /px-4 py-2\.5 min-h-\[48px\] rounded-lg text-sm font-medium/, true],
+  ["Visuel : Historique de la journée en bas des Tâches du jour", /if \(tab === "taches"\) return <BarreChef bas centre/, true],
+  ["Visuel : catégories du Stock et des Étiquettes sur fond blanc avec pastille", /const styleBoutonCategorie = /, true],
+  ["Visuel : « En cours » en premier sur téléphone (cuisson)", /enCours\.length \|\| resultatCuisson \? "order-first xl:order-none"/, true],
 ];
 // Nom de l'ancien exploitant : remplacé par « macuisine » partout (demande de Loïc, 25/11). Écrit en morceaux pour ne pas figurer ici.
 {

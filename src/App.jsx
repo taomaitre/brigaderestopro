@@ -478,19 +478,22 @@ const degrade = (c1, c2) => {
 const COULEURS_FONCTION = {
   // Palette du 24/10 (une fonction = UNE couleur, jamais deux fonctions de la même couleur ; rouge = alerte seulement).
   // Les écrans qui dépendent d'une fonction reprennent sa couleur (voir les alias plus bas).
-  taches: degrade("#1F8F5F", "#146B45"),          // Tâches du jour : vert
+  // Tons ajustés le 25/11 pour la lisibilité (contraste d'au moins 4,5 avec le texte) sans changer la couleur de chaque fonction :
+  // un peu plus foncés pour Tâches, Traçabilité, Maintien et Suivi (texte blanc) ; Stock, Refroidissement, Huile et Lexique gardent
+  // leur couleur vive avec un texte foncé (en les fonçant, ils ressemblaient à Cuisson, Températures, Réception ou Étiquettes).
+  taches: degrade("#1D8759", "#146B45"),          // Tâches du jour : vert
   etiquettes: degrade("#7C3AED", "#4C1D95"),      // Étiquettes : violet
-  tracabilite: degrade("#14A5B8", "#0B7285"),     // Traçabilité : turquoise
+  tracabilite: degrade("#108291", "#0B7285"),     // Traçabilité : turquoise
   reception: degrade("#A0522D", "#6B3A1E"),       // Réception : marron
-  stock: degrade("#FB923C", "#C2410C"),           // Stock : orange
+  stock: degrade("#FB923C", "#F97316"),           // Stock : orange
   temperatures: degrade("#2563EB", "#1E3A8A"),    // Températures : bleu franc
-  cellule: degrade("#4FC3F7", "#1E88C7"),         // Refroidissement : bleu ciel
-  huile: degrade("#E0A800", "#A87900"),           // Huile : jaune doré
-  maintien: degrade("#EC4899", "#9D174D"),        // Maintien au chaud : rose
+  cellule: degrade("#4FC3F7", "#0EA5E9"),         // Refroidissement : bleu ciel
+  huile: degrade("#E0A800", "#D49B00"),           // Huile : jaune doré
+  maintien: degrade("#E2177B", "#9D174D"),        // Maintien au chaud : rose
   cuisson: degrade("#B7410E", "#7A2A08"),         // Cuisson : rouille
   fiches: degrade("#4F46E5", "#312E81"),          // Fiches techniques : indigo
-  controle: degrade("#7A8B2E", "#4D5A14"),        // Suivi et contrôle : vert olive
-  lexique: degrade("#A78BFA", "#7C5CD6"),         // Lexique : lilas
+  controle: degrade("#6D7C29", "#4D5A14"),        // Suivi et contrôle : vert olive
+  lexique: degrade("#A78BFA", "#9F7AEA"),         // Lexique : lilas
   historique: degrade("#0F766E", "#134E4A"),      // Historique (direction) : vert sapin
   pms: degrade("#A21CAF", "#701A75"),             // PMS (hygiène) : prune
   // Alertes : le rouge n'est utilisé que pour elles
@@ -532,9 +535,18 @@ const texteLisible = (fond, voulu) => {
 };
 // Fonce une couleur (mélange avec du noir) jusqu'à ce qu'elle se lise sur fond blanc teinté (titres de zone, petits textes).
 const texteSurDegrade = (fond) => { const m = String(fond || "").match(/#[0-9A-Fa-f]{6}/g); if (!m) return "#ffffff"; const pire = m.reduce((a, c) => (contrasteHex(c, "#ffffff") < contrasteHex(a, "#ffffff") ? c : a)); return texteLisible(pire, "#ffffff"); };
+// Encre d'une tuile ou d'une pastille colorée : blanc sur les couleurs foncées, presque noir sur les couleurs vives et claires.
+const encreSur = (fond) => texteSurDegrade(fond);
+const ombreEncre = (encre) => (encre === "#ffffff" ? "0 1px 3px rgba(0,0,0,0.45)" : "none");
 const foncerPourTexte = (hex, fond = "#FFFFFF") => { let h = hex; for (let i = 0; i < 12 && contrasteHex(h, fond) < 4.5; i++) { const n = parseInt(h.slice(1), 16); const c = [(n >> 16) & 255, (n >> 8) & 255, n & 255].map((x) => Math.round(x * 0.88)); h = "#" + c.map((x) => x.toString(16).padStart(2, "0")).join(""); } return h; };
 // Couleurs de RÔLE (validées par Loïc le 25/10) : la même sur toutes les pages, quelle que soit la fonction de la page.
 // principal = couleur de la fonction (ZoneContext) ; contrôle = ambre ; historique = vert sapin ; information = bleu très pâle.
+// Bouton de catégorie (Stock, Étiquettes) — décision du 25/11 : fond blanc, filet et pastille du logo à la couleur du groupe
+// (chaque groupe garde sa couleur), au lieu de grandes barres pleines qui fatiguaient l'œil. Le groupe choisi est teinté.
+const styleBoutonCategorie = (fond, actif) => ({ backgroundColor: actif ? `${fond}26` : "#ffffff", color: "#1D2321", border: `1px solid ${actif ? fond : "var(--cadre)"}`, borderLeft: `6px solid ${fond}`, boxShadow: actif ? `0 0 0 2px ${fond}` : "none" });
+const PastilleCategorie = ({ fond, icone, taille = 18 }) => (
+  <span className="shrink-0 w-8 h-8 rounded-lg flex items-center justify-center" style={{ background: fond, color: texteLisible(fond, "#ffffff") }}>{React.createElement(icone, { size: taille })}</span>
+);
 const ROLES_COULEUR = {
   controle: { bord: "#F59E0B", fond: "#F59E0B22", texte: "#B45309" },
   historique: { bord: "#0F766E", fond: "#0F766E22", texte: "#134E4A" },
@@ -548,27 +560,33 @@ const couleurSousTuile = (id, parDefaut) => {
 //  - TuileGrande : icône + titre + description (accueil, hubs, grandes rubriques)
 //  - TuilePetite : icône au-dessus du titre (sous-rubriques, résultats de recherche)
 // La couleur vient toujours de COULEURS_FONCTION (une fonction = une couleur).
-const TuileGrande = ({ fond, ombre, icone: Icone, titre, desc, pastille, badge, onClick, className = "", style }) => (
-  <button type="button" onClick={onClick} style={{ background: fond, boxShadow: `0 8px 20px ${ombre}`, ...(style || {}) }}
+const TuileGrande = ({ fond, ombre, icone: Icone, titre, desc, pastille, badge, onClick, className = "", style }) => {
+  const encre = encreSur(fond);
+  return (
+  <button type="button" onClick={onClick} style={{ background: fond, boxShadow: `0 8px 20px ${ombre}`, color: encre, ...(style || {}) }}
     className={`relative overflow-hidden rounded-2xl flex items-center gap-4 min-h-[112px] px-5 py-4 text-left active:scale-[0.98] transition-transform ${className}`}>
-    <Icone size={120} color="#ffffff" strokeWidth={1.4} className="absolute -right-3 top-1/2 -translate-y-1/2 opacity-20 pointer-events-none" />
-    <span className="relative shrink-0 w-14 h-14 rounded-xl bg-white/20 flex items-center justify-center"><Icone size={32} color="#ffffff" strokeWidth={2} /></span>
+    <Icone size={120} color={encre} strokeWidth={1.4} className="absolute -right-3 top-1/2 -translate-y-1/2 opacity-[0.14] pointer-events-none" />
+    <span className="relative shrink-0 w-14 h-14 rounded-xl flex items-center justify-center" style={{ background: encre === "#ffffff" ? "rgba(255,255,255,0.2)" : "rgba(255,255,255,0.45)" }}><Icone size={32} color={encre} strokeWidth={2} /></span>
     <span className="relative min-w-0 flex-1">
-      <span className="block text-lg md:text-xl font-bold text-white leading-tight" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.45)" }}>{titre}</span>
+      <span className="block text-lg md:text-xl font-bold leading-tight" style={{ textShadow: ombreEncre(encre) }}>{titre}</span>
       {pastille && <span className="inline-block mt-1.5 rounded-full px-3 py-1 text-sm font-bold" style={{ background: "#fff", color: pastille.ok ? "#146B45" : "#B45309" }}>{pastille.texte}</span>}
-      {desc && <span className="block text-sm text-white/90 mt-1 leading-snug">{desc}</span>}
+      {desc && <span className="block text-sm mt-1 leading-snug" style={{ opacity: encre === "#ffffff" ? 0.95 : 0.9 }}>{desc}</span>}
     </span>
-    {badge > 0 && <span className="relative shrink-0 text-xs font-bold rounded-full px-2 py-1" style={{ backgroundColor: "#ffffff", color: "#1D2321" }}>{badge}</span>}
+    {badge > 0 && <span className="relative shrink-0 text-sm font-bold rounded-full min-w-[28px] text-center px-2 py-1" style={{ backgroundColor: "#ffffff", color: "#1D2321" }}>{badge}</span>}
   </button>
-);
-const TuilePetite = ({ fond, ombre, icone: Icone, titre, sous, onClick }) => (
-  <button type="button" onClick={onClick} style={{ background: fond, boxShadow: `0 8px 20px ${ombre}` }}
+  );
+};
+const TuilePetite = ({ fond, ombre, icone: Icone, titre, sous, onClick }) => {
+  const encre = encreSur(fond);
+  return (
+  <button type="button" onClick={onClick} style={{ background: fond, boxShadow: `0 8px 20px ${ombre}`, color: encre }}
     className="rounded-2xl flex flex-col items-center justify-center gap-1.5 min-h-[96px] px-2 py-2 text-center active:scale-95 transition-transform">
-    <Icone size={30} color="#ffffff" strokeWidth={2} />
-    <span className="text-xs font-bold text-white leading-tight line-clamp-2" style={{ textShadow: "0 1px 3px rgba(0,0,0,0.5)" }}>{titre}</span>
-    {sous && <span className="text-[10px] text-white/80 leading-none">{sous}</span>}
+    <Icone size={30} color={encre} strokeWidth={2} />
+    <span className="text-sm font-bold leading-tight line-clamp-2" style={{ textShadow: ombreEncre(encre) }}>{titre}</span>
+    {sous && <span className="text-xs leading-none" style={{ opacity: 0.9 }}>{sous}</span>}
   </button>
-);
+  );
+};
 const ORDRE_TUILES_ACCUEIL = ["taches", "etiquettes", "tracabilite", "reception", "stock", "haccp", "fiches", "controle"];
 
 const JOURS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
@@ -585,6 +603,32 @@ const initials = (nom) => (nom || "?").slice(0, 2).toUpperCase();
 // Ces réglages ne concernent que l'appareil physique sur lequel l'appli tourne (jamais partagés
 // entre appareils) : d'où un simple localStorage, indépendant de window.storage (Supabase).
 const CLE_TYPE_APPAREIL = "mc_type_appareil"; // "tablette" | "telephone"
+// Taille du texte (25/11) : réglage propre à CET appareil (tablette de la cuisine, téléphone…), comme sur les écrans
+// des cuisines professionnelles. Appliquée à toute la page par l'attribut data-taille-texte (voir src/index.css).
+const CLE_TAILLE_TEXTE = "mc_taille_texte"; // "normale" | "grande" | "tres-grande"
+const TAILLES_TEXTE = [["normale", "Normale"], ["grande", "Grande"], ["tres-grande", "Très grande"]];
+function lireTailleTexte() { try { return localStorage.getItem(CLE_TAILLE_TEXTE) || "normale"; } catch (e) { return "normale"; } }
+function appliquerTailleTexte(t) {
+  try { if (t && t !== "normale") document.documentElement.dataset.tailleTexte = t; else delete document.documentElement.dataset.tailleTexte; } catch (e) { /* pas de document */ }
+}
+appliquerTailleTexte(lireTailleTexte());
+function ReglageTailleTexte() {
+  const [t, setT] = useState(lireTailleTexte());
+  const choisir = (v) => { setT(v); try { localStorage.setItem(CLE_TAILLE_TEXTE, v); } catch (e) { /* stockage indisponible */ } appliquerTailleTexte(v); };
+  return (
+    <div className="rounded-xl border border-[var(--cadre)] bg-white p-4 mt-2">
+      <div className="font-semibold text-[var(--ink)]">Taille du texte sur cet appareil</div>
+      <p className="text-xs text-[var(--steel)] mb-3">Pour lire de plus loin ou plus facilement. Ce réglage ne change que cet appareil ; les étiquettes et les impressions ne changent pas.</p>
+      <div className="flex flex-wrap gap-2" role="radiogroup" aria-label="Taille du texte">
+        {TAILLES_TEXTE.map(([v, l], i) => (
+          <button key={v} type="button" role="radio" aria-checked={t === v} onClick={() => choisir(v)}
+            className="min-h-[48px] px-4 rounded-xl border-2 font-semibold"
+            style={{ fontSize: `${1 + i * 0.125}rem`, ...(t === v ? { background: "#1D2321", color: "#fff", borderColor: "#1D2321" } : { background: "#fff", color: "#1D2321", borderColor: "var(--cadre)" }) }}>{l}</button>
+        ))}
+      </div>
+    </div>
+  );
+}
 const CLE_CODE_VALIDE_JUSQUA = "mc_code_valide_jusqua"; // ISO
 const CLE_CODE_EMPLOYE_ID = "mc_code_employe_id";
 
@@ -1605,7 +1649,7 @@ function TuilesResume({ fonction, items }) {
       {items.map(([Ic, valeur, libelle, alerte, teinte], i) => (
         <div key={i} className="rounded-lg px-2.5 py-1.5 flex items-center gap-2" style={{ background: teinte ? teinte.fond : (alerte ? "#FDECEC" : z.fond), border: "1px solid rgba(0,0,0,.05)" }}>
           <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: teinte ? teinte.couleur : (alerte ? "#B3261E" : z.texte) }}><Ic size={16} /></span>
-          <div className="min-w-0"><div className="text-xl font-bold leading-tight" style={{ color: teinte ? teinte.couleur : (alerte ? "#B3261E" : "var(--ink)") }}>{valeur}</div><div className="text-[10px] leading-tight text-[var(--steel)]">{libelle}</div></div>
+          <div className="min-w-0"><div className="text-xl font-bold leading-tight" style={{ color: teinte ? teinte.couleur : (alerte ? "#B3261E" : "var(--ink)") }}>{valeur}</div><div className="text-xs leading-tight text-[var(--steel)]">{libelle}</div></div>
         </div>
       ))}
     </div>
@@ -1758,7 +1802,7 @@ function SectionHeader({ title, subtitle, action, fonction, icone, permanent }) 
     <>
     <div className="flex items-start justify-between mb-3 gap-3 flex-wrap">
       <div className="flex items-center gap-3">
-        <span className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center text-white" style={{ background: coul.fond, boxShadow: `0 4px 10px ${coul.ombre}` }}><Ic size={22} /></span>
+        <span className="shrink-0 w-10 h-10 rounded-xl flex items-center justify-center" style={{ background: coul.fond, color: encreSur(coul.fond), boxShadow: `0 4px 10px ${coul.ombre}` }}><Ic size={22} /></span>
         <div>
           <h2 className="text-xl font-bold tracking-tight leading-tight" style={{ color: zoneTitre ? zoneTitre.texte : "var(--ink)" }}>{title}</h2>
           {subtitle && (permanent || sousTitreVisible) && <p className="text-sm text-[var(--steel)] leading-tight">{subtitle}</p>}
@@ -1786,7 +1830,7 @@ function Button({ children, onClick, variant = "primary", type = "button", class
       onClick={onClick}
       disabled={disabled}
       style={styleAssure}
-      className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[44px] rounded-lg text-sm font-medium transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${styles[variant]} ${className}`}
+      className={`inline-flex items-center justify-center gap-1.5 px-4 py-2.5 min-h-[48px] rounded-lg text-sm font-medium transition-all active:scale-[0.97] disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100 ${styles[variant]} ${className}`}
     >
       {children}
     </button>
@@ -1827,7 +1871,7 @@ function BoutonSupprimer({ onConfirm, size = 15, titre = "Supprimer", className 
     <>
       <button
         onClick={(e) => { e.stopPropagation(); setDemandeOuverte(true); }}
-        className={`text-[var(--steel)] hover:text-[var(--warn)] min-h-[36px] min-w-[36px] inline-flex items-center justify-center ${className}`}
+        className={`text-[var(--steel)] hover:text-[var(--warn)] min-h-[44px] min-w-[36px] inline-flex items-center justify-center ${className}`}
         title={titre}
       >
         <Trash2 size={size} />
@@ -1858,7 +1902,7 @@ const champNetAuto = "h-10 min-w-0 max-w-full px-2.5 border border-[var(--cadre)
 const champNet = `${champNetAuto} w-full`;
 const libNet = "block text-sm font-medium text-[var(--ink)] mb-1";
 const inputCls =
-  "border border-[var(--cadre)] rounded-lg px-3 py-2.5 min-h-[44px] text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)] bg-white";
+  "border border-[var(--cadre)] rounded-lg px-3 py-2.5 min-h-[48px] text-sm text-[var(--ink)] focus:outline-none focus:ring-2 focus:ring-[var(--accent)]/40 focus:border-[var(--accent)] bg-white";
 
 /* ---------- PMS — dossier : fiche de l'établissement (module 1) ---------- */
 
@@ -2072,7 +2116,7 @@ function PmsControlesSurfaces({ pms, mode, onMode, peutChoisir, peutSaisir, nomU
             <div key={x.id} className="py-2 border-t border-[var(--cadre)] flex gap-3 items-start min-w-0">
               {x.photo ? <button type="button" onClick={() => setPhotoVue(x.photo)} aria-label="Agrandir la photo"><img src={x.photo} alt="Test" className="w-14 h-14 object-cover rounded-lg border border-[var(--cadre)]" /></button> : <div className="w-14 h-14 rounded-lg border border-dashed border-[var(--cadre)] shrink-0" />}
               <div className="min-w-0 flex-1 text-sm">
-                <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-[var(--ink)]">{fmtJour(x.date)}{x.heure ? ` · ${x.heure}` : ""}</span><span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: r.couleur }}>{r.label}</span></div>
+                <div className="flex flex-wrap items-center gap-2"><span className="font-semibold text-[var(--ink)]">{fmtJour(x.date)}{x.heure ? ` · ${x.heure}` : ""}</span><span className="text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: r.couleur }}>{r.label}</span></div>
                 <div className="text-[var(--ink)] break-words">{x.surface}{x.precision_surface ? ` — ${x.precision_surface}` : ""}</div>
                 <div className="text-xs text-[var(--steel)] break-words">{[x.methode, x.produit_test, x.valeur_lue ? `valeur : ${x.valeur_lue}` : "", x.realise_par ? `par ${x.realise_par}` : ""].filter(Boolean).join(" · ")}</div>
                 {x.action_corrective && <div className="text-xs text-[var(--ink)] break-words mt-0.5">Action corrective : {x.action_corrective}</div>}
@@ -2686,7 +2730,7 @@ function SousTitrePms({ children }) {
 function LignePms({ ok, children }) {
   return (
     <div className="flex items-start gap-2 py-1.5 border-b border-[var(--cadre)] last:border-0 text-sm">
-      <span className="shrink-0 w-5 h-5 mt-0.5 rounded-full flex items-center justify-center text-[11px] font-bold text-white" style={{ backgroundColor: ok ? "#1E7B4B" : "#C1432D" }}>{ok ? "✓" : "!"}</span>
+      <span className="shrink-0 w-5 h-5 mt-0.5 rounded-full flex items-center justify-center text-xs font-bold text-white" style={{ backgroundColor: ok ? "#1E7B4B" : "#C1432D" }}>{ok ? "✓" : "!"}</span>
       <span className="text-[var(--ink)]">{children}</span>
     </div>
   );
@@ -2753,7 +2797,7 @@ function PointPms({ p, rep, ctx, equipe, enregistrer }) {
     <div className="rounded-xl border border-[var(--cadre)] bg-white mb-2" data-pms-point={p.id}>
       <div className="p-3">
         <div className="flex items-start gap-2">
-          <span className="shrink-0 text-[11px] font-bold px-1.5 py-0.5 rounded" style={{ background: z ? z.fond : "#eee", color: z ? z.texte : "#333" }}>{p.mod}</span>
+          <span className="shrink-0 text-xs font-bold px-1.5 py-0.5 rounded" style={{ background: z ? z.fond : "#eee", color: z ? z.texte : "#333" }}>{p.mod}</span>
           <div className="min-w-0 flex-1">
             <p className="text-sm font-semibold text-[var(--ink)] leading-snug">{p.titre}</p>
             {constat !== undefined && (
@@ -2764,10 +2808,10 @@ function PointPms({ p, rep, ctx, equipe, enregistrer }) {
         <div className="flex flex-wrap items-center gap-2 mt-2">
           {ETATS_POINT_PMS.map((e) => (
             <button key={e.value} type="button" aria-pressed={etat === e.value} onClick={() => enregistrer(p.id, { etat: e.value })}
-              className="min-h-[40px] px-3 rounded-full border-2 text-sm font-bold"
+              className="min-h-[48px] px-3 rounded-full border-2 text-sm font-bold"
               style={etat === e.value ? { background: e.couleur, borderColor: e.couleur, color: "#fff" } : { background: "#fff", borderColor: e.couleur, color: e.couleur }}>{e.label}</button>
           ))}
-          <button type="button" className="ml-auto text-xs underline text-[var(--steel)] min-h-[40px] px-1" onClick={() => setOuvert(!ouvert)}>{ouvert ? "Fermer le détail" : "Détail, note et action"}</button>
+          <button type="button" className="ml-auto text-xs underline text-[var(--steel)] min-h-[48px] px-1" onClick={() => setOuvert(!ouvert)}>{ouvert ? "Fermer le détail" : "Détail, note et action"}</button>
         </div>
         {!ouvert && info && (valeur("note") || valeur("action")) && (
           <p className="text-xs text-[var(--steel)] mt-1 line-clamp-2">{valeur("action") ? `À faire : ${valeur("action")}` : valeur("note")}</p>
@@ -2900,7 +2944,7 @@ function PmsPreparationInspection({ pms, locales }) {
                   <summary className="cursor-pointer px-3 py-2 text-sm text-[var(--ink)] flex items-start gap-2">
                     <span className="font-bold shrink-0">{it.code}</span>
                     <span className="flex-1">{it.titre}</span>
-                    <span className="text-[11px] font-bold px-2 py-0.5 rounded-full text-white shrink-0" style={{ background: couleur(e) }}>{libelleEtat[e]}</span>
+                    <span className="text-xs font-bold px-2 py-0.5 rounded-full text-white shrink-0" style={{ background: couleur(e) }}>{libelleEtat[e]}</span>
                   </summary>
                   <div className="px-3 pb-3 text-sm text-[var(--ink)] space-y-2">
                     <p><span className="text-xs font-semibold text-[var(--steel)] uppercase">Ce que l'inspecteur regarde</span><br />{it.regarde}</p>
@@ -2994,7 +3038,7 @@ function PmsDossierComplet({ reglages, employees, donnees, pms, onOuvrirComptes,
       <PmsPreparationInspection pms={pms} locales={locales} />
       <div className="flex flex-wrap gap-2 mb-4">
         {PMS_CATEGORIES.map((c) => (
-          <button key={c.id} type="button" onClick={() => aller(c.id)} className="inline-flex items-center gap-2 min-h-[40px] pl-1.5 pr-3 rounded-full border-2 text-sm font-bold bg-white" style={{ borderColor: c.zone.bord, color: c.zone.texte }}>
+          <button key={c.id} type="button" onClick={() => aller(c.id)} className="inline-flex items-center gap-2 min-h-[48px] pl-1.5 pr-3 rounded-full border-2 text-sm font-bold bg-white" style={{ borderColor: c.zone.bord, color: c.zone.texte }}>
             <span className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs" style={{ background: c.zone.bord }}>{c.num}</span>{c.titre}
           </button>
         ))}
@@ -3726,7 +3770,7 @@ function NettoyageFinServiceEmploye({ ctx, employees, currentUserId, logActivity
       <li key={o.cle} className={`rounded-lg p-2.5 border ${o.enRetard ? "border-[var(--warn)]/40 bg-[var(--warn-soft)]" : o.statut === "valide" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
         <div className="flex items-start justify-between gap-2">
           <p className={`text-sm leading-snug ${o.statut === "valide" || o.statut === "fait" ? "text-[var(--steel)]" : "text-[var(--ink)]"} ${o.statut === "valide" ? "line-through" : ""}`}>{o.tache}</p>
-          {o.poste && o.poste !== "Tous" && <span className="text-[10px] uppercase tracking-wide text-[var(--steel)] shrink-0">{o.poste}</span>}
+          {o.poste && o.poste !== "Tous" && <span className="text-xs uppercase tracking-wide text-[var(--steel)] shrink-0">{o.poste}</span>}
         </div>
         {o.enRetard && <p className="text-xs font-semibold text-[var(--warn)] mt-0.5">En retard — prévue le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"})</p>}
         {o.note && o.statut === "a_faire" && <p className="text-xs text-[var(--steel)] mt-1 leading-snug whitespace-pre-line">{o.note}</p>}
@@ -3809,7 +3853,7 @@ function NettoyageFinServiceChef({ ctx, employees, currentUserId, logActivity, t
       <li key={o.cle} className={`rounded-lg p-2.5 border ${o.enRetard || o.statut === "refuse" || o.statut === "impossible" ? "border-[var(--warn)]/40 bg-[var(--warn-soft)]" : o.statut === "valide" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
         <div className="flex items-start justify-between gap-2">
           <p className={`text-sm leading-snug ${o.statut === "valide" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{o.tache}</p>
-          {o.poste && o.poste !== "Tous" && <span className="text-[10px] uppercase tracking-wide text-[var(--steel)] shrink-0">{o.poste}</span>}
+          {o.poste && o.poste !== "Tous" && <span className="text-xs uppercase tracking-wide text-[var(--steel)] shrink-0">{o.poste}</span>}
         </div>
         <p className="text-xs text-[var(--steel)] mt-0.5">{libelleAssignationNet(o.t, employees)}{pc.presents.length ? ` — présents : ${pc.presents.map((e) => e.nom).join(", ")}` : ""}</p>
         {o.enRetard && <p className="text-xs font-semibold text-[var(--warn)] mt-0.5">En retard — prévue le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"})</p>}
@@ -4114,7 +4158,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
           <ul className="space-y-1.5">
             {risques.map((r, i) => (
               <li key={i} className="flex items-start gap-2 text-sm text-[var(--ink)]">
-                <span className="shrink-0 text-[11px] font-bold px-2 py-0.5 rounded-full text-white" style={{ background: r.niveau === "D" ? "#C1432D" : "#B7791F" }}>{r.niveau}</span>
+                <span className="shrink-0 text-xs font-bold px-2 py-0.5 rounded-full text-white" style={{ background: r.niveau === "D" ? "#C1432D" : "#B7791F" }}>{r.niveau}</span>
                 <span className="flex-1">{r.texte} <span className="text-xs text-[var(--steel)]">({r.code})</span></span>
                 {r.ecran && onAller && <button type="button" onClick={() => onAller(r.ecran)} className="shrink-0 text-xs font-semibold text-[var(--accent)]">Corriger →</button>}
               </li>
@@ -4146,7 +4190,7 @@ function ControlePlanningJour({ employees, tasks, produits, preparations, stock,
                       const noteEnvoyee = notesEnvoyees[it.key];
                       return (
                         <li key={it.key} className={`rounded-lg p-2.5 border ${statut === "ok" ? "border-[var(--accent)]/30 bg-[var(--accent-soft)]" : statut === "ko" ? "border-[var(--warn)]/30 bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
-                          <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{it.code ? <span className="text-[11px] font-bold mr-1.5 px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--steel)] no-underline">{it.code}</span> : null}{it.label}</p>
+                          <p className={`text-sm mb-2 leading-snug ${statut === "ok" ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{it.code ? <span className="text-xs font-bold mr-1.5 px-1.5 py-0.5 rounded bg-[var(--bg)] text-[var(--steel)] no-underline">{it.code}</span> : null}{it.label}</p>
                           {it.detail && <p className="text-xs text-[var(--steel)] mb-2 leading-snug">{it.detail}</p>}
                           {!statut && !enNote && (
                             <div className="flex gap-2">
@@ -4769,7 +4813,7 @@ function CommandesRecues({ receptions, setReceptions, employees, nomMoi, memoire
                       <td className="pr-3"><Compteur n={nbConformes(c)} ton="v" /></td>
                       <td className="pr-3"><Compteur n={nbNonConformes(c)} ton={nbNonConformes(c) ? "r" : undefined} /></td>
                       <td className="pr-3"><StatutVerif c={c} /></td>
-                      <td className="pr-3 text-right"><button type="button" onClick={() => setDetail(c.cle)} className="rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap min-h-[36px]" style={{ background: "#E8F1FD", borderColor: "#BFDBFE", color: "#1D4A7A" }}>Voir le détail ›</button></td>
+                      <td className="pr-3 text-right"><button type="button" onClick={() => setDetail(c.cle)} className="rounded-lg border px-3 py-1.5 text-xs font-semibold whitespace-nowrap min-h-[44px]" style={{ background: "#E8F1FD", borderColor: "#BFDBFE", color: "#1D4A7A" }}>Voir le détail ›</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -5039,6 +5083,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
   const [rechercheTracabilite, setRechercheTracabilite] = useState("");
   const [remarqueEnCours, setRemarqueEnCours] = useState(null);
   const [sousEcran, setSousEcran] = useState(null);
+  useLayoutEffect(() => { try { window.scrollTo(0, 0); } catch (e) { /* ignore */ } }, [sousEcran]);
   // Ouverture directe depuis un bouton du chef placé dans une autre tuile (Stock, Fiches techniques, Réception…) : on revient à cette tuile.
   const retourExterne = React.useRef(cibleInit && cibleInit.retourTab ? cibleInit.retourTab : null).current;
   const [rechercheCG, setRechercheCG] = useState("");
@@ -5207,7 +5252,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
         if (!items.length) return null;
         return (
           <div key={g.titre} className={sombre ? "mb-3" : "mb-4"}>
-            <div className="text-[11px] font-bold uppercase tracking-wide mb-1.5 px-2" style={{ color: sombre ? "#7C8AA0" : "var(--steel)" }}>{g.titre}</div>
+            <div className="text-xs font-bold uppercase tracking-wide mb-1.5 px-2" style={{ color: sombre ? "#7C8AA0" : "var(--steel)" }}>{g.titre}</div>
             <div className="space-y-1">
               {items.map((it) => {
                 const id = it.extra ? it.extra[0] : it.t.id;
@@ -5217,9 +5262,9 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
                 const actif = it.extra ? planningParam === it.extra[0] : (!planningParam && (sousEcran === it.t.id) || (referentielActif && ((it.t.id === "fournisseur" && referentielVue === "fournisseurs") || (it.t.id === "produits" && referentielVue === "produits"))));
                 return (
                   <button key={id} type="button" onClick={() => { setReferentielActif(false); if (it.extra) { setSousEcran(null); ouvrirPlanning(id); } else { fermerPlanningParam && fermerPlanningParam(); ouvrirSousTuile(it.t.id); } }} aria-current={actif ? "page" : undefined}
-                    className="w-full flex items-center gap-3 px-2.5 py-2 min-h-[48px] rounded-xl text-left text-[15px] font-medium transition-colors"
+                    className="w-full flex items-center gap-3 px-2.5 py-2 min-h-[48px] rounded-xl text-left text-sm font-medium transition-colors"
                     style={sombre ? (actif ? { backgroundColor: "#1F6B47", color: "#fff", boxShadow: "inset 4px 0 0 #6EE7A8" } : { color: "#C5CEDA" }) : (actif ? { background: "var(--accent-soft)", color: "var(--accent)", border: "2px solid var(--accent)" } : { background: "#fff", color: "var(--ink)", border: "2px solid var(--line)" })}>
-                    <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: fond }}><Ic size={18} /></span>
+                    <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: fond, color: encreSur(fond) }}><Ic size={18} /></span>
                     <span className="flex-1 leading-tight">{libelle}</span>
                   </button>
                 );
@@ -5337,7 +5382,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
       {menuParamSombre}
       {sommaireCG}
       {modeParametrage && (
-        <nav aria-label="Paramétrage" className={`${slotMenuParam ? "md:hidden" : "md:w-72 md:shrink-0"} ${sousEcran || ecranPlanningParam ? "hidden md:block" : ""} mb-4`} style={slotMenuParam && (sousEcran || ecranPlanningParam) ? { display: "none" } : undefined}>
+        <nav aria-label="Paramétrage" className={`${slotMenuParam || !(sousEcran || ecranPlanningParam) ? "md:hidden" : "md:w-72 md:shrink-0"} ${sousEcran || ecranPlanningParam ? "hidden md:block" : ""} mb-4`} style={slotMenuParam && (sousEcran || ecranPlanningParam) ? { display: "none" } : undefined}>
           <SectionHeader title="Paramétrage" subtitle="Tous les réglages au même endroit" permanent icone={Settings} />
           {construireMenuParam(false)}
         </nav>
@@ -5360,7 +5405,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
             if (!items.length) return null;
             return (
               <div key={g.titre} className="mb-6">
-                <div className="text-[11px] font-bold uppercase tracking-wide mb-2" style={{ color: "var(--steel)" }}>{g.titre}</div>
+                <div className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: "var(--steel)" }}>{g.titre}</div>
                 <div className="grid grid-cols-2 lg:grid-cols-3 gap-3">
                   {items.map((it) => {
                     const id = it.extra ? it.extra[0] : it.t.id;
@@ -5374,6 +5419,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
           })}
         </div>
       )}
+      {modeParametrage && !sousEcran && !ecranPlanningParam && <ReglageTailleTexte />}
       {modeParametrage ? null : modeHistorique && !sectionActive ? (
       <>
         <SectionHeader title="Historique" subtitle="Tous les historiques au même endroit, en commençant par celui de la journée" permanent icone={Clock} />
@@ -5899,7 +5945,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
                 const nonDemande = <div className="text-xs italic text-[var(--steel)] px-2 py-2 rounded-lg bg-[var(--bg)] text-center">non demandé</div>;
                 return (
                   <div key={x.id} className="grid gap-2 items-center px-3 py-2 border-t border-[var(--cadre)]" style={{ gridTemplateColumns: GRILLE, minWidth: 820 }}>
-                    <div className="min-w-0 text-sm font-medium text-[var(--ink)] break-words">{x.nom}<div className="text-[11px] font-normal text-[var(--steel)]">{x.categorie}</div></div>
+                    <div className="min-w-0 text-sm font-medium text-[var(--ink)] break-words">{x.nom}<div className="text-xs font-normal text-[var(--steel)]">{x.categorie}</div></div>
                     <select className={`${inputCls} text-xs w-full min-w-0`} value={espece} onChange={(e) => setEspecesOrigine({ ...especesOrigine, [x.nom]: e.target.value })}>
                       {ESPECES_ORIGINE.map((e) => <option key={e.id} value={e.id}>{e.label}</option>)}
                     </select>
@@ -5912,13 +5958,13 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
                     </>)}
                     <div className="text-xs min-w-0 break-words">
                       {texte ? <span className="inline-block rounded-lg px-2 py-1 font-semibold text-white" style={{ background: col }}>{texte}</span> : <span className="px-2 py-1 rounded-full bg-[var(--warn-soft)] text-[var(--warn)] font-medium">À compléter</span>}
-                      {produitsLotException[x.nom] && <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">variable selon le lot en cours</span>}
+                      {produitsLotException[x.nom] && <span className="ml-1 text-xs px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">variable selon le lot en cours</span>}
                     </div>
                   </div>
                 );
               };
               const enteteCols = (col) => (
-                <div className="grid gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide" style={{ gridTemplateColumns: GRILLE, minWidth: 820, background: col + "22", color: col }}>
+                <div className="grid gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wide" style={{ gridTemplateColumns: GRILLE, minWidth: 820, background: col + "22", color: col }}>
                   <div>Produit</div><div>Espèce</div><div>Né en</div><div>Élevé en</div><div>Abattu en</div><div>Mention à afficher</div>
                 </div>
               );
@@ -6162,7 +6208,7 @@ function DetailComptage({ x, onValider, onFermer }) {
     <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50" onClick={onFermer}>
       <div className="bg-white rounded-xl max-w-md w-full p-5 max-h-[88vh] overflow-y-auto" onClick={(e) => e.stopPropagation()}>
         <div className="font-bold text-[var(--ink)] mb-0.5">Compter : {x.nom}</div>
-        <p className="text-[11px] text-[var(--steel)] mb-3">{x.conditionnement || ""} — vous pouvez écrire plusieurs nombres avec « + » (ex. 3+2).</p>
+        <p className="text-xs text-[var(--steel)] mb-3">{x.conditionnement || ""} — vous pouvez écrire plusieurs nombres avec « + » (ex. 3+2).</p>
         <div className="space-y-2">
           {d.comptage === "piece" ? (
             <>
@@ -6412,8 +6458,8 @@ function FicheInventaire({ stock, setStock, logActivity, today, onBack, groupesS
                     return (
                       <div key={x.id} className={`grid ${grille} gap-3 px-2 py-1 border-b border-[var(--line)] last:border-b-0 items-center text-sm`}>
                         <span className="text-xs text-[var(--steel)]">{x.reference || "—"}</span>
-                        <span className="text-[var(--ink)] font-medium leading-tight">{x.nom}{x.conditionnement ? <span className="block text-xs font-semibold text-[var(--ink)] opacity-80">Format : {x.conditionnement}</span> : <span className="block text-[11px] font-normal text-[var(--steel)]">format non renseigné</span>}</span>
-                        <span className="text-[var(--steel)]">{fmtNb(x.quantite)} {x.unite}{f && f.mode === "poids" && f.contenu > 0 ? <span className="block text-[11px]">≈ {fmtNb(Number(x.quantite) / (f.contenu * f.facteur))} × {fmtNb(f.contenu)} {f.base === "kg" ? "kg" : "L"}</span> : null}</span>
+                        <span className="text-[var(--ink)] font-medium leading-tight">{x.nom}{x.conditionnement ? <span className="block text-xs font-semibold text-[var(--ink)] opacity-80">Format : {x.conditionnement}</span> : <span className="block text-xs font-normal text-[var(--steel)]">format non renseigné</span>}</span>
+                        <span className="text-[var(--steel)]">{fmtNb(x.quantite)} {x.unite}{f && f.mode === "poids" && f.contenu > 0 ? <span className="block text-xs">≈ {fmtNb(Number(x.quantite) / (f.contenu * f.facteur))} × {fmtNb(f.contenu)} {f.base === "kg" ? "kg" : "L"}</span> : null}</span>
                         {f ? (
                           <div className="flex flex-nowrap items-center gap-1.5">
                             <input className={`${inputCls} !h-9 !w-16 shrink-0 text-center print:border-0`} type="text" inputMode="decimal" aria-label={`Pièces entières de ${x.nom}`} placeholder="0" value={pieces[x.id] ?? ""} onChange={(e) => setPieces({ ...pieces, [x.id]: e.target.value })} />
@@ -6605,9 +6651,9 @@ function ReferentielProduits({ vue, stock, fournisseurs, gestion, onBack, ouvrir
                     <li key={s.id} className="px-4 py-2.5 bg-white">
                       <div className="flex items-center justify-between gap-2 flex-wrap">
                         <div className="text-sm font-medium text-[var(--ink)] flex items-center gap-2">
-                          {s.nom} {gestion && estAValider(s.note) && <span className="text-[10px] uppercase font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: "#FFE08A", color: "#6B4A00" }}>nouveau produit — à valider</span>}
-                          {(gestion || s.brut) && (!s.reference || !s.prixUnitaire) && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à compléter : {[!s.reference && "référence", !s.prixUnitaire && "prix"].filter(Boolean).join(", ")}</span>}
-                          {!gestion && !s.referenceVerifiee && <span className="text-[10px] uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à vérifier</span>}
+                          {s.nom} {gestion && estAValider(s.note) && <span className="text-xs uppercase font-bold rounded-full px-2 py-0.5" style={{ backgroundColor: "#FFE08A", color: "#6B4A00" }}>nouveau produit — à valider</span>}
+                          {(gestion || s.brut) && (!s.reference || !s.prixUnitaire) && <span className="text-xs uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à compléter : {[!s.reference && "référence", !s.prixUnitaire && "prix"].filter(Boolean).join(", ")}</span>}
+                          {!gestion && !s.referenceVerifiee && <span className="text-xs uppercase font-semibold text-white bg-[var(--warn)] rounded-full px-2 py-0.5">à vérifier</span>}
                         </div>
                         {s.prixUnitaire && <div className="text-sm font-semibold text-[var(--ink)]">{s.prixUnitaire}</div>}
                       </div>
@@ -7465,7 +7511,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                     return (
                       <button key={val || "froid"} type="button" onClick={() => maj("decongel_methode", val || null)} className={`text-left rounded-lg border-2 px-3 py-2 ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
                         <span className="block text-sm font-semibold text-[var(--ink)]">{actif ? "● " : "○ "}{titre}</span>
-                        <span className="block text-[11px] text-[var(--steel)]">{aide}</span>
+                        <span className="block text-xs text-[var(--steel)]">{aide}</span>
                       </button>
                     );
                   })}
@@ -7476,7 +7522,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                     {champTexte("decongel_source", "Source de cette durée (ex. fiche Sysco du 04/08/2026)")}
                   </div>
                 )}
-                <p className="text-[11px] text-[var(--steel)] mt-2">Température ambiante : non proposée comme méthode (interdite par les normes générales). Si le fabricant l'autorise par écrit, on l'ajoutera.</p>
+                <p className="text-xs text-[var(--steel)] mt-2">Température ambiante : non proposée comme méthode (interdite par les normes générales). Si le fabricant l'autorise par écrit, on l'ajoutera.</p>
               </div>
             )}
             <GuideAchatProduit v={v} setV={setV} prerempli={prerempli} />
@@ -8069,7 +8115,7 @@ function HaccpRefroidPage({ fiches, onCuissonRefroidie, onMaintienRefroidi, cuis
     <div className="hc-compact">
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-x-2">
       <BoutonInfosNormes ficheKey="refroidissementSansCellule" onClick={ouvrirNormes} label="Procédure de refroidissement — Sans cellule" texte="Cliquez pour lire : +63 °C à +10 °C en moins de 2 h (arrêté du 21/12/2009, annexe IV, restauration collective) ; en remise directe aucune durée n'est fixée." />
-      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de surgélation — Avec cellule" texte="Cliquez pour lire : congélation à −18 °C (arrêté du 21/12/2009, annexe I) ; aucun texte lu ne fixe de durée de surgélation." />
+      <BoutonInfosNormes ficheKey="refroidissementAvecCellule" onClick={ouvrirNormes} label="Procédure de congélation — Avec cellule" texte="Cliquez pour lire : congélation à −18 °C (arrêté du 21/12/2009, annexe I) ; aucun texte ne fixe de durée de congélation." />
       </div>
       <div className="lg:flex lg:items-start lg:justify-between lg:gap-4 lg:mb-1">
         <div className="lg:shrink-0"><SectionHeader title="Refroidissement rapide et congélation" subtitle="Suivi des refroidissements, des congélations et de la cellule" /></div>
@@ -8086,7 +8132,7 @@ function HaccpHuilePage({ huileTests, employees, onEnregistrerTest }) {
   const ouvrirNormes = (key) => setInfosFiche(FICHES_NORMES[key]);
   return (
     <div className="hc-compact">
-      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Informations importantes — Règles et repères HACCP" texte="Cliquez pour lire : test de l'huile après chaque utilisation (source réglementaire à confirmer)." />
+      <BoutonInfosNormes ficheKey="huileFreture" onClick={ouvrirNormes} label="Huile de friture — Règles et repères HACCP" texte="Cliquez pour lire : huile impropre au-delà de 25 % de composés polaires ou 14 % de polymères (décret n° 2008-184)." />
       <SectionHeader title="Suivi d'huile de friture" subtitle="Tests et suivi des bains d'huile" />
       <TuilesResume fonction="huile" items={[[CheckCircle2, huileTests.length ? (huileTests[0].resultat || "—") : "—", huileTests.length && huileTests[0].bain ? `dernier résultat — ${huileTests[0].bain}` : "dernier résultat", false, (() => { const r = huileTests.length ? (huileTests[0].resultat || "") : ""; if (/non conforme|à changer|mauvaise/i.test(r)) return { fond: "#FDE4E8", couleur: "#B4233A" }; if (/limite/i.test(r)) return { fond: "#FDEBD3", couleur: "#B8620B" }; if (r) return { fond: "#EAF6EF", couleur: "#14653A" }; return undefined; })()]]} />
       {onEnregistrerTest && <HuileSaisie onEnregistrerTest={onEnregistrerTest} />}
@@ -8130,7 +8176,7 @@ function HuileSaisie({ onEnregistrerTest }) {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4 mb-4">
         <Card>
-          <h3 className="text-lg font-bold text-[var(--ink)] mb-3 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Camera size={18} /></span> Faire un test de l'huile</h3>
+          <h3 className="text-lg font-bold text-[var(--ink)] mb-3 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: COULEURS_FONCTION.huile.fond, color: encreSur(COULEURS_FONCTION.huile.fond) }}><Camera size={18} /></span> Faire un test de l'huile</h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-4">
             <Field label="Bain d'huile *">
               <select className={inputCls} value={bain} onChange={(e) => setBain(e.target.value)}>
@@ -9512,7 +9558,7 @@ function EnteteZoneNet({ zone, soustitre, noms, onAjouterElement, onAjouterZone,
     const r = onAjouterZone(nom, premier);
     if (r) setMsg(r); else fermer();
   };
-  const btn = "inline-flex items-center gap-1.5 rounded-lg bg-white/95 text-[var(--ink)] text-sm font-medium px-3 py-2 min-h-[40px]";
+  const btn = "inline-flex items-center gap-1.5 rounded-lg bg-white/95 text-[var(--ink)] text-sm font-medium px-3 py-2 min-h-[48px]";
   return (
     <div className="mb-3">
       <div className="rounded-xl p-3 flex flex-wrap items-center gap-2" style={{ background: zone.couleur }}>
@@ -9624,7 +9670,7 @@ function ProduitsNettoyageNet({ cleaning, setCleaning, zonesNettoyage, setZonesN
             <label className={libNet}>Utilisé dans quelles zones ?</label>
             <div className="flex flex-wrap gap-2">
               {zones.map((z) => { const on = form.zones.includes(z.nom); return (
-                <button key={z.nom} type="button" onClick={() => maj({ zones: on ? form.zones.filter((x) => x !== z.nom) : [...form.zones, z.nom] })} style={{ background: on ? z.couleur : "#fff", color: on ? "#fff" : z.couleur, borderColor: z.couleur }} className="px-3 py-1.5 rounded-full text-xs font-semibold border-2 min-h-[36px] break-words text-left">{on ? "✓ " : ""}{libelleZone(z.nom)}</button>
+                <button key={z.nom} type="button" onClick={() => maj({ zones: on ? form.zones.filter((x) => x !== z.nom) : [...form.zones, z.nom] })} style={{ background: on ? z.couleur : "#fff", color: on ? "#fff" : z.couleur, borderColor: z.couleur }} className="px-3 py-1.5 rounded-full text-xs font-semibold border-2 min-h-[44px] break-words text-left">{on ? "✓ " : ""}{libelleZone(z.nom)}</button>
               ); })}
             </div>
           </div>
@@ -9674,7 +9720,7 @@ function ProduitsNettoyageNet({ cleaning, setCleaning, zonesNettoyage, setZonesN
               <p className="text-[var(--steel)]">{(p.etapes || []).length} étape{(p.etapes || []).length > 1 ? "s" : ""} de protocole</p>
               {(p.zonesUsage || []).length > 0 && (
                 <div className="flex flex-wrap gap-1 pt-1">
-                  {p.zonesUsage.map((n) => { const z = zones.find((x) => x.nom === n); return <span key={n} className="text-[11px] font-semibold text-white rounded-full px-2 py-0.5 break-words" style={{ background: z ? z.couleur : "#9AA3AD" }}>{libelleZone(n)}</span>; })}
+                  {p.zonesUsage.map((n) => { const z = zones.find((x) => x.nom === n); return <span key={n} className="text-xs font-semibold text-white rounded-full px-2 py-0.5 break-words" style={{ background: z ? z.couleur : "#9AA3AD" }}>{libelleZone(n)}</span>; })}
                 </div>
               )}
             </div>
@@ -9694,7 +9740,7 @@ function ChoixMultiNet({ actif, onClick, texte, badge }) {
     <button type="button" onClick={onClick} className={`w-full text-left flex items-start gap-2 rounded-lg border px-2.5 py-2 ${actif ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--cadre)] bg-white"}`}>
       <span className={`mt-0.5 w-5 h-5 shrink-0 rounded border-2 flex items-center justify-center text-xs font-bold ${actif ? "bg-[var(--accent)] border-[var(--accent)] text-white" : "border-[var(--steel)] text-transparent"}`}>✓</span>
       <span className="min-w-0 flex-1 text-sm text-[var(--ink)] break-words leading-snug">{texte}</span>
-      {badge ? <span className="shrink-0 text-[10px] font-bold rounded-full bg-[var(--cadre)] px-1.5 py-0.5 text-[var(--steel)]" title="Déjà en place dans ce nombre de zones">{badge}</span> : null}
+      {badge ? <span className="shrink-0 text-xs font-bold rounded-full bg-[var(--cadre)] px-1.5 py-0.5 text-[var(--steel)]" title="Déjà en place dans ce nombre de zones">{badge}</span> : null}
     </button>
   );
 }
@@ -10082,7 +10128,7 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
                 <div key={iso} className={`rounded-xl border bg-white overflow-hidden min-w-0 ${iso === todayISO() ? "border-[var(--accent)] border-2" : "border-[var(--cadre)]"}`}>
                   <div className={`px-2.5 py-1.5 ${classe(maxPers)}`}>
                     <div className="text-sm font-bold">{libJour(iso)}</div>
-                    <div className="text-[11px] font-normal">{total} min{maxPers ? ` · plus chargé : ${maxPers} min` : ""}</div>
+                    <div className="text-xs font-normal">{total} min{maxPers ? ` · plus chargé : ${maxPers} min` : ""}</div>
                   </div>
                   <div className="p-1.5 space-y-2 max-h-[28rem] overflow-y-auto">
                     {["midi", "soir"].map((m) => {
@@ -10090,7 +10136,7 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
                       if (!liste.length) return null;
                       return (
                         <div key={m}>
-                          <div className="text-[10px] font-bold uppercase tracking-wide text-[var(--steel)] mb-1">{m === "midi" ? "Fin du midi" : "Fin du soir"}</div>
+                          <div className="text-xs font-bold uppercase tracking-wide text-[var(--steel)] mb-1">{m === "midi" ? "Fin du midi" : "Fin du soir"}</div>
                           <div className="space-y-1">
                             {liste.map((it, k) => (
                               <div key={k} className="rounded-md bg-[var(--bg)] px-2 py-1 text-xs min-w-0" style={{ borderLeft: `4px solid ${couleursZones[normaliserNomNet(it.t.poste || "Tous")] || "#9AA3AD"}` }}>
@@ -10119,7 +10165,7 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
           <thead>
             <tr className="bg-[var(--bg)]">
               <th className={`${celBase} text-left`}>Employé</th>
-              {jours.map((iso, i) => <th key={iso} className={`${celBase} font-semibold ${iso === todayISO() ? "bg-[var(--accent-soft)]" : ""}`}>{libJour(iso)}{totaux[i] === maxJour && maxJour > 0 && <div className="text-[10px] font-normal text-[var(--steel)]">jour le plus chargé</div>}</th>)}
+              {jours.map((iso, i) => <th key={iso} className={`${celBase} font-semibold ${iso === todayISO() ? "bg-[var(--accent-soft)]" : ""}`}>{libJour(iso)}{totaux[i] === maxJour && maxJour > 0 && <div className="text-xs font-normal text-[var(--steel)]">jour le plus chargé</div>}</th>)}
             </tr>
           </thead>
           <tbody>
@@ -10131,7 +10177,7 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
                   const actif = choix && choix.id === e.id && choix.iso === iso;
                   return (
                     <td key={iso} className={`${celBase} ${e.id === "__equipe__" ? (min ? "bg-[var(--bg)] text-[var(--ink)]" : "bg-white text-[var(--steel)]") : classe(min)}`}>
-                      {min ? <button type="button" className={`w-full leading-tight ${actif ? "underline" : ""}`} onClick={() => setChoix(actif ? null : { id: e.id, iso })}>{min} min<span className="block text-[10px] font-normal opacity-80">{donnees[`${e.id}|${iso}`].items.length} nettoyage{donnees[`${e.id}|${iso}`].items.length > 1 ? "s" : ""}</span></button> : "—"}
+                      {min ? <button type="button" className={`w-full leading-tight ${actif ? "underline" : ""}`} onClick={() => setChoix(actif ? null : { id: e.id, iso })}>{min} min<span className="block text-xs font-normal opacity-80">{donnees[`${e.id}|${iso}`].items.length} nettoyage{donnees[`${e.id}|${iso}`].items.length > 1 ? "s" : ""}</span></button> : "—"}
                     </td>
                   );
                 })}
@@ -10170,7 +10216,7 @@ function ChargeSemaineNet({ cleaning, employees, shifts }) {
 const JOURS_PUCES_NET = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi", "Dimanche"];
 const FREQUENCES_MULTI_NET = [["À chaque utilisation", "Après chaque utilisation"], ["Quotidienne", "Chaque jour"], ["Hebdomadaire", "Chaque semaine (un ou plusieurs jours)"], ["Toutes les 2 semaines", "Toutes les 2 semaines"], ["Mensuelle", "Chaque mois"], ["Annuelle", "Chaque année"]];
 
-const pastilleNet = (actif) => `px-2.5 py-1.5 rounded-full text-xs font-medium border min-h-[36px] ${actif ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`;
+const pastilleNet = (actif) => `px-2.5 py-1.5 rounded-full text-xs font-medium border min-h-[44px] ${actif ? "bg-[var(--accent)] text-white border-[var(--accent)]" : "bg-white text-[var(--ink)] border-[var(--cadre)]"}`;
 
 // Colonne « Fréquence » : tout empilé (jamais côte à côte) pour ne rien couper dans une colonne étroite
 function ColonneFrequenceNet({ f, maj }) {
@@ -10698,7 +10744,7 @@ function TuileInfoFiche({ icone: Ic, valeur, libelle, fond, couleur }) {
   return (
     <div className="rounded-lg px-2.5 py-1.5 flex items-center gap-2" style={{ background: fond, border: "1px solid rgba(0,0,0,.05)" }}>
       <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={16} /></span>
-      <div className="min-w-0"><div className="text-lg font-bold leading-tight text-[var(--ink)] truncate">{valeur}</div><div className="text-[10px] leading-tight text-[var(--steel)] truncate">{libelle}</div></div>
+      <div className="min-w-0"><div className="text-lg font-bold leading-tight text-[var(--ink)] truncate">{valeur}</div><div className="text-xs leading-tight text-[var(--steel)] truncate">{libelle}</div></div>
     </div>
   );
 }
@@ -11171,8 +11217,8 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
       )}
       {(fiche.rendementCourt || fiche.categorie) && (
         <div className="flex flex-wrap gap-2 mb-5">
-          {fiche.categorie && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded" style={{ backgroundColor: "#1D2321", color: "#fff" }}>{fiche.sousCategorie || fiche.categorie}</span>}
-          {fiche.rendementCourt && <span className="text-[10px] font-bold uppercase tracking-wide px-2 py-1 rounded bg-[var(--accent-soft)] text-[var(--accent)]">{fiche.rendementCourt}</span>}
+          {fiche.categorie && <span className="text-xs font-bold uppercase tracking-wide px-2 py-1 rounded" style={{ backgroundColor: "#1D2321", color: "#fff" }}>{fiche.sousCategorie || fiche.categorie}</span>}
+          {fiche.rendementCourt && <span className="text-xs font-bold uppercase tracking-wide px-2 py-1 rounded bg-[var(--accent-soft)] text-[var(--accent)]">{fiche.rendementCourt}</span>}
         </div>
       )}
 
@@ -11212,7 +11258,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
         </ZoneFiche>
       )}
       {estChef && fiche.cout && (fiche.cout.coutRecette || fiche.cout.prixVente) && (
-        <ZoneFiche icone={Package} bord="#9ca3af" fond="#eef0f2" texte="#4b5563" className="mb-5 print:hidden" titre={<>Coût matière <span className="ml-1 text-[10px] font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--ink)] text-white">Chef / Directeur</span></>}>
+        <ZoneFiche icone={Package} bord="#9ca3af" fond="#eef0f2" texte="#4b5563" className="mb-5 print:hidden" titre={<>Coût matière <span className="ml-1 text-xs font-bold uppercase tracking-wide px-1.5 py-0.5 rounded bg-[var(--ink)] text-white">Chef / Directeur</span></>}>
           <p className="text-xs text-[var(--steel)] mb-3">Jamais affiché ni imprimé pour les employés.</p>
           <ul className="text-sm text-[var(--ink)] space-y-1">
             {fiche.cout.coutRecette && <li>Coût matière de la recette (calculé depuis le stock) : <strong>{fiche.cout.coutRecette} €</strong></li>}
@@ -11501,8 +11547,8 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
                       style={{ opacity: glisse.etat && glisse.etat.id === f.id ? 0.35 : 1, boxShadow: glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "ligne" && glisse.etat.cible.id === f.id && glisse.etat.id !== f.id ? (glisse.etat.cible.apres ? "inset 0 -4px 0 #F5B301" : "inset 0 4px 0 #F5B301") : "none", WebkitTouchCallout: "none" }}>
                       <button type="button" data-poignee={peutOrganiser ? "fiche" : undefined} onClick={() => (modeDirect && editionProps ? setEdition({ fiche: f, mode: modeDirect }) : setSelectedId(f.id))}
                         className="w-full h-full min-h-[52px] text-left rounded-lg border border-[var(--cadre)] border-l-4 px-2.5 py-1.5 hover:brightness-95 transition" style={{ borderLeftColor: g.fond, background: "#fff" }}>
-                        <span className="block text-[13px] font-semibold text-[var(--ink)] leading-tight break-words" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{f.nom}</span>
-                        <span className="block text-[10px] text-[var(--steel)] mt-0.5 truncate">{f.code}{f.rendementCourt ? ` · ${f.rendementCourt}` : ""}</span>
+                        <span className="block text-xs font-semibold text-[var(--ink)] leading-tight break-words" style={{ display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{f.nom}</span>
+                        <span className="block text-xs text-[var(--steel)] mt-0.5 truncate">{f.code}{f.rendementCourt ? ` · ${f.rendementCourt}` : ""}</span>
                       </button>
                     </div>
                   ))}
@@ -12432,7 +12478,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
           {etapesVisibles.map((i, pos) => { const t = STEPS_FICHE[i]; return (
             <button key={t} type="button" onClick={() => setStep(i)}
               className={`flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors ${i === step ? "border-[var(--accent)] bg-[var(--accent-soft)] text-[var(--accent)]" : etapeComplete(i) ? "border-[var(--line)] text-[var(--ink)] bg-white" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
-              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-[10px] ${etapeComplete(i) ? "bg-[var(--accent)] text-white" : "border border-[var(--cadre)]"}`}>{etapeComplete(i) ? "✓" : pos + 1}</span>
+              <span className={`w-4 h-4 rounded-full flex items-center justify-center text-xs ${etapeComplete(i) ? "bg-[var(--accent)] text-white" : "border border-[var(--cadre)]"}`}>{etapeComplete(i) ? "✓" : pos + 1}</span>
               {t}
             </button>
           ); })}
@@ -12504,8 +12550,8 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   <select className={`${inputCls} w-28`} value={ing.unite} onChange={(e) => majIngredient(i, { unite: e.target.value })}>
                     {UNITES_FICHE.map((u) => <option key={u} value={u}>{u}</option>)}
                   </select>
-                  {ing.lienType && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded bg-[var(--ok-soft,#e7f3e8)] text-[var(--accent)] shrink-0">{ing.lienType === "stock" ? (avecModes ? "Catalogue" : "Stock") : "Fiche"}</span>}
-                  {avecModes && !ing.lienType && ing.nom.trim() && <span className="text-[10px] font-bold uppercase px-1.5 py-1 rounded shrink-0" style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}>Produit inconnu — pas retiré du stock</span>}
+                  {ing.lienType && <span className="text-xs font-bold uppercase px-1.5 py-1 rounded bg-[var(--ok-soft,#e7f3e8)] text-[var(--accent)] shrink-0">{ing.lienType === "stock" ? (avecModes ? "Catalogue" : "Stock") : "Fiche"}</span>}
+                  {avecModes && !ing.lienType && ing.nom.trim() && <span className="text-xs font-bold uppercase px-1.5 py-1 rounded shrink-0" style={{ backgroundColor: "var(--warn-soft)", color: "var(--warn)" }}>Produit inconnu — pas retiré du stock</span>}
                   {avecModes && !ing.lienType && ing.nom.trim() && gestionCatalogue && <button type="button" onClick={() => setProduitACreer({ table: "produits", id: null, valeurs: { nom: ing.nom.trim() } })} className="text-xs underline font-semibold shrink-0 text-[var(--accent)]">Créer ce produit</button>}
                   <button type="button" onClick={() => retirerIngredient(i)} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0"><X size={16} /></button>
                 </div>
@@ -12968,14 +13014,14 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
         <div className="bg-white border border-[var(--cadre)] rounded-xl p-5 sm:p-6">
           <div className="flex items-start justify-between gap-3 border-b-2 border-[var(--ink)] pb-3 mb-3 flex-wrap">
             <div className="font-bold uppercase text-lg text-[var(--ink)]" style={{ fontFamily: "inherit" }}>{etablissementNom}</div>
-            <div className="text-right text-[10px] text-[var(--steel)]">Fiche générée par<br /><strong>BrigadeRestoPro</strong></div>
+            <div className="text-right text-xs text-[var(--steel)]">Fiche générée par<br /><strong>BrigadeRestoPro</strong></div>
           </div>
           <div className="flex items-center gap-3 flex-wrap mb-1">
             {photosFiche.length
               ? <div className="flex gap-1.5 shrink-0 flex-wrap">{photosFiche.map((src, idx) => <img key={idx} src={src} alt="" className={`${photosFiche.length > 1 ? "w-16 h-16" : "w-24 h-24"} object-cover rounded-lg border border-[var(--cadre)]`} />)}</div>
-              : <div className="w-24 h-24 rounded-lg shrink-0 flex flex-col items-center justify-center gap-1 text-[#b4306b] text-[10px] font-semibold text-center border-2 border-dashed border-[#e58cb5]" style={{ background: "#fdeaf3" }}><Camera size={22} />Photo du plat</div>}
+              : <div className="w-24 h-24 rounded-lg shrink-0 flex flex-col items-center justify-center gap-1 text-[#b4306b] text-xs font-semibold text-center border-2 border-dashed border-[#e58cb5]" style={{ background: "#fdeaf3" }}><Camera size={22} />Photo du plat</div>}
             <div className="text-white font-bold text-center px-3 py-1.5 rounded shrink-0" style={{ backgroundColor: "#C1432D" }}>
-              <div className="text-[10px] leading-none">{codeCatActuel ? `FT ${codeCatActuel}` : "FT CATÉGORIE"}</div>
+              <div className="text-xs leading-none">{codeCatActuel ? `FT ${codeCatActuel}` : "FT CATÉGORIE"}</div>
               <div className="text-lg leading-none mt-0.5">{codeFTActuel ? codeFTActuel.split(" ").pop() : "—"}</div>
             </div>
             <div className="flex-1 min-w-[160px] text-center">
@@ -12984,7 +13030,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
             </div>
             {S.badge && <div className="text-white font-bold text-center px-3 py-1.5 rounded shrink-0" style={{ backgroundColor: "#C1432D" }}>{S.badge}</div>}
           </div>
-          <div className="text-center text-[11px] text-[var(--steel)] mb-4">
+          <div className="text-center text-xs text-[var(--steel)] mb-4">
             {categorieLabelActuelle && `Catégorie : ${categorieLabelActuelle}`}{S.poste && ` · Poste : ${S.poste}`} · Type : {S.type === "base" ? "préparation de base" : "plat servi"} · Version : 1
           </div>
 
@@ -12999,8 +13045,8 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               </ApercuSection>
               <ApercuSection titre="3. Allergènes" onModifier={() => { setStep(1); window.scrollTo({ top: 0, behavior: "smooth" }); }}>
                 {avecModes && S.allergenes.length === 0
-                  ? <p className="text-[11px] text-[var(--steel)] italic">{S.allgConfirm ? "Aucun allergène déclaré (confirmé)." : "Aucune information donnée ni confirmée."}</p>
-                  : <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-[11px]">
+                  ? <p className="text-xs text-[var(--steel)] italic">{S.allgConfirm ? "Aucun allergène déclaré (confirmé)." : "Aucune information donnée ni confirmée."}</p>
+                  : <div className="grid grid-cols-2 gap-x-2 gap-y-0.5 text-xs">
                   {ALLERGENES_14.map((a) => <span key={a} className={S.allergenes.includes(a) ? "font-semibold text-[var(--accent)]" : "text-[var(--steel)]"}>{S.allergenes.includes(a) ? "■" : "□"} {a}</span>)}
                 </div>}
               </ApercuSection>
@@ -13023,7 +13069,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               </ApercuSection>
               <ApercuSection titre="4. Points de contrôle HACCP">
                 {haccpRowsFiche(S).length ? (
-                  <table className="w-full text-[11px]">
+                  <table className="w-full text-xs">
                     <tbody>{haccpRowsFiche(S).map((r, idx) => <tr key={idx} className="border-b border-[var(--line)] last:border-0"><td className="py-1 pr-1 font-semibold">{r.etape}</td><td className="py-1 text-[var(--steel)]">{r.aControler}</td></tr>)}</tbody>
                   </table>
                 ) : <ApercuVide texte="Construit automatiquement à partir des choix du questionnaire." />}
@@ -13098,7 +13144,7 @@ function ApercuSection({ titre, children, onModifier = null }) {
   const [bord, fond, texte] = COULEURS_APERCU_SECTION[num] || ["#C1432D", "#fdeaea", "#8a1f1a"];
   return (
     <div className="border border-[var(--cadre)] rounded-lg overflow-hidden bg-white" style={{ borderTop: `3px solid ${bord}` }}>
-      <div className="text-[11px] font-bold uppercase tracking-wide px-2.5 py-1.5 flex items-center justify-between gap-2" style={{ background: fond, color: texte }}>
+      <div className="text-xs font-bold uppercase tracking-wide px-2.5 py-1.5 flex items-center justify-between gap-2" style={{ background: fond, color: texte }}>
         <span>{titre}</span>
         {onModifier && <button type="button" onClick={onModifier} className="normal-case tracking-normal text-xs font-semibold underline">✎ Modifier</button>}
       </div>
@@ -13435,7 +13481,7 @@ function PastilleAllergene({ etat, onClick, lecture }) {
   return (
     <button type="button" onClick={lecture ? undefined : onClick} disabled={lecture} title={s.titre}
       aria-label={s.titre}
-      className="w-7 h-7 rounded-full inline-flex items-center justify-center text-[11px] font-bold"
+      className="w-7 h-7 rounded-full inline-flex items-center justify-center text-xs font-bold"
       style={{ background: s.plein ? s.point : "#fff", border: `2px ${etat === "q" ? "dashed" : "solid"} ${s.point}`, color: s.plein ? "#fff" : s.point }}>
       {symbole}
     </button>
@@ -13517,14 +13563,14 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
         <div className="flex flex-wrap items-center gap-2 mt-3">
           <span className="text-xs font-semibold text-[var(--steel)]">Afficher</span>
           {[["plats", "Plats"], ["produits", "Produits"]].map(([v, l]) => (
-            <button key={v} type="button" onClick={() => { setMode(v); setCategorie(""); }} className={`px-3 py-2 min-h-[40px] rounded-lg border text-sm font-medium ${mode === v ? "bg-[var(--ink)] text-white border-[var(--ink)]" : "bg-white border-[var(--cadre)] text-[var(--ink)]"}`}>{l}</button>
+            <button key={v} type="button" onClick={() => { setMode(v); setCategorie(""); }} className={`px-3 py-2 min-h-[48px] rounded-lg border text-sm font-medium ${mode === v ? "bg-[var(--ink)] text-white border-[var(--ink)]" : "bg-white border-[var(--cadre)] text-[var(--ink)]"}`}>{l}</button>
           ))}
           <label className="inline-flex items-center gap-1.5 text-sm text-[var(--ink)] ml-2"><input type="checkbox" checked={regrouper} onChange={(e) => setRegrouper(e.target.checked)} /> Regrouper par catégorie</label>
-          <select className={`${inputCls} !min-h-[40px] !py-1.5`} value={categorie} onChange={(e) => setCategorie(e.target.value)}>
+          <select className={`${inputCls} !min-h-[48px] !py-1.5`} value={categorie} onChange={(e) => setCategorie(e.target.value)}>
             <option value="">Toutes les catégories</option>
             {categories.map((c) => <option key={c} value={c}>{c}</option>)}
           </select>
-          <select className={`${inputCls} !min-h-[40px] !py-1.5`} value={statut} onChange={(e) => setStatut(e.target.value)}>
+          <select className={`${inputCls} !min-h-[48px] !py-1.5`} value={statut} onChange={(e) => setStatut(e.target.value)}>
             <option value="">Tous les statuts</option>
             <option value="complet">Renseigné</option>
             <option value="incomplet">À compléter (non renseigné)</option>
@@ -13539,7 +13585,7 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
             const c = COULEURS_ALLERGENES_COL[i];
             return (
               <button key={a} type="button" onClick={() => nouveauFiltre(i)}
-                className="flex items-center justify-center gap-1.5 px-2 py-1.5 min-h-[40px] rounded-lg border-2 text-xs text-center leading-tight"
+                className="flex items-center justify-center gap-1.5 px-2 py-1.5 min-h-[48px] rounded-lg border-2 text-xs text-center leading-tight"
                 style={f === "sans" ? { background: "#DCF3E4", borderColor: "#17663A", color: "#17663A", fontWeight: 700 } : f === "avec" ? { background: "#FDECEC", borderColor: "#A61B1B", color: "#A61B1B", fontWeight: 700 } : { background: c + "14", borderColor: c, color: "var(--ink)", fontWeight: 600 }}>
                 <span className="shrink-0">{ICONES_ALLERGENES[a]}</span><span className="min-w-0">{a}{f === "sans" ? " · sans" : f === "avec" ? " · avec" : ""}</span>
               </button>
@@ -13568,7 +13614,7 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
                 <th key={a} className="px-1 py-1.5 bg-white text-center align-top" style={{ position: "sticky", top: 0, zIndex: 3, borderBottom: "2px solid var(--cadre)", width: 74, minWidth: 74 }}>
                   <div className="rounded-lg px-1 py-1 flex flex-col items-center justify-start gap-0.5 text-white" style={{ background: COULEURS_ALLERGENES_COL[i], height: 62 }}>
                     <span className="block text-lg leading-none bg-white/90 rounded-full w-7 h-7 flex items-center justify-center">{ICONES_ALLERGENES[a]}</span>
-                    <span className="block text-[10px] font-bold leading-[1.1] break-words">{a}</span>
+                    <span className="block text-xs font-bold leading-[1.1] break-words">{a}</span>
                   </div>
                 </th>
               ))}
@@ -13597,8 +13643,8 @@ function TableauAllergenes({ plats, produits, lectureSeule, ecrirePlat, ecrirePr
                         <tr>
                           <td className="px-3 py-1.5 bg-white" style={{ position: "sticky", left: 0, zIndex: 2, borderBottom: "1px solid var(--cadre)", borderRight: "1px solid var(--cadre)" }}>
                             <button type="button" onClick={() => setOuvert((o) => ({ ...o, [cle]: !o[cle] }))} className="text-left font-semibold text-[var(--ink)]">{x.nom}</button>
-                            {x.lu.vide && <span className="ml-2 text-[10px] font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FFF1D6", color: "#8F4506" }}>à compléter</span>}
-                            {lotException && lotException[x.nom] && <span className="ml-2 text-[10px] px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">variable selon le lot</span>}
+                            {x.lu.vide && <span className="ml-2 text-xs font-semibold px-2 py-0.5 rounded-full" style={{ background: "#FFF1D6", color: "#8F4506" }}>à compléter</span>}
+                            {lotException && lotException[x.nom] && <span className="ml-2 text-xs px-1.5 py-0.5 rounded-full bg-[var(--warn-soft)] text-[var(--warn)]">variable selon le lot</span>}
                           </td>
                           {ALLERGENES_14.map((a, i) => (
                             <td key={a} className="text-center py-1.5" style={{ background: COULEURS_ETAT_ALLERGENE[x.lu.etats[i]].fond, borderBottom: "1px solid var(--cadre)" }}>
@@ -13962,7 +14008,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                           <div className="grid gap-1.5">
                             {JOURS.map((j) => { const on = joursAjout.includes(j); return (
                               <button key={j} type="button" onClick={() => choisirJours(on ? joursAjout.filter((x) => x !== j) : [...joursAjout, j])} className="flex items-center gap-2 text-left rounded-lg px-3 py-2 text-sm font-semibold border-2" style={on ? { background: "#117864", color: "#fff", borderColor: "#117864" } : { background: "#fff", color: "var(--ink)", borderColor: "var(--cadre)" }}>
-                                <span className="w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center text-[10px]" style={{ borderColor: on ? "#fff" : "var(--cadre)" }}>{on ? "✓" : ""}</span>{j}<span className="ml-auto text-[10px] opacity-80">{nbJour(j) ? `${nbJour(j)} plat${nbJour(j) > 1 ? "s" : ""}` : "—"}</span>
+                                <span className="w-4 h-4 rounded border-2 shrink-0 flex items-center justify-center text-xs" style={{ borderColor: on ? "#fff" : "var(--cadre)" }}>{on ? "✓" : ""}</span>{j}<span className="ml-auto text-xs opacity-80">{nbJour(j) ? `${nbJour(j)} plat${nbJour(j) > 1 ? "s" : ""}` : "—"}</span>
                               </button>
                             ); })}
                             <button type="button" onClick={() => choisirJours(joursAjout.length === 7 ? [] : [...JOURS])} className="rounded-lg px-3 py-2 text-sm font-semibold border-2 bg-white text-[var(--ink)] border-[var(--cadre)]">{joursAjout.length === 7 ? "Aucun jour" : "Toute la semaine"}</button>
@@ -13996,7 +14042,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                                 <button type="button" className="underline text-[var(--steel)]" onClick={() => setSelAjout(selAjout.filter((x) => !ids.includes(x)))}>Tout décocher</button>
                               </div>
                               <ul className="space-y-1 overflow-y-auto" style={{ maxHeight: "18rem" }}>
-                                {dispo.length === 0 && <li className="text-[11px] italic text-[var(--steel)]">Aucun plat — ajoutez-en à la main ci-dessus.</li>}
+                                {dispo.length === 0 && <li className="text-xs italic text-[var(--steel)]">Aucun plat — ajoutez-en à la main ci-dessus.</li>}
                                 {dispo.map((f) => {
                                   const sur = f.libre ? JOURS.filter((x) => (f.jours || []).includes(x)) : joursDe(f.id);
                                   const on = selAjout.includes(f.id);
@@ -14004,7 +14050,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                                     <li key={f.id}>
                                       <label className="flex items-start gap-2 text-sm text-[var(--ink)] rounded-lg px-2 py-1.5 border-2 cursor-pointer" style={on ? { background: couleur + "1F", borderColor: couleur } : { background: "#fff", borderColor: "var(--cadre)" }}>
                                         <input type="checkbox" className="w-5 h-5 mt-0.5 shrink-0" checked={on} onChange={() => setSelAjout(on ? selAjout.filter((x) => x !== f.id) : [...selAjout, f.id])} />
-                                        <span className="min-w-0 flex-1 break-words">{f.nom}{f.libre && <span className="ml-1 text-[10px] font-semibold rounded px-1 py-0.5 bg-[var(--bg)] text-[var(--steel)]">à la main</span>}{sur.length > 0 && <span className="block text-[10px] text-[var(--steel)]">déjà : {sur.length === 7 ? "tous les jours" : sur.map((x) => x.slice(0, 3)).join(", ")}</span>}</span>
+                                        <span className="min-w-0 flex-1 break-words">{f.nom}{f.libre && <span className="ml-1 text-xs font-semibold rounded px-1 py-0.5 bg-[var(--bg)] text-[var(--steel)]">à la main</span>}{sur.length > 0 && <span className="block text-xs text-[var(--steel)]">déjà : {sur.length === 7 ? "tous les jours" : sur.map((x) => x.slice(0, 3)).join(", ")}</span>}</span>
                                         {(f.libre || sur.length > 0) && <button type="button" onClick={(e) => { e.preventDefault(); if (f.libre) supprimerLibre({ id: f.id, nom: f.nom }); else retirerFiche(f); }} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title={f.libre ? "Supprimer cet élément" : "Retirer de la carte"}><X size={14} /></button>}
                                       </label>
                                     </li>
@@ -14013,11 +14059,11 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                               </ul>
                               <div className="mt-2 pt-2 border-t-2 border-dashed" style={{ borderColor: couleur }}>
                                 <button type="button" onClick={() => setSuggOuvert({ ...suggOuvert, [c]: !suggOuvert[c] })} className="w-full rounded-lg px-2 py-1.5 text-xs font-bold border-2 flex items-center justify-between gap-2" style={suggOuvert[c] ? { background: couleur, color: "#fff", borderColor: couleur } : { background: "#fff", color: couleur, borderColor: couleur }} aria-expanded={!!suggOuvert[c]}>
-                                  <span>★ Suggestion du chef</span><span className="text-[10px] opacity-90">{ids.filter((x) => selSugg.includes(x)).length || ""}</span>
+                                  <span>★ Suggestion du chef</span><span className="text-xs opacity-90">{ids.filter((x) => selSugg.includes(x)).length || ""}</span>
                                 </button>
                                 {suggOuvert[c] && (
                                   <ul className="space-y-1 mt-1.5 overflow-y-auto" style={{ maxHeight: "12rem" }}>
-                                    {dispo.length === 0 && <li className="text-[11px] italic text-[var(--steel)]">Aucun plat à proposer.</li>}
+                                    {dispo.length === 0 && <li className="text-xs italic text-[var(--steel)]">Aucun plat à proposer.</li>}
                                     {dispo.map((f) => {
                                       const on = selSugg.includes(f.id);
                                       return (
@@ -14039,7 +14085,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                           const num = `${gi + 1 + (avecJours ? 1 : 0)}. `;
                           const total = g.cats.reduce((t, c) => t + infosCat(c).dispo.length, 0);
                           const coch = g.cats.reduce((t, c) => t + infosCat(c).cochees, 0);
-                          const pied = <span className="text-[11px] opacity-90">{coch}/{total}</span>;
+                          const pied = <span className="text-xs opacity-90">{coch}/{total}</span>;
                           if (g.cats.length === 1) return <div key={g.titre}>{colonne(num, g.titre, g.couleur, corpsCat(g.cats[0], g.couleur), pied)}</div>;
                           return (
                             <div key={g.titre}>{colonne(num, g.titre, g.couleur, (
@@ -14052,7 +14098,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                                     <div key={c} className="rounded-lg overflow-hidden border-2" style={{ borderColor: couleur }}>
                                       <button type="button" onClick={() => setRepliees({ ...repliees, [c]: !replie })} className="w-full flex items-center justify-between gap-2 px-2.5 py-1.5 text-white text-sm font-bold" style={{ background: couleur }} aria-expanded={!replie}>
                                         <span className="flex items-center gap-1.5">{replie ? <ChevronRight size={16} /> : <ChevronDown size={16} />}{c}</span>
-                                        <span className="text-[11px] font-semibold opacity-90">{info.cochees}/{info.dispo.length}</span>
+                                        <span className="text-xs font-semibold opacity-90">{info.cochees}/{info.dispo.length}</span>
                                       </button>
                                       {!replie && corpsCat(c, couleur)}
                                     </div>
@@ -14112,16 +14158,16 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                         <div key={j} className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: col }}>
                           <div className="px-3 py-2 text-white flex items-baseline justify-between gap-2" style={{ background: col }}>
                             <span className="font-bold text-base">{j}</span>
-                            <span className="text-[11px] opacity-90">{total} plat{total > 1 ? "s" : ""}</span>
+                            <span className="text-xs opacity-90">{total} plat{total > 1 ? "s" : ""}</span>
                           </div>
                           <div className="p-2 flex-1 space-y-2">
-                            {duJour.length === 0 && <div className="text-[11px] italic text-[var(--steel)]">Aucun plat ce jour-là</div>}
+                            {duJour.length === 0 && <div className="text-xs italic text-[var(--steel)]">Aucun plat ce jour-là</div>}
                             {duJour.map(({ c, items }) => (
                               <div key={c}>
-                                <div className="text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5 mb-1 text-white inline-block" style={{ background: couleurCat(c) }}>{c}</div>
+                                <div className="text-xs font-bold uppercase tracking-wide rounded px-1.5 py-0.5 mb-1 text-white inline-block" style={{ background: couleurCat(c) }}>{c}</div>
                                 {items.map(({ id, nom, libre, sugg }, ix) => (
                                   <React.Fragment key={id}>
-                                  {sugg && (ix === 0 || !items[ix - 1].sugg) && <div className="text-[10px] font-bold italic text-[var(--ink)] mt-1 mb-0.5">★ Suggestion du chef</div>}
+                                  {sugg && (ix === 0 || !items[ix - 1].sugg) && <div className="text-xs font-bold italic text-[var(--ink)] mt-1 mb-0.5">★ Suggestion du chef</div>}
                                   <div className="flex items-start justify-between gap-1 rounded-lg border-l-4 bg-white border border-[var(--cadre)] px-1.5 py-1 mb-1 text-xs text-[var(--ink)]" style={{ borderLeftColor: couleurCat(c) }}>
                                     <span className="font-medium break-words min-w-0">{nom}</span>
                                     {estChef && <button type="button" onClick={() => (libre ? majCarte({ platsLibres: libres.map((l) => (l.id === id ? { ...l, jours: (l.jours || []).filter((x) => x !== j) } : l)) }) : retirerDuJour(id, j))} className="text-[var(--steel)] hover:text-[var(--warn)] shrink-0" title={`Retirer du ${j.toLowerCase()}`}><X size={12} /></button>}
@@ -14133,7 +14179,7 @@ function MaCarte({ cartes, setCartes, fiches, estChef, logActivity, employees, r
                           </div>
                           {estChef && categories.length > 0 && (
                             <div className="p-2 border-t border-[var(--cadre)]" style={{ background: col + "14" }}>
-                              <select className={`${inputCls} !min-h-[40px] !py-1.5 text-xs w-full min-w-0`} value="" onChange={(e) => { if (e.target.value) ajouterAuJour(e.target.value, j); }}>
+                              <select className={`${inputCls} !min-h-[48px] !py-1.5 text-xs w-full min-w-0`} value="" onChange={(e) => { if (e.target.value) ajouterAuJour(e.target.value, j); }}>
                                 <option value="">+ Ajouter un plat…</option>
                                 {categories.map((c) => {
                                   const dispo = plats.filter((f) => f.categorie === c && !(idsCarte.includes(f.id) && platServiCeJour(carte, f.id, j)));
@@ -14485,7 +14531,7 @@ function GestionAppareilsFroid({ equipementsFroid, setEquipementsFroid, logActiv
       <div className="text-xs font-semibold text-[var(--steel)] mb-1">Comment relever la température de cet appareil ?</div>
       <div className="flex flex-wrap gap-2">
         {[["manuel", "✋ À la main (matin et soir)", "#B45309"], ["sonde", "📡 Avec une sonde", "#0E7490"]].map(([v, l, c]) => (
-          <button key={v} type="button" onClick={() => setForm({ ...form, mode: v })} className="px-3 py-2 min-h-[40px] rounded-lg text-sm font-semibold border-2"
+          <button key={v} type="button" onClick={() => setForm({ ...form, mode: v })} className="px-3 py-2 min-h-[48px] rounded-lg text-sm font-semibold border-2"
             style={form.mode === v ? { background: c, color: "#fff", borderColor: c } : { background: "#fff", color: c, borderColor: c }}>{l}</button>
         ))}
         {form.mode === "sonde" && <input className={`${inputCls} w-44`} placeholder="N° de la sonde" value={form.sonde} onChange={(e) => setForm({ ...form, sonde: e.target.value })} />}
@@ -14796,8 +14842,8 @@ function HaccpTemperatures({
   const vueManuelle = () => {
     const auj = todayISO();
     const familles = [
-      { cle: "frigo", titre: "Réfrigérateurs et chambres froides", sous: "0 à +4 °C", couleur: "#136B33", fond: "#E4F4EA", liste: sansSonde.filter((e) => e.type !== "congelateur") },
-      { cle: "congelateur", titre: "Congélateurs", sous: "−18 °C ou moins", couleur: "#1B4F9C", fond: "#DCEBFB", liste: sansSonde.filter((e) => e.type === "congelateur") },
+      { cle: "frigo", titre: "Réfrigérateurs et chambres froides", sous: "maximum propre à chaque appareil", couleur: "#136B33", fond: "#E4F4EA", liste: sansSonde.filter((e) => e.type !== "congelateur") },
+      { cle: "congelateur", titre: "Congélateurs", sous: "maximum propre à chaque appareil", couleur: "#1B4F9C", fond: "#DCEBFB", liste: sansSonde.filter((e) => e.type === "congelateur") },
     ];
     const cellule = (eq, creneau, couleur) => {
       const faits = relevesFroid.filter((r) => r.equipementId === eq.id && r.date === auj && creneauDe(r) === creneau).sort((x, y) => `${y.heure || ""}`.localeCompare(`${x.heure || ""}`));
@@ -14809,8 +14855,8 @@ function HaccpTemperatures({
           {r && (
             <div className="flex flex-wrap items-center gap-1.5 mb-1.5">
               <span className="text-base font-bold" style={{ color: r.conforme === false ? "var(--warn)" : "#136B33" }}>{r.valeur} °C</span>
-              <span className="text-[11px] font-semibold rounded-full px-2 py-0.5" style={r.conforme === false ? { background: "#FDECEC", color: "#B3261E" } : { background: "#E4F4EA", color: "#136B33" }}>{r.conforme === false ? "Hors norme" : "Conforme"}</span>
-              <span className="text-[11px] text-[var(--steel)]">à {r.heure}</span>
+              <span className="text-xs font-semibold rounded-full px-2 py-0.5" style={r.conforme === false ? { background: "#FDECEC", color: "#B3261E" } : { background: "#E4F4EA", color: "#136B33" }}>{r.conforme === false ? "Hors norme" : "Conforme"}</span>
+              <span className="text-xs text-[var(--steel)]">à {r.heure}</span>
             </div>
           )}
           <div className="flex flex-wrap xl:flex-nowrap items-center gap-1.5">
@@ -14841,14 +14887,14 @@ function HaccpTemperatures({
                   <button key={k} type="button" onClick={() => setCreneauMobile(k)} className="flex-1 min-h-[44px] rounded-xl text-sm font-bold border-2" style={creneauMobile === k ? { background: f.couleur, color: "#fff", borderColor: f.couleur } : { background: "#fff", color: f.couleur, borderColor: f.couleur }}>{l}</button>
                 ))}
               </div>
-              <div className="grid gap-2 px-3 py-1.5 text-[11px] font-bold uppercase tracking-wide grid-cols-[minmax(6rem,1fr)_minmax(8rem,1.2fr)] md:grid-cols-[minmax(7rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)] md:min-w-[440px]" style={{ background: f.fond, color: f.couleur }}>
+              <div className="grid gap-2 px-3 py-1.5 text-xs font-bold uppercase tracking-wide grid-cols-[minmax(6rem,1fr)_minmax(8rem,1.2fr)] md:grid-cols-[minmax(7rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)] md:min-w-[440px]" style={{ background: f.fond, color: f.couleur }}>
                 <div>Appareil</div><div className={creneauMobile === "matin" ? "" : "hidden md:block"}>☀️ Matin</div><div className={creneauMobile === "soir" ? "" : "hidden md:block"}>🌙 Soir</div>
               </div>
               {f.liste.map((eq) => (
                 <div key={eq.id} className="grid gap-2 items-stretch px-3 py-1 border-t border-[var(--cadre)] grid-cols-[minmax(6rem,1fr)_minmax(8rem,1.2fr)] md:grid-cols-[minmax(7rem,1fr)_minmax(8rem,1fr)_minmax(8rem,1fr)] md:min-w-[440px]">
                   <div className="min-w-0 self-center">
                     <div className="text-sm font-semibold text-[var(--ink)] break-words">{eq.nom}</div>
-                    <div className="text-xs text-[var(--steel)]">Norme : {libNormeEquipement(eq)}</div>
+                    <div className="text-xs font-semibold text-[var(--ink)]">Norme : {libNormeEquipement(eq)}</div>
                   </div>
                   <div className={creneauMobile === "matin" ? "" : "hidden md:block"}>{cellule(eq, "matin", f.couleur)}</div>
                   <div className={creneauMobile === "soir" ? "" : "hidden md:block"}>{cellule(eq, "soir", f.couleur)}</div>
@@ -14878,8 +14924,8 @@ function HaccpTemperatures({
         <div className="flex flex-wrap items-center gap-2 mb-1 text-xs text-[var(--steel)]">
           <span className="ml-auto">Dernière mise à jour : {(() => { const t = relevesFroid.filter((r) => r.date <= jourReleve).sort((x, y) => `${y.date} ${y.heure || ""}`.localeCompare(`${x.date} ${x.heure || ""}`))[0]; return t ? `${t.date === todayISO() ? "aujourd'hui" : t.date} à ${t.heure || "—"}` : "aucun relevé"; })()}</span>
         </div>
-        <p className="text-[11px] leading-snug text-[var(--steel)] mb-1">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
-        <p className="text-[11px] leading-snug text-[var(--steel)] mb-3">Tout relevé au-dessus du maximum de l'appareil est enregistré comme non conforme (le maximum est celui du produit le plus fragile qu'il contient, arrêté du 21/12/2009, annexe I). Les alertes suivent la grille de l'inspecteur (vade-mecum « Remise directe », item C401) : plus de {MARGE_ANOMALIE_FROID} °C au-dessus = surveillance et recontrôle (écart noté C à l'inspection) ; plus de 3 °C au-dessus = contrôle et vérification impératifs, alerte urgente au chef et au directeur (écart noté D). Le délai avant recontrôle (dégivrage, ouvertures de porte) et un éventuel seuil d'alerte plus strict se règlent sur chaque appareil.</p>
+        <p className="text-xs leading-snug text-[var(--steel)] mb-1">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
+        <p className="text-xs leading-snug text-[var(--steel)] mb-3">Tout relevé au-dessus du maximum de l'appareil est enregistré comme non conforme (le maximum est celui du produit le plus fragile qu'il contient, arrêté du 21/12/2009, annexe I). Les alertes suivent la grille de l'inspecteur (vade-mecum « Remise directe », item C401) : plus de {MARGE_ANOMALIE_FROID} °C au-dessus = surveillance et recontrôle (écart noté C à l'inspection) ; plus de 3 °C au-dessus = contrôle et vérification impératifs, alerte urgente au chef et au directeur (écart noté D). Le délai avant recontrôle (dégivrage, ouvertures de porte) et un éventuel seuil d'alerte plus strict se règlent sur chaque appareil.</p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -14930,7 +14976,7 @@ function HaccpTemperatures({
                             <Button variant="ghost" onClick={() => setCorrectionOuverte(null)}>Annuler</Button>
                           </div>
                         ) : (
-                          <button type="button" onClick={() => setCorrectionOuverte(eq.id)} className="min-h-[40px] px-3 rounded-lg text-sm font-bold text-white" style={{ background: "linear-gradient(160deg, #C2620A 0%, #92400E 100%)" }}>Correction apportée</button>
+                          <button type="button" onClick={() => setCorrectionOuverte(eq.id)} className="min-h-[48px] px-3 rounded-lg text-sm font-bold text-white" style={{ background: "linear-gradient(160deg, #C2620A 0%, #92400E 100%)" }}>Correction apportée</button>
                         )
                       ) : <span className="text-xs text-[var(--steel)]">—</span>}
                     </td>
@@ -15081,7 +15127,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
     <div>
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
       <Card className="xl:col-span-8 !mb-0">
-        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Play size={16} /></span> Démarrer un maintien au chaud</h3>
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: COULEURS_FONCTION.maintien.fond, color: encreSur(COULEURS_FONCTION.maintien.fond) }}><Play size={16} /></span> Démarrer un maintien au chaud</h3>
         <p className="hidden text-xs text-[var(--steel)] mb-4">À gauche, les produits proposés (fiches techniques avec maintien au chaud) : cochez-en un ou plusieurs. Sans produit coché, saisissez le produit à la main à droite.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${catalogue.length})`} sous="Produits ayant un maintien au chaud">
@@ -15136,7 +15182,7 @@ function MaintienChaud({ currentUserId, logActivity, who, catalogue, setCatalogu
         </div>
       </Card>
 
-      <Card className="xl:col-span-4 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
+      <Card className={`xl:col-span-4 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto ${enCours.length ? "order-first xl:order-none" : ""}`}>
         <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Maintiens au chaud en cours ({enCours.length})</h3>
         {enCours.length === 0 ? <p className="text-sm text-[var(--steel)]">Rien en maintien au chaud actuellement.</p> : (
           <div className="space-y-3">
@@ -15248,7 +15294,7 @@ const libDuree = (min) => (Number.isFinite(min) ? (min % 60 ? `${Math.floor(min 
 
 function EtiquetteRefroidissement({ r, who }) {
   return (
-    <div className="border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm">
+    <div className="taille-fixe border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm">
       <div className="text-xs text-[var(--steel)] uppercase tracking-wide mb-1">Étiquette — refroidissement rapide</div>
       <div className="text-lg font-semibold text-[var(--ink)] mb-2">{r.produit}</div>
       <div className="text-sm text-[var(--ink)] space-y-0.5">
@@ -15415,7 +15461,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
 
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
       <Card className="xl:col-span-8 !mb-0">
-        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Snowflake size={18} /></span> {neg ? "Démarrer une congélation" : "Démarrer un refroidissement"}</h3>
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: COULEURS_FONCTION.cellule.fond, color: encreSur(COULEURS_FONCTION.cellule.fond) }}><Snowflake size={18} /></span> {neg ? "Démarrer une congélation" : "Démarrer un refroidissement"}</h3>
         <p className="hidden text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont {neg ? "une congélation" : "un refroidissement"} : touchez-en un, il est rempli tout seul. Sinon, saisissez le produit à la main à droite. L'heure de départ est pré-remplie, modifiable si vous démarrez avec un léger décalage.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${produitsFiches.length})`} sous={neg ? "Produits ayant une congélation" : "Produits ayant un refroidissement"}>
@@ -15426,7 +15472,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
                 const coche = produit.trim().toLowerCase() === n.trim().toLowerCase();
                 return (
                   <button key={n} type="button" onClick={() => { setProduit(coche ? "" : n); if (coche) setQuantite(""); else { const qf = quantiteFiche(n); if (qf) { setQuantite(qf.quantite); setUnite(qf.unite); } else setQuantite(""); } }} className={`w-full text-left flex items-center gap-2 rounded-lg border px-3 py-2 text-sm font-semibold text-[var(--ink)] ${coche ? "border-[#1E7B4B] bg-[#EAF6EF]" : "border-[var(--line)] bg-white"}`}>
-                    <span className="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0" style={coche ? { backgroundColor: "#1E7B4B", borderColor: "#1E7B4B", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{coche && <span className="text-[10px] leading-none">✓</span>}</span>
+                    <span className="w-5 h-5 rounded border-2 flex items-center justify-center shrink-0" style={coche ? { backgroundColor: "#1E7B4B", borderColor: "#1E7B4B", color: "#fff" } : { borderColor: "#9AA3AE", backgroundColor: "#fff" }}>{coche && <span className="text-xs leading-none">✓</span>}</span>
                     <span className="min-w-0 break-words">{n}</span>
                   </button>
                 );
@@ -15480,7 +15526,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
         </div>
       </Card>
 
-      <div className="xl:col-span-4 min-w-0">
+      <div className={`xl:col-span-4 min-w-0 ${enCours.length || verdict ? "order-first xl:order-none" : ""}`}>
       {verdict && (
         <div className="mb-5 rounded-xl border-2 p-4" style={verdict.conforme ? { backgroundColor: "#EAF6EF", borderColor: "#B3E0C5" } : { backgroundColor: "#FDE4E8", borderColor: "#E5243B" }}>
           <p className="text-lg font-bold mb-1" style={{ color: verdict.conforme ? "#14653A" : "#B4233A" }}>{verdict.conforme ? "✔ " : "⚠ "}{verdict.produit} : {verdict.conforme ? "conforme" : "NON CONFORME — à détruire"}</p>
@@ -15593,7 +15639,7 @@ function HistoriqueRefroidissements({ refroidissements, who, nettoyerCellule, cr
 
 function EtiquetteCuisson({ c, who }) {
   return (
-    <div className="border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm">
+    <div className="taille-fixe border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm">
       <div className="text-xs text-[var(--steel)] uppercase tracking-wide mb-1">Étiquette — cuisson</div>
       <div className="text-lg font-semibold text-[var(--ink)] mb-2">{c.produit}</div>
       <div className="text-sm text-[var(--ink)] space-y-0.5">
@@ -15801,7 +15847,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
     <div>
       <div className="grid grid-cols-1 xl:grid-cols-12 gap-4 items-start mb-6">
       <Card className="xl:col-span-8 !mb-0">
-        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ backgroundColor: "#1E7B4B" }}><Flame size={18} /></span> Démarrer une cuisson</h3>
+        <h3 className="text-lg font-bold text-[var(--ink)] mb-1 flex items-center gap-2"><span className="w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: COULEURS_FONCTION.cuisson.fond, color: encreSur(COULEURS_FONCTION.cuisson.fond) }}><Flame size={18} /></span> Démarrer une cuisson</h3>
         <p className="hidden text-xs text-[var(--steel)] mb-4">À gauche, les produits des fiches techniques qui ont une cuisson : cochez-en un ou plusieurs, les indications de la fiche sont remplies toutes seules. Sans produit coché, remplissez la cuisson à la main à droite.</p>
         <div className="grid grid-cols-1 lg:grid-cols-5 gap-4">
           <CarteZone className="lg:col-span-2 self-start" icone={BookOpen} titre={`Fiches techniques (${catalogue.length})`} sous="Produits ayant une cuisson">
@@ -15892,7 +15938,7 @@ function HaccpCuisson({ ajouterModele, signalerAjout, cuissons, setCuissons, cur
         </div>
       </Card>
 
-      <Card className="xl:col-span-4 !mb-0 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto">
+      <Card className={`xl:col-span-4 !mb-0 xl:max-h-[calc(100vh-13rem)] xl:overflow-y-auto ${enCours.length || resultatCuisson ? "order-first xl:order-none" : ""}`}>
         <h3 className="text-lg font-bold text-[var(--ink)] mb-3">Cuissons en cours ({enCours.length})</h3>
         {resultatCuisson && (
           <div className="mb-3 rounded-lg px-3 py-2 text-sm font-semibold flex items-start justify-between gap-2" style={resultatCuisson.ok ? { backgroundColor: "#EAF6EF", color: "#14653A" } : { backgroundColor: "#FDE4E8", color: "#B4233A" }}>
@@ -16256,7 +16302,7 @@ function HaccpDlc({ preparations, produits, who, jeterPreparation, today, stock,
 
 function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, employeeId, cuissonInfo, refroidissementInfo, maintienInfo, decongelationInfo, typeDlc }) {
   return (
-    <div className="border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm break-inside-avoid" style={{ pageBreakInside: "avoid" }}>
+    <div className="taille-fixe border-2 border-[var(--ink)] rounded-lg p-4 bg-white max-w-sm break-inside-avoid" style={{ pageBreakInside: "avoid" }}>
       <div className="text-xs text-[var(--steel)] uppercase tracking-wide mb-1">Étiquette DLC / DDM</div>
       <div className="text-lg font-semibold text-[var(--ink)] mb-2">{produitNom}</div>
       <div className="text-sm text-[var(--ink)] space-y-0.5">
@@ -16397,8 +16443,8 @@ function SelectionEtiquettesModal({ produitsInitiaux, nbInitiaux = {}, produits,
                 <div className="flex-1 min-w-0">
                   <div className="text-sm font-medium text-[var(--ink)] truncate">{it.nom}</div>
                   {connu
-                    ? <div className="text-[10px] text-[var(--steel)]">DLC/DDM {dlcDate}</div>
-                    : <div className="flex items-center gap-1 text-[10px] text-[var(--steel)]">{it.depuisFiche ? "Conservation (fiche technique) :" : "Pas dans le catalogue — conservation :"}
+                    ? <div className="text-xs text-[var(--steel)]">DLC/DDM {dlcDate}</div>
+                    : <div className="flex items-center gap-1 text-xs text-[var(--steel)]">{it.depuisFiche ? "Conservation (fiche technique) :" : "Pas dans le catalogue — conservation :"}
                         <input type="number" min="0" className={`${inputCls} w-14 text-center !py-0.5`} placeholder="jours" value={it.jours || ""} onChange={(e) => majJours(it.nom, e.target.value)} /> j{dlcDate ? ` → DLC ${dlcDate}` : ""}
                       </div>}
                 </div>
@@ -16864,7 +16910,7 @@ function ChampRechercheVocale({ value, onChange, placeholder, label }) {
           </button>
         )}
       </div>
-      {erreur && <p className="text-[10px] text-[var(--warn)] mt-1">{erreur}</p>}
+      {erreur && <p className="text-xs text-[var(--warn)] mt-1">{erreur}</p>}
     </Field>
   );
 }
@@ -16893,7 +16939,7 @@ const DELAIS_RAPIDES_DLC = [
   { label: "7j", jours: 7 }, { label: "15j", jours: 15 }, { label: "1 mois", jours: 30 },
 ];
 
-const COULEURS_CAT_DLC = { "Produits laitiers": ["#F2B01E", "#3B2A00"], "Produits frais": ["#1E7B4B", "#fff"], "Charcuterie": ["#C2477A", "#fff"], "Viandes": ["#E5483A", "#fff"], "Poissons": ["#1769D6", "#fff"], "Fruits et légumes": ["#2F9E5B", "#fff"], "Sauces": ["#B5651D", "#fff"], "Desserts": ["#E0709A", "#fff"], "Pains & bases": ["#8A5A3C", "#fff"], "Surgelés": ["#7A4DE0", "#fff"], "Plats préparés": ["#F28C28", "#fff"], "Épicerie": ["#6B7C3A", "#fff"], "Autres": ["#7C8794", "#fff"] };
+const COULEURS_CAT_DLC = { "Produits laitiers": ["#F2B01E", "#3B2A00"], "Produits frais": ["#1E7B4B", "#fff"], "Charcuterie": ["#C2477A", "#fff"], "Viandes": ["#8B3A3A", "#fff"], "Poissons": ["#1769D6", "#fff"], "Fruits et légumes": ["#2F9E5B", "#fff"], "Sauces": ["#B5651D", "#fff"], "Desserts": ["#E0709A", "#fff"], "Pains & bases": ["#8A5A3C", "#fff"], "Surgelés": ["#7A4DE0", "#fff"], "Plats préparés": ["#F28C28", "#fff"], "Épicerie": ["#6B7C3A", "#fff"], "Autres": ["#7C8794", "#fff"] };
 function categorieDeProduitDlc(p) { return p.categorieManuelle || categoriserProduitDlc(p.nom); }
 
 function estDdm(p) { return p.typeDate === "DDM" || p.dlcSource === "reception"; }
@@ -16933,9 +16979,10 @@ function lotFabrication(fiche, d = new Date()) {
 }
 // Bouton d'action en forme de petite tuile colorée avec son icône (comme l'accueil), pour que l'on voie bien que c'est un bouton.
 function BoutonTuileAction({ fond, icone: Ic, onClick, disabled, children }) {
+  const encre = encreSur(fond);
   return (
-    <button type="button" onClick={onClick} disabled={disabled} className="w-full flex items-center gap-3 rounded-xl px-3 py-3 min-h-[52px] text-left text-white font-semibold text-sm shadow-md transition active:scale-[0.99] disabled:opacity-45 disabled:cursor-not-allowed print:hidden" style={{ background: fond }}>
-      <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: "rgba(255,255,255,0.22)" }}><Ic size={20} /></span>
+    <button type="button" onClick={onClick} disabled={disabled} className="w-full flex items-center gap-3 rounded-xl px-3 py-3 min-h-[52px] text-left font-semibold text-sm shadow-md transition active:scale-[0.99] disabled:opacity-45 disabled:cursor-not-allowed print:hidden" style={{ color: encre, background: fond }}>
+      <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: encre === "#ffffff" ? "rgba(255,255,255,0.22)" : "rgba(255,255,255,0.45)" }}><Ic size={20} /></span>
       <span className="flex-1 leading-tight">{children}</span>
     </button>
   );
@@ -17254,14 +17301,14 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
         <div className="rounded-xl border border-[var(--cadre)] bg-white p-3 self-start" style={{ borderTop: `3px solid ${zoneDepuisFonction("etiquettes").bord}` }}>
           <h3 className="text-sm font-bold mb-2 px-2 py-1.5 rounded-md" style={{ background: zoneDepuisFonction("etiquettes").fond, color: zoneDepuisFonction("etiquettes").texte }}>Catégories</h3>
           <div className="flex lg:flex-col gap-2 overflow-x-auto lg:overflow-visible pb-1">
-            <button type="button" onClick={() => setCatChoisie("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: catChoisie === "__tous__" ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
-              <Package size={20} className="shrink-0" />
+            <button type="button" onClick={() => setCatChoisie("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-2.5 min-h-[52px] text-left" style={styleBoutonCategorie("#475569", catChoisie === "__tous__")}>
+              <PastilleCategorie fond="#475569" icone={Package} />
               <span className="flex-1 min-w-0 text-sm font-semibold">Tous les produits <span className="font-normal opacity-80">({nbTous})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
             {listeCats.map((cat) => { const [fond, texte] = infoCat(cat); return (
-              <button key={cat} type="button" onClick={() => setCatChoisie(cat)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: fond, color: texteLisible(fond, texte), outline: catChoisie === cat ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
-                {React.createElement(logoGroupe(modeMigre ? groupeObj(cat) : { id: "base:" + cat, nom: cat }), { size: 20, className: "shrink-0" })}
+              <button key={cat} type="button" onClick={() => setCatChoisie(cat)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-2.5 min-h-[52px] text-left" style={styleBoutonCategorie(fond, catChoisie === cat)}>
+                <PastilleCategorie fond={fond} icone={logoGroupe(modeMigre ? groupeObj(cat) : { id: "base:" + cat, nom: cat })} />
                 <span className="flex-1 min-w-0 text-sm font-semibold">{cat} <span className="font-normal opacity-80">({nbCat(cat)})</span></span>
                 <ChevronRight size={16} className="shrink-0 hidden lg:block" />
               </button>
@@ -17291,9 +17338,9 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                 <button key={p.id} id={`dlc-prod-${p.id}`} type="button" onClick={() => toggleSelection(p.id)} aria-pressed={sel} title={cat}
                   className="relative text-left rounded-xl border-2 bg-white px-3 pt-2.5 pb-2 min-h-[4.5rem] flex flex-col justify-between gap-1.5 active:scale-[0.98] transition-transform"
                   style={{ borderColor: sel ? "#6027C9" : "var(--cadre)", borderTop: `5px solid ${fond}`, backgroundColor: sel ? "#F5F0FF" : "#fff" }}>
-                  {sel && <span className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-[11px] leading-none text-white" style={{ backgroundColor: "#6027C9" }}>✓</span>}
+                  {sel && <span className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center text-xs leading-none text-white" style={{ backgroundColor: "#6027C9" }}>✓</span>}
                   <span className="block text-sm font-semibold text-[var(--ink)] break-words leading-snug pr-4">{p.nom}</span>
-                  <span className={`self-start text-[11px] font-bold px-1.5 py-0.5 rounded ${manque ? "" : "bg-[var(--bg)] text-[var(--steel)]"}`} style={manque ? { backgroundColor: "#FEF3C7", color: "#92400E" } : undefined}>{badge}</span>
+                  <span className={`self-start text-xs font-bold px-1.5 py-0.5 rounded ${manque ? "" : "bg-[var(--bg)] text-[var(--steel)]"}`} style={manque ? { backgroundColor: "#FEF3C7", color: "#92400E" } : undefined}>{badge}</span>
                 </button>
               );
             })}
@@ -17399,7 +17446,7 @@ function QuantiteEditable({ valeur, unite, onCommit }) {
 // Catégories d'un stock de cuisine (toujours affichées à gauche), avec les mots qui permettent de ranger un produit.
 const CATEGORIES_STOCK = [
   { nom: "Fruits et légumes", fond: "#1E7B4B", texte: "#fff", re: /fruit|l[ée]gume|herbe|salade|champignon/i },
-  { nom: "Viandes et volailles", fond: "#E5483A", texte: "#fff", re: /viande|volaille|boeuf|bœuf|porc|poulet|agneau|veau|canard|dinde|haché/i },
+  { nom: "Viandes et volailles", fond: "#8B3A3A", texte: "#fff", re: /viande|volaille|boeuf|bœuf|porc|poulet|agneau|veau|canard|dinde|haché/i },
   { nom: "Poissons et fruits de mer", fond: "#1769D6", texte: "#fff", re: /poisson|fruits? de mer|crustac|coquillage|saumon/i },
   { nom: "Charcuterie", fond: "#C2477A", texte: "#fff", re: /charcut|jambon|lardon|saucisse/i },
   { nom: "Produits laitiers et œufs", fond: "#F2B01E", texte: "#3B2A00", re: /laitier|lait|cr[eè]me|beurre|fromage|yaourt|oeuf|œuf|frais/i },
@@ -17522,8 +17569,8 @@ function GestionGroupesStock({ groupes, compte, onChange, onFermer, titre = "Mes
                 <div className="mt-2 text-xs text-[var(--ink)]">
                   Supprimer « {g.nom} » ? {compte(g.id) > 0 ? `${compte(g.id) > 1 ? "Ses" : "Sa"} ${compte(g.id)} ${mot}${compte(g.id) > 1 ? "s" : ""} ne ${compte(g.id) > 1 ? "sont" : "est"} pas supprimé${compte(g.id) > 1 ? "e" : ""}${compte(g.id) > 1 ? "s" : ""} : ${compte(g.id) > 1 ? "elles retournent" : "elle retourne"} dans son groupe d'origine, ou dans « Non classés ».` : "Ce groupe est vide."}
                   <div className="flex gap-2 mt-1.5">
-                    <button type="button" onClick={() => { onChange(groupes.filter((x) => x.id !== g.id)); setASupprimer(null); }} className="min-h-[36px] px-3 rounded-lg text-white text-xs font-bold" style={{ background: "#B4233A" }}>Oui, supprimer le groupe</button>
-                    <button type="button" onClick={() => setASupprimer(null)} className="min-h-[36px] px-3 rounded-lg border border-[var(--cadre)] text-xs font-medium">Annuler</button>
+                    <button type="button" onClick={() => { onChange(groupes.filter((x) => x.id !== g.id)); setASupprimer(null); }} className="min-h-[44px] px-3 rounded-lg text-white text-xs font-bold" style={{ background: "#B4233A" }}>Oui, supprimer le groupe</button>
+                    <button type="button" onClick={() => setASupprimer(null)} className="min-h-[44px] px-3 rounded-lg border border-[var(--cadre)] text-xs font-medium">Annuler</button>
                   </div>
                 </div>
               )}
@@ -17829,7 +17876,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   <div key={s.id} className="grid grid-cols-2 lg:grid-cols-[minmax(0,1.3fr)_12rem_6rem_6rem_9.5rem_12rem_2rem] gap-x-3 gap-y-1 px-1 py-1.5 border-b border-[var(--line)] last:border-b-0 items-center">
                     <div className="col-span-2 lg:col-span-1 min-w-0">
                       <div className="text-sm font-semibold text-[var(--ink)] leading-tight break-words">{s.nom}</div>
-                      <div className="text-[11px] leading-tight text-[var(--steel)]">Code : {s.reference || "— (produit non référencé)"}</div>
+                      <div className="text-xs leading-tight text-[var(--steel)]">Code : {s.reference || "— (produit non référencé)"}</div>
                     </div>
                     <div className="text-sm font-semibold leading-tight" style={{ color: "#0B4F5E" }}><span className="lg:hidden text-xs">Conditionnement : </span>{cm ? `1 ${cm.nom} de ${detailCond} = ${eurDetail(cm.prixColis)}` : (s.conditionnement || s.unite || "—")}</div>
                     <div className="text-xs text-[var(--ink)]"><span className="lg:hidden font-semibold">En stock : </span>{s.quantite} {s.unite}</div>
@@ -17947,7 +17994,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
     <button type="button" onClick={onClick} className="text-left rounded-lg border px-2.5 py-1.5 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
       <div className="flex items-center gap-2">
         <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={16} /></span>
-        <div className="min-w-0 flex-1"><div className="text-xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-[11px] font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-[10px] leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
+        <div className="min-w-0 flex-1"><div className="text-xl font-bold leading-tight" style={{ color: couleur }}>{nombre}</div><div className="text-xs font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>{sous && <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>}</div>
       </div>
     </button>
   );
@@ -17959,15 +18006,7 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
   }
   return (
     <div>
-      <button onClick={() => setInfosStockage(FICHES_NORMES.stock)}
-        className="mb-4 w-full flex items-center gap-3 px-4 py-3 rounded-xl text-left border-2 shadow-sm"
-        style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
-        <BookOpen size={22} className="shrink-0" style={{ color: "#c0392b" }} />
-        <span className="min-w-0">
-          <span className="block text-sm font-bold uppercase tracking-wide">⚠ Gestion du stock — Règles et repères HACCP</span>
-          <span className="block text-xs font-normal mt-0.5">Cliquez pour lire : stockage, températures, DLC/DDM, rotation des produits (FIFO).</span>
-        </span>
-      </button>
+      <BoutonInfosNormes permanent ficheKey="stock" onClick={() => setInfosStockage(FICHES_NORMES.stock)} label="Gestion du stock — Règles et repères HACCP" texte="Cliquez pour lire : stockage, températures, DLC/DDM, rotation des produits (FIFO)." />
       <SectionHeader title="Stock" fonction="stock" icone={Package} subtitle="Gérez vos produits, vos quantités et vos inventaires" />
       <div className="flex flex-wrap items-center gap-2 mb-3">
         {peutGererProduits && (
@@ -18027,16 +18066,16 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                 <ChevronRight size={16} className="shrink-0 hidden lg:block" />
               </button>
             )}
-            <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ backgroundColor: "#6027C9", color: "#fff", outline: !q && toutLeStock ? "3px solid #1D2321" : "none", outlineOffset: 1 }}>
-              <Package size={20} className="shrink-0" />
+            <button type="button" onClick={() => choisirCat("__tous__")} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-2.5 min-h-[52px] text-left" style={styleBoutonCategorie("#475569", !q && toutLeStock)}>
+              <PastilleCategorie fond="#475569" icone={Package} />
               <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">Tous les produits <span className="font-normal opacity-80">({avecCat.length - nbParCat(GROUPE_PAUSE.id)})</span></span>
               <ChevronRight size={16} className="shrink-0 hidden lg:block" />
             </button>
             {groupesAff.map((c) => {
               const actif = !q && c.id === catActive;
               return (
-                <button key={c.id} type="button" data-depot={"groupe:" + c.id} {...(peutGlisser && c.id !== GROUPE_NON_CLASSE.id && c.id !== GROUPE_PAUSE.id ? { "data-poignee": "groupe", ...glisse.props("g:" + c.id, c.nom) } : {})} onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-3 h-12 text-left" style={{ opacity: glisse.etat && glisse.etat.id === "g:" + c.id ? 0.35 : 1, WebkitTouchCallout: "none", backgroundColor: c.fond, color: texteLisible(c.fond, c.texte), outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === c.id) ? "4px solid #F5B301" : (actif ? "3px solid #1D2321" : "none"), outlineOffset: 1 }}>
-                  {React.createElement(logoGroupe(c), { size: 20, className: "shrink-0" })}
+                <button key={c.id} type="button" data-depot={"groupe:" + c.id} {...(peutGlisser && c.id !== GROUPE_NON_CLASSE.id && c.id !== GROUPE_PAUSE.id ? { "data-poignee": "groupe", ...glisse.props("g:" + c.id, c.nom) } : {})} onClick={() => choisirCat(c.id)} className="shrink-0 lg:shrink flex items-center gap-2.5 rounded-lg px-2.5 min-h-[52px] text-left" style={{ ...styleBoutonCategorie(c.fond, actif), opacity: glisse.etat && glisse.etat.id === "g:" + c.id ? 0.35 : 1, WebkitTouchCallout: "none", outline: (glisse.etat && glisse.etat.cible && glisse.etat.cible.type === "groupe" && glisse.etat.cible.id === c.id) ? "4px solid #F5B301" : "none", outlineOffset: 1 }}>
+                  <PastilleCategorie fond={c.fond} icone={logoGroupe(c)} />
                   <span className="flex-1 min-w-0 text-sm font-semibold leading-tight break-words">{c.nom} <span className="font-normal opacity-80">({nbParCat(c.id)})</span></span>
                   <ChevronRight size={16} className="shrink-0 hidden lg:block" />
                 </button>
@@ -18079,14 +18118,14 @@ function Stock({ stock, setStock, commandesHistorique, setCommandesHistorique, c
                   {estAValider(s.note) && (
                     <div className="mt-1">
                       <button type="button" onClick={() => { if (acces.estResponsable && rapideStock && rapideStock.ouvrirProduitAcompleter) rapideStock.ouvrirProduitAcompleter(s.id, "reference"); else setProduitSansDroit(s.id); }}
-                        className="min-h-[36px] px-3 rounded-lg text-xs font-bold text-white" style={{ background: "#B7791F" }}>Nouveau produit : Compléter</button>
+                        className="min-h-[44px] px-3 rounded-lg text-xs font-bold text-white" style={{ background: "#B7791F" }}>Nouveau produit : Compléter</button>
                       {produitSansDroit === s.id && !acces.estResponsable && <BlocPasDeDroit sujet={`produit « ${s.nom} » à compléter`} onFermer={() => setProduitSansDroit(null)} onDebloque={() => rapideStock && rapideStock.ouvrirProduitAcompleter && rapideStock.ouvrirProduitAcompleter(s.id, "reference")} />}
                     </div>
                   )}
                 </div>
-                <div className="text-[11px] leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>{s.dlc ? <>DLC : {dlcFr(s.dlc)}<br /></> : null}{s.lot ? <>Lot : {s.lot}</> : null}{!s.dlc && !s.lot ? <span className="opacity-40">—</span> : null}</div>
-                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div>{colis ? <><CelluleQuantite valeur={s.quantite} pas={1} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock réel de ${s.nom} en ${s.unite}`} /><div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{s.unite} en stock</div></> : <CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />}{!colis && s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{`${s.unite} en stock`}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
-                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock cible</div>{!(estChefStock && modifCibles) ? <div className="inline-flex items-center justify-center min-w-[3.5rem] h-9 px-3 rounded-lg text-sm font-semibold" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{colis ? fmtNb(Number(s.cible || 0) / colis.contenu) : fmtNb(s.cible || 0)}</div> : colis ? <CelluleQuantite valeur={arrondiQte(Number(s.cible || 0) / colis.contenu)} pas={1} onSet={(n) => fixerCible(s.id, arrondiQte(n * colis.contenu))} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom} en ${colis.nom}s`} /> : <CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom}`} />}{colis && (() => { const n = Number(s.cible || 0) / colis.contenu; return <div className="text-[11px] font-semibold text-[var(--ink)] mt-0.5">{fmtNb(n)} {n >= 2 ? pluriel(colis.nom) : colis.nom} de {fmtNb(colis.contenu)} {uniteQ(colis.contenu, s.unite)}{n >= 2 ? ` = ${fmtNb(s.cible || 0)} ${uniteQ(s.cible || 0, s.unite)}` : ""}</div>; })()}</div>
+                <div className="text-xs leading-tight text-[var(--steel)]"><span className="lg:hidden font-semibold">DLC / lot : </span>{s.dlc ? <>DLC : {dlcFr(s.dlc)}<br /></> : null}{s.lot ? <>Lot : {s.lot}</> : null}{!s.dlc && !s.lot ? <span className="opacity-40">—</span> : null}</div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock actuel</div>{colis ? <><CelluleQuantite valeur={s.quantite} pas={1} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock réel de ${s.nom} en ${s.unite}`} /><div className="text-xs font-semibold text-[var(--ink)] mt-0.5">{s.unite} en stock</div></> : <CelluleQuantite valeur={s.quantite} pas={pas} onSet={(n) => fixerQty(s.id, n)} fond={bas ? "#FDE4E8" : "#DDF3E6"} texte={bas ? "#B4233A" : "#14653A"} label={`stock actuel de ${s.nom}`} />}{!colis && s.conditionnement && UNITES_PIECE.includes(String(s.unite || "").toLowerCase()) && <div className="text-xs font-semibold text-[var(--ink)] mt-0.5">{`${s.unite} en stock`}{formatTotal(s.conditionnement, s.quantite) ? ` = ${formatTotal(s.conditionnement, s.quantite)}` : ""}</div>}</div>
+                <div className="lg:text-center"><div className="lg:hidden text-xs font-semibold text-[var(--steel)] mb-1">Stock cible</div>{!(estChefStock && modifCibles) ? <div className="inline-flex items-center justify-center min-w-[3.5rem] h-9 px-3 rounded-lg text-sm font-semibold" style={{ backgroundColor: "#E3EDFB", color: "#1B4F9C" }}>{colis ? fmtNb(Number(s.cible || 0) / colis.contenu) : fmtNb(s.cible || 0)}</div> : colis ? <CelluleQuantite valeur={arrondiQte(Number(s.cible || 0) / colis.contenu)} pas={1} onSet={(n) => fixerCible(s.id, arrondiQte(n * colis.contenu))} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom} en ${colis.nom}s`} /> : <CelluleQuantite valeur={s.cible || 0} pas={pas} onSet={(n) => fixerCible(s.id, n)} fond="#E3EDFB" texte="#1B4F9C" label={`stock cible de ${s.nom}`} />}{colis && (() => { const n = Number(s.cible || 0) / colis.contenu; return <div className="text-xs font-semibold text-[var(--ink)] mt-0.5">{fmtNb(n)} {n >= 2 ? pluriel(colis.nom) : colis.nom} de {fmtNb(colis.contenu)} {uniteQ(colis.contenu, s.unite)}{n >= 2 ? ` = ${fmtNb(s.cible || 0)} ${uniteQ(s.cible || 0, s.unite)}` : ""}</div>; })()}</div>
                 <div className="flex lg:justify-center justify-end"><button type="button" onClick={() => basculerPanier(s)} title={dp ? "Retirer du panier de la commande" : "Ajouter au panier de la commande"} aria-label="Panier"
                   className="w-9 h-9 rounded-lg border-2 flex items-center justify-center" style={dp ? { backgroundColor: "#F28C28", borderColor: "#F28C28", color: "#fff" } : { backgroundColor: "#fff", borderColor: "#F28C28", color: "#B45309" }}><ShoppingCart size={20} /></button></div>
               </div>
@@ -19064,15 +19103,17 @@ const RECTANGLES_NORMES_JUSQU_AU = "2027-04-20";
 const rectanglesNormesActifs = () => new Date().toISOString().slice(0, 10) <= RECTANGLES_NORMES_JUSQU_AU;
 function BoutonInfosNormes({ ficheKey, onClick, label, texte, permanent }) {
   if (!permanent && !rectanglesNormesActifs()) return null;
-  // Bandeau réglementaire compact : une seule ligne sur grand écran, le titre seul sur téléphone (le texte complet s'ouvre au clic).
+  // Bandeau réglementaire compact, MÊME TAILLE PARTOUT (une seule ligne : le titre, puis le début du texte coupé proprement ;
+  // le texte complet s'ouvre au clic). Couleur « information » (bleu pâle, décision du 25/11) : le rouge reste réservé aux alertes.
+  const info = ROLES_COULEUR.information;
   return (
     <button onClick={() => onClick(ficheKey)}
-      className="mb-2 w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left border-2 shadow-sm"
-      style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
-      <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
-      <span className="min-w-0 flex-1 flex flex-wrap items-baseline gap-x-2">
-        <span className="text-xs font-bold uppercase tracking-wide">⚠ {label || "Informations importantes — Règles et repères HACCP"}</span>
-        <span className="hidden lg:inline text-xs font-normal">{texte ? texte.replace(/^Cliquez pour lire : /, "") : "Cliquez pour lire les règles, leur source et leur statut."}</span>
+      className="mb-2 w-full flex items-center gap-2.5 px-3 min-h-[44px] rounded-lg text-left border-2"
+      style={{ borderColor: info.bord, color: info.texte, backgroundColor: info.fond }}>
+      <BookOpen size={18} className="shrink-0" />
+      <span className="min-w-0 flex-1 flex items-baseline gap-x-2 overflow-hidden whitespace-nowrap">
+        <span className="text-xs font-bold uppercase tracking-wide truncate shrink-0 max-w-full">{label || "Règles et repères HACCP"}</span>
+        <span className="hidden lg:block text-xs font-normal truncate min-w-0">{texte ? texte.replace(/^Cliquez pour lire : /, "") : "Les règles, leur source et leur statut."}</span>
       </span>
       <span className="shrink-0 text-xs font-bold underline">Lire</span>
     </button>
@@ -19083,9 +19124,9 @@ function BoutonInfosNormes({ ficheKey, onClick, label, texte, permanent }) {
 function BandeauNormes({ label, permanent }) {
   if (!permanent && !rectanglesNormesActifs()) return null;
   return (
-    <div className="mb-2 w-full flex items-center gap-2.5 px-3 py-1.5 rounded-lg text-left border-2 shadow-sm" style={{ borderColor: "#c0392b", color: "#c0392b", backgroundColor: "#fff5f5" }}>
-      <BookOpen size={18} className="shrink-0" style={{ color: "#c0392b" }} />
-      <span className="min-w-0 flex-1 text-xs font-bold leading-snug">⚠ {label}</span>
+    <div className="mb-2 w-full flex items-center gap-2.5 px-3 min-h-[44px] rounded-lg text-left border-2" style={{ borderColor: ROLES_COULEUR.information.bord, color: ROLES_COULEUR.information.texte, backgroundColor: ROLES_COULEUR.information.fond }}>
+      <BookOpen size={18} className="shrink-0" />
+      <span className="min-w-0 flex-1 text-xs font-bold leading-snug">{label}</span>
     </div>
   );
 }
@@ -20817,7 +20858,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
           return (
             <React.Fragment key={i}>
               <span className="flex items-center gap-2 px-2.5 py-1.5 rounded-full text-xs font-semibold" style={courant ? { background: COULEURS_FONCTION.reception.fond, color: "#fff", boxShadow: `0 4px 10px ${COULEURS_FONCTION.reception.ombre}` } : fait ? { background: "#E4F4EA", color: "#136B33" } : { background: "#EEF1F5", color: "#64748B" }}>
-                <span className="w-5 h-5 rounded-full flex items-center justify-center text-[11px] font-bold" style={courant ? { background: "rgba(255,255,255,.25)" } : fait ? { background: "#136B33", color: "#fff" } : { background: "#fff" }}>{fait ? "✓" : i + 1}</span>
+                <span className="w-5 h-5 rounded-full flex items-center justify-center text-xs font-bold" style={courant ? { background: "rgba(255,255,255,.25)" } : fait ? { background: "#136B33", color: "#fff" } : { background: "#fff" }}>{fait ? "✓" : i + 1}</span>
                 <span className="hidden sm:inline">{lib}</span>
               </span>
               {i < libelleEtapes.length - 1 && <ChevronRight size={14} className="text-[var(--steel)] shrink-0" />}
@@ -21428,7 +21469,7 @@ function ReceptionSimple({ fournisseurInitial, optionsExterne, stock, commandes,
                 <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
                 {!p.conforme && !p.manquant && <div className="text-xs" style={{ color: "#B4233A" }}>{p.raison}</div>}
               </div>
-              <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Qté : </span>{colisDuStock(stock, p.nom) ? texteQuantiteRecue(colisDuStock(stock, p.nom), p.quantite) : p.quantite}{p.poidsNet ? <span className="block text-[11px] text-[var(--steel)]">× {p.poidsNet}</span> : null}</div>
+              <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Qté : </span>{colisDuStock(stock, p.nom) ? texteQuantiteRecue(colisDuStock(stock, p.nom), p.quantite) : p.quantite}{p.poidsNet ? <span className="block text-xs text-[var(--steel)]">× {p.poidsNet}</span> : null}</div>
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "—" : (LIBELLE_CONSERVATION[p.conservation] || "—")}</div>
               <div className="text-sm text-[var(--ink)] lg:text-center"><span className="lg:hidden text-xs text-[var(--steel)]">Temp. : </span>{p.temperature !== "" && p.temperature != null && !p.manquant ? `${p.temperature} °C` : "—"}</div>
               <div className="text-sm text-[var(--ink)]">{p.manquant ? "Non livré" : `${p.lot || "—"} · ${p.dlc || "—"}`}</div>
@@ -21497,7 +21538,7 @@ function Reception({ fournisseursPlanning, optionsExterne, stock, commandesHisto
 
       <button onClick={() => setEnCours(true)}
         className="w-full flex items-center justify-center gap-2 rounded-xl font-bold shadow-sm mb-6"
-        style={{ backgroundColor: "#2F6B4F", color: "#ffffff", padding: "18px 20px", fontSize: 17 }}>
+        style={{ background: COULEURS_FONCTION.reception.fond, color: encreSur(COULEURS_FONCTION.reception.fond), padding: "18px 20px", fontSize: "var(--t-lg)" }}>
         <Plus size={22} /> Nouvelle réception
       </button>
 
@@ -21715,7 +21756,7 @@ function BarreAvancement({ faits, total, titre, sous, neutreEnCours = false, man
   if (!(total > 0)) return null;
   const pc = Math.round((faits / total) * 100);
   const bon = pc >= SEUIL_BON_POURCENT;
-  const couleur = bon ? "#157347" : (neutreEnCours ? "#B7791F" : "#B42318");
+  const couleur = bon ? "#157347" : (neutreEnCours ? "#8A5A00" : "#B42318"); // ambre foncé (25/11) : lisible sur le fond pâle
   const fond = bon ? "#DDF5E7" : (neutreEnCours ? "#FFF1D6" : "#FDE2E0");
   return (
     <div className="rounded-xl p-3 mb-4" style={{ background: fond, border: `1.5px solid ${couleur}` }}>
@@ -21727,11 +21768,11 @@ function BarreAvancement({ faits, total, titre, sous, neutreEnCours = false, man
       <div className="h-2.5 rounded-full bg-white/80 overflow-hidden mt-2"><div className="h-full rounded-full transition-all" style={{ width: `${Math.min(100, pc)}%`, backgroundColor: couleur }} /></div>
       {manque.length > 0 && (
         <div className="mt-2">
-          <button type="button" onClick={() => setListe((v) => !v)} className="min-h-[36px] text-xs font-bold underline" style={{ color: couleur }}>{liste ? "Masquer" : `Voir ce qui manque (${manque.length})`}</button>
+          <button type="button" onClick={() => setListe((v) => !v)} className="min-h-[44px] text-xs font-bold underline" style={{ color: couleur }}>{liste ? "Masquer" : `Voir ce qui manque (${manque.length})`}</button>
           {liste && <ul className="mt-1 space-y-0.5 text-sm text-[var(--ink)]">{manque.slice(0, 12).map((m, i) => <li key={i}>• {m}</li>)}{manque.length > 12 && <li className="text-xs text-[var(--steel)]">… et {manque.length - 12} autre(s)</li>}</ul>}
         </div>
       )}
-      <div className="text-[11px] text-[var(--steel)] mt-1.5">{bon ? `Objectif de ${SEUIL_BON_POURCENT} % atteint.` : `Sous ${SEUIL_BON_POURCENT} % : ${neutreEnCours ? "encore du travail pour finir la journée." : "à surveiller."}`}{sous ? ` ${sous}` : ""}</div>
+      <div className="text-xs text-[var(--steel)] mt-1.5">{bon ? `Objectif de ${SEUIL_BON_POURCENT} % atteint.` : `Sous ${SEUIL_BON_POURCENT} % : ${neutreEnCours ? "encore du travail pour finir la journée." : "à surveiller."}`}{sous ? ` ${sous}` : ""}</div>
     </div>
   );
 }
@@ -21833,8 +21874,8 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
     const type = b.id === "cuissons" ? "cuisson" : b.id === "refroidissements" ? "refroidissement" : b.id === "maintien" ? "maintien" : null;
     return (
       <span className="inline-flex gap-1.5">
-        {peutTerminer && type && <button type="button" onClick={() => { setSaisieFin({ temp: "", motif: "" }); setVerdictFin(null); setFin({ type, item: it }); }} className="px-2.5 py-1 rounded-md text-[11px] font-bold text-white" style={{ background: "#157347" }}>Terminer</button>}
-        {onOuvrir && b.ouvrir && <button type="button" onClick={() => { setAgrandi(null); onOuvrir(b.ouvrir); }} className="px-2 py-1 rounded-md text-[11px] font-semibold bg-white border border-[var(--line)] text-[var(--ink)]">Ouvrir ›</button>}
+        {peutTerminer && type && <button type="button" onClick={() => { setSaisieFin({ temp: "", motif: "" }); setVerdictFin(null); setFin({ type, item: it }); }} className="px-2.5 py-1 rounded-md text-xs font-bold text-white" style={{ background: "#157347" }}>Terminer</button>}
+        {onOuvrir && b.ouvrir && <button type="button" onClick={() => { setAgrandi(null); onOuvrir(b.ouvrir); }} className="px-2 py-1 rounded-md text-xs font-semibold bg-white border border-[var(--line)] text-[var(--ink)]">Ouvrir ›</button>}
       </span>
     );
   };
@@ -21920,10 +21961,10 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
             <button key={b.id} type="button" onClick={() => aller(b.id)} className="text-left rounded-xl p-2.5 active:scale-95 transition-transform" style={{ background: z.fond, border: `1.5px solid ${z.bord}` }}>
               <div className="flex items-center gap-1.5" style={{ color: z.texte }}>
                 <span className="w-6 h-6 rounded-md flex items-center justify-center shrink-0" style={{ background: z.bord }}><Ic size={14} color="#fff" /></span>
-                <span className="text-[11px] font-bold leading-tight">{b.titre}</span>
+                <span className="text-xs font-bold leading-tight">{b.titre}</span>
               </div>
               <div className="text-2xl font-bold mt-1" style={{ color: b.rouge ? "#B42318" : z.texte }}>{b.n}</div>
-              <div className="text-[11px] text-[var(--steel)] leading-tight">{b.texte}</div>
+              <div className="text-xs text-[var(--steel)] leading-tight">{b.texte}</div>
             </button>
           );
         })}
@@ -21945,10 +21986,10 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
               <div className="bg-white/80 px-3 py-2">
                 {b.lignes.length === 0 ? <p className="text-sm text-[var(--steel)] py-2">Rien d'enregistré ce jour-là.</p> : (
                   <div className="overflow-x-auto"><table className="w-full text-xs sm:text-sm">
-                    <thead><tr className="text-left text-[11px] text-[var(--steel)]">{b.colonnes.map((c) => <th key={c} className="py-1 pr-2 font-semibold">{c}</th>)}{b.items && <th className="py-1" />}</tr></thead>
+                    <thead><tr className="text-left text-xs text-[var(--steel)]">{b.colonnes.map((c) => <th key={c} className="py-1 pr-2 font-semibold">{c}</th>)}{b.items && <th className="py-1" />}</tr></thead>
                     <tbody>{lignes.map((l, i) => <tr key={i} className="border-t border-[var(--line)]">{l.map((v, j) => {
                       const ch = (estStatut(b, j) || (b.id === "dlc" && j === l.length - 1)) ? pastille(v) : null;
-                      return <td key={j} className="py-1.5 pr-2 align-middle">{ch ? <span className="inline-block px-2 py-0.5 rounded-md text-[11px] font-semibold" style={{ background: ch.fond, color: ch.texte }}>{v}</span> : v}</td>;
+                      return <td key={j} className="py-1.5 pr-2 align-middle">{ch ? <span className="inline-block px-2 py-0.5 rounded-md text-xs font-semibold" style={{ background: ch.fond, color: ch.texte }}>{v}</span> : v}</td>;
                     })}{b.items && <td className="py-1.5 align-middle text-right whitespace-nowrap">{celluleAction(b, i)}</td>}</tr>)}</tbody>
                   </table></div>
                 )}
@@ -22147,7 +22188,7 @@ function ReservationRow({ r, who, onRemove, onUpdateNote }) {
         <div className="flex-1">
           <div className="text-[var(--ink)] font-medium flex items-center gap-2 flex-wrap">
             {r.heure} — {r.nom} ({r.personnes} pers.)
-            {r.statut && <span className={`text-[10px] font-semibold px-1.5 py-0.5 rounded-full ${STATUT_STYLE[r.statut] || "bg-[var(--bg)] text-[var(--steel)]"}`}>{r.statut}</span>}
+            {r.statut && <span className={`text-xs font-semibold px-1.5 py-0.5 rounded-full ${STATUT_STYLE[r.statut] || "bg-[var(--bg)] text-[var(--steel)]"}`}>{r.statut}</span>}
           </div>
           <div className="text-xs text-[var(--steel)] flex items-center gap-2 flex-wrap mt-0.5">
             {r.table && <span>Table : {r.table}</span>}
@@ -22217,7 +22258,7 @@ function PlageToggle({ plage, setPlage }) {
       {[PLAGE_MATIN, PLAGE_SOIR].map((p) => (
         <button key={p.id} onClick={() => setPlage(p)}
           style={plage.id === p.id ? { backgroundColor: "#2F6B4F", color: "#ffffff" } : undefined}
-          className={`px-2.5 py-1 rounded-lg text-[11px] font-medium border ${plage.id === p.id ? "border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
+          className={`px-2.5 py-1 rounded-lg text-xs font-medium border ${plage.id === p.id ? "border-transparent" : "border-[var(--line)] text-[var(--steel)] bg-white"}`}>
           {p.label}
         </button>
       ))}
@@ -22245,7 +22286,7 @@ function AgendaGrille({ reservations, isToday, who, onRemove, plage, onUpdateNot
           const estHeurePile = Math.abs(heureDecimale - Math.round(heureDecimale)) < 0.01;
           return (
             <div key={i} className={`absolute left-0 right-0 border-t ${estHeurePile ? "border-[var(--line)]" : "border-[var(--line)]/40"}`} style={{ top: i * (AGENDA_HAUTEUR_HEURE / 4) }}>
-              {estHeurePile && <span className="text-[10px] text-[var(--steel)] px-1.5 -mt-2 bg-[var(--bg)] rounded absolute">{String(Math.floor(heureDecimale)).padStart(2, "0")}:00</span>}
+              {estHeurePile && <span className="text-xs text-[var(--steel)] px-1.5 -mt-2 bg-[var(--bg)] rounded absolute">{String(Math.floor(heureDecimale)).padStart(2, "0")}:00</span>}
             </div>
           );
         })}
@@ -22323,7 +22364,7 @@ function PlanningGrille({ tasks, employeeId, date, actorId, onToggle, protocoles
           const estHeurePile = Math.abs(heureDecimale - Math.round(heureDecimale)) < 0.01;
           return (
             <div key={i} className={`absolute left-0 right-0 border-t ${estHeurePile ? "border-[var(--line)]" : "border-[var(--line)]/40"}`} style={{ top: i * (AGENDA_HAUTEUR_HEURE / 4) }}>
-              {estHeurePile && <span className="text-[10px] text-[var(--steel)] px-1.5 -mt-2 bg-[var(--bg)] rounded absolute">{String(Math.floor(heureDecimale)).padStart(2, "0")}:00</span>}
+              {estHeurePile && <span className="text-xs text-[var(--steel)] px-1.5 -mt-2 bg-[var(--bg)] rounded absolute">{String(Math.floor(heureDecimale)).padStart(2, "0")}:00</span>}
             </div>
           );
         })}
@@ -22400,15 +22441,19 @@ function CarteZone({ icone: Ic, titre, sous, action, className = "", id, role, c
   );
 }
 
-function CarteInfo({ titre, grand, unite, sous, Ic, fond, bord, couleur, onClick }) {
+// Carte de chiffre (Tâches du jour) : fond blanc, filet et logo à la couleur de la fonction, chiffre en grand et en noir.
+// Rouge seulement quand il y a vraiment quelque chose à traiter (règle : rouge = alerte).
+function CarteInfo({ titre, grand, unite, sous, Ic, couleur, alerte, onClick }) {
+  const c = alerte ? "#B3261E" : couleur;
   return (
-    <button type="button" onClick={onClick} className="text-left rounded-xl border p-4 min-w-0 hover:shadow-md transition-shadow" style={{ backgroundColor: fond, borderColor: bord }}>
-      <div className="flex items-center gap-2">
-        <span className="w-7 h-7 rounded-md flex items-center justify-center shrink-0 text-white shadow-sm" style={{ backgroundColor: couleur }}><Ic size={16} /></span>
+    <button type="button" onClick={onClick} className="text-left rounded-xl border p-3 min-w-0 hover:shadow-md transition-shadow bg-white"
+      style={{ borderColor: alerte ? "#F3B5B0" : "var(--cadre)", borderLeft: `5px solid ${c}`, backgroundColor: alerte ? "#FDECEC" : "#fff" }}>
+      <div className="flex items-start gap-2.5">
+        <span className="w-9 h-9 rounded-lg flex items-center justify-center shrink-0" style={{ backgroundColor: `${c}1F`, color: c }}><Ic size={20} /></span>
         <div className="min-w-0 flex-1">
-          <div className="text-[11px] font-semibold leading-tight" style={{ color: couleur }}>{titre}</div>
-          <div className="flex items-baseline gap-1"><span className="text-xl font-bold leading-tight" style={{ color: couleur }}>{grand}</span>{unite && <span className="text-sm" style={{ color: couleur }}>{unite}</span>}</div>
-          <div className="text-xs leading-tight" style={{ color: couleur }}>{sous}</div>
+          <div className="text-xs font-semibold leading-tight text-[var(--ink)]">{titre}</div>
+          <div className="flex items-baseline gap-1 mt-0.5"><span className="text-2xl font-bold leading-none" style={{ color: alerte ? c : "var(--ink)" }}>{grand}</span>{unite && <span className="text-sm text-[var(--ink)]">{unite}</span>}</div>
+          <div className="text-xs leading-tight text-[var(--steel)] mt-0.5">{sous}</div>
         </div>
       </div>
     </button>
@@ -22585,10 +22630,10 @@ function Reservations({ reservations, setReservations, currentUserId, employees,
         </div>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-3">
           <label className="text-xs text-[var(--steel)] flex flex-col gap-1">Statut
-            <select className={`${inputCls} !min-h-[40px] !py-1.5`} value={r.statut || "à confirmer"} onChange={(e) => majReservation(r.id, { statut: e.target.value })}>{STATUTS_RESERVATION.map((x) => <option key={x} value={x}>{STATUT_RESA_STYLE[x].lib}</option>)}</select>
+            <select className={`${inputCls} !min-h-[48px] !py-1.5`} value={r.statut || "à confirmer"} onChange={(e) => majReservation(r.id, { statut: e.target.value })}>{STATUTS_RESERVATION.map((x) => <option key={x} value={x}>{STATUT_RESA_STYLE[x].lib}</option>)}</select>
           </label>
           <label className="text-xs text-[var(--steel)] flex flex-col gap-1">Table
-            <ChampTexteDiffere value={r.table || ""} onCommit={(v) => majReservation(r.id, { table: v })} placeholder="Table 12-14, salon privé…" className={`${inputCls} !min-h-[40px] !py-1.5`} />
+            <ChampTexteDiffere value={r.table || ""} onCommit={(v) => majReservation(r.id, { table: v })} placeholder="Table 12-14, salon privé…" className={`${inputCls} !min-h-[48px] !py-1.5`} />
           </label>
         </div>
         {r.commande && r.commande.length > 0 && (
@@ -22742,21 +22787,21 @@ Une entrée par réservation visible. Si une information est illisible ou absent
                   return (
                     <div key={d} className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: col, boxShadow: estAuj ? `0 0 0 3px ${col}33` : undefined }}>
                       <div className="px-3 py-2 text-white" style={{ background: col }}>
-                        <div className="flex items-baseline justify-between gap-2"><span className="font-bold text-base">{JOURS[ji]}</span><span className="text-[11px] opacity-90">{d.slice(8, 10)}/{d.slice(5, 7)}{estAuj ? " · aujourd'hui" : ""}</span></div>
-                        <div className="text-[11px] opacity-90">{liste.length} réservation{liste.length > 1 ? "s" : ""} · {couverts} couvert{couverts > 1 ? "s" : ""}</div>
+                        <div className="flex items-baseline justify-between gap-2"><span className="font-bold text-base">{JOURS[ji]}</span><span className="text-xs opacity-90">{d.slice(8, 10)}/{d.slice(5, 7)}{estAuj ? " · aujourd'hui" : ""}</span></div>
+                        <div className="text-xs opacity-90">{liste.length} réservation{liste.length > 1 ? "s" : ""} · {couverts} couvert{couverts > 1 ? "s" : ""}</div>
                       </div>
                       {[["midi", "☀️ Midi", liste.filter((r) => r.heure < lim), "#FFFBEA"], ["soir", "🌙 Soir", liste.filter((r) => r.heure >= lim), "#F1F0FA"]].map(([k, lib, l, fond]) => (
                         <div key={k} className="p-2 border-t border-[var(--cadre)] flex-1" style={{ background: fond }}>
                           <div className="flex items-center justify-between mb-1.5">
-                            <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: col }}>{lib}</span>
-                            <span className="text-[10px] text-[var(--steel)]">{l.reduce((n, r) => n + (Number(r.personnes) || 0), 0)} couv.</span>
+                            <span className="text-xs font-bold uppercase tracking-wide" style={{ color: col }}>{lib}</span>
+                            <span className="text-xs text-[var(--steel)]">{l.reduce((n, r) => n + (Number(r.personnes) || 0), 0)} couv.</span>
                           </div>
-                          {l.length === 0 ? <div className="text-[11px] italic text-[var(--steel)]">Aucune réservation</div> : (
+                          {l.length === 0 ? <div className="text-xs italic text-[var(--steel)]">Aucune réservation</div> : (
                             <div className="space-y-1">
                               {l.map((r) => {
                                 const st = TYPE_RESA_STYLE[typeResa(r)];
                                 return (
-                                  <button key={r.id} type="button" onClick={() => { setSelectedDate(d); setSelId(r.id); setDetailMobile(true); setViewMode("jour"); }} className="w-full text-left rounded-lg px-2 py-1 text-[11px] leading-tight border-l-4 bg-white border border-[var(--cadre)]" style={{ borderLeftColor: st.barre }}>
+                                  <button key={r.id} type="button" onClick={() => { setSelectedDate(d); setSelId(r.id); setDetailMobile(true); setViewMode("jour"); }} className="w-full text-left rounded-lg px-2 py-1 text-xs leading-tight border-l-4 bg-white border border-[var(--cadre)]" style={{ borderLeftColor: st.barre }}>
                                     <span className="font-semibold text-[var(--ink)] block truncate">{r.heure} · {r.nom}</span>
                                     <span className="text-[var(--steel)]">{r.personnes || "?"} pers.{r.table ? ` · table ${r.table}` : ""}</span>
                                   </button>
@@ -22795,7 +22840,7 @@ Une entrée par réservation visible. Si une information est illisible ou absent
                 return (
                   <button key={d} onClick={() => { goDate(d); setViewMode("jour"); }} className={`aspect-square rounded-md border flex flex-col items-center justify-center gap-0.5 ${isToday ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] hover:bg-[var(--bg)]"}`}>
                     <span className="text-xs text-[var(--ink)]">{Number(d.slice(8, 10))}</span>
-                    {list.length > 0 && <span className="text-[10px] text-[var(--gold)] font-medium">{list.length}</span>}
+                    {list.length > 0 && <span className="text-xs text-[var(--gold)] font-medium">{list.length}</span>}
                   </button>
                 );
               })}
@@ -23116,7 +23161,7 @@ function CommandeBar({ onCommande }) {
       {enEcoute && <p className="text-xs text-[var(--accent)] mt-2">Je vous écoute...</p>}
       {erreurVocale && <p className="text-xs text-[var(--warn)] mt-2">{erreurVocale}</p>}
       {dernierRetour && <p className="text-xs text-[var(--steel)] mt-2">{dernierRetour}</p>}
-      {!supporteVocal && <p className="text-[10px] text-[var(--steel)] mt-2">Commande vocale non disponible sur ce navigateur — la saisie texte fonctionne normalement.</p>}
+      {!supporteVocal && <p className="text-xs text-[var(--steel)] mt-2">Commande vocale non disponible sur ce navigateur — la saisie texte fonctionne normalement.</p>}
     </Card>
   );
 }
@@ -24417,7 +24462,7 @@ function PlanningDeuxColonnes({ tasks, employeeId, date, actorId, onToggle, onOu
         </div>
         <div className="flex">
           <div className="w-14 shrink-0 relative border-r border-[var(--cadre)] bg-white" style={{ height: hauteur }}>
-            {heuresPleines.map((h) => <div key={h} className="absolute left-0 right-0 text-center text-[13px] text-[var(--ink)]" style={{ top: (h - pl.debut) * PX - 8 }}>{String(h).padStart(2, "0")}:00</div>)}
+            {heuresPleines.map((h) => <div key={h} className="absolute left-0 right-0 text-center text-xs text-[var(--ink)]" style={{ top: (h - pl.debut) * PX - 8 }}>{String(h).padStart(2, "0")}:00</div>)}
             {estAujourdhui && nowTop > 0 && nowTop < hauteur && (
               <div className="absolute left-1 right-1 z-20 text-center text-xs font-bold text-white rounded py-0.5" style={{ top: nowTop - 10, backgroundColor: ROUGE_PLANNING }}>{String(now.getHours()).padStart(2, "0")}:{String(now.getMinutes()).padStart(2, "0")}</div>
             )}
@@ -24512,7 +24557,7 @@ function LignesNettoyageJour({ ctx, miennes, employees, currentUserId, logActivi
           </div>
           <div className="flex-1 min-w-0">
             <p className={`text-sm leading-snug ${fait ? "text-[var(--steel)] line-through" : "text-[var(--ink)]"}`}>{o.tache}</p>
-            <p className="text-[10px] uppercase tracking-wide text-[var(--steel)]">{o.poste && o.poste !== "Tous" ? `${o.poste} · ` : ""}{o.moment === "midi" ? "midi" : "soir"}</p>
+            <p className="text-xs uppercase tracking-wide text-[var(--steel)]">{o.poste && o.poste !== "Tous" ? `${o.poste} · ` : ""}{o.moment === "midi" ? "midi" : "soir"}</p>
             {o.enRetard && <p className="text-xs font-semibold text-[var(--warn)]">En retard — prévue le {libelleDateCourte(o.date)} ({o.moment === "midi" ? "midi" : "soir"})</p>}
             {o.note && o.statut === "a_faire" && <p className="text-xs text-[var(--steel)] mt-0.5 whitespace-pre-line">{o.note}</p>}
             {o.statut === "impossible" && ex?.motif && <p className="text-xs font-medium text-[var(--warn)] mt-0.5">Pas fait : {ex.motif}</p>}
@@ -24715,11 +24760,11 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
         const couverts = resasAujourdhui.reduce((t, r) => t + (Number(r.personnes) || 0), 0);
         return (
           <div className="grid grid-cols-2 xl:grid-cols-5 gap-2 mb-3">
-            <CarteInfo onClick={() => allerBloc("colonne-preparations")} titre="Préparations culinaires à faire" grand={prepsRestantes} sous={`sur ${dj.preparations_.length} aujourd'hui`} Ic={ChefHat} fond="#FDE4E8" bord="#F6B8C2" couleur="#B4233A" />
-            <CarteInfo onClick={() => allerBloc("colonne-nettoyage")} titre="Tâches de nettoyage à faire" grand={netRestants} sous={`sur ${netTotal + dj.nettoyagesPeriodiques} aujourd'hui`} Ic={SprayCan} fond="#FBE3EF" bord="#F1B3D3" couleur="#9D174D" />
-            <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="DLC à traiter avant la fin de la journée" grand={dlc.length} sous="produits à utiliser ou à jeter" Ic={Clock} fond="#FFEFD0" bord="#F3D69A" couleur="#8A5300" />
-            <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="Refroidissements et maintiens au chaud en cours" grand={enCours} sous={enCours ? "à surveiller" : "rien en cours"} Ic={IcInfo} fond="#DDF3E6" bord="#B3E0C5" couleur="#14653A" />
-            <CarteInfo onClick={() => setVueAccueil("reservations")} titre="Réservations aujourd'hui" grand={couverts} unite="couverts" sous={`${nbResa} réservation${nbResa > 1 ? "s" : ""}`} Ic={Users} fond="#EBE2FA" bord="#D2C2F2" couleur="#5B34A8" />
+            <CarteInfo onClick={() => allerBloc("colonne-preparations")} titre="Préparations culinaires à faire" grand={prepsRestantes} sous={`sur ${dj.preparations_.length} aujourd'hui`} Ic={ChefHat} couleur="#4F46E5" />
+            <CarteInfo onClick={() => allerBloc("colonne-nettoyage")} titre="Tâches de nettoyage à faire" grand={netRestants} sous={`sur ${netTotal + dj.nettoyagesPeriodiques} aujourd'hui`} Ic={SprayCan} couleur="#A21CAF" />
+            <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="DLC à traiter avant la fin de la journée" grand={dlc.length} sous="produits à utiliser ou à jeter" Ic={Clock} couleur="#7C3AED" alerte={dlc.length > 0} />
+            <CarteInfo onClick={() => allerBloc("colonne-surveiller")} titre="Refroidissements et maintiens au chaud en cours" grand={enCours} sous={enCours ? "à surveiller" : "rien en cours"} Ic={IcInfo} couleur="#0E7FB8" />
+            <CarteInfo onClick={() => setVueAccueil("reservations")} titre="Réservations aujourd'hui" grand={couverts} unite="couverts" sous={`${nbResa} réservation${nbResa > 1 ? "s" : ""}`} Ic={Users} couleur="#146B45" />
           </div>
         );
       })()}
@@ -24853,7 +24898,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                     <button key={d} onClick={() => { setDateSelectionnee(d); setVueTemps("jour"); }}
                       className={`aspect-square rounded-md border flex flex-col items-center justify-center gap-0.5 ${isToday ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] hover:bg-[var(--bg)]"}`}>
                       <span className="text-xs text-[var(--ink)]">{Number(d.slice(8, 10))}</span>
-                      {count > 0 && <span className="text-[10px] text-[var(--gold)] font-medium">{count}</span>}
+                      {count > 0 && <span className="text-xs text-[var(--gold)] font-medium">{count}</span>}
                     </button>
                   );
                 })}
@@ -24877,7 +24922,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
           <button key={cle} type="button" onClick={onClick} className="w-full flex items-center gap-2.5 px-3 py-2.5 text-left hover:bg-[var(--bg)]">
             {coche && <span className="w-5 h-5 shrink-0 rounded border-2 border-[#5B6BA8] flex items-center justify-center bg-white">{fait_ && <span className="text-[#2F6B4F] text-xs leading-none">✓</span>}</span>}
             <span className={`flex-1 min-w-0 text-sm truncate ${fait_ ? "line-through text-[var(--steel)]" : "text-[var(--ink)]"}`}>{nom}</span>
-            {tag && <span className="text-[11px] font-medium px-2 py-0.5 rounded shrink-0" style={{ backgroundColor: tons[tag.ton][0], color: tons[tag.ton][1] }}>{tag.texte}</span>}
+            {tag && <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0" style={{ backgroundColor: tons[tag.ton][0], color: tons[tag.ton][1] }}>{tag.texte}</span>}
             {!sansChevron && <ChevronRight size={16} className="text-[#1B4F9C] shrink-0" />}
           </button>
         );
@@ -24902,7 +24947,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
                     <div key={x.cle} className="px-3 py-2.5">
                       <div className="flex items-center gap-2">
                         <span className="flex-1 min-w-0 text-sm text-[var(--ink)] break-words">{x.nom}</span>
-                        <span className="text-[11px] font-medium px-2 py-0.5 rounded shrink-0" style={{ backgroundColor: tons[x.ton][0], color: tons[x.ton][1] }}>{x.tag}</span>
+                        <span className="text-xs font-medium px-2 py-0.5 rounded shrink-0" style={{ backgroundColor: tons[x.ton][0], color: tons[x.ton][1] }}>{x.tag}</span>
                       </div>
                       {x.action === "prepa" && resolutionEnCours !== x.pid && (
                         <div className="flex gap-1.5 mt-1.5">
@@ -25327,7 +25372,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
               <div key={jour} className="rounded-xl overflow-hidden border-2 bg-white flex flex-col min-w-0" style={{ borderColor: col }}>
                 <div className="px-3 py-2 text-white" style={{ background: col }}>
                   <div className="font-bold text-base">{jour}</div>
-                  <div className="text-[11px] opacity-90">{totalJour.toFixed(1)} h au total</div>
+                  <div className="text-xs opacity-90">{totalJour.toFixed(1)} h au total</div>
                 </div>
                 {SERVICES.map((service) => {
                   const ht = horaireType(jour, service.toLowerCase());
@@ -25337,23 +25382,23 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
                   return (
                     <div key={service} className="p-2 border-t border-[var(--cadre)] flex-1" style={{ background: service === "Midi" ? "#FFFBEA" : "#F1F0FA" }}>
                       <div className="flex items-center justify-between gap-1 mb-1.5">
-                        <span className="text-[11px] font-bold uppercase tracking-wide" style={{ color: foncerPourTexte(col) }}>{service === "Midi" ? "☀️ Midi" : "🌙 Soir"}</span>
-                        <span className="text-[10px] text-[var(--steel)]">{ht.ferme ? "fermé" : `${ht.debut}–${ht.fin}`}</span>
+                        <span className="text-xs font-bold uppercase tracking-wide" style={{ color: foncerPourTexte(col) }}>{service === "Midi" ? "☀️ Midi" : "🌙 Soir"}</span>
+                        <span className="text-xs text-[var(--steel)]">{ht.ferme ? "fermé" : `${ht.debut}–${ht.fin}`}</span>
                       </div>
-                      {ht.ferme && liste.length === 0 ? <div className="text-[11px] italic text-[var(--steel)]">Service fermé</div> : liste.length === 0 ? (
-                        <div className="text-[11px] italic text-[var(--steel)]">Personne de prévu</div>
+                      {ht.ferme && liste.length === 0 ? <div className="text-xs italic text-[var(--steel)]">Service fermé</div> : liste.length === 0 ? (
+                        <div className="text-xs italic text-[var(--steel)]">Personne de prévu</div>
                       ) : (
                         <div className="space-y-1">
                           {liste.map(({ x, emp }) => {
                             const c = COULEURS_EMPLOYES[employees.indexOf(emp) % COULEURS_EMPLOYES.length];
                             return (
-                              <div key={x.id} className="rounded-lg px-2 py-1 text-[11px] leading-tight border-l-4 bg-white" style={{ borderColor: c }}>
+                              <div key={x.id} className="rounded-lg px-2 py-1 text-xs leading-tight border-l-4 bg-white" style={{ borderColor: c }}>
                                 <div className="font-semibold text-[var(--ink)] truncate">{emp.nom}</div>
                                 <div className="text-[var(--steel)]">{x.debut} – {x.fin}{emp.poste ? ` · ${emp.poste}` : ""}</div>
                               </div>
                             );
                           })}
-                          <div className="text-[10px] font-semibold" style={{ color: col }}>{liste.length} personne(s)</div>
+                          <div className="text-xs font-semibold" style={{ color: col }}>{liste.length} personne(s)</div>
                         </div>
                       )}
                     </div>
@@ -25405,7 +25450,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
                   <div className="grid gap-2 p-3" style={{ gridTemplateColumns: "repeat(7, minmax(7.5rem, 1fr))", minWidth: 760 }}>
                     {JOURS.map((jour) => (
                       <div key={jour} className="min-w-0">
-                        <div className="text-[11px] font-bold uppercase tracking-wide mb-1" style={{ color: col }}>{jour}</div>
+                        <div className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: col }}>{jour}</div>
                         <div className="space-y-1.5">
                           {SERVICES.map((service) => {
                             const sh = shiftFor(emp.id, jour, service);
@@ -25415,7 +25460,7 @@ function Planning({ employees, setEmployees, shifts, setShifts, logActivity, onB
                             return (
                               <button key={service} type="button"
                                 onClick={() => (sh ? setPicker({ employeeId: emp.id, jour, service }) : saveShift(emp.id, jour, service, ht.debut, ht.fin))}
-                                className="w-full text-left rounded-lg px-2 py-1.5 text-[11px] leading-tight border-2 min-h-[44px]"
+                                className="w-full text-left rounded-lg px-2 py-1.5 text-xs leading-tight border-2 min-h-[44px]"
                                 style={sh ? { background: col + "1F", borderColor: col, color: "var(--ink)" } : { background: "#F5F6F4", borderColor: "var(--cadre)", color: "var(--steel)" }}>
                                 <span className="font-bold block">{service}</span>
                                 {sh ? <span>{sh.debut} – {sh.fin}</span> : <span>{ht.ferme ? "Service fermé" : "Repos"}</span>}
@@ -25620,7 +25665,7 @@ function LoginGate({ employees, lastUserId, onSelect }) {
                   <div className="font-semibold text-[var(--ink)]">{emp.nom}</div>
                   <div className="text-xs text-[var(--steel)]">{emp.poste}</div>
                 </div>
-                {emp.id === lastUserId && <span className="text-[10px] text-[var(--accent)] font-medium">Dernière connexion</span>}
+                {emp.id === lastUserId && <span className="text-xs text-[var(--accent)] font-medium">Dernière connexion</span>}
               </Card>
             </button>
           ))}
@@ -25631,7 +25676,7 @@ function LoginGate({ employees, lastUserId, onSelect }) {
                 <div className="font-semibold text-white">Direction</div>
                 <div className="text-xs" style={{ color: "#B7BEC2" }}>Planning &amp; contrôles hygiène</div>
               </div>
-              {lastUserId === "direction" && <span className="text-[10px] text-white/70 font-medium ml-auto">Dernière connexion</span>}
+              {lastUserId === "direction" && <span className="text-xs text-white/70 font-medium ml-auto">Dernière connexion</span>}
             </Card>
           </button>
         </div>
@@ -25658,7 +25703,7 @@ function AccesRestreint({ titre }) {
         <div className="w-12 h-12 rounded-full flex items-center justify-center text-xl" style={{ background: "#FBE8E3" }}>
           🔒
         </div>
-        <div className="font-semibold text-[15px]" style={{ color: "#1c1917" }}>{titre} — non disponible</div>
+        <div className="font-semibold text-sm" style={{ color: "#1c1917" }}>{titre} — non disponible</div>
         <div className="text-sm max-w-md" style={{ color: "#78716c" }}>
           Cette fonctionnalité nécessite la conservation de vos données. Vous avez refusé le consentement à l'ouverture du logiciel.
           Vous pouvez revenir sur ce choix à tout moment depuis les réglages.
@@ -25695,6 +25740,9 @@ function KitchenApp({ identiteExterne } = {}) {
   PONT_IA = modeExterne && iaServeurActive && iaExterne ? (payload) => iaExterneRef.current.appeler(payload) : null;
   if (typeof window !== "undefined") window.MC_SANS_IA = modeExterne && !iaServeurActive;
   const [tab, setTab] = useState("accueil");
+  // Chaque écran s'ouvre en haut de page (défaut corrigé le 25/11 : un module ouvert depuis une tuile du bas
+  // s'affichait déjà descendu, titre caché).
+  useLayoutEffect(() => { try { window.scrollTo(0, 0); } catch (e) { /* ignore */ } }, [tab]);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState(null);
   const [sessionActive, setSessionActive] = useState(false);
   const [receptionActive, setReceptionActive] = useState(false);
@@ -27096,7 +27144,8 @@ function KitchenApp({ identiteExterne } = {}) {
   const barreChefEl = !peutParametrage ? null : (() => {
         const HIST = { haccpTemp: "temperatures", haccpRefroid: "cellule", haccpHuile: "huile", haccpChaud: "maintien", haccpCuisson: "cuisson" };
         const grad = (a, b) => `linear-gradient(160deg, ${a} 0%, ${b} 100%)`;
-        if (tab === "taches") return <BarreChef centre boutons={[
+        // Historique en bas de page (règle du 24/10, rappelée dans le rapport visuel du 25/11).
+        if (tab === "taches") return <BarreChef bas centre boutons={[
             { label: "Historique de la journée", icone: ClipboardList, onClick: () => ouvrirControle("historiqueJour", "taches") },
           ]} />;
         if (tab === "haccp") return <BarreChef bas boutons={[
@@ -27283,13 +27332,13 @@ function KitchenApp({ identiteExterne } = {}) {
             const actif = tab === n.id || (n.id === "haccp" && NAV_HACCP.some((x) => x.id === tab));
             return (
               <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
-                className="relative shrink-0 flex items-center gap-3 px-3 py-3 min-h-[48px] rounded-xl text-[15px] font-medium text-left transition-colors"
+                className="relative shrink-0 flex items-center gap-3 px-3 py-2 min-h-[48px] rounded-xl text-xs font-medium text-left transition-colors"
                 style={actif ? { backgroundColor: "#1F6B47", color: "#fff", boxShadow: "inset 4px 0 0 #6EE7A8" } : { color: "#C5CEDA" }}
                 onMouseEnter={(e) => { if (!actif) e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.07)"; }}
                 onMouseLeave={(e) => { if (!actif) e.currentTarget.style.backgroundColor = "transparent"; }}>
-                <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center text-white" style={{ background: (COULEURS_FONCTION[n.id] || { fond: "linear-gradient(160deg,#64748B,#334155)" }).fond }}><n.icon size={20} /></span>
+                {(() => { const f = (COULEURS_FONCTION[n.id] || { fond: "linear-gradient(160deg,#64748B,#334155)" }).fond; return <span className="shrink-0 w-9 h-9 rounded-lg flex items-center justify-center" style={{ background: f, color: encreSur(f) }}><n.icon size={20} /></span>; })()}
                 <span className="flex-1 leading-tight">{n.label}</span>
-                {badges[n.id] > 0 && <span className="text-[11px] font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#E5243B", color: "#fff" }}>{badges[n.id]}</span>}
+                {badges[n.id] > 0 && <span className="text-xs font-bold rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#E5243B", color: "#fff" }}>{badges[n.id]}</span>}
               </button>
             );
           }))}
@@ -27313,13 +27362,13 @@ function KitchenApp({ identiteExterne } = {}) {
         <nav className="flex flex-col gap-1">
           {navItems.map((n) => (
             <button key={n.id} onClick={() => { setTab(n.id); if (n.id !== "equipe") setSelectedEmployeeId(null); }}
-              className={`flex items-center gap-2.5 px-3 py-2.5 min-h-[44px] rounded-lg text-sm font-medium text-left transition-colors ${
+              className={`flex items-center gap-2.5 px-3 py-2 min-h-[44px] rounded-lg text-xs font-medium leading-tight text-left transition-colors ${
                 tab === n.id ? "bg-[var(--accent-soft)] text-[var(--accent)]" : "text-[var(--steel)] hover:bg-[var(--bg)]"
               }`}>
               <n.icon size={17} />
               {n.label}
               {badges[n.id] > 0 && (
-                <span className="ml-auto text-[10px] rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#C1432D", color: "#ffffff" }}>{badges[n.id]}</span>
+                <span className="ml-auto text-xs rounded-full px-1.5 py-0.5" style={{ backgroundColor: "#C1432D", color: "#ffffff" }}>{badges[n.id]}</span>
               )}
             </button>
           ))}
@@ -27362,11 +27411,11 @@ function KitchenApp({ identiteExterne } = {}) {
 
       {tab !== "accueil" && tab !== "fiches" && !NAV_HACCP.some((n) => n.id === tab) && (
         <div className={`md:hidden ${EST_ANDROID_TELEPHONE ? "" : "px-4 pt-3 bg-white"}`}>
-          <BoutonRetour onClick={() => setTab("accueil")}>Retour Accueil</BoutonRetour>
+          <BoutonRetour onClick={() => setTab("accueil")}>Retour</BoutonRetour>
         </div>
       )}
 
-      <main className={`flex-1 p-3 sm:p-4 lg:p-5 pb-24 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
+      <main className={`flex-1 min-w-0 p-3 sm:p-4 lg:p-5 pb-32 ${modeExterne ? "w-full min-w-0 md:col-start-2 md:row-start-2" : "max-w-6xl"}`}>
         <IndicateurHorsLigne />
         {messageQuitter && (
           <div role="status" className="fixed left-1/2 -translate-x-1/2 bottom-24 z-[100] rounded-full px-4 py-2 text-sm font-semibold text-white shadow-lg" style={{ background: "rgba(29,35,33,0.92)" }}>Appuyez encore une fois pour quitter</div>

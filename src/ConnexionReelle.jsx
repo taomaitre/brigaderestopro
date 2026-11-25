@@ -294,7 +294,7 @@ function BandeauFonctions() {
         {FONCTIONS_CONNEXION.map(([ic, l1, l2]) => (
           <div key={ic} className="flex flex-col items-center text-center px-1 gap-1.5" style={{ color: "var(--theme)" }}>
             <Ico d={ICO[ic]} size={26} />
-            <span className="text-[11px] sm:text-xs leading-tight text-[var(--ink)]"><span className="block">{l1}</span><span className="block">{l2}</span></span>
+            <span className="text-xs sm:text-xs leading-tight text-[var(--ink)]"><span className="block">{l1}</span><span className="block">{l2}</span></span>
           </div>
         ))}
       </div>
@@ -1989,7 +1989,7 @@ export default function ConnexionReelle() {
                   return (
                     <button key={e.id} type="button" onClick={() => choisirEmploye(e)} className="rounded-xl px-3 py-3 text-left text-white font-semibold text-sm" style={{ background: col }}>
                       {[e.prenom, e.nom].filter(Boolean).join(" ")}
-                      {e.poste && <span className="block text-[11px] font-normal opacity-90">{e.poste}</span>}
+                      {e.poste && <span className="block text-xs font-normal opacity-90">{e.poste}</span>}
                     </button>
                   );
                 })}

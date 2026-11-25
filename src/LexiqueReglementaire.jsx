@@ -49,8 +49,8 @@ function Fiche({ e, ouverte, onBascule }) {
           <span className="block text-sm font-semibold text-[var(--ink)]">{e.titre}</span>
           {!ouverte && bref && <span className="block text-sm text-[var(--ink)] mt-0.5 line-clamp-2">{bref.texte}</span>}
           <span className="flex flex-wrap gap-1 mt-1">
-            {nature && <span data-nature={e.nature} className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: nature.fond, color: nature.couleur }}>{nature.texte}</span>}
-            <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.fond, color: badge.couleur }}>{badge.texte}</span>
+            {nature && <span data-nature={e.nature} className="inline-block text-xs font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: nature.fond, color: nature.couleur }}>{nature.texte}</span>}
+            <span className="inline-block text-xs font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.fond, color: badge.couleur }}>{badge.texte}</span>
           </span>
         </span>
         <span className="shrink-0 mt-0.5 text-lg leading-none" aria-hidden="true">{ouverte ? "▴" : "▾"}</span>
@@ -61,7 +61,7 @@ function Fiche({ e, ouverte, onBascule }) {
           {e.champs.map((c, i) => (
             <p key={i}><span className="text-xs font-semibold text-[var(--steel)] uppercase">{c.label}</span><br /><TexteAvecLiens texte={c.texte} /></p>
           ))}
-          <p className="text-[11px] text-[var(--steel)] pt-1">Informations pédagogiques : le PMS de l'établissement fait foi. Cette fiche ne remplace ni la lecture du texte officiel, ni la formation HACCP.</p>
+          <p className="text-xs text-[var(--steel)] pt-1">Informations pédagogiques : le PMS de l'établissement fait foi. Cette fiche ne remplace ni la lecture du texte officiel, ni la formation HACCP.</p>
         </div>
       )}
     </div>
