@@ -3757,6 +3757,36 @@ function EditeurListesFinService() {
   );
 }
 
+// Alarmes de durée (refroidissement, congélation) : réglées par la personne qui fait le PMS. Le logiciel n'en impose aucune quand aucun
+// texte ne fixe de durée ; en restauration collective, +63 → +10 °C en moins de 2 h est obligatoire et appliqué automatiquement.
+function EditeurAlarmesDuree() {
+  const ctx = React.useContext(AlarmesContext) || {};
+  if (!ctx.setAlarmes) return null;
+  const a = ctx.alarmes || {};
+  const maj = (type, champ, valeur) => ctx.setAlarmes({ ...a, [type]: { ...(a[type] || {}), [champ]: valeur } });
+  const ligne = (type, titre, aide) => (
+    <div className="border-t border-[var(--cadre)] pt-3 mt-3 first:border-t-0 first:pt-0 first:mt-0">
+      <p className="font-semibold text-sm text-[var(--ink)]">{titre}</p>
+      <p className="text-xs text-[var(--steel)] mb-2">{aide}</p>
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-2">
+        <Field label="Durée maximale (minutes)"><input className={inputCls} type="number" inputMode="numeric" min="1" defaultValue={(a[type] && a[type].minutes) || ""} onBlur={(e) => maj(type, "minutes", e.target.value ? Number(e.target.value) : null)} placeholder="Aucune alarme" /></Field>
+        <div className="sm:col-span-2"><Field label="Justification (notice du fabricant, procédure du PMS, étude…)"><input className={inputCls} defaultValue={(a[type] && a[type].justification) || ""} onBlur={(e) => maj(type, "justification", e.target.value)} /></Field></div>
+      </div>
+    </div>
+  );
+  return (
+    <Card className="mt-4">
+      <h3 className="font-semibold text-[var(--ink)] mb-1">Alarmes de durée</h3>
+      <p className="text-xs text-[var(--steel)] mb-3">Aucun texte ne fixe de durée de refroidissement pour un restaurant, ni de durée de congélation : le logiciel n'impose donc aucune alarme. C'est la personne qui fait le PMS qui la fixe et la justifie. Sans réglage, la durée est seulement mesurée et enregistrée. Le chef peut aussi saisir une durée au démarrage.</p>
+      {ctx.collective
+        ? <p className="text-sm font-semibold text-[var(--ink)] mb-3">Restauration collective : le refroidissement de +63 °C à +10 °C en moins de 2 h est obligatoire (arrêté du 21/12/2009, annexe IV). Il est appliqué automatiquement.</p>
+        : <div className="mb-3"><Button variant="ghost" onClick={() => ctx.setAlarmes({ ...a, refroidissement: { minutes: 120, justification: "Repère du guide officiel, reconnu par les inspecteurs : +63 → +10 °C en moins de 2 h (obligatoire en restauration collective, arrêté du 21/12/2009, annexe IV)" } })}>Appliquer le repère officiel (+63 → +10 °C en 2 h)</Button></div>}
+      {!ctx.collective && ligne("refroidissement", "Refroidissement (de +63 °C à +10 °C)", "Exemple : la durée annoncée par le fabricant de votre cellule, ou le repère officiel.")}
+      {ligne("congelation", "Congélation (jusqu'à −18 °C à cœur)", "Exemple : la durée annoncée par le fabricant de votre cellule. Aucun texte ne fixe de durée (directive 89/108/CEE : le plus rapidement possible).")}
+    </Card>
+  );
+}
+
 function ControlePlanningJour({ employees, tasks, produits, preparations, stock, equipementsFroid, relevesFroid, huileTests, remarquesChef, setRemarquesChef, currentUserId, logActivity, cleaning,
   controlesSoir, setControlesSoir, reglageControle, refroidissements = [], cuissons = [], entriesMaintienChaud = [], alertesRappel = [], notificationsFournisseur = [], onAller }) {
   const today = todayISO();
@@ -5629,7 +5659,10 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
       )}
 
       {sousEcran === "appareilsFroid" && (
-        <GestionAppareilsFroid equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} logActivity={logActivity} />
+        <>
+          <GestionAppareilsFroid equipementsFroid={equipementsFroid} setEquipementsFroid={setEquipementsFroid} logActivity={logActivity} />
+          <EditeurAlarmesDuree />
+        </>
       )}
 
       {sousEcran === "catalogueDlc" && (
@@ -7132,14 +7165,14 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                     <option value="DDM">DDM — « à consommer de préférence avant »</option>
                   </select>
                 </>)}
-                {lib({ texte: "DLC après ouverture (en jours) — reprise sur les étiquettes DLC", aide: <span className="block mt-1 text-xs leading-snug" style={{ color: "#4A524E" }}>Celle de l'emballage du fabricant, sinon celle du tableau des DLC.</span> }, <>
-                  <input inputMode="numeric" autoComplete="off" value={v.delai_apres_ouverture_jours == null ? "" : v.delai_apres_ouverture_jours} placeholder={rep ? `repère : ${rep.jours} j` : "ex. 3"} onChange={(e) => maj("delai_apres_ouverture_jours", e.target.value)} className={champ} />
+                {lib({ texte: "DLC après ouverture (en jours) — reprise sur les étiquettes DLC", aide: <span className="block mt-1 text-xs leading-snug" style={{ color: "#4A524E" }}>Celle de l'emballage du fabricant, sinon celle que vous fixez dans votre PMS. Le logiciel ne la remplit jamais à votre place.{rep ? ` Conseil (pas une norme) : ${rep.repere}.` : ""}</span> }, <>
+                  <input inputMode="numeric" autoComplete="off" value={v.delai_apres_ouverture_jours == null ? "" : v.delai_apres_ouverture_jours} placeholder="en jours" onChange={(e) => maj("delai_apres_ouverture_jours", e.target.value)} className={champ} />
                 </>)}
               </div>
               <div className="rounded-lg border-2 px-3 py-2 text-xs leading-relaxed" style={{ borderColor: "#DC2626", background: "#FEF2F2", color: "#7F1D1D" }}>
-                <p><b>À savoir avant de modifier une DLC.</b> Les durées proposées par le logiciel reprennent le tableau « Durées de conservation (DLC) — Règles et repères HACCP » : ce sont des repères issus de la formation HACCP et de sources professionnelles, pas un texte de loi. Aucun organisme officiel ne fixe une DLC pour chaque produit ; la réglementation demande à chaque établissement de fixer et de justifier lui-même ses durées (guides de bonnes pratiques d'hygiène).</p>
-                <p className="mt-1">⚠ Toute modification peut être dangereuse pour la santé des clients. Il est conseillé de la faire valider par un laboratoire agréé. Cela ne vous empêche pas de la modifier : vous en restez responsable.</p>
-                {rep && saisiDlc != null && saisiDlc !== rep.jours && <p className="mt-1 font-bold">Cette durée ({saisiDlc} j) diffère du repère du tableau pour ce produit : {rep.repere}.</p>}
+                <p><b>À savoir avant de fixer une DLC.</b> Aucun texte officiel ne fixe une DLC pour chaque produit : c'est la personne qui établit le PMS qui la fixe et la justifie. Le logiciel ne propose aucune durée.</p>
+                <p className="mt-1">Conseil, pas une norme HACCP. Ce tableau vient d'un document professionnel non officiel, utilisé en formation hygiène. La personne qui établit le PMS est responsable des durées qu'elle retient : elle doit s'assurer que son produit entre bien dans ce cadre (composition, fabrication, conditions de stockage). En cas de doute, la durée indiquée par le fabricant prime. Pour valider une durée, ou la prolonger, l'établissement peut faire analyser le produit par un laboratoire accrédité (COFRAC) : c'est le test de vieillissement, qui sert de justificatif dans le PMS.</p>
+                {rep && saisiDlc != null && saisiDlc !== rep.jours && <p className="mt-1 font-bold">Pour information, le conseil du tableau pour ce produit est : {rep.repere}. Vous restez libre de votre durée.</p>}
               </div>
               {v.conservation === "surgele" && (
                 <div className="rounded-lg border-2 px-3 py-3" style={{ borderColor: "#9CA3AF", background: "#fff" }}>
@@ -7158,7 +7191,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                   </div>
                   {v.decongel_methode !== "cuisson" && (
                     <div className="grid gap-3 sm:grid-cols-2 mt-3">
-                      {lib({ texte: "DLC après décongélation (en jours, jour de début compris)", aide: <span className="block mt-1 text-xs" style={{ color: "#4A524E" }}>Vide = 3 jours.</span> }, <>{saisie("decongel_jours", "3")}</>)}
+                      {lib({ texte: "DLC après décongélation (en jours, jour de début compris)", aide: <span className="block mt-1 text-xs" style={{ color: "#4A524E" }}>Durée du fabricant, sinon celle fixée dans votre PMS. Vide = aucune durée : l'étiquette sortira sans DLC et le chef sera prévenu.</span> }, <>{saisie("decongel_jours", "3")}</>)}
                       {lib({ texte: "Source de cette durée" }, <>{saisie("decongel_source", "ex. fiche Sysco du 04/08/2026")}</>)}
                     </div>
                   )}
@@ -7244,7 +7277,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 <option value="DDM">DDM — date de durabilité minimale (« à consommer de préférence avant »)</option>
               </select>
             </label>
-            {champTexte("delai_apres_ouverture_jours", "DLC après ouverture (en jours) — celle indiquée sur l'emballage du fabricant, sinon celle du tableau des DLC")}
+            {champTexte("delai_apres_ouverture_jours", "DLC après ouverture (en jours) — celle indiquée sur l'emballage du fabricant, sinon celle fixée dans votre PMS")}
             {(() => {
               const rep = repereDlcOuverture(v.nom, v.conservation === "surgele");
               const saisi = v.delai_apres_ouverture_jours == null || v.delai_apres_ouverture_jours === "" ? null : Number(v.delai_apres_ouverture_jours);
@@ -7273,7 +7306,7 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
                 </div>
                 {v.decongel_methode !== "cuisson" && (
                   <div className="grid gap-2 sm:grid-cols-2 mt-2">
-                    {champTexte("decongel_jours", "DLC après décongélation (en jours, jour de début compris). Vide = 3 jours")}
+                    {champTexte("decongel_jours", "DLC après décongélation (en jours, jour de début compris). Durée du fabricant, sinon celle de votre PMS ; vide = aucune durée proposée")}
                     {champTexte("decongel_source", "Source de cette durée (ex. fiche Sysco du 04/08/2026)")}
                   </div>
                 )}
@@ -10651,7 +10684,7 @@ function FicheDetail({ fiche, onBack, onDemarrerRefroidissement, onDemarrerCuiss
           nbPortions ? [Users, nbPortions, "portions", "#fdeaea", "#b4233a"] : null,
           gramPortion ? [Package, /\d\s*(g|kg|ml|cl|l)\b/i.test(gramPortion) ? gramPortion : `${gramPortion} g`, "par portion", "#e3f4e8", "#1b5e3a"] : null,
           dureeCuisson ? [Flame, /min|h/i.test(String(dureeCuisson)) ? dureeCuisson : `${dureeCuisson} min`, "cuisson", "#fdf0dc", "#8a5200"] : null,
-          refroidOn ? [Snowflake, `${REFROIDISSEMENT_NORME.dureeMaxMin / 60} h max`, "refroidissement", "#e0f5f8", "#14606e"] : null,
+          refroidOn ? [Snowflake, "+63 → +10 °C", "refroidissement", "#e0f5f8", "#14606e"] : null,
           fiche.dlcJours != null && fiche.dlcJours !== "" ? [CalendarDays, `${fiche.dlcJours} jour${Number(fiche.dlcJours) > 1 ? "s" : ""}`, "conservation", "#efe8fa", "#4d2d84"] : null,
           nAllg > 0 ? [AlertTriangle, nAllg, `allergène${nAllg > 1 ? "s" : ""} (${fiche.allergenes.join(", ").toLowerCase()})`, "#fff6cc", "#7a5f00"] : null,
         ].filter(Boolean);
@@ -14990,20 +15023,29 @@ function HistoriqueMaintienChaud({ entries, who }) {
 
 const REFROIDISSEMENT_NORME = { debutMin: 63, finMax: 10, dureeMaxMin: 120, alerteAvantMin: 1 };
 // Surgélation (froid négatif) : normes différentes du refroidissement rapide positif — température
-// cible < -18°C, durée maximale 4h30 (270 min) au lieu de 2h. Même fiche HACCP officielle
+// cible < -18°C (aucune durée fixée par les textes). Même fiche HACCP officielle
 // ("Surgélation avec cellule de refroidissement"), jusque-là affichée mais jamais reliée à un
 // vrai suivi chronométré dans l'écran — corrigé ici avec un deuxième parcours dédié.
-const SURGELATION_NORME = { finMax: -18, dureeMaxMin: 270, alerteAvantMin: 1 };
+// Congélation : aucun texte ne fixe de durée (directive 89/108/CEE : passage rapide, −18 °C à cœur). Aucune alarme de durée par défaut
+// (décision du 25/11) : la durée vient des alarmes réglées par l'établissement (Paramétrage > Appareils de froid > Alarmes de durée).
+const SURGELATION_NORME = { finMax: -18, dureeMaxMin: Infinity, alerteAvantMin: 1 };
+// Restauration collective : +63 → +10 °C en moins de 2 h est obligatoire (arrêté du 21/12/2009, annexe IV), appliqué automatiquement.
+const estRestaurationCollective = (reglages) => /collective/i.test(String((reglages && reglages.fiche && reglages.fiche.typeEtablissement) || ""));
+// Alarmes de durée de l'établissement (refroidissement, congélation) : { refroidissement: { minutes, justification }, congelation: {...} }.
+const AlarmesContext = React.createContext(null);
 // Entrée sans `type` enregistré (créées avant cette version) = toujours refroidissement positif,
 // pour ne jamais rétroactivement changer la norme appliquée à un refroidissement déjà en cours.
 // Accepte un type ("negatif" ou autre) ou une entrée de refroidissement. Avec cellule : 2 h (repère retenu par la cuisine). Sans cellule :
 // aucune durée n'est fixée par les textes en remise directe ; l'entrée porte alors la durée choisie par l'établissement (`dureeMaxMin`).
 function normeRefroidissement(x) {
   const type = x && typeof x === "object" ? x.type : x;
-  if (type === "negatif") return SURGELATION_NORME;
   const d = x && typeof x === "object" ? Number(x.dureeMaxMin) : NaN;
-  return d > 0 && d !== REFROIDISSEMENT_NORME.dureeMaxMin ? { ...REFROIDISSEMENT_NORME, dureeMaxMin: d } : REFROIDISSEMENT_NORME;
+  // La durée de l'alarme est portée par chaque refroidissement (fixée au démarrage : règle des collectivités, alarme de l'établissement
+  // ou durée saisie). Sans durée : aucune alarme de durée, on mesure et on enregistre seulement.
+  if (type === "negatif") return d > 0 ? { ...SURGELATION_NORME, dureeMaxMin: d } : SURGELATION_NORME;
+  return { ...REFROIDISSEMENT_NORME, dureeMaxMin: d > 0 ? d : Infinity };
 }
+const libDuree = (min) => (Number.isFinite(min) ? (min % 60 ? `${Math.floor(min / 60)} h ${String(min % 60).padStart(2, "0")}` : `${min / 60} h`) : "");
 
 function EtiquetteRefroidissement({ r, who }) {
   return (
@@ -15071,13 +15113,19 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
     setCuissonChoisieId(c.id);
   };
 
-  const dureeSansCelluleOk = celluleDispo || modeDemarrage === "negatif" || Number(dureeChoisie) > 0;
+  const ctxAlarmes = React.useContext(AlarmesContext) || {};
+  const collective = !!ctxAlarmes.collective;
+  const alarmeEtab = ((ctxAlarmes.alarmes || {})[modeDemarrage === "negatif" ? "congelation" : "refroidissement"]) || {};
+  // Durée de l'alarme : collectivité = 120 min obligatoires ; sinon l'alarme réglée par l'établissement, sinon la durée saisie, sinon aucune.
+  const dureeAlarme = collective && modeDemarrage !== "negatif" ? REFROIDISSEMENT_NORME.dureeMaxMin
+    : Number(dureeChoisie) > 0 ? Number(dureeChoisie) : Number(alarmeEtab.minutes) > 0 ? Number(alarmeEtab.minutes) : null;
+  const dureeSansCelluleOk = true;
   const demarrer = () => {
     if (!produit || tempDebut === "" || !dureeSansCelluleOk) return;
     // Un produit venant d'une cuisson (choisi dans la liste, ou saisi avec le même nom) ne doit être refroidi qu'une fois :
     // on le relie à sa cuisson, qui disparaît alors de « à mettre en refroidissement ».
     const cuissonLiee = cuissonsPretes.find((c) => c.id === cuissonChoisieId) || cuissonsPretes.find((c) => (c.produit || "").trim().toLowerCase() === produit.trim().toLowerCase());
-    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : (cuissonRetourId || undefined), origineRetourCuisson: cuissonRetourId || undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, ...(!celluleDispo && modeDemarrage !== "negatif" ? { dureeMaxMin: Number(dureeChoisie) } : {}), quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
+    const entry = { id: uid(), date: today, employeeId: currentUserId, produit, type: modeDemarrage, origineCuissonId: cuissonLiee ? cuissonLiee.id : (cuissonRetourId || undefined), origineRetourCuisson: cuissonRetourId || undefined, origineMaintienId: maintienId || undefined, heureDebut: heureDepart, debutTs: Date.now(), tempDebut, ...(dureeAlarme ? { dureeMaxMin: dureeAlarme } : {}), quantite: quantite !== "" ? quantite : null, unite: quantite !== "" ? unite : null, notes: notes.trim() || null, heureFin: null, tempFin: null, dureeMin: null, conforme: null, statut: "en-cours", derniereAlerte: null, anomalie: null };
     setRefroidissements([entry, ...refroidissements]);
     if (cuissonLiee && setCuissons) setCuissons((prev) => prev.map((c) => (c.id === cuissonLiee.id ? { ...c, refroidissementLance: true } : c)));
     setCuissonChoisieId(null); setMaintienId(null); setCuissonRetourId(null);
@@ -15158,11 +15206,11 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 mb-5">
         <button onClick={() => setModeDemarrage("positif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${!neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
           <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Refroidissement</span>
-          <span className="block text-xs text-[var(--steel)] mt-1">{celluleDispo ? "Refroidir un plat cuit avec la cellule : de +63 °C à +10 °C en moins de 2 h (repère), puis conservation entre 0 et +3 °C." : "Refroidir un plat cuit sans cellule (en chambre froide, bacs peu épais) : de +63 °C à +10 °C, dans la durée que vous vous fixez."}</span>
+          <span className="block text-xs text-[var(--steel)] mt-1">{celluleDispo ? "Refroidir un plat cuit avec la cellule : de +63 °C à +10 °C (repère du guide officiel : moins de 2 h ; obligatoire en restauration collective), puis conservation à la température du produit." : "Refroidir un plat cuit sans cellule (en chambre froide, bacs peu épais) : de +63 °C à +10 °C, dans la durée que vous vous fixez."}</span>
         </button>
         <button onClick={() => setModeDemarrage("negatif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
           <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Congélation</span>
-          <span className="block text-xs text-[var(--steel)] mt-1">Congeler / surgeler : passer sous −18 °C. Aucun texte ne fixe de durée : le logiciel vous alerte à 4 h 30 (réglage du logiciel, pas une norme). Jamais de produit déjà décongelé.</span>
+          <span className="block text-xs text-[var(--steel)] mt-1">Congeler : atteindre −18 °C à cœur le plus rapidement possible. Aucun texte ne fixe de durée : alarme seulement si votre établissement en a réglé une. Jamais de produit déjà décongelé.</span>
         </button>
       </div>
 
@@ -15212,9 +15260,15 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
             </Field>
             <Field label="Température de départ (°C)"><input className={inputCls} type="number" inputMode="decimal" value={tempDebut} onChange={(e) => setTempDebut(e.target.value)} placeholder={neg ? "Ex. : 4" : "Ex. : 85"} /></Field>
             <Field label="Heure de départ"><input className={inputCls} type="time" value={heureDepart} onChange={(e) => setHeureDepart(e.target.value)} /></Field>
-            {!celluleDispo && !neg && (
-              <Field label="Durée maximale que vous vous fixez (minutes)">
-                <input className={inputCls} type="number" inputMode="numeric" min="1" value={dureeChoisie} onChange={(e) => setDureeChoisie(e.target.value)} placeholder="À définir dans votre PMS" />
+            {!(collective && !neg) && (
+              <Field label={`Alarme de durée (minutes, facultatif)${Number(alarmeEtab.minutes) > 0 ? ` — réglée : ${alarmeEtab.minutes} min` : ""}`}>
+                <input className={inputCls} type="number" inputMode="numeric" min="1" value={dureeChoisie} onChange={(e) => setDureeChoisie(e.target.value)} placeholder={Number(alarmeEtab.minutes) > 0 ? `${alarmeEtab.minutes} (votre réglage)` : "Aucune alarme"} />
+                <span className="block text-xs text-[var(--steel)] mt-1">{neg ? "Aucun texte ne fixe de durée de congélation : le produit doit atteindre −18 °C à cœur le plus rapidement possible (directive 89/108/CEE)." : "Aucune durée n'est imposée à un restaurant : c'est la personne qui fait le PMS qui la fixe et la justifie. Repère du guide officiel, reconnu par les inspecteurs : +63 → +10 °C en moins de 2 h (obligatoire en restauration collective)."} Vos alarmes se règlent dans Paramétrage &gt; Appareils de froid.</span>
+              </Field>
+            )}
+            {false && (
+              <Field label="">
+                <input className={inputCls} value={dureeChoisie} onChange={(e) => setDureeChoisie(e.target.value)} />
                 <span className="block text-xs text-[var(--steel)] mt-1">Aucune durée n'est imposée en remise directe : c'est vous qui la choisissez et qui la justifiez dans votre PMS. Le logiciel la mesure et l'enregistre. Pas de cellule déclarée : à modifier dans les réglages de l'établissement.</span>
               </Field>
             )}
@@ -15245,7 +15299,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
             const minutes = Math.floor((Date.now() - r.debutTs) / 60000);
             const depasse = minutes >= norme.dureeMaxMin;
             const saisie = finForm[r.id] || {};
-            const pct = Math.min(100, Math.round((minutes / norme.dureeMaxMin) * 100));
+            const pct = Number.isFinite(norme.dureeMaxMin) ? Math.min(100, Math.round((minutes / norme.dureeMaxMin) * 100)) : 0;
             return (
               <div key={r.id} className={`border rounded-xl p-3.5 ${depasse ? "border-[var(--warn)] bg-[var(--warn-soft)]" : "border-[var(--line)]"}`}>
                 <div className="flex flex-wrap items-center gap-2 mb-1">
@@ -15261,7 +15315,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
                 </div>
                 {r.notes && <p className="text-xs text-[var(--steel)] mb-2">Notes : {r.notes}</p>}
                 <div className="mb-3">
-                  <div className={`text-xs mb-1 ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? ` — délai de ${norme.dureeMaxMin / 60} h dépassé !` : ` sur ${norme.dureeMaxMin} min maximum`}</div>
+                  <div className={`text-xs mb-1 ${depasse ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{minutes} min écoulées{depasse ? ` — délai de ${libDuree(norme.dureeMaxMin)} dépassé !` : Number.isFinite(norme.dureeMaxMin) ? ` sur ${norme.dureeMaxMin} min (alarme)` : " (pas d'alarme de durée)"}</div>
                   <div className="h-2 rounded-full bg-[var(--line)] overflow-hidden"><div className="h-full rounded-full" style={{ width: `${pct}%`, backgroundColor: depasse ? "#E5243B" : "#14653A" }} /></div>
                 </div>
 
@@ -16008,7 +16062,9 @@ function EtiquetteDlcImprimable({ produitNom, lot, dlcDate, date, heure, who, em
         {decongelationInfo && (
           <div>Décongelé le : <strong>{decongelationInfo.dateAffichee}</strong> — jamais recongelé</div>
         )}
-        <div className="font-semibold text-base mt-1">{typeDlc === "ddm" ? "DDM" : typeDlc === "ouverture" ? "DLC après ouverture" : "DLC/DDM"} : {dlcDate}</div>
+        {dlcDate
+          ? <div className="font-semibold text-base mt-1">{typeDlc === "ddm" ? "DDM" : typeDlc === "ouverture" ? "DLC après ouverture" : "DLC/DDM"} : {dlcDate}</div>
+          : <div className="font-semibold text-base mt-1">DLC : ____ / ____ / ______ <span className="block text-xs font-normal">Durée non fixée : à écrire à la main (le chef est prévenu).</span></div>}
       </div>
     </div>
   );
@@ -16807,10 +16863,12 @@ function GestionCatalogueDlc({ produits, setProduits, logActivity }) {
 }
 
 // Règles de décongélation d'un produit surgelé : méthode et durée réglées par le chef sur la fiche produit.
-// Par défaut : chambre froide 0 à +3 °C, DLC en J+3 (jour de début compris). Jamais de température ambiante.
+// Aucune durée par défaut (décision du 25/11) : d'abord la durée du fabricant, sinon celle fixée dans le PMS par l'établissement ;
+// sinon rien n'est proposé (l'étiquette sort avec la date de fabrication et une alerte part au chef et au directeur).
+// Méthode : enceinte réfrigérée entre 0 °C et la température maximale du produit, à défaut 0 à +4 °C (arrêté du 21/12/2009, annexe VI).
 function reglesDecongelation(p) {
   const methode = p && p.decongelMethode === "cuisson" ? "cuisson" : p && p.decongelMethode === "fabricant" ? "fabricant" : "froid";
-  const jours = p && Number.isFinite(Number(p.decongelJours)) && Number(p.decongelJours) >= 1 ? Number(p.decongelJours) : 3;
+  const jours = p && p.decongelJours !== "" && p.decongelJours != null && Number.isFinite(Number(p.decongelJours)) && Number(p.decongelJours) >= 1 ? Number(p.decongelJours) : null;
   return { methode, jours, source: (p && p.decongelSource) || "" };
 }
 
@@ -16826,9 +16884,9 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
     if (p.dlcJours != null && Number.isFinite(Number(p.dlcJours))) {
       return { ddm: false, dlcDate: addDays(todayISO(), Number(p.dlcJours)), jours: Number(p.dlcJours), source: "produit", repere: "", typeDlc: "ouverture" };
     }
+    // Le tableau de repères n'est PLUS appliqué tout seul (décision du 25/11) : c'est un conseil, affiché seulement.
     const r = repereDlcOuverture(p.nom, surgele);
-    if (r) return { ddm: false, dlcDate: addDays(todayISO(), r.jours), jours: r.jours, source: "haccp", repere: r.repere, typeDlc: "ouverture" };
-    return { ddm: false, dlcDate: "", jours: null, source: "aucune", repere: "", typeDlc: "ouverture" };
+    return { ddm: false, dlcDate: "", jours: null, source: "aucune", repere: r ? r.repere : "", typeDlc: "ouverture" };
   };
   const lotDe = (p) => (modeMigre ? (p.ddmLotActuel || genererLot(p.nom)) : (estDdm(p) && p.ddmLotActuel ? p.ddmLotActuel : genererLot(p.nom)));
 
@@ -16875,13 +16933,24 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
 
   const toggleSelection = (id) => setSelection((s) => (s.includes(id) ? s.filter((x) => x !== id) : [...s, id]));
 
+  const rapideEtiq = React.useContext(RapideContext) || {};
   const confirmerAssistant = (lignes) => {
+    // Durée non fixée (ni par le fabricant ni dans le PMS) : l'étiquette sort quand même avec la date de fabrication, la DLC est à
+    // écrire à la main, et une alerte part au chef et au directeur pour compléter le produit (décision du 25/11).
+    // Un produit à DDM sans date reste sans étiquette (la DDM vient de l'emballage, mise à jour à la réception).
+    lignes = lignes.filter((l) => l.decongele || l.dlcDate || l.typeDlc !== "ddm");
+    const sansDuree = lignes.filter((l) => (l.decongele ? !l.decongelJours : !l.dlcDate));
+    if (sansDuree.length && rapideEtiq.ajouterAlerteControle) {
+      const d = new Date();
+      sansDuree.forEach((l) => rapideEtiq.ajouterAlerteControle({ id: uid(), date: todayISO(), heure: d.toTimeString().slice(0, 5), type: "Durée non fixée", employeeId: currentUserId,
+        titre: `Durée non fixée : ${l.nom}`, detail: `Étiquette imprimée sans DLC (date de fabrication seulement). Complétez la fiche du produit : durée du fabricant, sinon durée fixée dans votre PMS.${l.repereHaccp ? ` Conseil (pas une norme) : ${l.repereHaccp}.` : ""}` }));
+    }
     const entries = lignes
-      .filter((l) => l.dlcDate)
       .map((l) => {
-        const dlcFinale = l.decongele ? addDays(l.decongelDate, (l.decongelJours || 3) - 1) : l.dlcDate;
+        const sans = l.decongele ? !l.decongelJours : !l.dlcDate;
+        const dlcFinale = sans ? "" : l.decongele ? addDays(l.decongelDate, (l.decongelJours) - 1) : l.dlcDate;
         const decongelationInfo = l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null;
-        return creerEtiquetteDlc({ produitNom: l.nom, lot: l.lot, dlcDate: dlcFinale, photo: null, quantiteUtilisee: l.quantiteUtilisee, nbEtiquettes: l.nbEtiquettes, decongelationInfo, typeDlc: l.decongele ? undefined : l.typeDlc });
+        return creerEtiquetteDlc({ sansDlc: sans, produitNom: l.nom, lot: l.lot, dlcDate: dlcFinale, photo: null, quantiteUtilisee: l.quantiteUtilisee, nbEtiquettes: l.nbEtiquettes, decongelationInfo, typeDlc: l.decongele ? undefined : l.typeDlc });
       })
       .filter(Boolean)
       .map((e) => ({ ...e, produitNom: e.nomLibre }));
@@ -17028,7 +17097,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
             <div key={p.id} className="px-4 py-3 border-b border-[var(--line)] last:border-b-0">
               <div className="text-sm font-semibold text-[var(--ink)] break-words">{p.nom}</div>
               <div className="text-xs text-[var(--steel)] mb-2">{infoEtiq(p).ddm ? "DDM" : "DLC après ouverture"} : {infoEtiq(p).dlcDate ? infoEtiq(p).dlcDate.split("-").reverse().join("/") : "à renseigner"}</div>
-              {!infoEtiq(p).dlcDate && <p className="text-xs text-[var(--warn)] mb-2">{infoEtiq(p).ddm ? "DDM non renseignée : pas d'étiquette possible. À mettre à jour depuis la réception." : "Pas de DLC après ouverture : pas d'étiquette possible. À renseigner dans la fiche produit."}</p>}
+              {!infoEtiq(p).dlcDate && <p className="text-xs text-[var(--warn)] mb-2">{infoEtiq(p).ddm ? "DDM non renseignée : pas d'étiquette possible. À mettre à jour depuis la réception." : "Durée non fixée : l'étiquette sortira avec la date de fabrication, la DLC sera à écrire à la main et le chef sera prévenu."}</p>}
               <input className={`${inputCls} w-full mb-2`} value={qteParProduit[p.id] || ""} onChange={(e) => setQteParProduit((m) => ({ ...m, [p.id]: e.target.value }))} placeholder="Quantité utilisée (ex : 2 kg)" aria-label={`Quantité utilisée pour ${p.nom}`} />
               <div className="flex items-center gap-2">
                 <button type="button" className={boutonPm} onClick={() => changerNb(p.id, -1)} aria-label={`Une étiquette de moins pour ${p.nom}`}>−</button>
@@ -17055,7 +17124,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                               <Field label="Date de début"><input className={inputCls} type="date" value={decongDe(p.id).date} onChange={(e) => majDecong(p.id, { date: e.target.value })} /></Field>
                               <Field label="Heure de début"><input className={inputCls} type="time" value={decongDe(p.id).heure} onChange={(e) => majDecong(p.id, { heure: e.target.value })} /></Field>
                             </div>
-                            <p className="text-xs text-[var(--steel)] mt-2">À mettre en chambre froide (0 à +3 °C), couvert, sur une grille. Jamais à température ambiante. L'étiquette portera « Décongelé le … » et une DLC en J+{rg.jours} (jour de début compris){rg.source ? ` — ${rg.source}` : ""}. Jamais recongelé.</p>
+                            <p className="text-xs text-[var(--steel)] mt-2">À décongeler en enceinte réfrigérée, entre 0 °C et la température maximale du produit (à défaut 0 à +4 °C, arrêté du 21/12/2009, annexe VI), couvert, sur une grille. Jamais à température ambiante. L'étiquette portera « Décongelé le … » et {rg.jours ? `une DLC en J+${rg.jours}` : "aucune DLC (durée non fixée : à écrire à la main, le chef est prévenu)"} (jour de début compris){rg.source ? ` — ${rg.source}` : ""}. Jamais recongelé.</p>
                           </>
                         )}
                       </>
@@ -17080,7 +17149,7 @@ function EtiquettesDlc({ stock, jeterStock, preparations, jeterPreparation, curr
                   l.dlcDate ? (
                     <div key={l.produitId} className="overflow-hidden">
                       {l.nbEtiquettes > 1 && <p className="text-xs text-[var(--steel)] text-center mb-1">× {l.nbEtiquettes} étiquettes identiques</p>}
-                      <EtiquetteDlcImprimable typeDlc={l.decongele ? undefined : l.typeDlc} produitNom={l.nom} lot={l.lot} dlcDate={l.decongele ? addDays(l.decongelDate, (l.decongelJours || 3) - 1) : l.dlcDate} date={todayISO()} heure={new Date().toTimeString().slice(0, 5)} who={who} employeeId={currentUserId} decongelationInfo={l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null} />
+                      <EtiquetteDlcImprimable typeDlc={l.decongele ? undefined : l.typeDlc} produitNom={l.nom} lot={l.lot} dlcDate={l.decongele ? (l.decongelJours ? addDays(l.decongelDate, l.decongelJours - 1) : "") : l.dlcDate} date={todayISO()} heure={new Date().toTimeString().slice(0, 5)} who={who} employeeId={currentUserId} decongelationInfo={l.decongele ? { dateAffichee: `${fmtShort(l.decongelDate)} à ${l.decongelHeure}` } : null} />
                     </div>
                   ) : null
                 ))}
@@ -18322,7 +18391,7 @@ const FICHES_NORMES = {
         contenu: "La réglementation demande à chaque établissement de fixer et de justifier lui-même sa propre DLC interne, en s'appuyant sur les Guides de Bonnes Pratiques d'Hygiène (GBPH) de son secteur. Le tableau ci-dessous, largement utilisé en formation HACCP, vous est donc mis à disposition comme base de connaissance (viandes, poissons, charcuterie, produits laitiers, sauces, etc.) — ce n'est pas une loi, mais une base sérieuse et croisée sur plusieurs sources professionnelles.",
       },
       {
-        titre: "Tableau de repères (source non identifiée : à ne pas citer comme norme)",
+        titre: "Tableau de repères — Conseil, pas une norme HACCP. Ce tableau vient d'un document professionnel non officiel, utilisé en formation hygiène. La personne qui établit le PMS est responsable des durées qu'elle retient : elle doit s'assurer que son produit entre bien dans ce cadre (composition, fabrication, conditions de stockage). En cas de doute, la durée indiquée par le fabricant prime. Pour valider une durée, ou la prolonger, l'établissement peut faire analyser le produit par un laboratoire accrédité (COFRAC) : c'est le test de vieillissement, qui sert de justificatif dans le PMS.",
         type: "tableau",
         contenu: [
           { categorie: "Viandes", produit: "Viande crue (steak, escalope...)", duree: "2 à 3 jours" },
@@ -18450,7 +18519,7 @@ const FICHES_NORMES = {
         titre: "Statut de ces règles (source)",
         contenu: [
           "Arrêté du 21/12/2009, annexe I (températures de conservation) : −18 °C pour les glaces, viandes hachées, préparations de viandes et produits de la pêche congelés ; −12 °C pour les autres denrées congelées. Tableau lu sur une copie préfectorale et dans le guide (page 179) : à reconfirmer sur Légifrance.",
-          "Aucun texte lu ne fixe de durée de surgélation (le logiciel utilise 4 h 30, valeur sans source).",
+          "Aucun texte ne fixe de durée de congélation : le produit doit passer rapidement la zone de cristallisation et atteindre −18 °C à cœur (directive 89/108/CEE). La durée annoncée par le fabricant de la cellule est une performance de l'appareil, pas une norme ; l'établissement peut en faire son alarme (Paramétrage > Appareils de froid).",
           "Décongélation : arrêté du 21/12/2009, annexe VI (texte lu sur Légifrance le 20/10/2026), applicable à tous les établissements.",
         ],
       },
@@ -18467,7 +18536,7 @@ const FICHES_NORMES = {
           "8. Si pas de sonde-pilote : surveiller régulièrement et arrêter quand la denrée la plus compacte est < -18°C.",
           "9. Sortir les préparations et les stocker dans une enceinte négative < -18°C.",
           "10. Enregistrer l'heure et la température de sortie.",
-          "11. Calculer la durée de surgélation (sortie moins entrée). Aucun texte ne fixe de durée : le logiciel alerte à 4 h 30 (réglage du logiciel, pas une norme).",
+          "11. Noter la durée de congélation (sortie moins entrée). Aucun texte ne fixe de durée : alarme seulement si l'établissement en a réglé une.",
         ],
       },
       {
@@ -21697,7 +21766,7 @@ function HistoriqueJournee({ integre, receptions = [], alertes = [], onOuvrir, t
                   <input type="number" inputMode="decimal" autoFocus className={`${inputCls} w-full`} value={saisieFin.temp} onChange={(e) => setSaisieFin({ ...saisieFin, temp: e.target.value })} placeholder="Ex. 74" />
                   <p className="text-xs text-[var(--steel)] mt-1">
                     {fin.type === "cuisson" && `Seuil de ce plat : ${seuilCuissonEntree(it)} °C minimum.`}
-                    {fin.type === "refroidissement" && `Cible : moins de ${norme.finMax} °C en ${Math.floor(norme.dureeMaxMin / 60)} h ${norme.dureeMaxMin % 60 ? String(norme.dureeMaxMin % 60).padStart(2, "0") : ""}. Durée actuelle : ${Math.floor(dureeMin / 60)} h ${String(dureeMin % 60).padStart(2, "0")}.`}
+                    {fin.type === "refroidissement" && `Cible : moins de ${norme.finMax} °C${Number.isFinite(norme.dureeMaxMin) ? ` en ${libDuree(norme.dureeMaxMin)}` : ""}. Durée actuelle : ${Math.floor(dureeMin / 60)} h ${String(dureeMin % 60).padStart(2, "0")}.`}
                     {fin.type === "maintien" && "Minimum 63 °C."}
                   </p>
                   {depasse && (
@@ -24385,7 +24454,7 @@ function Taches({ tasks, addTask: createTask, removeTask, updateTask, toggleTask
       const infos = [
         ...(fournisseursPlanning || []).filter((f) => jourPrevuPlanning(f.planning_livraison, today)).map((f) => ({ cle: "liv" + f.id, nom: `Livraison ${f.nom} — réception à faire à l'arrivée`, tag: "Aujourd'hui", ton: "bleu" })),
         ...(peutGererPlanning ? (fournisseursPlanning || []).filter((f) => jourPrevuPlanning(f.planning_commande, today)).map((f) => ({ cle: "cmd" + f.id, nom: `Commande ${f.nom} à passer`, tag: "Aujourd'hui", ton: "bleu" })) : []),
-        ...refroids.map((r) => { const restant = normeRefroidissement(r).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
+        ...refroids.map((r) => { const restant = normeRefroidissement(r).dureeMaxMin - Math.floor((Date.now() - r.debutTs) / 60000); return { cle: "r" + r.id, nom: `${r.type === "negatif" ? "❄ " : ""}${r.produit} (refroidissement)`, tag: !Number.isFinite(restant) ? "En cours" : restant <= 0 ? "Dépassé" : `${restant} min restantes`, ton: restant <= 0 ? "rouge" : restant <= 15 ? "or" : "bleu" }; }),
         ...maintien.map((e) => ({ cle: "m" + e.id, nom: `${e.nom} (maintien au chaud)`, tag: `depuis ${Math.floor((Date.now() - e.debutTs) / 60000)} min`, ton: "bleu" })),
         ...preparations.filter((p) => !p.jete && p.dlcDate === demain).map((p) => ({ cle: "a" + p.id, nom: `${nomProduit(p)} — ${p.quantite}`, tag: "À utiliser ce soir", ton: "or" })),
         ...stock.filter((s) => s.dlc === demain && Number(s.quantite) > 0).map((s) => ({ cle: "c" + s.id, nom: `${s.nom} — ${s.quantite} ${s.unite || ""}`.trim(), tag: "DLC demain", ton: "or" })),
@@ -25613,6 +25682,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const [controlesSoirExternes, setControlesSoirExternes] = useListeExterne(identiteExterne, "controlesSoir");
   const controleSoirEnBase = !!(modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.controlesSoir);
   const [reglageControle, setReglageControle] = useStored("controles-fin-service", null);
+  const [alarmesDuree, setAlarmesDuree] = useStored("alarmes-duree", {});
   const setNotificationsFournisseur = modeExterne && identiteExterne.gestionListes && identiteExterne.gestionListes.notifications ? setNotificationsExternes : setNotificationsMemoire;
   // Carnet d'adresses e-mail fournisseur — { [nomFournisseur]: "email@..." } — permet de pré-remplir
   // le destinataire du mailto: de notification de non-conformité. Enregistré/modifié directement
@@ -26333,8 +26403,8 @@ function KitchenApp({ identiteExterne } = {}) {
     }
   }, [fiches, addTaskShared, stock, setStock, logActivitySafe]);
 
-  const creerEtiquetteDlc = useCallback(({ produitNom, lot, dlcDate, photo, photos, quantiteUtilisee, nbEtiquettes, photoEtiquette, allergenes, origine, codeUsine, delaiApresOuvertureJours, decongelationInfo, typeDlc }) => {
-    if (!dlcDate) return null;
+  const creerEtiquetteDlc = useCallback(({ sansDlc, produitNom, lot, dlcDate, photo, photos, quantiteUtilisee, nbEtiquettes, photoEtiquette, allergenes, origine, codeUsine, delaiApresOuvertureJours, decongelationInfo, typeDlc }) => {
+    if (!dlcDate && !sansDlc) return null;
     // Info cuisson / refroidissement la plus récente pour ce produit, à faire apparaître sur
     // l'étiquette (le produit a-t-il été cuit ou refroidi lors de sa préparation ?).
     const nomPropre = (produitNom || "").trim().toLowerCase();
@@ -26804,6 +26874,7 @@ function KitchenApp({ identiteExterne } = {}) {
   return (
     <FichesNomsContext.Provider value={(fiches || []).map((f) => f.nom).filter(Boolean)}>
     <NettoyageContext.Provider value={valeurNettoyageFin}>
+    <AlarmesContext.Provider value={{ alarmes: alarmesDuree, setAlarmes: setAlarmesDuree, collective: estRestaurationCollective(reglagesEtablissementApp) }}>
     <ControleSoirContext.Provider value={{
       controlesSoir: controleSoirEnBase ? controlesSoirExternes : undefined,
       setControlesSoir: controleSoirEnBase ? setControlesSoirExternes : undefined,
@@ -27244,6 +27315,7 @@ function KitchenApp({ identiteExterne } = {}) {
     </RapideContext.Provider>
     </AccesContext.Provider>
     </ControleSoirContext.Provider>
+    </AlarmesContext.Provider>
     </NettoyageContext.Provider>
     </FichesNomsContext.Provider>
   );
