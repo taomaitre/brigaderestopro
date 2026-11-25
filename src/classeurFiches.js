@@ -1,4 +1,4 @@
-// Compléter les fiches techniques avec le classeur « Fiches techniques Games Factory » (ingrédients, matériel, étapes,
+// Compléter les fiches techniques avec le classeur « Fiches techniques macuisine » (ingrédients, matériel, étapes,
 // points HACCP, refroidissement, rendement, conservation, non-conformité, traçabilité, étiquetage).
 // Règles : on ne touche QUE les fiches qui n'ont encore aucune étape de préparation et qui n'ont pas déjà été complétées ;
 // on garde tout le reste de la fiche (allergènes, coût, groupe, ordre, code, poste) ; les ingrédients déjà reliés au stock

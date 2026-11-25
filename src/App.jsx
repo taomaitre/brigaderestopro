@@ -882,7 +882,7 @@ const DEFAULT_STOCK = [
   stockItem("", "Sauce moutarde à l'ancienne", "kg", "Épicerie / Huiles", "Sysco", "introuvable sur la fiche fournisseur", "13,71 €/kg (indiqué mais réf. absente)", false, ""),
 ];
 
-// DLC corrigées d'après votre fiche "Durées de conservation — cuisine" (Games Factory Salaise, affichage HACCP).
+// DLC corrigées d'après votre fiche "Durées de conservation — cuisine" (macuisine Salaise, affichage HACCP).
 // Pour les fourchettes (ex. J+3–J+5), la valeur la plus prudente (la plus courte) a été retenue par défaut.
 // Fiches techniques transcrites depuis le classeur cuisine (FT-01 à FT-11). FT-12 (récapitulatif/mémo) non repris tel quel :
 // son contenu (barèmes, réflexes quotidiens) est déjà couvert par les fiches individuelles ci-dessous.
@@ -10947,7 +10947,7 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
   const [edition, setEdition] = useState(null);
   const [recherche, setRecherche] = useState("");
   const [categorieFiltre, setCategorieFiltre] = useState(null);
-  // Compléter les fiches avec le classeur Games Factory : seules les fiches du classeur sans étapes de préparation sont concernées.
+  // Compléter les fiches avec le classeur macuisine : seules les fiches du classeur sans étapes de préparation sont concernées.
   const peutCompleter = !!(acces.estResponsable && setFichesCustom && !modeDirect);
   const fichesAComplete = peutCompleter ? fiches.filter((f) => NOMS_CLASSEUR.has(f.nom) && !f.classeurApplique && !(Array.isArray(f.preparation) && f.preparation.length > 0)) : [];
   const [classeurEtat, setClasseurEtat] = useState(null); // null | "confirmer" | "encours" | { nb } | { erreur }
@@ -11084,7 +11084,7 @@ function FichesTechniques({ cartes, utilisateurId, fiches, onDemarrerRefroidisse
             <p className="text-sm text-[var(--ink)]">Les fiches n'ont pas pu être complétées. Réessayez dans un instant.</p>
           ) : (
             <>
-              <p className="text-sm font-semibold text-[var(--ink)] mb-1">{fichesAComplete.length} fiche{fichesAComplete.length > 1 ? "s" : ""} à compléter avec votre classeur « Fiches techniques Games Factory »</p>
+              <p className="text-sm font-semibold text-[var(--ink)] mb-1">{fichesAComplete.length} fiche{fichesAComplete.length > 1 ? "s" : ""} à compléter avec votre classeur « Fiches techniques macuisine »</p>
               <p className="text-xs text-[var(--steel)] mb-3">Ajoute les ingrédients, le matériel, les étapes, les points de contrôle HACCP, le refroidissement, le rendement, la conservation et la conduite en cas de non-conformité. Les allergènes, les groupes, l'ordre et les liens avec le stock sont conservés. Seules les fiches encore vides d'étapes sont touchées.</p>
               {classeurEtat === "confirmer" ? (
                 <div className="flex flex-wrap gap-2">
@@ -25459,7 +25459,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const [employeesStockes, setEmployeesStockes] = useStored("planning-employees", DEFAULT_EMPLOYEES);
   // Prévisualisation (identiteExterne) : la liste d'équipe vient de la NOUVELLE base (chargée par
   // ConnexionReelle.jsx) et vit uniquement en mémoire — ainsi, rien n'est jamais écrit dans l'ancien
-  // stockage (les vraies données actuelles de Games Factory) depuis la prévisualisation. Les
+  // stockage (les vraies données actuelles de macuisine) depuis la prévisualisation. Les
   // modifications faites ici disparaissent au rechargement : la création/suppression durable
   // dans la nouvelle base sera ajoutée à l'étape suivante. Usage normal : comportement inchangé.
   const [employeesExternes, setEmployeesExternes] = useState(() => (identiteExterne && identiteExterne.equipe) || []);
@@ -25490,7 +25490,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const tempLogs = modeExterne ? tempLogsExternes : tempLogsStockes;
   const setTempLogs = modeExterne ? setTempLogsExternes : setTempLogsStockes;
   // Appareils, relevés et surveillances de température : ancien stockage en usage normal ; nouvelle base
-  // UNIQUEMENT en prévisualisation (jamais la liste d'appareils Games Factory intégrée au code).
+  // UNIQUEMENT en prévisualisation (jamais la liste d'appareils macuisine intégrée au code).
   const [equipementsFroidStockes, setEquipementsFroidStockes] = useStored("equipements-froid", DEFAULT_EQUIPEMENTS_FROID);
   const [equipementsFroidExternes, setEquipementsFroidExternes] = useListeExterne(identiteExterne, "equipements");
   const equipementsFroid = modeExterne ? equipementsFroidExternes : equipementsFroidStockes;
@@ -25588,7 +25588,7 @@ function KitchenApp({ identiteExterne } = {}) {
   const [zonesNettoyage, setZonesNettoyage] = useStoredOuMemoire("haccp-zones-nettoyage", ["Tous", "Poste Chaud", "Poste Pizza", "Poste Froid"], modeExterne, ["Tous"]);
   // Stock : en usage normal, ancien stockage (inchangé). En prévisualisation « nouvelle base »
   // (identiteExterne), le stock vient UNIQUEMENT de la nouvelle base (catalogue de l'établissement) —
-  // jamais du catalogue Games Factory intégré au code (DEFAULT_STOCK) — et les changements y sont enregistrés.
+  // jamais du catalogue macuisine intégré au code (DEFAULT_STOCK) — et les changements y sont enregistrés.
   const [stockStocke, setStockStocke] = useStored("stock-items", DEFAULT_STOCK);
   const [stockExterneEtat, setStockExterneEtat] = useState(() => (identiteExterne && identiteExterne.catalogue) || []);
   const stockExterneRef = useRef(stockExterneEtat);
@@ -25730,12 +25730,12 @@ function KitchenApp({ identiteExterne } = {}) {
     setEmployeesBase(liste.map((e) => { if (!e.remplacantActif && !e.remplaceChef) return e; const { remplacantActif, remplaceChef, ...reste } = e; return remplacantActif ? { ...reste, estChef: false } : reste; }));
   };
   // Tâches : en prévisualisation, en mémoire seulement (jamais l'ancien stockage, qui contient les tâches réelles de
-  // Games Factory) et sans les tâches Games Factory intégrées au code. Aucune tâche d'exemple : le chef crée les siennes. La vraie migration des tâches viendra plus tard.
+  // macuisine) et sans les tâches macuisine intégrées au code. Aucune tâche d'exemple : le chef crée les siennes. La vraie migration des tâches viendra plus tard.
   const [tasksStockees, setTasksStockees] = useStored("taches", DEFAULT_TASKS_POSTE_CHAUD);
   const [tasksExternes, setTasksExternes] = useState(() => []);
   const tasks = modeExterne ? tasksExternes : tasksStockees;
   const setTasks = modeExterne ? setTasksExternes : setTasksStockees;
-  // Catalogue des préparations maison : en prévisualisation, vide et en mémoire (pas celui de Games Factory) — fiches/traçabilité pas encore migrées.
+  // Catalogue des préparations maison : en prévisualisation, vide et en mémoire (pas celui de macuisine) — fiches/traçabilité pas encore migrées.
   const [produitsMemoire, setProduitsMemoire] = useStoredOuMemoire("produits-catalogue", DEFAULT_PRODUITS, modeExterne, []);
   // En prévisualisation : le catalogue DLC / étiquettes vient des produits de la nouvelle base (durée de conservation saisie dans la fiche produit).
   const catalogueExterne = modeExterne && identiteExterne ? identiteExterne.catalogue : null;
