@@ -15,7 +15,7 @@ import { POSTES, STATUTS_EQUIPE } from './listesEquipe.js';
    3) une fois connecté, on ne voit QUE les données de CET établissement (jamais celles
       d'un autre) — la vraie isolation de sécurité (RLS) de la nouvelle base.
 
-   Une fois ce test validé avec un établissement fictif (jamais Games Factory), ce mécanisme
+   Une fois ce test validé avec un établissement fictif (jamais macuisine), ce mécanisme
    sera repris pour construire le vrai écran de connexion de l'application définitive.
    ========================================================================================= */
 

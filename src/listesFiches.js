@@ -1,5 +1,5 @@
 // Listes de choix de la fiche technique (nouvelle version), généralisées à tous les restaurants — plus
-// seulement à la carte de Games Factory. Sources : structure d'une carte de restaurant français
+// seulement à la carte de macuisine. Sources : structure d'une carte de restaurant français
 // (tic-et-tac.com/carte-des-mets), matériel de cuisine professionnelle (quiditmieux.fr, sumup.com,
 // nelinkia.com) et fonctionnement d'un four mixte professionnel (electroluxprofessional.com).
 // Pour ajouter ou retirer un choix : modifier ici. Un choix « Autre » saisi par un employé est enregistré

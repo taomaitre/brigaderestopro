@@ -1,6 +1,6 @@
 #!/bin/bash
 # Construit l'appli dans tests/banc/sortie/ avec Supabase REMPLACÉ par un faux client vide (sb.js) :
-# aucune donnée réelle (ni Games Factory, ni la nouvelle base) ne peut être lue ou écrite par ces tests.
+# aucune donnée réelle (ni macuisine, ni la nouvelle base) ne peut être lue ou écrite par ces tests.
 set -e
 RACINE="$(cd "$(dirname "$0")/../.." && pwd)"
 OUT="$RACINE/tests/banc/sortie"; mkdir -p "$OUT"

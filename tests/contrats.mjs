@@ -64,9 +64,17 @@ const R = [
   ["Couleur Historique #0F766E", /#0F766E/, true],
   ["Couleur Contrôle (ambre) #F59E0B", /#F59E0B/, true],
 ];
+// Nom de l'ancien exploitant : remplacé par « macuisine » partout (demande de Loïc, 25/11). Écrit en morceaux pour ne pas figurer ici.
+{
+  const ancien = new RegExp('G' + 'ames[ _-]*F' + 'actory', 'i');
+  const lire = (d) => fs.readdirSync(new URL(d, import.meta.url), { withFileTypes: true }).flatMap((f) =>
+    f.isDirectory() ? lire(d + f.name + '/') : /\.(jsx?|mjs|json|md|sh|html|css)$/.test(f.name) ? [fs.readFileSync(new URL(d + f.name, import.meta.url), 'utf8')] : []);
+  const textes = [...lire('../src/'), ...lire('../tests/'), ...lire('../docs/'), ...lire('../scripts/')].join('\n');
+  R.push(["Plus aucun nom de l'ancien exploitant dans le logiciel, les tests et la documentation (remplacé par macuisine)", ancien, false, textes]);
+}
 let ko = 0;
-for (const [lib, re, doit] of R) {
-  const present = re.test(tout);
+for (const [lib, re, doit, texte] of R) {
+  const present = re.test(typeof texte === 'string' && texte.length > 20 ? texte : tout);
   const ok = present === doit;
   if (!ok) ko++;
   console.log(`${ok ? '✓' : '✗'} ${lib}${ok ? '' : doit ? ' — ABSENT du code' : ' — PRÉSENT alors qu’il doit avoir disparu'}`);
