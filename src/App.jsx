@@ -645,8 +645,10 @@ const DEFAULT_EQUIPEMENTS_FROID = [
   { id: uid(), nom: "Congélateur frites", type: "congelateur", min: null, max: -18 },
   { id: uid(), nom: "Congélateur personnel", type: "congelateur", min: null, max: -18 },
 ];
-const MARGE_ANOMALIE_FROID = 3;
-const MOTIFS_ANOMALIE_FROID = ["Porte restée ouverte", "Panne de matériel", "Autre"];
+// Écart qui déclenche la surveillance (recontrôle sous 30 min) : 2 °C, décision de Loïc (03/10) jamais codée jusqu'au 25/11.
+// Le vade-mecum « Remise directe » (item C401) note un écart de +2 à +3 °C en C, au-delà de +3 °C en D.
+const MARGE_ANOMALIE_FROID = 2;
+const MOTIFS_ANOMALIE_FROID = ["Ouvertures de porte trop fréquentes (service)", "Porte restée ouverte", "Panne de matériel", "Autre"];
 
 // Présélections proposées à l'ajout d'un appareil : on choisit d'abord Réfrigéré / Congelé,
 // puis le type précis d'appareil, ce qui pré-remplit la norme de température à respecter —
@@ -657,7 +659,7 @@ const PRESETS_EQUIPEMENT_FROID = {
     { label: "Frigo poisson", min: 0, max: 2 },
     { label: "Frigo produits laitiers / œufs", min: 0, max: 4 },
     { label: "Frigo légumes", min: 4, max: 8 },
-    { label: "Saladette", min: 3, max: 5 },
+    { label: "Saladette", min: 0, max: 4 },
     { label: "Chambre froide positive", min: 0, max: 4 },
     { label: "Frigo pâtisserie / desserts", min: 0, max: 4 },
     { label: "Autre (froid positif)", min: 0, max: 4 },
@@ -11414,10 +11416,10 @@ function haccpRowsFiche(S) {
   const ingOk = ingredientsRenseignes(S);
   if (ingOk.length) rows.push({ etape: "Réception", pointCritique: "Matières premières", aControler: "T° conforme (≤ +4 °C frais, ≤ +2 °C viande hachée), emballage intact, DLC" });
   if (p.froid.on) rows.push({ etape: "Préparation froide", pointCritique: "Chaîne du froid", aControler: "≤ +3 °C, préparée au plus près du service" });
-  if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 à +4 °C · DLC J+3 après sortie" : "Cuisson directe depuis le congelé" });
+  if (p.decongel.on) rows.push({ etape: "Décongélation", pointCritique: "CCP – T°", aControler: p.decongel.mode === "froid" ? "0 °C à la T° de conservation du produit (à défaut 0 à +4 °C) · DLC : durée du fabricant ou celle fixée par l'établissement" : "Cuisson directe depuis le congelé" });
   if (p.cuisson.on) rows.push({ etape: "Cuisson", pointCritique: "CCP – T° à cœur", aControler: `T° à cœur ≥ ${seuilCuissonPerso(p.cuisson)} °C${p.cuisson.coeurAutre ? ` — norme personnalisée sous la responsabilité de l'établissement${p.cuisson.coeurJustif ? ` (justification : ${p.cuisson.coeurJustif})` : ""}` : ""}${p.cuisson.appareil ? ` (${p.cuisson.appareil})` : ""}${resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) ? " · " + resumeParametresAppareil(p.cuisson.appareil, p.cuisson.parametres) : ""}` });
-  if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: (p.refroid.autre ? `${p.refroid.cibleTxt || "norme à préciser"}${MENTION_NORME_PERSO}${p.refroid.justif ? ` (justification : ${p.refroid.justif})` : ""}` : "+63 °C → +10 °C à cœur en moins de 2 h") + (p.refroid.mode === "sans" ? " · relevé obligatoire à 2 h" : "") });
-  if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C en moins de 4 h 30, étiquette « congelé le … »" });
+  if (p.refroid.on) rows.push({ etape: "Refroidissement", pointCritique: "CCP – rapidité", aControler: (p.refroid.autre ? `${p.refroid.cibleTxt || "norme à préciser"}${MENTION_NORME_PERSO}${p.refroid.justif ? ` (justification : ${p.refroid.justif})` : ""}` : "+63 °C → +10 °C à cœur (2 h : règle des collectivités, repère pour un restaurant)") + (p.refroid.mode === "sans" ? " · relevé à la durée fixée par l'établissement" : "") });
+  if (p.congel.on) rows.push({ etape: "Congélation", pointCritique: "T°", aControler: "≤ −18 °C (aucune durée fixée par les textes), étiquette « congelé le … »" });
   if (p.refroid.on || p.froid.on || (!p.maintien.on && ingOk.length)) rows.push({ etape: "Stockage", pointCritique: "T°", aControler: S.conservation.temp });
   rows.push({ etape: "Conservation", pointCritique: S.conservation.type, aControler: `Valable ${S.conservation.jours || "?"} jour(s) (jour de fabrication inclus)` });
   if (p.maintien.on) rows.push({ etape: "Maintien au chaud", pointCritique: "CCP – T°", aControler: `≥ +${p.maintien.autre ? (Number(p.maintien.temp) || "?") : Math.max(63, Number(p.maintien.temp) || 63)} °C à cœur${p.maintien.autre ? MENTION_NORME_PERSO + (p.maintien.justif ? ` (justification : ${p.maintien.justif})` : "") : ""}${p.maintien.duree ? " · " + p.maintien.duree : ""}` });
@@ -11427,7 +11429,7 @@ function haccpRowsFiche(S) {
 function nonConformitesFiche(S) {
   const p = S.procedes, a = [];
   if (p.cuisson.on) a.push("T° à cœur non atteinte : poursuivre la cuisson, ne pas envoyer.");
-  if (p.refroid.on) a.push("+10 °C non atteint en 2 h : ne pas stocker, jeter et enregistrer.");
+  if (p.refroid.on) a.push("+10 °C non atteint dans le délai fixé (2 h en restauration collective) : ne pas stocker, décider du sort du produit et enregistrer l'action corrective.");
   if (p.maintien.on) a.push("Maintien < +63 °C : remettre à température immédiatement ou jeter selon le PMS.");
   if (p.remise.on) a.push("+63 °C non atteint en 1 h : jeter, ne jamais refroidir à nouveau.");
   if (p.decongel.on) a.push("Produit décongelé : jamais recongelé.");
@@ -11454,7 +11456,7 @@ function etiquetageFiche(S) {
   if (S.allergenes.length) a.push(`Allergènes : ${S.allergenes.join(", ")}`);
   if (p.refroid.on) a.push(p.refroid.mode === "cellule" ? "Mention « Refroidi en cellule »" : "Mention « Refroidi en chambre froide »");
   if (p.congel.on) a.push("Mention « Congelé le … »");
-  if (p.decongel.on) a.push("Mention « Décongelé le … », DLC J+3 après sortie");
+  if (p.decongel.on) a.push("Mention « Décongelé le … » (traçabilité interne), DLC : durée du fabricant ou celle fixée par l'établissement");
   a.push("DLC/DDM calculée automatiquement, « à 23:59 » — pas de QR code");
   return a;
 }
@@ -11476,14 +11478,14 @@ function problemesFiche(S) {
   }
   if (p.cuisson.on && p.cuisson.appareil === "Friteuse") {
     const t = parseFloat(String((p.cuisson.parametres || {}).temperature || "").replace(",", "."));
-    if (Number.isFinite(t) && t > 180) out.push(["o", `Huile de friture à ${t} °C : ne pas dépasser 180 °C (l'huile se dégrade et devient nocive) — étape 3 · Cuisson, refroidissement, maintien au chaud.`]);
+    if (Number.isFinite(t) && t > 175) out.push(["o", `Huile de friture à ${t} °C : il est recommandé de rester sous 175 °C, l'huile se dégrade plus vite au-delà (vade-mecum « Remise directe », C403L08 : recommandation, pas une obligation) — étape 3 · Cuisson, refroidissement, maintien au chaud.`]);
   }
   if (/poisson/i.test(S.categorie || "") && p.froid.on && !p.cuisson.on) out.push(["o", "Poisson cru ou peu cuit (sushi, carpaccio, ceviche) : le poisson doit avoir été congelé à −20 °C à cœur pendant 24 h au moins (Anisakis) — vérifiez auprès du fournisseur (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.refroid.on && p.refroid.autre && !String(p.refroid.justif || "").trim()) out.push(["o", "Refroidissement : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.maintien.on && p.maintien.autre && !String(p.maintien.justif || "").trim()) out.push(["o", "Maintien au chaud : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.remise.on && p.remise.autre && !String(p.remise.justif || "").trim()) out.push(["o", "Remise en température : norme personnalisée sans justification — pensez à noter la preuve (analyse de laboratoire…) ; cela ne bloque pas, c'est votre responsabilité (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
   if (p.maintien.on && !p.maintien.autre && Number(p.maintien.temp) < 63) out.push(["r", "Maintien au chaud sous +63 °C : non conforme (étape 3 · Cuisson, refroidissement, maintien au chaud)."]);
-  if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["r", `DLC J+${S.conservation.jours} supérieure au maximum J+${dlcMaxFiche(S)} sans étude de vieillissement validée (étape 6 · Conservation & rendement).`]);
+  if (S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S)) out.push(["o", `DLC J+${S.conservation.jours} : au-delà de J+${dlcMaxFiche(S)}, vous devez pouvoir justifier cette durée (étude de durée de vie, données du fabricant). J+3 est la limite écrite pour la restauration collective ; pour un restaurant, aucun texte ne fixe de durée, mais une durée non justifiée vaut une note C au contrôle (étape 6 · Conservation & rendement).`]);
   if (!S.etapes.some((e) => e.titre.trim() || e.texte.trim())) out.push(["o", "Aucune étape de préparation (étape 5 · Préparation)."]);
   if (p.cuisson.on && !(p.cuisson.controles && p.cuisson.controles.temp === false) && !S.etapes.some((e) => e.crit === "cuisson")) out.push(["o", "Aucune étape marquée « T° de cuisson à relever » (étape 5 · Préparation)."]);
   if (!p.refroid.on && S.etapes.some((e) => e.crit === "refroid")) out.push(["o", "Une étape de préparation est marquée « début de refroidissement » mais Refroidissement n'est pas coché (étape 3 · Cuisson, refroidissement, maintien au chaud) : le contrôle de refroidissement ne sera pas demandé."]);
@@ -11994,7 +11996,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
     if (S.procedes.refroid.on) refroidissementStockage.push(S.procedes.refroid.mode === "cellule" ? `Refroidissement en cellule, bacs ouverts, sonde à cœur, puis stockage ${S.conservation.temp}.` : `Refroidissement sans cellule : bacs 5 cm max en chambre froide, relevé obligatoire à 2 h, puis stockage ${S.conservation.temp}.`);
     const consignesImportantes = lignesDepuisTexte(S.consignes);
     const dureeConservation = [`${S.conservation.type} : J+${S.conservation.jours} (jour de fabrication compris)`, `Température : ${S.conservation.temp}${S.conservation.contenant ? ", " + S.conservation.contenant : ""}`];
-    if (S.procedes.decongel.on) dureeConservation.push("Après décongélation : DLC J+3 à partir de la sortie du congélateur");
+    if (S.procedes.decongel.on) dureeConservation.push("Après décongélation : durée du fabricant, ou celle fixée par l'établissement dans son PMS");
     const rendement = [];
     const totalAvecUnite = /[a-zA-Zµ]/.test(String(S.rendement.total)) ? String(S.rendement.total).trim() : `${S.rendement.total} ${S.rendement.unite}`;
     if (S.rendement.total) rendement.push(`Total : ${totalAvecUnite}`);
@@ -12351,7 +12353,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               )}
             </ProcedeCard> )}
 
-            {(modeFiche === "expert" || S.procedes.refroid.on) && (<ProcedeCard titre="Refroidissement rapide" regle="+63 °C → +10 °C à cœur en moins de 2 h" actif={S.procedes.refroid.on} onToggle={() => majProcede("refroid", { on: !S.procedes.refroid.on })}>
+            {(modeFiche === "expert" || S.procedes.refroid.on) && (<ProcedeCard titre="Refroidissement rapide" regle="+63 °C → +10 °C à cœur (2 h : règle des collectivités, repère pour un restaurant)" actif={S.procedes.refroid.on} onToggle={() => majProcede("refroid", { on: !S.procedes.refroid.on })}>
               <div className="space-y-2">
                 <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 ${S.procedes.refroid.mode === "cellule" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"} ${!celluleDispo ? "opacity-50" : "cursor-pointer"}`}>
                   <input type="radio" disabled={!celluleDispo} checked={S.procedes.refroid.mode === "cellule"} onChange={() => majProcede("refroid", { mode: "cellule" })} className="mt-0.5" />
@@ -12359,9 +12361,9 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 </label>
                 <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.refroid.mode === "sans" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                   <input type="radio" checked={S.procedes.refroid.mode === "sans"} onChange={() => majProcede("refroid", { mode: "sans" })} className="mt-0.5" />
-                  <span><strong>Sans cellule</strong> — bacs peu épais (5 cm max) en chambre froide, relevé obligatoire à 2 h</span>
+                  <span><strong>Sans cellule</strong> — en chambre froide ; vous fixez la durée maximale au démarrage du refroidissement (aucun texte ne la fixe pour un restaurant)</span>
                 </label>
-                {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique atteint rarement +10 °C en 2 h : au relevé, si c'est au-dessus de +10 °C, non-conformité automatique (produit jeté et enregistré).</p>}
+                {S.procedes.refroid.mode === "sans" && <p className="text-xs text-[var(--warn)]">Un frigo classique refroidit lentement : au relevé, si le plat est encore au-dessus de +10 °C à la fin de la durée que vous avez fixée, c'est une non-conformité à enregistrer avec son action corrective.</p>}
                 <p className="text-xs text-[var(--steel)]">Le refroidissement à température ambiante n'est pas proposé : non conforme.</p>
               </div>
               {avecModes && <NormeAutreBloc titre="Norme de refroidissement" norme="+63 °C → +10 °C à cœur en moins de 2 h" note="Source : arrêté du 21/12/2009, annexe IV point 1 (écrit pour la restauration collective) : la température à cœur ne reste pas plus de 2 heures entre +63 °C et +10 °C. Pour un restaurant traditionnel (remise directe), aucune durée n'est fixée : le chef peut choisir « Autre » et justifier."
@@ -12388,7 +12390,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 {modeFiche === "expert" && !avecModes && <Field label="T° minimale à cœur (°C)"><input className={inputCls} type="number" min="63" value={S.procedes.maintien.temp} onChange={(e) => majProcede("maintien", { temp: e.target.value })} /></Field>}
                 {modeFiche === "expert" && <Field label="Durée maximale"><input className={inputCls} value={S.procedes.maintien.duree} onChange={(e) => majProcede("maintien", { duree: e.target.value })} placeholder="ex. durée du service" /></Field>}
               </div>
-              {avecModes && <NormeAutreBloc titre="Norme de maintien au chaud" norme="≥ +63 °C à cœur" note="Source : guide Restaurateur 2015, page imprimée 180 (« maintien à 63 °C ») ; arrêté du 21/12/2009 : 63 °C minimum."
+              {avecModes && <NormeAutreBloc titre="Norme de maintien au chaud" norme="≥ +63 °C à cœur" note="Norme (obligatoire pour tous) : arrêté du 21/12/2009, annexe I, « Plats cuisinés ou repas livrés chauds ou remis au consommateur : + 63 °C ». Une valeur plus basse n'est admise qu'avec une analyse des dangers validée."
                 autre={S.procedes.maintien.autre} valeur={S.procedes.maintien.autre ? S.procedes.maintien.temp : ""} justif={S.procedes.maintien.justif}
                 onNorme={() => majProcede("maintien", { autre: false, temp: 63, justif: "" })} onAutre={() => majProcede("maintien", { autre: true, temp: "" })}
                 onValeur={(v) => majProcede("maintien", { temp: v })} onJustif={(v) => majProcede("maintien", { justif: v })} />}
@@ -12403,7 +12405,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               )}
             </ProcedeCard> )}
 
-            {(modeFiche === "expert" || S.procedes.remise.on) && (<ProcedeCard titre="Remise en température" regle="+10 °C → ≥ cible à cœur en moins d'1 h" actif={S.procedes.remise.on} onToggle={() => majProcede("remise", { on: !S.procedes.remise.on })}>
+            {(modeFiche === "expert" || S.procedes.remise.on) && (<ProcedeCard titre="Remise en température" regle="≥ +63 °C à cœur (1 h : règle des collectivités ; 75 °C : repère du guide)" actif={S.procedes.remise.on} onToggle={() => majProcede("remise", { on: !S.procedes.remise.on })}>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                 <Field label="Appareil">
                   <select className={inputCls} value={S.procedes.remise.appareil} onChange={(e) => majProcede("remise", { appareil: e.target.value })}>
@@ -12418,7 +12420,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                   </select>
                 </Field>)}
               </div>
-              {avecModes && <NormeAutreBloc titre="Norme de remise en température" norme="+10 °C → ≥ +75 °C à cœur en moins d'1 h" note="Source : guide Restaurateur 2015, page imprimée 180 (barèmes ANSES, indicatifs) : réchauffage des plats préparés à +75 °C minimum. Arrêté du 21/12/2009, annexe IV (restauration collective) : 63 °C minimum."
+              {avecModes && <NormeAutreBloc titre="Norme de remise en température" norme="+10 °C → ≥ +75 °C à cœur en moins d'1 h" note="Repères, pas des normes pour un restaurant : +75 °C vient du guide Restaurateur 2015, page imprimée 180 (barèmes ANSES, indicatifs) ; « 1 h maximum et 63 °C minimum » vient de l'arrêté du 21/12/2009, annexe IV, écrit pour la restauration collective. Un bain-marie sert à maintenir au chaud, pas à réchauffer."
                 autre={S.procedes.remise.autre} valeur={S.procedes.remise.autre ? S.procedes.remise.cible : ""} justif={S.procedes.remise.justif}
                 onNorme={() => majProcede("remise", { autre: false, cible: 75, justif: "" })} onAutre={() => majProcede("remise", { autre: true, cible: "" })}
                 onValeur={(v) => majProcede("remise", { cible: v })} onJustif={(v) => majProcede("remise", { justif: v })} />}
@@ -12439,7 +12441,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
               </div>
             </ProcedeCard> )}
 
-            {(modeFiche === "expert" || S.procedes.decongel.on) && (<ProcedeCard titre="Décongélation" regle="0 à +4 °C · DLC J+3 après sortie" actif={S.procedes.decongel.on} onToggle={() => majProcede("decongel", { on: !S.procedes.decongel.on })}>
+            {(modeFiche === "expert" || S.procedes.decongel.on) && (<ProcedeCard titre="Décongélation" regle="Au réfrigérateur (0 °C à la T° du produit, à défaut 0 à +4 °C) ou cuisson directe" actif={S.procedes.decongel.on} onToggle={() => majProcede("decongel", { on: !S.procedes.decongel.on })}>
               <div className="space-y-2">
                 <label className={`flex items-start gap-2 text-sm border rounded-lg px-3 py-2 cursor-pointer ${S.procedes.decongel.mode === "froid" ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)]"}`}>
                   <input type="radio" checked={S.procedes.decongel.mode === "froid"} onChange={() => majProcede("decongel", { mode: "froid" })} className="mt-0.5" />
@@ -12521,7 +12523,7 @@ N'invente jamais une quantité illisible : laisse "" dans ce cas. Si l'image n'e
                 <span>Une étude de vieillissement validée justifie une DLC plus longue</span>
               </label>
               {S.conservation.type === "DLC" && Number(S.conservation.jours) > dlcMaxFiche(S) && (
-                <p className="text-xs text-[var(--warn)] mt-2"><strong>Non conforme</strong> — sans étude de vieillissement, une préparation maison est limitée à J+3 (jour de fabrication compris).</p>
+                <p className="text-xs text-[var(--warn)] mt-2"><strong>À justifier</strong> — J+3 est la limite écrite pour la restauration collective (arrêté du 21/12/2009, annexe IV). Pour un restaurant, aucun texte ne fixe de durée, mais vous devez pouvoir justifier la vôtre (étude de durée de vie, données du fabricant).</p>
               )}
             </div>
             </ZoneEtape>
@@ -14509,7 +14511,7 @@ function HaccpTemperatures({
           <span className="ml-auto">Dernière mise à jour : {(() => { const t = relevesFroid.filter((r) => r.date <= jourReleve).sort((x, y) => `${y.date} ${y.heure || ""}`.localeCompare(`${x.date} ${x.heure || ""}`))[0]; return t ? `${t.date === todayISO() ? "aujourd'hui" : t.date} à ${t.heure || "—"}` : "aucun relevé"; })()}</span>
         </div>
         <p className="text-[11px] leading-snug text-[var(--steel)] mb-1">La dernière température vient des sondes connectées (à venir). En attendant, saisissez un contrôle aléatoire au thermomètre laser — il sera enregistré avec votre nom, la date et l'heure.</p>
-        <p className="text-[11px] leading-snug text-[var(--steel)] mb-3">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min — c'est un réglage du logiciel, pas une marge officielle HACCP (aucune tolérance n'est admise sur ces températures), ajusté ici en attendant les préconisations du fabricant des sondes connectées.</p>
+        <p className="text-[11px] leading-snug text-[var(--steel)] mb-3">Tout relevé hors de la norme est enregistré comme non conforme. Un écart de plus de {MARGE_ANOMALIE_FROID}°C par rapport à la norme (ex. une porte restée ouverte ou un dégivrage en cours) déclenche en plus une surveillance avec recontrôle sous 30 min. Ce seuil est un réglage du logiciel, pas une tolérance : la norme reste la norme. À l'inspection, un écart de +2 à +3 °C est noté C et un écart de plus de +3 °C est noté D (vade-mecum « Remise directe », item C401).</p>
         <div className="overflow-x-auto rounded-lg border border-[var(--cadre)]">
           <table className="w-full text-sm border-collapse">
             <thead>
@@ -15024,7 +15026,7 @@ function HaccpRefroidissement({ fiches = [], onCuissonRefroidie, onMaintienRefro
         </button>
         <button onClick={() => setModeDemarrage("negatif")} className={`text-left rounded-xl border-2 px-4 py-3.5 ${neg ? "border-[var(--accent)] bg-[var(--accent-soft)]" : "border-[var(--line)] bg-white"}`}>
           <span className="flex items-center gap-2 text-base font-bold text-[var(--ink)]"><Snowflake size={20} /> Congélation</span>
-          <span className="block text-xs text-[var(--steel)] mt-1">Congeler / surgeler : passer sous −18 °C en moins de 4 h 30. Jamais de produit déjà décongelé.</span>
+          <span className="block text-xs text-[var(--steel)] mt-1">Congeler / surgeler : passer sous −18 °C. Aucun texte ne fixe de durée : le logiciel vous alerte à 4 h 30 (réglage du logiciel, pas une norme). Jamais de produit déjà décongelé.</span>
         </button>
       </div>
 
@@ -18027,18 +18029,22 @@ const FICHES_NORMES = {
         type: "tableau",
         colonnes: ["Famille de produits", "Température à réception"],
         contenu: [
-          { produit: "Produits surgelés", duree: "-18°C ou moins (tolérance technique -15°C max ponctuellement)" },
-          { produit: "Viandes fraîches, volailles", duree: "0°C à 4°C" },
-          { produit: "Poissons frais, crustacés (sur glace)", duree: "0°C à 2°C" },
-          { produit: "Produits laitiers, plats cuisinés réfrigérés, charcuterie", duree: "0°C à 4°C" },
-          { produit: "Fruits et légumes frais", duree: "Température ambiante à 8°C selon le produit" },
+          { produit: "Produits surgelés et congelés (glaces, viande hachée, poisson)", duree: "−18 °C ou moins (tolérance : +3 °C en surface, brièvement, au déchargement)" },
+          { produit: "Viande hachée", duree: "+2 °C maximum" },
+          { produit: "Poissons frais, crustacés et mollusques cuits", duree: "+2 °C maximum (glace fondante : 0 à +2 °C)" },
+          { produit: "Abats", duree: "+3 °C maximum" },
+          { produit: "Plats cuisinés élaborés à l'avance", duree: "+3 °C maximum" },
+          { produit: "Viandes de découpe, volailles, préparations de viande", duree: "+4 °C maximum" },
+          { produit: "Charcuterie, ovoproduits, autres produits très périssables", duree: "+4 °C maximum" },
+          { produit: "Lait pasteurisé, fromages affinés, produits emballés", duree: "Température indiquée par le fabricant" },
+          { produit: "Fruits et légumes frais", duree: "Aucune température fixée par les textes (selon le produit)" },
           { produit: "Conserves, épicerie sèche, boissons", duree: "Température ambiante — pas d'exigence de froid" },
         ],
       },
       {
         titre: "Contrôles à effectuer sur chaque livraison",
         contenu: [
-          "🌡 Température des produits : toutes les familles à réception — sonde ou thermomètre laser. Si non conforme : 2e puis 3e mesure pour validation. Nettoyer la sonde avec de l'alcool à 70° entre chaque produit.",
+          "🌡 Température des produits : toutes les familles à réception — sonde ou thermomètre laser. Bonne pratique (pas une norme) : si la mesure est mauvaise, la refaire une 2e puis une 3e fois ; nettoyer la sonde entre deux produits.",
           "👁 Référence produits et aspect : chaque lot — contrôle visuel (pourriture, odeur, décoloration, surgelés en bloc sans cristaux de givre excessifs signe de rupture de la chaîne du froid).",
           "⚖ Quantité : chaque lot — comptage ou pesée, comparaison avec le bon de commande.",
           "📦 Emballage / Étiquetage / Agrément : chaque lot — sous vide fuités, sacs déchirés ou ouverts, boîtes becquées, bombées ou rouillées, présence de l'étiquette, agrément vétérinaire sur les produits d'origine animale.",
@@ -18143,9 +18149,9 @@ const FICHES_NORMES = {
   lavageLegumes: {
     titre: "Lavage des fruits et légumes — Règles et repères HACCP",
     sections: [
-      { titre: "Qui / Quand / Où", contenu: "Personnel chargé de la légumerie — Avant de consommer ou d'utiliser les fruits et légumes (sauf légumes de 4e et 5e gamme et fruits dont la peau n'est pas consommée : banane, orange, clémentine…) — À la légumerie ou zone de plonge si opérations séparées dans le temps et matériel dédié." },
+      { titre: "Qui / Quand / Où (bonne pratique, sauf mention)", contenu: "Personnel chargé de la légumerie — Avant de consommer ou d'utiliser les fruits et légumes (sauf légumes de 4e et 5e gamme et fruits dont la peau n'est pas consommée : banane, orange, clémentine…) — À la légumerie ou zone de plonge si opérations séparées dans le temps et matériel dédié." },
       {
-        titre: "Méthode par type",
+        titre: "Méthode par type (bonne pratique, pas une norme)",
         contenu: [
           "🥬 Légumes verts à feuilles : double bac eau froide — couper les extrémités, retirer parties endommagées — tremper 2 à 3 min — ajouter produit — sécher à l'essoreuse ou serviette papier.",
           "🍎 Aliments à chair ferme (pommes, melon...) : frotter vigoureusement avec une brosse ou à la main — ajouter produit — sécher.",
@@ -18159,9 +18165,10 @@ const FICHES_NORMES = {
       {
         titre: "Produits désinfectants",
         contenu: [
-          "Eau de Javel à 2,6% : 60 ml (0,060 L) pour 100 L d'eau — laisser tremper 5 min.",
-          "Vinaigre blanc : 6% (6 L pour 100 L d'eau) — laisser tremper 10 min.",
-          "⚠ NE PAS UTILISER DE L'EAU DE JAVEL SUR LES VÉGÉTAUX POREUX OU À COUCHES.",
+          "Ce que dit le contrôle officiel (vade-mecum « Remise directe », C403L04) : laver les légumes dans un endroit dédié ou à un autre moment que les autres préparations ; eau de Javel à 80 ppm maximum, toujours suivie d'un rinçage à l'eau potable ; pas de pastilles de dichloroisocyanurate.",
+          "Avec un produit du commerce (désinfectant pour fruits et légumes) : suivre exactement la dose et le temps de sa fiche technique, puis rincer à l'eau potable.",
+          "Repères de terrain (bonne pratique, pas une norme) : eau de Javel à 2,6 % : 60 ml pour 100 L d'eau, 5 min, puis rinçage ; vinaigre blanc : 10 min, puis rinçage.",
+          "⚠ Ne jamais mélanger un produit chloré (Javel) et un acide (vinaigre, détartrant) : dégagement de chlore dangereux.",
         ],
       },
     ],
@@ -18195,7 +18202,7 @@ const FICHES_NORMES = {
           { categorie: "Fruits & légumes", produit: "Fruit frais transformé (coupé)", duree: "Jusqu'à 2 jours" },
           { categorie: "Fruits & légumes", produit: "Légume frais transformé (épluché/coupé)", duree: "1 à 2 jours" },
           { categorie: "Fruits & légumes", produit: "Préparation à base de légumes (crue ou cuite)", duree: "2 jours" },
-          { categorie: "Œufs", produit: "Œufs coquille", duree: "Jusqu'à la DLC de l'emballage (environ 21 jours)" },
+          { categorie: "Œufs", produit: "Œufs coquille", duree: "Jusqu'à la date de l'emballage (DDM : au plus 28 jours après la ponte, règlement 853/2004 modifié en 2022)" },
           { categorie: "Œufs", produit: "Œufs liquides / préparation à base d'œufs crus", duree: "1 jour (mayonnaise maison : 2h seulement)" },
           { categorie: "Œufs", produit: "Œufs durs (écalés)", duree: "3 jours" },
           { categorie: "Produits laitiers", produit: "Fromage à pâte molle / fraîche (une fois ouvert)", duree: "3 jours" },
@@ -18253,17 +18260,18 @@ const FICHES_NORMES = {
     sections: [
       {
         titre: "1. Après chaque utilisation — Contrôle visuel et olfactif",
-        contenu: "Un bain de friture usé se reconnaît à : brunissement de l'huile, changement d'odeur et de goût, huile plus visqueuse, apparition précoce de fumées et d'une mousse stable. Un bain qui a moussé une fois est inutilisable.",
+        contenu: "Bonne pratique (pas une norme) : un bain de friture usé se reconnaît à son brunissement, son changement d'odeur et de goût, une huile plus épaisse, des fumées précoces et une mousse qui reste.",
       },
-      { titre: "2. Modalité de contrôle avec testeur", contenu: "Chauffer l'huile à 180°C maximum." },
+      { titre: "2. Ce que dit la loi", contenu: "Norme : au-delà de 25 % de composés polaires ou de 14 % de polymères de triglycérides, l'huile est impropre à la consommation et doit être changée (décret n° 2008-184 du 26/02/2008, article 8). Le texte ne fixe pas de fréquence de changement : il faut tester régulièrement et garder la preuve. Rester sous 175 °C est une recommandation du vade-mecum « Remise directe » (C403L08), pas une obligation." },
       {
-        titre: "3. Plonger le testeur dans l'huile 10 secondes",
+        titre: "3. Contrôle avec un testeur",
         contenu: [
-          "🟢 Voyant VERT → L'huile est bonne",
-          "🟡 Voyant JAUNE → TPM + 24 → À changer → VIDANGER ET NETTOYER LA FRITEUSE",
+          "Suivre le mode d'emploi du testeur (température de l'huile et durée indiquées par son fabricant).",
+          "🟢 Résultat bon → l'huile peut être gardée.",
+          "🟡 Seuil d'alerte du testeur atteint → changer l'huile, vidanger et nettoyer la friteuse.",
         ],
       },
-      { titre: "4. Collecte des huiles", contenu: "L'huile usagée est stockée dans un bidon — elle est récupérée gratuitement." },
+      { titre: "4. Collecte des huiles usagées", contenu: "Norme : jamais à l'évier, dans les égouts ou à la poubelle. L'huile usagée est stockée dans un bidon fermé et reprise par une entreprise de collecte ; garder le bon d'enlèvement (vade-mecum « Remise directe », E2L02)." },
     ],
   },
 
@@ -18292,7 +18300,7 @@ const FICHES_NORMES = {
           "9. Arrêter le refroidissement quand la température à cœur est ≤ 10°C.",
           "10. Sortir les préparations et les stocker immédiatement entre 0°C et 3°C.",
           "11. Enregistrer l'heure et la température de sortie du bac.",
-          "12. Calculer la durée de refroidissement — La durée est la différence entre entrée et sortie : en moins de 2 heures.",
+          "12. Calculer la durée de refroidissement (sortie moins entrée) et la comparer à la durée fixée : 2 heures en restauration collective ; pour un restaurant, la durée fixée dans votre PMS.",
           "13. Étiquetage des préparations culinaires élaborées à l'avance :\n    → DLC sur les produits invendus (fin de service) : J+1 (aucun texte lu : choix du chef)\n    → DLC sur les préparations culinaires élaborées à l'avance : J+3 (arrêté du 21/12/2009, annexe IV : écrit pour la restauration collective)",
         ],
       },
@@ -18323,7 +18331,7 @@ const FICHES_NORMES = {
           "8. Si pas de sonde-pilote : surveiller régulièrement et arrêter quand la denrée la plus compacte est < -18°C.",
           "9. Sortir les préparations et les stocker dans une enceinte négative < -18°C.",
           "10. Enregistrer l'heure et la température de sortie.",
-          "11. Calculer la durée de surgélation (entrée - sortie) : en moins de 4h30. Tolérance : si > 4h30, la conservation du produit s'en trouve diminuée.",
+          "11. Calculer la durée de surgélation (sortie moins entrée). Aucun texte ne fixe de durée : le logiciel alerte à 4 h 30 (réglage du logiciel, pas une norme).",
         ],
       },
       {
@@ -18348,7 +18356,7 @@ const FICHES_NORMES = {
     sections: [
       { titre: "Statut de ces valeurs (source)", contenu: [
         "Aucun texte français ou européen lu ne fixe une température de cuisson par type de viande. L'arrêté du 21/12/2009 ne donne que 63 °C, pour le maintien au chaud et la remise en température en restauration collective.",
-        "Les barèmes ci-dessous sont recommandés par l'ANSES et repris, à titre indicatif, par le guide de bonnes pratiques « Restaurateur » (novembre 2015, page imprimée 180, page 187 du PDF). Ce guide est d'application volontaire ; son respect est un moyen de justification privilégié du respect des règlements 852/2004 et 853/2004 (avis du JO du 15/06/2015). Les barèmes restent sous la responsabilité du professionnel.",
+        "Les barèmes ci-dessous sont recommandés par l'ANSES et repris, à titre indicatif, par le guide de bonnes pratiques « Restaurateur » (novembre 2015, page imprimée 180, page 187 du PDF). Ce guide est d'application volontaire (guide officiel : conseillé, pas obligatoire) ; son respect est un moyen reconnu de prouver le respect des règlements 852/2004 et 853/2004. Les barèmes restent sous la responsabilité du professionnel.",
         "Quand aucun texte n'existe, c'est le chef qui décide, avec sa justification dans le PMS.",
       ]},
       { titre: "Barèmes du guide Restaurateur (page 180)", contenu: [
@@ -18366,16 +18374,15 @@ const FICHES_NORMES = {
         "Autres préparations (légumes, plats, sauces), œufs : aucun barème trouvé.",
         "Cuisson saignante ou bleue d'une pièce entière : aucun texte lu ne l'autorise ni ne l'interdit expressément ; le barème du guide pour les viandes coupées est 63 °C pendant 15 s.",
       ]},
-      { titre: "Méthode — Cuisson au four (Rational / Atoll Speed / four à pizza)", contenu: [
+      { titre: "Méthode — Cuisson au four (bonne pratique, pas une norme)", contenu: [
         "1. Préchauffer le four à la température souhaitée.",
         "2. Utiliser une sonde à cœur pour vérifier la température interne — ne jamais se fier uniquement au temps ou à la couleur.",
         "3. Enregistrer l'heure de début et la température à cœur en fin de cuisson.",
         "4. Si non conforme : remettre en cuisson jusqu'à atteindre la température cible.",
-        "5. Après cuisson : service immédiat ou refroidissement rapide (≤ 10°C en moins de 2h).",
-        "Nettoyage four Rational : lancer le nettoyage automatique chaque soir avec les pastilles adaptées, ne jamais utiliser de produits abrasifs sur les parois.",
-        "Nettoyage four Atoll Speed / Mery Chef : éteindre après chaque service, nettoyage complet (intérieur, extérieur, portes) tous les jeudis.",
+        "5. Après cuisson : service immédiat, maintien à +63 °C minimum, ou refroidissement rapide (2 h jusqu'à +10 °C en restauration collective ; pour un restaurant, la durée fixée dans votre PMS).",
+        "Nettoyage du four : suivre la notice du fabricant et votre plan de nettoyage.",
       ]},
-      { titre: "Méthode — Plancha / poêle à induction", contenu: [
+      { titre: "Méthode — Plancha / poêle à induction (bonne pratique, pas une norme)", contenu: [
         "1. Préchauffer la plancha/induction à la température souhaitée.",
         "2. Ne jamais surcharger la surface de cuisson — cela abaisse la température et allonge le temps de cuisson.",
         "3. Vérifier la température à cœur à la sonde — ne pas juger à la couleur seule.",
@@ -18383,14 +18390,14 @@ const FICHES_NORMES = {
         "5. Enregistrer la température à cœur en fin de cuisson.",
         "Entretien : nettoyer la plaque et le plan de travail après chaque service (midi et soir) — ne jamais laisser de résidus brûlés s'accumuler.",
       ]},
-      { titre: "Méthode — Friture", contenu: [
-        "Température de l'huile : cuisson entre 160°C et 180°C maximum. Ne jamais dépasser 180°C — au-delà l'huile se dégrade rapidement et produit des composés toxiques.",
+      { titre: "Méthode — Friture (bonne pratique, sauf la limite légale ci-dessous)", contenu: [
+        "Température de l'huile : moins de 175 °C recommandé (vade-mecum « Remise directe », C403L08 : recommandation, pas une obligation). Au-delà, l'huile se dégrade plus vite.",
         "1. Vérifier l'état de l'huile avant utilisation (contrôle visuel et olfactif).",
         "2. Ne pas surcharger le panier — cela fait chuter la température de l'huile.",
         "3. Secouer légèrement le panier pour éviter que les produits ne collent.",
         "4. Égoutter soigneusement après cuisson.",
         "5. Ne jamais plonger des produits humides ou mouillés dans l'huile chaude.",
-        "Test de l'huile (la limite légale de composés polaires n'a pas été relue dans les textes) : chauffer l'huile à 180°C, plonger le testeur 10 secondes. Voyant vert = huile bonne. Voyant jaune = TPM + 24 → à changer, vidanger et nettoyer la friteuse.",
+        "Test de l'huile : norme = 25 % de composés polaires ou 14 % de polymères au maximum (décret n° 2008-184). Suivre le mode d'emploi du testeur ; seuil d'alerte atteint = changer l'huile, vidanger et nettoyer la friteuse.",
       ]},
       { titre: "Après cuisson", contenu: "Au chaud : 63 °C minimum. Sinon démarrer un refroidissement rapide (cellule ou bain de glace). Pour la restauration collective, l'arrêté du 21/12/2009 (annexe IV) fixe 2 h maximum entre +63 °C et +10 °C ; en remise directe aucune durée n'est fixée." },
     ],
@@ -18399,16 +18406,15 @@ const FICHES_NORMES = {
   maintienChaud: {
     titre: "Maintien au chaud — Règles et repères HACCP",
     sections: [
-      { titre: "Température minimale de maintien", contenu: "63 °C minimum, aussi longtemps que le produit reste en service. Sources : guide Restaurateur 2015, page imprimée 180 (« maintien à 63 °C ») ; arrêté du 21/12/2009, annexe IV point 3 (restauration collective) ; annexe I, tableau « température minimale en liaison chaude » (valeur à reconfirmer sur Légifrance). Une température plus basse n'est admise qu'avec une analyse des dangers validée. Aucune durée maximale de maintien n'a été trouvée dans les textes lus." },
+      { titre: "Température minimale de maintien", contenu: "63 °C minimum, aussi longtemps que le produit reste en service. Norme (obligatoire pour tous, restaurants compris) : arrêté du 21/12/2009, annexe I, tableau « Température minimale en liaison chaude » : « Plats cuisinés ou repas livrés chauds ou remis au consommateur : + 63 °C ». Repris par le guide Restaurateur 2015, page imprimée 180. Une température plus basse n'est admise qu'avec une analyse des dangers validée. Aucune durée maximale de maintien n'a été trouvée dans les textes lus." },
       { titre: "En cas de descente sous 63°C", contenu: "Aucun texte lu ne fixe la conduite à tenir sous 63 °C (régénération, nombre de fois, destruction). Pour information : le guide Restaurateur (page 180) indique 75 °C minimum pour le réchauffage des plats préparés ; l'arrêté (annexe IV, restauration collective) indique 63 °C." },
-      { titre: "Procédure", contenu: [
+      { titre: "Procédure (bonne pratique, pas une norme)", contenu: [
         "1. Préchauffer le bain-marie avant d'y placer les produits.",
         "2. Vérifier régulièrement la température de l'eau ET du produit.",
         "3. Couvrir les bacs pour maintenir la température et éviter la contamination.",
         "4. En fin de service (ou produit non utilisé) : sortir le produit et démarrer un refroidissement rapide, ou le finir avant.",
         "5. En fin de service : vider, nettoyer l'intérieur et l'extérieur, fermer avec le couvercle.",
       ]},
-      { titre: "Sauces concernées au poste chaud", contenu: "Sauce Vigneronne, Sauce Champignons & Parmesan, Sauce au Poivre, Sauce Cheddar, Sauce Parmesan." },
     ],
   },
 
@@ -18420,7 +18426,7 @@ const FICHES_NORMES = {
         contenu: "Personne en service — Contrôle et enregistrement le matin en arrivant (avant toute ouverture de porte) et le soir (juste avant de quitter l'établissement), plus tout contrôle aléatoire au thermomètre laser.",
       },
       {
-        titre: "Températures de conservation par enceinte (réglages de la cuisine)",
+        titre: "Exemple de réglage des enceintes (choix de l'établissement, pas une norme)",
         type: "tableau",
         colonnes: ["Enceinte", "Température"],
         contenu: [
@@ -18437,7 +18443,7 @@ const FICHES_NORMES = {
           "Produits de la pêche frais : +2 °C ; ovoproduits : +4 °C ; lait cru : +4 °C.",
           "Autres denrées très périssables : +4 °C ; autres denrées périssables : +8 °C ; préparations culinaires élaborées à l'avance : +3 °C.",
           "Congelé : −18 °C (glaces, viandes hachées, préparations de viandes, produits de la pêche) ; −12 °C pour les autres denrées congelées. Tolérance : +3 °C en surface, brièvement, lors du chargement et du déchargement.",
-          "Source : tableau lu sur une copie préfectorale et dans le guide (page 179) ; à reconfirmer sur Légifrance, car les tableaux de l'annexe I n'étaient pas affichés dans la copie reçue le 20/10/2026. Le règlement 853/2004 peut fixer d'autres températures pour certains produits.",
+          "Source : arrêté du 21/12/2009, annexe I (relu le 25/11/2026 sur la copie de la DDPP de Saône-et-Loire) ; guide Restaurateur page 179. Un produit emballé suit la température indiquée par son fabricant si elle est plus basse.",
           "Un autre couple température et durée est admis s'il figure dans un guide validé ou résulte d'une analyse des dangers validée (arrêté, article 3).",
         ],
       },
@@ -18651,7 +18657,7 @@ function BandeauNormes({ label, permanent }) {
 // Textes réglementaires affichés en haut des écrans de Contrôle & Gestion (vérifiés sur les textes officiels).
 // Fiches revues le 20/10/2026 contre les textes (voir le Lexique). Les autres portent un marqueur : leurs sources restent à contrôler.
 // La fiche TIAC reste telle quelle (décision de Loïc le 20/10/2026).
-const FICHES_NORMES_REVUES = ["refroidissementSansCellule", "refroidissementAvecCellule", "cuisson", "maintienChaud", "temperatureFrigo", "dlc", "reception", "tiac"];
+const FICHES_NORMES_REVUES = ["refroidissementSansCellule", "refroidissementAvecCellule", "cuisson", "maintienChaud", "temperatureFrigo", "dlc", "reception", "tiac", "huileFreture", "lavageLegumes"];
 Object.keys(FICHES_NORMES).forEach((k) => {
   if (!FICHES_NORMES_REVUES.includes(k)) FICHES_NORMES[k].sections.push({ titre: "Statut de cette fiche", contenu: "Cette fiche reprend la version précédente du logiciel. Ses sources sont en cours de vérification contre les textes officiels : voir le Lexique et réglementation pour les règles déjà vérifiées." });
 });

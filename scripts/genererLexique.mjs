@@ -69,6 +69,7 @@ for (const brut of md) {
   }
   if (!courante) continue;
   const champ = ligne.match(/^\*\*(.+?)\*\*\s*:\s*(.*)$/);
+  if (champ && /^Nature$/i.test(champ[1].trim())) { courante.nature = champ[2].trim(); continue; }
   if (champ) { courante.champs.push({ label: champ[1], texte: champ[2] }); continue; }
   if (ligne.trim() && courante.champs.length) courante.champs[courante.champs.length - 1].texte += " " + ligne.trim();
 }
@@ -82,10 +83,11 @@ if (tableauCuisson && tableauCuisson.length) {
     section: SECTIONS["6"],
     titre: "Barèmes de cuisson indicatifs du guide Restaurateur (page imprimée 180, page 187 du PDF)",
     certitude: "verifie",
+    nature: "guide",
     champs: [
       { label: "En bref", texte: "Barèmes recommandés par l'ANSES, repris par le guide « à titre indicatif ». Ils « restent sous la responsabilité de chaque professionnel ». " + tableauFinal.map((c) => `${c[0]} : ${c[1]}${c[2] ? " (" + c[2] + ")" : ""}`).join(" ; ") + "." },
       { label: "Texte", texte: "Guide de bonnes pratiques d'hygiène et d'application de l'HACCP « Restaurateur », novembre 2015, page imprimée 180 (page 187 du fichier PDF)." },
-      { label: "Volaille entière, canard, magret", texte: "Aucun barème officiel trouvé. La valeur de 80 °C du logiciel est une règle de la cuisine, pas une norme. Question à la DDPP en attente." },
+      { label: "Volaille entière, canard, magret", texte: "Aucun barème officiel trouvé. Le 80 °C utilisé en cuisine est un choix de l'établissement, pas une norme. Question aux autorités en attente." },
       { label: "Certitude", texte: "✔ lu le 20/10/2026." },
     ],
   });
@@ -98,36 +100,35 @@ if (tableauCuisson && tableauCuisson.length) {
 const GROUPES = [
   { nom: "1 · Les bases : HACCP, PMS, qui contrôle", intro: "Les mots qu'on entend tout le temps, et quelles règles s'appliquent à votre restaurant.", fiches: [
     ["haccp, ccp, pms", "HACCP, CCP, PMS : ce que c'est"],
-    ["ddpp, rappelconso", "La DDPP et RappelConso"],
+    ["ddpp et rappelconso", "La DDPP et RappelConso"],
     ["culture de la securite", "La culture de la sécurité alimentaire"],
-    ["quelle annexe de l'arrete", "Quelles règles pour quel type d'établissement ?"],
-    ["annexe iv : changements", "Restauration collective : ce qui a changé en 2020"],
+    ["quelles regles pour quel type", null],
   ] },
   { nom: "2 · Le froid et le chaud pendant le service", intro: "Les températures à connaître au quotidien.", fiches: [
-    ["temperatures maximales de conservation", "Températures maximales de conservation au froid"],
-    ["chaine du froid", "Chaîne du froid : les principes"],
-    ["maintien au chaud", "Maintien au chaud : 63 °C minimum"],
-    ["zone de danger", "La zone de danger"],
-    ["temperature a coeur", "La température à cœur"],
+    ["temperatures maximales de conservation", null],
+    ["chaine du froid", null],
+    ["maintien au chaud", null],
+    ["zone de danger", null],
+    ["temperature a coeur", null],
   ] },
-  { nom: "3 · La cuisson", intro: "Les températures de cuisson et leur origine.", fiches: [
+  { nom: "3 · La cuisson et la friture", intro: "Les températures de cuisson et leur origine, et l'huile de friture.", fiches: [
     ["baremes de cuisson", "Barèmes de cuisson du guide Restaurateur"],
-    ["cuisson par type de viande", "Cuisson des viandes dans l'arrêté"],
+    ["cuisson des viandes", null],
     ["valeur d, valeur z", "Valeur D, valeur z (pour comprendre les barèmes)"],
+    ["huile de friture", null],
   ] },
-  { nom: "4 · Refroidir, réchauffer, congeler, décongeler", intro: "Tout ce qui se passe entre la cuisson et l'assiette. Les fiches « restauration collective » sont des règles écrites pour les collectivités ; pour un restaurant commercial, ce sont des repères.", fiches: [
-    ["refroidissement", "Refroidissement : de 63 °C à 10 °C en 2 h maximum (collectivités)"],
-    ["remise en temperature", "Remise en température : 1 h maximum, 63 °C minimum (collectivités)"],
-    ["surgelation et congelation", "Surgélation et congélation"],
-    ["decongelation", "Décongélation"],
-    ["duree de vie des plats", "Durée de vie des plats préparés à l'avance : 3 jours (collectivités)"],
-    ["preparations servies froides", "Préparations servies froides (collectivités)"],
-    ["fin de service", "Fin de service : restes et excédents (collectivités)"],
-    ["plats temoins", "Plats témoins : 5 jours (collectivités)"],
+  { nom: "4 · Refroidir, réchauffer, congeler, décongeler", intro: "Tout ce qui se passe entre la cuisson et l'assiette. Les fiches « collectivités » sont obligatoires pour les cantines ; pour un restaurant commercial, ce sont des repères.", fiches: [
+    ["refroidissement", null],
+    ["remise en temperature", null],
+    ["surgelation et congelation", null],
+    ["decongelation", null],
+    ["duree de vie des plats", null],
+    ["preparations servies froides", null],
+    ["fin de service", null],
+    ["plats temoins", null],
   ] },
-  { nom: "5 · Produits particuliers", intro: "Viande hachée, gibier, œufs, poisson.", fiches: [
+  { nom: "5 · Produits particuliers", intro: "Viande hachée, œufs, poisson.", fiches: [
     ["viande hachee (cession", "Viande hachée vendue au client"],
-    ["gibier sauvage", "Gibier sauvage en petites quantités"],
     ["oeufs", "Les œufs"],
     ["histamine", "Poisson : l'histamine"],
     ["anisakis", "Poisson : l'anisakis (vers)"],
@@ -135,25 +136,25 @@ const GROUPES = [
   { nom: "6 · Dates, allergènes et information du client", intro: "Ce que le client doit savoir, et les dates de vos produits.", fiches: [
     ["dlc et ddm", "DLC et DDM : la différence"],
     ["14 allergenes", "Les 14 allergènes"],
-    ["etude de duree de conservation", "Étude de durée de conservation"],
+    ["etude de duree de conservation", null],
     ["don alimentaire", "Donner des denrées (don alimentaire)"],
   ] },
   { nom: "7 · Hygiène du personnel, locaux et nettoyage", intro: "Les règles de base de la cuisine : mains, tenue, locaux, déchets, nuisibles.", fiches: [
-    ["hygiene du personnel", "Hygiène du personnel"],
-    ["formation", "Formation"],
-    ["locaux et equipements", "Locaux et équipements"],
-    ["contamination croisee, dechets", "Contamination croisée, déchets, eau, nuisibles"],
-    ["contamination croisee", "La contamination croisée"],
+    ["hygiene du personnel", null],
+    ["formation", "Formation à l'hygiène"],
+    ["locaux et equipements", null],
+    ["contamination croisee, dechets", null],
+    ["huiles usagees", "Huiles usagées : la collecte"],
   ] },
   { nom: "8 · Les germes et les intoxications", intro: "Les bactéries qu'on rencontre en cuisine et ce qu'est une TIAC.", fiches: [
     ["tiac", "TIAC : intoxication alimentaire collective"],
-    ["effet indesirable inhabituel", "Effet indésirable inhabituel (au moins 2 clients)"],
-    ["salmonella (", "Salmonella"],
+    ["effet indesirable", null],
+    ["salmonella", "Salmonella"],
     ["listeria monocytogenes", "Listeria monocytogenes"],
-    ["campylobacter", "Campylobacter"],
-    ["e. coli", "E. coli STEC"],
-    ["staphylococcus", "Staphylococcus aureus"],
-    ["clostridium perfringens", "Clostridium perfringens et Bacillus cereus"],
+    ["campylobacter", null],
+    ["e. coli", null],
+    ["staphylococcus", null],
+    ["clostridium perfringens", null],
     ["clostridium botulinum", "Clostridium botulinum (botulisme)"],
     ["spores", "Les spores"],
   ] },
@@ -162,7 +163,7 @@ const GROUPES = [
     ["listeria monocytogenes : seuils", "Listeria : les seuils"],
     ["salmonella : absence", "Salmonella : absence dans 25 g"],
     ["viande hachee et preparations", "Viande hachée et préparations de viande : critères"],
-    ["autres criteres", "Autres critères utiles en cuisine"],
+    ["autres criteres", null],
   ] },
   { nom: "10 · Le contrôle officiel : le déroulement", intro: "Comment se passe une inspection.", fiches: [["comment se passe", null], ["ce que l'inspecteur prepare", null], ["le vade-mecum", null], ["reactivite", null], ["action corrective", null]] },
   { nom: "11 · Le contrôle officiel : les notes", intro: "Comment l'inspecteur note : A, B, C, D.", fiches: [["les notes a", null], ["la note globale", null]] },
@@ -184,6 +185,9 @@ const GROUPES = [
     if (!trouve) reste.push(e.titre);
   }
   if (reste.length) { console.error("NON RANGÉES : " + reste.join(" | ")); process.exit(1); }
+  const NATURES = ["norme", "collectivite", "guide", "avis", "inspection", "information", "explication", "bonne-pratique"];
+  const sansNature = entrees.filter((e) => !NATURES.includes(e.nature)).map((e) => e.titre);
+  if (sansNature.length) { console.error("NATURE MANQUANTE OU INCONNUE : " + sansNature.join(" | ")); process.exit(1); }
   entrees.sort((a, b) => rang.get(a) - rang.get(b));
 }
 

@@ -13,6 +13,18 @@ const BADGES = {
   "non-publie": { texte: "Non publié", fond: "#EEE", couleur: "#555" },
 };
 
+// Nature de chaque fiche (demande de Loïc, 25/11) : on voit tout de suite si c'est une norme obligatoire ou non.
+export const NATURES = {
+  norme: { texte: "Norme : obligatoire", fond: "#E0E7FF", couleur: "#1E3A8A", aide: "Règlement européen, loi, décret ou arrêté. À respecter." },
+  collectivite: { texte: "Obligatoire en collectivité · repère pour un restaurant", fond: "#FFF3D6", couleur: "#7A5A00", aide: "Texte écrit pour les cantines et restaurants d'entreprise. Pour un restaurant commercial, c'est un repère : vous fixez votre règle dans votre PMS." },
+  guide: { texte: "Guide officiel : conseillé, pas obligatoire", fond: "#E0F2F1", couleur: "#0B5E57", aide: "Guide de bonnes pratiques validé par l'État. Pas obligatoire, mais c'est la preuve reconnue que vous travaillez bien." },
+  avis: { texte: "Avis scientifique : pas une norme", fond: "#F1EAFE", couleur: "#5B21B6", aide: "Avis ou fiche de l'ANSES. Sert à comprendre et à choisir, ce n'est pas une obligation." },
+  inspection: { texte: "Ce que vérifie l'inspecteur", fond: "#EEF2E3", couleur: "#4D5A14", aide: "Méthode officielle de contrôle (vade-mecum). Ce n'est pas une loi de plus : c'est la façon dont les lois sont contrôlées et notées." },
+  information: { texte: "Information officielle : pas une norme", fond: "#EEF2F7", couleur: "#334155", aide: "Explication d'un site public (Santé publique France, service-public)." },
+  explication: { texte: "Explication : pas une norme", fond: "#EEF2F7", couleur: "#334155", aide: "Définition d'un mot, en mots simples." },
+  "bonne-pratique": { texte: "Bonne pratique : pas une norme", fond: "#F1F1F1", couleur: "#444", aide: "Conseil de terrain (fiche pédagogique, profession). Utile, mais aucune obligation." },
+};
+
 const URL_RE = /(https?:\/\/[^\s)]+)/g;
 
 function TexteAvecLiens({ texte }) {
@@ -28,6 +40,7 @@ function TexteAvecLiens({ texte }) {
 
 function Fiche({ e, ouverte, onBascule }) {
   const badge = BADGES[e.certitude] || BADGES.mixte;
+  const nature = NATURES[e.nature];
   const bref = e.champs.find((c) => /^En bref$/i.test(c.label));
   return (
     <div className="border border-[var(--cadre)] rounded-xl bg-white overflow-hidden">
@@ -35,12 +48,16 @@ function Fiche({ e, ouverte, onBascule }) {
         <span className="min-w-0 flex-1">
           <span className="block text-sm font-semibold text-[var(--ink)]">{e.titre}</span>
           {!ouverte && bref && <span className="block text-sm text-[var(--ink)] mt-0.5 line-clamp-2">{bref.texte}</span>}
-          <span className="inline-block mt-1 text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.fond, color: badge.couleur }}>{badge.texte}</span>
+          <span className="flex flex-wrap gap-1 mt-1">
+            {nature && <span data-nature={e.nature} className="inline-block text-[11px] font-bold px-2 py-0.5 rounded-full" style={{ backgroundColor: nature.fond, color: nature.couleur }}>{nature.texte}</span>}
+            <span className="inline-block text-[11px] font-semibold px-2 py-0.5 rounded-full" style={{ backgroundColor: badge.fond, color: badge.couleur }}>{badge.texte}</span>
+          </span>
         </span>
         <span className="shrink-0 mt-0.5 text-lg leading-none" aria-hidden="true">{ouverte ? "▴" : "▾"}</span>
       </button>
       {ouverte && (
         <div className="px-3 pb-3 space-y-1.5 text-sm text-[var(--ink)] border-t border-[var(--cadre)] pt-2">
+          {nature && <p className="text-xs rounded-lg px-2 py-1.5" style={{ backgroundColor: nature.fond, color: nature.couleur }}><b>{nature.texte}.</b> {nature.aide}</p>}
           {e.champs.map((c, i) => (
             <p key={i}><span className="text-xs font-semibold text-[var(--steel)] uppercase">{c.label}</span><br /><TexteAvecLiens texte={c.texte} /></p>
           ))}
@@ -57,6 +74,7 @@ export default function LexiqueReglementaire({ couleur }) {
   const [requete, setRequete] = useState("");
   const [section, setSection] = useState("");
   const [seulementVerifie, setSeulementVerifie] = useState(false);
+  const [seulementNormes, setSeulementNormes] = useState(false);
   const [ouvertes, setOuvertes] = useState({});
 
   const sections = useMemo(() => LEXIQUE_GROUPES.map((g) => g.nom), []);
@@ -70,7 +88,7 @@ export default function LexiqueReglementaire({ couleur }) {
   const resultats = useMemo(() => {
     const mots = normaliser(requete).split(/\s+/).filter(Boolean);
     return index
-      .filter(({ e }) => (!section || e.section === section) && (!seulementVerifie || e.certitude === "verifie"))
+      .filter(({ e }) => (!section || e.section === section) && (!seulementVerifie || e.certitude === "verifie") && (!seulementNormes || e.nature === "norme"))
       .map((x) => {
         let score = 0;
         for (const m of mots) {
@@ -82,12 +100,12 @@ export default function LexiqueReglementaire({ couleur }) {
       })
       .filter(Boolean)
       .sort((a, b) => b.score - a.score);
-  }, [requete, section, seulementVerifie, index]);
+  }, [requete, section, seulementVerifie, seulementNormes, index]);
 
   return (
     <div className="space-y-3">
       <div className="rounded-xl p-3 text-sm text-[var(--ink)] bg-white" style={{ border: `2px solid ${zc.bord}`, background: zc.fond }}>
-        Français et européens uniquement. Chaque fiche donne la source, le lien et son niveau de vérification. Les informations sont pédagogiques : le PMS de l'établissement fait foi, et ce lexique ne remplace ni la vérification des textes ni la formation HACCP. Mis à jour le {LEXIQUE_DATE}.
+        Français et européens uniquement, pour la restauration commerciale. Chaque fiche dit d'abord ce qu'elle est : <b>norme obligatoire</b>, règle des collectivités (repère pour un restaurant), guide officiel conseillé, avis scientifique, ou bonne pratique. Elle donne aussi la source, le lien et son niveau de vérification. Les informations sont pédagogiques : le PMS de l'établissement fait foi, et ce lexique ne remplace ni la vérification des textes ni la formation HACCP. Mis à jour le {LEXIQUE_DATE}.
       </div>
 
       <div className="relative">
@@ -116,6 +134,10 @@ export default function LexiqueReglementaire({ couleur }) {
       <label className="flex items-center gap-3 text-sm text-[var(--ink)] min-h-[44px]">
         <input type="checkbox" className="w-5 h-5 shrink-0" checked={seulementVerifie} onChange={(e) => setSeulementVerifie(e.target.checked)} />
         Afficher seulement les fiches vérifiées sur le texte officiel
+      </label>
+      <label className="flex items-center gap-3 text-sm text-[var(--ink)] min-h-[44px]">
+        <input type="checkbox" className="w-5 h-5 shrink-0" checked={seulementNormes} onChange={(e) => setSeulementNormes(e.target.checked)} />
+        Afficher seulement les normes obligatoires
       </label>
 
       <p className="text-sm text-[var(--ink)] font-semibold">{resultats.length} fiche{resultats.length > 1 ? "s" : ""}{requete ? ` pour « ${requete} »` : ""}</p>
