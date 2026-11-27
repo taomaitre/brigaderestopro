@@ -2578,7 +2578,7 @@ function PmsJournal({ pms, onBack }) {
   );
 }
 
-function PmsDossierImprimable({ reglages, employees, donnees, onBack }) {
+function PmsDossierImprimable({ reglages, employees, donnees, onBack, sansBoutons }) {
   const fiche = (reglages && reglages.fiche) || {};
   const pms = (reglages && reglages.pms) || { prestataires: [], formations: [], documents: [] };
   const fr = (d) => (d ? new Date(d + "T00:00:00").toLocaleDateString("fr-FR") : "—");
@@ -2586,10 +2586,10 @@ function PmsDossierImprimable({ reglages, employees, donnees, onBack }) {
   const nomDe = (f) => (f.utilisateur_id && ((employees || []).find((e) => e.id === f.utilisateur_id) || {}).nom) || f.personne_nom || "—";
   return (
     <div className="max-w-3xl mx-auto p-4 print:p-0">
-      <div className="print:hidden flex gap-2 mb-4">
+      {!sansBoutons && <div className="print:hidden flex gap-2 mb-4">
         <BoutonRetour onClick={onBack}>Retour</BoutonRetour>
         <Button onClick={() => window.print()}><Printer size={16} /> Imprimer</Button>
-      </div>
+      </div>}
       <h1 className="text-xl font-bold text-[var(--ink)]">Dossier PMS — {(reglages && reglages.nom) || "Établissement"}</h1>
       <p className="text-xs text-[var(--steel)] mb-4">Édité le {new Date().toLocaleDateString("fr-FR")}</p>
       <h2 className="font-semibold mt-4 mb-1">1 — Établissement</h2>
@@ -5358,7 +5358,23 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
     return <PmsDossierImprimable reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onBack={() => setPmsImpression(false)} />;
   }
 
-  const donneesDossier = { employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning: cleaning.filter((t) => !t.masque && t.planifie !== false), shifts, reservations, relevesFroid, equipementsFroid, nomEtablissement: reglagesEtablissement && reglagesEtablissement.nom, receptions, alertes: alertesControle, rappels: alertesRappelConso, declarationsTiac, pms: reglagesEtablissement && reglagesEtablissement.pms, fiches, allergenesPlats, stock, origineProduits };
+  const donneesDossier = { employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning: cleaning.filter((t) => !t.masque && t.planifie !== false), shifts, reservations, relevesFroid, equipementsFroid, nomEtablissement: reglagesEtablissement && reglagesEtablissement.nom, receptions, alertes: alertesControle, rappels: alertesRappelConso, declarationsTiac, pms: reglagesEtablissement && reglagesEtablissement.pms, fiches, allergenesPlats, stock, origineProduits, cartes, entriesMaintienChaud, executionsNettoyage: ctxNettoyageCG && ctxNettoyageCG.executions ? ctxNettoyageCG.executions : undefined };
+  if (impressionDossier && impressionDossier.complet) {
+    // « Tout imprimer pour le contrôle » (27/11) : le dossier PMS complet, puis, sur une nouvelle page, le relevé ou le registre
+    // avec réceptions, alertes, rappels, TIAC, allergènes des plats de la carte, origine des viandes et pièces du PMS.
+    return (
+      <div>
+        <div className="print:hidden flex gap-2 mb-4 max-w-3xl mx-auto px-4 pt-4">
+          <BoutonRetour onClick={() => setImpressionDossier(null)}>Retour</BoutonRetour>
+          <Button onClick={() => window.print()}><Printer size={16} /> Imprimer / PDF</Button>
+        </div>
+        <PmsDossierImprimable reglages={reglagesEtablissement} employees={employees} donnees={{ relevesFroid, cuissons, refroidissements, huileTests, receptions, preparations }} onBack={() => setImpressionDossier(null)} sansBoutons />
+        <div style={{ breakBefore: "page", pageBreakBefore: "always" }} className="mt-8 print:mt-0">
+          <DossierControle {...donneesDossier} modeInit={impressionDossier.mode} jourInit={impressionDossier.jour} moisInit={impressionDossier.mois} integre imprimerAuMontage onBack={() => setImpressionDossier(null)} />
+        </div>
+      </div>
+    );
+  }
   if (impressionDossier) {
     return <DossierControle {...donneesDossier} modeInit={impressionDossier.mode} jourInit={impressionDossier.jour} moisInit={impressionDossier.mois} imprimerAuMontage onBack={() => setImpressionDossier(null)} />;
   }
@@ -5704,7 +5720,7 @@ function Controle({ slotMenuParam, onQuitterParam, ouvrirPlanning, planningParam
       {sousEcran === "dossierControle" && (
         <div>
           <SectionHeader title="Contrôle hygiène (DDPP)" subtitle="Le document à présenter à l'inspecteur : journée ou mois au choix, avec tous les relevés et registres. Imprimable à volonté." fonction="dossierControle" icone={ClipboardCheck} />
-          <DossierControle {...donneesDossier} integre onImprimer={(etat) => setImpressionDossier(etat)} onBack={() => setSousEcran(null)} />
+          <DossierControle {...donneesDossier} integre onImprimer={(etat) => { setImpressionDossier(etat); window.scrollTo(0, 0); }} onBack={() => setSousEcran(null)} />
         </div>
       )}
 
@@ -7580,7 +7596,109 @@ function FormulaireCatalogue({ edition, fournisseurs, categories, enCours, erreu
 }
 
 // ---- Dossier de contrôle : UN SEUL document imprimable (journée ou mois), qui regroupe tout ce que l'inspecteur peut demander ----
-function ComplementsControle({ debut, fin, receptions, alertes, rappels, declarationsTiac, pms, employees, fiches, allergenesPlats, stock, origineProduits }) {
+// Plats présentés à l'inspecteur dans le tableau des allergènes (décision de Loïc du 27/11) : les plats de la carte en cours,
+// avec la même règle que « Ma carte » (carte fixe, ou carte de la période), plus les plats ajoutés à la main sur la carte.
+// Sans carte (ou carte vide) : les fiches qui sont des plats (ni sous-recette, ni base, ni sauce), jamais les préparations.
+function platsPourDossier(cartes, fiches, date) {
+  const plats = (fiches || []).filter((f) => !/sous/i.test(f.type || "") && !CATEGORIES_HORS_CARTE.includes(f.categorie));
+  const sansCarte = { depuisCarte: false, nomCarte: "", noms: plats.map((f) => f.nom).filter(Boolean) };
+  const triees = [...(cartes || [])].sort((a, b) => (a.debut || "").localeCompare(b.debut || ""));
+  if (!triees.length) return sansCarte;
+  const periodique = triees[0].typeCarte && triees[0].typeCarte !== "fixe";
+  const carte = triees.find((c) => !periodique || (c.debut <= date && date <= c.fin)) || triees[triees.length - 1];
+  const nomFiche = (id) => ((fiches || []).find((f) => f.id === id) || {}).nom;
+  const noms = [...platsAuCarte(carte, date).map(nomFiche), ...(carte.platsLibres || []).map((l) => l.nom)].filter(Boolean);
+  if (!noms.length) return sansCarte;
+  return { depuisCarte: true, nomCarte: carte.nom || "", noms: [...new Set(noms)] };
+}
+
+// Maintien au chaud dans le dossier de contrôle : les vraies fiches de maintien (début, fin, température de fin).
+// Sous 63 °C en fin de maintien = hors norme (même seuil que l'écran Maintien au chaud, qui crée l'alerte).
+function MaintienDossier({ entries, debut, fin, who, avecDate }) {
+  const fr = (iso) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}` : "");
+  const lignes = (entries || []).filter((e) => e.date && e.date >= debut && e.date <= fin).sort((a, b) => `${a.date} ${a.heureDebut || ""}`.localeCompare(`${b.date} ${b.heureDebut || ""}`));
+  if (!lignes.length) return <p className="text-sm text-[var(--steel)] mb-6">Aucun maintien au chaud enregistré sur la période.</p>;
+  const resultat = (e) => {
+    const t = parseFloat(e.tempFin);
+    if (e.tempFin === undefined || e.tempFin === null || e.tempFin === "" || Number.isNaN(t)) return e.statut === "en-cours" && !e.arrete ? "En cours" : "Température de fin non saisie";
+    return t >= 63 ? "Conforme" : "Sous 63 °C";
+  };
+  return (
+    <div className="overflow-x-auto print:overflow-visible">
+      <table className="w-full text-sm mb-6 min-w-[480px] print:min-w-0">
+        <thead><tr className="text-left text-[var(--steel)]">{[...(avecDate ? ["Date"] : []), "Produit", "Appareil", "Début → fin", "T° de fin", "Résultat", "Par"].map((c) => <th key={c} className="pb-1.5 pr-2 font-medium">{c}</th>)}</tr></thead>
+        <tbody>
+          {lignes.map((e) => { const r = resultat(e); return (
+            <tr key={e.id} className="border-t border-[var(--line)]">
+              {avecDate && <td className="py-1.5 pr-2 text-[var(--steel)]">{fr(e.date)}</td>}
+              <td className="py-1.5 pr-2 text-[var(--ink)]">{e.produit || e.nom || "—"}</td>
+              <td className="py-1.5 pr-2 text-[var(--steel)]">{e.appareil || "—"}</td>
+              <td className="py-1.5 pr-2 text-[var(--steel)]">{e.heureDebut || "—"}{(e.heureFin || e.heureArret) ? ` → ${e.heureFin || e.heureArret}` : ""}</td>
+              <td className="py-1.5 pr-2 text-[var(--ink)]">{e.tempFin !== undefined && e.tempFin !== null && e.tempFin !== "" ? `${e.tempFin} °C` : "—"}</td>
+              <td className={`py-1.5 pr-2 ${r === "Conforme" ? "text-[var(--accent)]" : r === "Sous 63 °C" ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{r}</td>
+              <td className="py-1.5 pr-2 text-[var(--steel)]">{(who && who(e.employeeId)) || "—"}</td>
+            </tr>
+          ); })}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// Nettoyage dans le dossier de contrôle, à partir des vraies exécutions enregistrées (nouvelle base) :
+// une journée = le détail tâche par tâche ; un mois = une ligne par tâche (prévues, faites, non faites).
+// « Pas enregistré » = aucune validation ce jour-là (même règle que « Tâches du jour »).
+function NettoyageDossier({ cleaning, executions, debut, fin, who, synthese }) {
+  const jours = [];
+  for (let d = debut; d <= fin && jours.length < 31; d = ajouterJours(d, 1)) jours.push(d);
+  const occ = jours.flatMap((d) => occurrencesDuJour(cleaning || [], executions || [], d, 0).filter((o) => o.date === d));
+  if (!occ.length) return <p className="text-sm text-[var(--steel)] mb-6">Aucune tâche de nettoyage prévue sur la période.</p>;
+  const libelle = { valide: "Fait, validé par le chef", fait: "Fait", impossible: "Non fait", refuse: "Refusé par le chef", a_faire: "Pas enregistré" };
+  const fr = (iso) => `${iso.slice(8, 10)}/${iso.slice(5, 7)}`;
+  if (synthese) {
+    const parTache = new Map();
+    occ.forEach((o) => {
+      const x = parTache.get(o.cleaningId) || { tache: o.tache, prevues: 0, faites: 0, nonFaites: 0 };
+      x.prevues += 1;
+      if (o.statut === "fait" || o.statut === "valide") x.faites += 1; else x.nonFaites += 1;
+      parTache.set(o.cleaningId, x);
+    });
+    const lignes = [...parTache.values()].sort((a, b) => (a.tache || "").localeCompare(b.tache || "", "fr"));
+    return (
+      <div className="overflow-x-auto print:overflow-visible">
+        <table className="w-full text-sm mb-6 min-w-[420px] print:min-w-0">
+          <thead><tr className="text-left text-[var(--steel)]">{["Tâche", "Prévues", "Faites", "Non faites ou non enregistrées"].map((c) => <th key={c} className="pb-1.5 pr-2 font-medium">{c}</th>)}</tr></thead>
+          <tbody>{lignes.map((l) => (
+            <tr key={l.tache} className="border-t border-[var(--line)]">
+              <td className="py-1.5 pr-2 text-[var(--ink)]">{l.tache}</td>
+              <td className="py-1.5 pr-2 text-[var(--ink)]">{l.prevues}</td>
+              <td className="py-1.5 pr-2 text-[var(--accent)]">{l.faites}</td>
+              <td className={`py-1.5 pr-2 ${l.nonFaites ? "text-[var(--warn)] font-medium" : "text-[var(--steel)]"}`}>{l.nonFaites}</td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+    );
+  }
+  return (
+    <div className="overflow-x-auto print:overflow-visible">
+      <table className="w-full text-sm mb-6 min-w-[440px] print:min-w-0">
+        <thead><tr className="text-left text-[var(--steel)]">{["Date", "Tâche", "Moment", "Résultat", "Par"].map((c) => <th key={c} className="pb-1.5 pr-2 font-medium">{c}</th>)}</tr></thead>
+        <tbody>{occ.map((o) => (
+          <tr key={o.cle} className="border-t border-[var(--line)]">
+            <td className="py-1.5 pr-2 text-[var(--steel)]">{fr(o.date)}</td>
+            <td className="py-1.5 pr-2 text-[var(--ink)]">{o.tache}</td>
+            <td className="py-1.5 pr-2 text-[var(--steel)]">{o.moment || "—"}</td>
+            <td className={`py-1.5 pr-2 ${o.statut === "fait" || o.statut === "valide" ? "text-[var(--accent)]" : "text-[var(--warn)] font-medium"}`}>{libelle[o.statut] || o.statut}{o.statut === "impossible" && o.exec && o.exec.motif ? ` — ${o.exec.motif}` : ""}</td>
+            <td className="py-1.5 pr-2 text-[var(--steel)]">{(o.exec && who && who(o.exec.employeeId)) || "—"}</td>
+          </tr>
+        ))}</tbody>
+      </table>
+    </div>
+  );
+}
+
+function ComplementsControle({ debut, fin, receptions, alertes, rappels, declarationsTiac, pms, employees, fiches, allergenesPlats, stock, origineProduits, cartes }) {
   const dansPeriode = (d) => !!d && d >= debut && d <= fin;
   const fr = (iso) => (iso && /^\d{4}-\d{2}-\d{2}/.test(iso) ? `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}` : iso || "—");
   const recep = (receptions || []).filter((r) => dansPeriode(r.date) && r.produit && r.produit !== "(aucun produit détaillé)").sort((a, b) => `${a.date} ${a.heure}`.localeCompare(`${b.date} ${b.heure}`));
@@ -7620,9 +7738,11 @@ function ComplementsControle({ debut, fin, receptions, alertes, rappels, declara
       <Tab cols={["Symptômes signalés le", "Enregistrée le", "Malades recensés"]} vide="Aucune déclaration sur la période."
         lignes={tiacP.map((d) => [fr(d.dateDebut), fr(d.dateCreation), String(d.nbMalades != null ? d.nbMalades : "—")])} />
 
-      <Titre>Allergènes déclarés par plat (14 allergènes réglementaires)</Titre>
-      <Tab cols={["Plat", "Allergènes présents"]} vide="Aucune fiche technique."
-        lignes={(fiches || []).map((f) => [f.nom, (allergenesPlats && allergenesPlats[f.nom]) || "À renseigner"])} />
+      {(() => { const pd = platsPourDossier(cartes, fiches, fin < aujourdhui ? fin : aujourdhui); return (<>
+      <Titre>{pd.depuisCarte ? `Allergènes des plats de la carte${pd.nomCarte ? ` « ${pd.nomCarte} »` : ""}` : "Allergènes des plats"} (14 allergènes réglementaires)</Titre>
+      <Tab cols={["Plat", "Allergènes présents"]} vide="Aucun plat."
+        lignes={pd.noms.map((nom) => [nom, (allergenesPlats && allergenesPlats[nom]) || "À renseigner"])} />
+      </>); })()}
 
       <Titre>Origine des viandes et produits</Titre>
       <Tab cols={["Produit", "Mention d'origine"]} vide="Aucun produit en stock."
@@ -7638,14 +7758,14 @@ function ComplementsControle({ debut, fin, receptions, alertes, rappels, declara
   );
 }
 
-function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappels, declarationsTiac, pms, fiches, allergenesPlats, stock, origineProduits, integre, onImprimer, imprimerAuMontage, modeInit, jourInit, moisInit, ...donnees }) {
+function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappels, declarationsTiac, pms, fiches, allergenesPlats, stock, origineProduits, cartes, integre, onImprimer, imprimerAuMontage, modeInit, jourInit, moisInit, ...donnees }) {
   const [mode, setMode] = useState(modeInit || "jour");
   const [jour, setJour] = useState(jourInit || todayISO());
   const [mois, setMois] = useState(moisInit || todayISO().slice(0, 7));
   useEffect(() => { if (imprimerAuMontage) { const t = setTimeout(() => window.print(), 600); return () => clearTimeout(t); } }, [imprimerAuMontage]);
   const debut = mode === "jour" ? jour : `${mois}-01`;
   const fin = mode === "jour" ? jour : `${mois}-31`;
-  const complements = <ComplementsControle debut={debut} fin={fin} receptions={receptions} alertes={alertes} rappels={rappels} declarationsTiac={declarationsTiac} pms={pms} employees={donnees.employees} fiches={fiches} allergenesPlats={allergenesPlats} stock={stock} origineProduits={origineProduits} />;
+  const complements = <ComplementsControle debut={debut} fin={fin} receptions={receptions} alertes={alertes} rappels={rappels} declarationsTiac={declarationsTiac} pms={pms} employees={donnees.employees} fiches={fiches} allergenesPlats={allergenesPlats} stock={stock} origineProduits={origineProduits} cartes={cartes} />;
   const decalerMois = (n) => { const d = new Date(mois + "-01T12:00:00"); d.setMonth(d.getMonth() + n); setMois(d.toISOString().slice(0, 7)); };
   return (
     <div>
@@ -7666,14 +7786,17 @@ function DossierControle({ onBack, nomEtablissement, receptions, alertes, rappel
         : <ReleveMensuelHACCP {...donnees} mois={mois} setMois={setMois} nomEtablissement={nomEtablissement} sansBarre complements={complements} onBack={onBack} />}
       {integre && onImprimer && (
         <div className="mt-6 flex justify-center print:hidden">
-          <Button onClick={() => onImprimer({ mode, jour, mois })}><Printer size={16} /> Imprimer les documents</Button>
+          <div className="flex flex-col sm:flex-row gap-2 items-center">
+            <Button onClick={() => onImprimer({ mode, jour, mois, complet: true })}><Printer size={16} /> Tout imprimer pour le contrôle (avec le dossier PMS)</Button>
+            <Button variant="ghost" onClick={() => onImprimer({ mode, jour, mois })}><Printer size={16} /> Imprimer seulement les relevés</Button>
+          </div>
         </div>
       )}
     </div>
   );
 }
 
-function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, mois, setMois, onBack, nomEtablissement, sansBarre, complements }) {
+function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, relevesFroid, equipementsFroid, mois, setMois, onBack, nomEtablissement, sansBarre, complements, entriesMaintienChaud, executionsNettoyage }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom || "—";
   const joursduMois = [];
   const debut = new Date(mois + "-01T00:00:00");
@@ -7849,6 +7972,15 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
           </div>
         )}
 
+        {/* Ajout du 27/11 (demande de Loïc) : le registre du mois a aussi le maintien au chaud et le nettoyage, comme le relevé du jour. */}
+        <h3 className="font-bold text-[var(--ink)] border-b-2 border-[var(--ink)] pb-1.5 mb-4 uppercase tracking-wide text-sm">7. Maintien au chaud</h3>
+        <MaintienDossier entries={entriesMaintienChaud || []} debut={`${mois}-01`} fin={joursduMois[joursduMois.length - 1]} who={who} avecDate />
+
+        <h3 className="font-bold text-[var(--ink)] border-b-2 border-[var(--ink)] pb-1.5 mb-4 uppercase tracking-wide text-sm">8. Plan de nettoyage</h3>
+        {executionsNettoyage
+          ? <NettoyageDossier cleaning={cleaning} executions={executionsNettoyage} debut={`${mois}-01`} fin={joursduMois[joursduMois.length - 1] < todayISO() ? joursduMois[joursduMois.length - 1] : todayISO()} who={who} synthese />
+          : <p className="text-sm text-[var(--steel)] mb-6">Le détail du nettoyage par jour est disponible avec la connexion de l'établissement.</p>}
+
         {complements}
 
         <div className="mt-8 pt-4 border-t border-[var(--line)] grid grid-cols-2 gap-8">
@@ -7868,7 +8000,7 @@ function ReleveMensuelHACCP({ employees, tasks, tempLogs, huileTests, refroidiss
   );
 }
 
-function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, today, onBack, relevesFroid, equipementsFroid, nomEtablissement, sansBarre, complements }) {
+function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissements, cuissons, preparations, produits, cleaning, shifts, reservations, today, onBack, relevesFroid, equipementsFroid, nomEtablissement, sansBarre, complements, entriesMaintienChaud, executionsNettoyage }) {
   const who = (id) => employees.find((e) => e.id === id)?.nom;
   const tempsDuJour = tempLogs.filter((l) => l.date === today);
   const huileDuJour = huileTests.filter((h) => h.date === today);
@@ -7938,7 +8070,8 @@ function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissemen
         )}
 
         <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Maintien au chaud</h3>
-        {tempsDuJour.length === 0 ? <p className="text-sm text-[var(--steel)] mb-6">Aucun relevé aujourd'hui.</p> : (
+        {entriesMaintienChaud && <MaintienDossier entries={entriesMaintienChaud} debut={today} fin={today} who={who} />}
+        {tempsDuJour.length === 0 ? (entriesMaintienChaud ? null : <p className="text-sm text-[var(--steel)] mb-6">Aucun relevé aujourd'hui.</p>) : (
           <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-sm mb-6 min-w-[440px] print:min-w-0">
             <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Heure</th><th className="pb-1.5 font-medium">Emplacement</th><th className="pb-1.5 font-medium">Valeur</th><th className="pb-1.5 font-medium">Conformité</th></tr></thead>
@@ -8057,7 +8190,7 @@ function ReleveControle({ employees, tasks, tempLogs, huileTests, refroidissemen
         )}
 
         <h3 className="font-semibold text-[var(--ink)] border-b border-[var(--line)] pb-1.5 mb-3">Plan de nettoyage</h3>
-        {cleaning.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune tâche définie.</p> : (
+        {executionsNettoyage ? <NettoyageDossier cleaning={cleaning} executions={executionsNettoyage} debut={today} fin={today} who={who} /> : cleaning.length === 0 ? <p className="text-sm text-[var(--steel)]">Aucune tâche définie.</p> : (
           <div className="overflow-x-auto print:overflow-visible">
           <table className="w-full text-sm min-w-[380px] print:min-w-0">
             <thead><tr className="text-left text-[var(--steel)]"><th className="pb-1.5 font-medium">Tâche</th><th className="pb-1.5 font-medium">Fréquence</th><th className="pb-1.5 font-medium">Statut</th></tr></thead>

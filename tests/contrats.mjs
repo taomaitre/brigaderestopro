@@ -30,6 +30,13 @@ const R = [
   ["Fiches techniques : Carte du jour et Carte fixe", /Carte du jour[\s\S]*Carte fixe|Carte fixe[\s\S]*Carte du jour/, true],
   ["Code du chef demandé pour les onglets du chef", /verifierCodeChef/, true],
   ["Remplaçant du chef", /Remplaçant du chef/, true],
+  // Dossier de contrôle (décisions de Loïc du 27/11) : tout imprimer avec le PMS ; maintien et nettoyage dans le registre du mois ;
+  // allergènes = plats de la carte ; les réservations et horaires de l'équipe restent dans le relevé du jour (choix de Loïc).
+  ["Dossier de contrôle : « Tout imprimer pour le contrôle (avec le dossier PMS) »", /Tout imprimer pour le contrôle \(avec le dossier PMS\)/, true],
+  ["Dossier de contrôle complet : le dossier PMS imprimé sans ses boutons", /<PmsDossierImprimable[^\n]*sansBoutons \/>/, true],
+  ["Registre du mois : « 7. Maintien au chaud » et « 8. Plan de nettoyage »", /7\. Maintien au chaud[\s\S]{0,600}8\. Plan de nettoyage/, true],
+  ["Dossier de contrôle : allergènes des plats de la carte (platsPourDossier)", /platsPourDossier\(cartes, fiches/, true],
+  ["Dossier de contrôle : nettoyage depuis les vraies exécutions (occurrencesDuJour)", /function NettoyageDossier[\s\S]{0,400}occurrencesDuJour/, true],
   // Étiquettes DLC
   ["Étiquettes : « Réimprimer la dernière étiquette faite »", /Réimprimer la dernière étiquette faite/, true],
   ["Étiquettes : « Quantité utilisée »", /Quantité utilisée/, true],
